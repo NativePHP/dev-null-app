@@ -2,10 +2,10 @@
 
 use Native\Mobile\Testing\Native;
 
-it('sends a new device to onboarding', function () {
+it('sends a new device to the welcome screen', function () {
     fakeKeychain();
 
-    Native::visit('/')->assertReplacedWith('/onboarding');
+    Native::visit('/')->assertReplacedWith('/welcome');
 });
 
 it('sends a verified device straight to the log', function () {
