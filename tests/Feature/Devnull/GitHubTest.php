@@ -20,7 +20,7 @@ it('is only enabled with a client id', function () {
     expect(app(GitHub::class)->enabled())->toBeFalse();
 });
 
-it('asks for a device code with only the signing key scope', function () {
+it('asks for a device code with just the client id', function () {
     Http::fake(['github.com/login/device/code' => Http::response(gitHubDeviceCodeJson())]);
 
     $code = app(GitHub::class)->requestDeviceCode();
@@ -36,7 +36,7 @@ it('asks for a device code with only the signing key scope', function () {
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://github.com/login/device/code'
         && $request->method() === 'POST'
         && $request->isForm()
-        && $request->data() === ['client_id' => 'Ov23liDevnullTest', 'scope' => 'write:ssh_signing_key']
+        && $request->data() === ['client_id' => 'Ov23liDevnullTest']
         && $request->header('Accept') === ['application/json']);
 });
 
@@ -94,7 +94,7 @@ it('hands back the token once granted, without showing it in dumps', function ()
     Http::fake(['github.com/login/oauth/access_token' => Http::response([
         'access_token' => 'gho_not-a-real-token-for-tests',
         'token_type' => 'bearer',
-        'scope' => 'write:ssh_signing_key',
+        'scope' => '',
     ])]);
 
     $authorization = app(GitHub::class)->requestToken('device-code');

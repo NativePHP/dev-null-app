@@ -30,7 +30,7 @@ beforeEach(function () {
  * @param  array{0: array<string, mixed>, 1: int}|null  $signingKeyAnswer
  */
 function fakeGitHub(
-    array $tokenAnswers = [['access_token' => GitHubToken, 'token_type' => 'bearer', 'scope' => 'write:ssh_signing_key']],
+    array $tokenAnswers = [['access_token' => GitHubToken, 'token_type' => 'bearer', 'scope' => '']],
     array $keySyncAnswers = [[['data' => ['username' => 'local_dev']]]],
     ?array $signingKeyAnswer = null,
     array $deviceCode = [],
@@ -114,7 +114,7 @@ it('adds the key through GitHub, forgets the token and signs in', function () {
     gitHubKeychain();
     fakeGitHub(tokenAnswers: [
         ['error' => 'authorization_pending', 'error_description' => 'The authorization request is still pending.'],
-        ['access_token' => GitHubToken, 'token_type' => 'bearer', 'scope' => 'write:ssh_signing_key'],
+        ['access_token' => GitHubToken, 'token_type' => 'bearer', 'scope' => ''],
     ]);
 
     $screen = Native::visit('/onboarding')

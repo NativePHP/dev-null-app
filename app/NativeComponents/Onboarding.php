@@ -24,7 +24,7 @@ use SensitiveParameter;
 /**
  * This phone has its own SSH key. Add it to GitHub once and devnull knows who you are.
  *
- * With an OAuth app configured, the app adds the key itself through GitHub's
+ * With a GitHub App configured, the app adds the key itself through GitHub's
  * device flow. Adding it by hand stays available either way.
  */
 class Onboarding extends NativeComponent

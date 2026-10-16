@@ -39,9 +39,10 @@ COMPOSER=composer.free.json php artisan native:run ios
 Without the plugin, the app keeps its key in a file encrypted with `APP_KEY` instead of in the Keychain. That's fine for a simulator, but don't ship it. `DEVNULL_KEY_STORE` (`keychain` or `file`) overrides the choice.
 
 Then set these in `.env`:
+These can be set in `.env`:
 
 - `DEVNULL_URL` is the devnull instance to talk to. It defaults to production.
-- `DEVNULL_GITHUB_CLIENT_ID` is the client ID of a GitHub App with device flow enabled and the account permission "SSH signing keys" set to read and write. No client secret is needed. Leave it empty and the app only offers the copy-and-paste flow.
+- `DEVNULL_GITHUB_CLIENT_ID` defaults to the devnull mobile GitHub App. To use your own, create a GitHub App that any account can install, with device flow enabled and the account permission "SSH signing keys" set to read and write. No client secret is needed. Set it to an empty value and the app only offers the copy-and-paste flow.
 
 ## Running it
 

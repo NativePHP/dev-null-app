@@ -14,19 +14,18 @@ use Illuminate\Support\Facades\Http;
 use SensitiveParameter;
 
 /**
- * Adds this phone's signing key to GitHub through the OAuth device flow.
+ * Adds this phone's signing key to GitHub through a GitHub App's device flow.
  *
- * The only scope asked for is `write:ssh_signing_key`. The access token is
+ * A GitHub App's token can only do what the app's settings allow, and this
+ * app only needs the "SSH signing keys" account permission. The token is
  * passed in for the two calls that add the key and is never kept: not here,
  * not in the Keychain, not on disk.
  *
- * @see https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow
+ * @see https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app#using-the-device-flow-to-generate-a-user-access-token
  * @see https://docs.github.com/en/rest/users/ssh-signing-keys
  */
 final readonly class GitHub
 {
-    public const string Scope = 'write:ssh_signing_key';
-
     public const string ApiVersion = '2022-11-28';
 
     private const string Web = 'https://github.com';
@@ -38,7 +37,7 @@ final readonly class GitHub
     public function __construct(private string $clientId) {}
 
     /**
-     * Without a client ID there's no OAuth app to ask, so only the manual flow is offered.
+     * Without a client ID there's no GitHub App to ask, so only the manual flow is offered.
      */
     public function enabled(): bool
     {
@@ -49,7 +48,6 @@ final readonly class GitHub
     {
         $response = $this->send(fn (): Response => $this->oauth()->post(self::Web.'/login/device/code', [
             'client_id' => $this->clientId,
-            'scope' => self::Scope,
         ]), self::Web);
 
         if (! $response->successful() || $response->json('error') !== null) {
