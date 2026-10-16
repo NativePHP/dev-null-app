@@ -1,5 +1,7 @@
 <?php
 
+use Composer\InstalledVersions;
+
 return [
 
     /*
@@ -26,5 +28,18 @@ return [
     */
 
     'github_client_id' => env('DEVNULL_GITHUB_CLIENT_ID'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Device key store
+    |--------------------------------------------------------------------------
+    |
+    | Where this phone's key is kept: "keychain" needs the paid Secure Storage
+    | plugin, "file" is an encrypted file for building without it. Leave it
+    | unset to use the Keychain whenever the plugin is installed.
+    |
+    */
+
+    'key_store' => env('DEVNULL_KEY_STORE', InstalledVersions::isInstalled('nativephp/mobile-secure-storage') ? 'keychain' : 'file'),
 
 ];
