@@ -8,9 +8,11 @@ use App\NativeComponents\Notifications;
 use App\NativeComponents\Onboarding;
 use App\NativeComponents\Profile;
 use App\NativeComponents\ThisDevice;
+use App\NativeComponents\Welcome;
 use Illuminate\Support\Facades\Route;
 
 Route::native('/', Launch::class);
+Route::native('/welcome', Welcome::class);
 Route::native('/onboarding', Onboarding::class);
 
 Route::nativeGroup(TabsLayout::class, function (): void {
