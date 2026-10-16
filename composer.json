@@ -57,6 +57,15 @@
             "@php artisan key:generate",
             "@php artisan migrate --force"
         ],
+        "setup:free": [
+            "@php -r \"copy('composer.json', 'composer.free.json'); copy('composer.lock', 'composer.free.lock');\"",
+            "@putenv COMPOSER=composer.free.json",
+            "@composer config --unset repositories.nativephp-plugins",
+            "@composer remove nativephp/mobile-secure-storage --no-interaction",
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+            "@php artisan key:generate",
+            "@php artisan migrate --force"
+        ],
         "test": [
             "@php artisan config:clear --ansi",
             "@php artisan test"

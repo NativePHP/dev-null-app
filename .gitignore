@@ -13,6 +13,8 @@
 /.vscode
 /.zed
 /auth.json
+/composer.free.json
+/composer.free.lock
 /node_modules
 /public/build
 /public/hot
