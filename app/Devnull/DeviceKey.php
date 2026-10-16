@@ -3,7 +3,6 @@
 namespace App\Devnull;
 
 use App\Devnull\Exceptions\KeychainUnavailable;
-use Native\Mobile\Facades\SecureStorage;
 
 /**
  * This device's SSH key. Only the seed is stored, and only in the Keychain.
@@ -11,6 +10,8 @@ use Native\Mobile\Facades\SecureStorage;
 final class DeviceKey
 {
     public const string StorageKey = 'devnull.device-key';
+
+    public function __construct(private KeyStore $store) {}
 
     /**
      * Loads the key, making one the first time it's asked for.
@@ -20,7 +21,7 @@ final class DeviceKey
      */
     public function current(): SshKey
     {
-        $stored = SecureStorage::read(self::StorageKey);
+        $stored = $this->store->read(self::StorageKey);
 
         if ($stored->found()) {
             $seed = base64_decode((string) $stored->value, true);
@@ -38,7 +39,7 @@ final class DeviceKey
 
         $key = SshKey::generate();
 
-        if (! SecureStorage::set(self::StorageKey, base64_encode($key->seed()))) {
+        if (! $this->store->set(self::StorageKey, base64_encode($key->seed()))) {
             throw new KeychainUnavailable('fatal: could not save a new device key to the Keychain.');
         }
 
@@ -47,6 +48,6 @@ final class DeviceKey
 
     public function forget(): void
     {
-        SecureStorage::delete(self::StorageKey);
+        $this->store->delete(self::StorageKey);
     }
 }

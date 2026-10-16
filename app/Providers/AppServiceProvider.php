@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Devnull\Client;
 use App\Devnull\DeviceKey;
 use App\Devnull\GitHub;
+use App\Devnull\KeyStore;
+use App\Devnull\KeyStores\Keychain;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Date;
@@ -25,6 +27,8 @@ class AppServiceProvider extends ServiceProvider
         ));
 
         $this->app->bind(GitHub::class, fn (): GitHub => new GitHub((string) config('devnull.github_client_id')));
+
+        $this->app->bind(KeyStore::class, Keychain::class);
     }
 
     /**
