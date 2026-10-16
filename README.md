@@ -22,6 +22,22 @@ php artisan key:generate
 
 `nativephp/mobile-secure-storage` is a paid plugin from `plugins.nativephp.com`, so `composer install` needs your NativePHP plugin licence.
 
+### Without a plugin licence
+
+```sh
+composer setup:free
+```
+
+This installs everything except the Secure Storage plugin, from a copy of `composer.json` and `composer.lock` that it writes to `composer.free.*`. To install again later, run `COMPOSER=composer.free.json composer install`.
+
+Build the same way, since `native:run` runs its own `composer install` on a copy of the app:
+
+```sh
+COMPOSER=composer.free.json php artisan native:run ios
+```
+
+Without the plugin, the app keeps its key in a file encrypted with `APP_KEY` instead of in the Keychain. That's fine for a simulator, but don't ship it. `DEVNULL_KEY_STORE` (`keychain` or `file`) overrides the choice.
+
 Then set these in `.env`:
 
 - `DEVNULL_URL` is the devnull instance to talk to. It defaults to production.
