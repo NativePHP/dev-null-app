@@ -96,6 +96,11 @@ class Onboarding extends NativeComponent
         if (config('app.debug')) {
             Log::info('devnull device key', ['public_key' => $this->publicKey, 'fingerprint' => $this->fingerprint]);
         }
+
+        // Sign in with GitHub on the welcome screen means the device flow, so skip the tap that starts it.
+        if ($this->data('github') === true) {
+            $this->connectGitHub();
+        }
     }
 
     public function shareKey(): void

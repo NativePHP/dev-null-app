@@ -476,3 +476,12 @@ it('never keeps the token anywhere', function () {
     Http::assertNotSent(fn (Request $request): bool => ! str_contains($request->url(), 'api.github.com')
         && str_contains($request->body().json_encode($request->headers()), GitHubToken));
 });
+
+it('starts the device flow straight away when arriving from Sign in with GitHub', function () {
+    gitHubKeychain();
+    fakeGitHub();
+
+    Native::visit('/onboarding', ['github' => true])
+        ->assertSet('step', GitHubStep::Authorizing)
+        ->assertSee('Enter this code on GitHub.');
+});

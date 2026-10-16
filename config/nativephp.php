@@ -110,6 +110,10 @@ return [
     */
 
     'permissions' => [
+        // Not a permission, but this is where app-level Info.plist keys go. devnull is dark first, like the web, so
+        // iOS draws the app, its splash and its system chrome dark whatever the phone is set to.
+        'UIUserInterfaceStyle' => 'Dark',
+
         // 'NSCameraUsageDescription' => 'Used to take a profile photo.',
         // 'NSMicrophoneUsageDescription' => 'Used to record audio with your videos.',
         // 'NSPhotoLibraryUsageDescription' => 'Used to select photos for your post.',

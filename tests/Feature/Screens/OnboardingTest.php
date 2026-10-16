@@ -111,3 +111,14 @@ it('says so when the Keychain is locked', function () {
         ->assertSet('publicKey', '')
         ->assertNativeNotCalled('SecureStorage.Set');
 });
+
+it('offers adding the key by hand when Sign in with GitHub arrives without a GitHub app', function () {
+    config(['devnull.github_client_id' => null]);
+    fakeKeychain(testSeed());
+    Http::fake();
+
+    Native::visit('/onboarding', ['github' => true])
+        ->assertSee('Add the public half to GitHub once');
+
+    Http::assertNothingSent();
+});
