@@ -14,7 +14,7 @@ class Welcome extends NativeComponent
 {
     public function signInWithGitHub(): void
     {
-        $this->navigate('/onboarding');
+        $this->navigate('/onboarding', ['github' => true]);
     }
 
     public function render(): View
