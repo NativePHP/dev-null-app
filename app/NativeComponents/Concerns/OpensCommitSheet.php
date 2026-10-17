@@ -14,8 +14,10 @@ use Closure;
  * published commit can be reported, so only those have More.
  *
  * Quote opens the same sheet as a composer, over the commit being quoted, as
- * the web's Quote dialog. Once devnull has the quote the sheet goes, and a
- * screen that lists your new commits puts it in place (see showCommitted()).
+ * the web's Quote dialog. The Log opens it with nothing to quote, for a new
+ * commit of your own, so you can write one without leaving where you are in
+ * it. Once devnull has the commit the sheet goes, and a screen that lists
+ * your new commits puts it in place (see showCommitted()).
  *
  * The sheet keeps its commit while it slides away, so it doesn't empty on the
  * way down, and forgets it and any draft once iOS says it's gone, however it
@@ -35,7 +37,8 @@ trait OpensCommitSheet
     public ?Commit $sheetCommit = null;
 
     /**
-     * What the sheet shows: 'more' (Share link and Report commit), 'report' (the form), 'reported' (sent) or 'quote'.
+     * What the sheet shows: 'more' (Share link and Report commit), 'report' (the form), 'reported' (sent),
+     * 'quote', or 'compose' (a new commit, with no commit of its own).
      */
     public string $sheetView = 'more';
 
@@ -47,12 +50,12 @@ trait OpensCommitSheet
     public string $reportDetails = '';
 
     /**
-     * The commit you're writing to quote the sheet's commit.
+     * The commit you're writing in the sheet, quoting its commit or not.
      */
-    public string $quoteBody = '';
+    public string $sheetBody = '';
 
     /**
-     * Why devnull didn't take the report or the quote, shown in the sheet.
+     * Why devnull didn't take the report or the commit, shown in the sheet.
      */
     public ?string $sheetError = null;
 
@@ -140,18 +143,29 @@ trait OpensCommitSheet
     }
 
     /**
-     * Commits the quote. The sheet goes once devnull has it, or keeps the draft with why it didn't take it.
+     * A new commit in the sheet, with nothing quoted.
      */
-    public function sendQuote(): void
+    public function composeInSheet(): void
     {
-        $quoted = $this->sheetCommit;
-        $body = trim($this->quoteBody);
+        $this->forgetCommitSheet();
+        $this->sheetView = 'compose';
+        $this->sheetOpen = true;
+    }
 
-        if ($quoted === null || $this->sheetView !== 'quote' || mb_strlen($body) < Commit::MinLength || mb_strlen($body) > Commit::MaxLength) {
+    /**
+     * Commits what's written in the sheet, quoting its commit if it's a quote. The sheet goes once devnull has it,
+     * or keeps the draft with why it didn't take it.
+     */
+    public function commitFromSheet(): void
+    {
+        $quoted = $this->sheetView === 'quote' ? $this->sheetCommit : null;
+        $body = trim($this->sheetBody);
+
+        if (($quoted === null && $this->sheetView !== 'compose') || mb_strlen($body) < Commit::MinLength || mb_strlen($body) > Commit::MaxLength) {
             return;
         }
 
-        $commit = $this->attemptInSheet(fn (Client $devnull): Commit => $devnull->createCommit($body, quotedCommitId: $quoted->id));
+        $commit = $this->attemptInSheet(fn (Client $devnull): Commit => $devnull->createCommit($body, quotedCommitId: $quoted?->id));
 
         if ($commit === null) {
             return;
@@ -213,7 +227,7 @@ trait OpensCommitSheet
         $this->sheetView = 'more';
         $this->reportReason = '';
         $this->reportDetails = '';
-        $this->quoteBody = '';
+        $this->sheetBody = '';
         $this->sheetError = null;
         $this->shareAfterSheet = null;
     }

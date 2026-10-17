@@ -1,7 +1,8 @@
 {{--
     The sheet under a commit (see OpensCommitSheet). Quote opens it as a composer: the field, focused, with the commit
     being quoted under it as a static card, then the counter and Commit, which waits for a body long enough to make.
-    If devnull says no, why shows here and the draft stays.
+    If devnull says no, why shows here and the draft stays. The Log's compose button opens the same composer for a new
+    commit, without the card.
 
     More opens it under someone else's published commit, with two rows, Share link and Report commit. Report commit turns it into the web's Report dialog: the private, not-hidden line, the
     commit's body clamped to three lines, the four reasons, optional details, and Send report, which waits for a
@@ -11,19 +12,20 @@
     It's short for the two rows and the receipt, and full height for the forms. It's always on the screen, shown or
     not, so iOS can slide it away and say when it's gone.
 --}}
-<native:bottom-sheet ref="sheet" :visible="$sheetOpen" :detents="in_array($sheetView, ['report', 'quote'], true) ? 'large' : '0.3'" @dismiss="commitSheetClosed">
-    @if ($sheetCommit)
-        @if ($sheetView === 'quote')
-            @php($quoteLength = mb_strlen(trim($quoteBody)))
-            <native:scroll-view ref="quote-form" class="w-full flex-1">
+<native:bottom-sheet ref="sheet" :visible="$sheetOpen" :detents="in_array($sheetView, ['report', 'quote', 'compose'], true) ? 'large' : '0.3'" @dismiss="commitSheetClosed">
+    @if ($sheetCommit || $sheetView === 'compose')
+        @if (in_array($sheetView, ['quote', 'compose'], true))
+            @php($sheetLength = mb_strlen(trim($sheetBody)))
+            @php($quoting = $sheetView === 'quote')
+            <native:scroll-view ref="sheet-composer" class="w-full flex-1">
                 <native:column class="w-full px-5 pt-6 pb-10 gap-4">
-                    <native:text font="semibold" class="text-lg text-theme-ink">Quote {{ $sheetCommit->author->handle() }}</native:text>
+                    <native:text font="semibold" class="text-lg text-theme-ink">{{ $quoting ? 'Quote '.$sheetCommit->author->handle() : 'New commit' }}</native:text>
 
                     <native:bare-text-input
-                        ref="quote-body"
+                        ref="sheet-body"
                         class="w-full text-theme-ink"
-                        placeholder="Add your take"
-                        native:model.debounce.150ms="quoteBody"
+                        :placeholder="$quoting ? 'Add your take' : 'What did you ship?'"
+                        native:model.debounce.150ms="sheetBody"
                         autofocus
                         multiline
                         :max-lines="8"
@@ -32,15 +34,17 @@
                         a11y-label="Your commit"
                     />
 
-                    @include('native.partials.quoted-commit', ['quoted' => $sheetCommit, 'static' => true])
+                    @if ($quoting)
+                        @include('native.partials.quoted-commit', ['quoted' => $sheetCommit, 'static' => true])
+                    @endif
 
                     @if ($sheetError)
                         <native:text ref="sheet-error" class="w-full text-sm text-theme-destructive">{{ $sheetError }}</native:text>
                     @endif
 
                     <native:row class="w-full gap-3 items-center justify-end">
-                        @include('native.partials.body-counter', ['body' => $quoteBody, 'ref' => 'quote-budget'])
-                        <native:button ref="send-quote" variant="primary" :disabled="$quoteLength < \App\Devnull\Data\Commit::MinLength || $quoteLength > \App\Devnull\Data\Commit::MaxLength" @press="sendQuote">Commit</native:button>
+                        @include('native.partials.body-counter', ['body' => $sheetBody, 'ref' => 'sheet-budget'])
+                        <native:button ref="sheet-commit" variant="primary" :disabled="$sheetLength < \App\Devnull\Data\Commit::MinLength || $sheetLength > \App\Devnull\Data\Commit::MaxLength" @press="commitFromSheet">Commit</native:button>
                     </native:row>
                 </native:column>
             </native:scroll-view>

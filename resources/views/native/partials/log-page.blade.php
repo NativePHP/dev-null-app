@@ -2,9 +2,9 @@
     One log's page in the Log's pager (see App\NativeComponents\Log::page()): the log you're on, or the first few
     commits kept for another, ready for a swipe.
 
-    Each log has its own list. A new $page['listKey'] puts it back at the top, as the nav bar's compose button and the
-    pill do. A list kept while every row changed under it kept its scroll offset and row heights, and iOS drew it blank
-    with the first rows pushed to the bottom, so a page only gets new rows under it when it can't have been scrolled.
+    Each log has its own list. A new $page['listKey'] puts it back at the top, as the pill does. A list kept while every
+    row changed under it kept its scroll offset and row heights, and iOS drew it blank with the first rows pushed to the
+    bottom, so a page only gets new rows under it when it can't have been scrolled.
 
     Only the log you're on asks for its next page: a page laid out off screen still shows its rows, and its last ones
     would ask for more of the log you're on. Every page keeps pull to refresh, which can only be pulled on the log
@@ -20,7 +20,7 @@
         :end-reached-buffer="5"
     >
         @if ($viewer)
-            @include('native.partials.composer', ['me' => $viewer, 'focusComposer' => $focusComposer && $page['showing']])
+            @include('native.partials.composer', ['me' => $viewer])
         @endif
 
         @if (! $page['loaded'] && $page['error'] === null)

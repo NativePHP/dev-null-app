@@ -50,7 +50,7 @@ function quoteSheetOnLog(?array $answer = null): TestableComponent
 
 function quoteButtonDisabled(TestableComponent $screen): bool
 {
-    return nodeByRef($screen, 'send-quote')['props']['disabled'] ?? false;
+    return nodeByRef($screen, 'sheet-commit')['props']['disabled'] ?? false;
 }
 
 it('makes Quote a button with a full target where the row had it', function () {
@@ -83,7 +83,7 @@ it('opens a composer over the commit being quoted, drawn as the static quote car
     $screen = quoteSheetOnLog();
 
     expect(nodeByRef($screen, 'sheet')['props'])->toMatchArray(['visible' => true, 'detents' => 'large'])
-        ->and(nodeByRef($screen, 'quote-body')['props'])->toMatchArray([
+        ->and(nodeByRef($screen, 'sheet-body')['props'])->toMatchArray([
             'placeholder' => 'Add your take',
             'multiline' => true,
             'max_length' => Commit::MaxLength,
@@ -106,29 +106,29 @@ it('keeps Commit disabled until the quote is long enough, and short enough', fun
 
     expect(quoteButtonDisabled($screen))->toBeTrue();
 
-    $screen->input('quote-body', '  ab  ');
+    $screen->input('sheet-body', '  ab  ');
     expect(quoteButtonDisabled($screen))->toBeTrue();
 
-    $screen->input('quote-body', 'abc');
+    $screen->input('sheet-body', 'abc');
     expect(quoteButtonDisabled($screen))->toBeFalse();
 
     // The Log composer's counter, once few characters are left.
-    $screen->input('quote-body', str_repeat('a', Commit::MaxLength - 10));
+    $screen->input('sheet-body', str_repeat('a', Commit::MaxLength - 10));
     expect(quoteButtonDisabled($screen))->toBeFalse()
-        ->and(nodeByRef($screen, 'quote-budget')['props']['text'])->toBe('10');
+        ->and(nodeByRef($screen, 'sheet-budget')['props']['text'])->toBe('10');
 
-    $screen->input('quote-body', str_repeat('a', Commit::MaxLength + 1));
+    $screen->input('sheet-body', str_repeat('a', Commit::MaxLength + 1));
     expect(quoteButtonDisabled($screen))->toBeTrue();
 
     // Pressing it anyway sends nothing.
-    $screen->call('sendQuote');
+    $screen->call('commitFromSheet');
     Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
 });
 
 it('commits the quote with the id of the commit it quotes, and puts it at the top of the log', function () {
     $screen = quoteSheetOnLog()
-        ->input('quote-body', '  This, all of it.  ')
-        ->tap('send-quote');
+        ->input('sheet-body', '  This, all of it.  ')
+        ->tap('sheet-commit');
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
         && $request->url() === 'http://devnull.test/api/v1/commits'
@@ -149,16 +149,16 @@ it('commits the quote with the id of the commit it quotes, and puts it at the to
 
     expect($screen->instance())
         ->sheetCommit->toBeNull()
-        ->quoteBody->toBe('');
+        ->sheetBody->toBe('');
 });
 
 it('shows why devnull said no in the sheet, keeping the draft', function () {
     $screen = quoteSheetOnLog([['message' => 'That commit is no longer available to quote.', 'errors' => ['quoted_commit_id' => ['That commit is no longer available to quote.']]], 422])
-        ->input('quote-body', 'This, all of it.')
-        ->tap('send-quote');
+        ->input('sheet-body', 'This, all of it.')
+        ->tap('sheet-commit');
 
     expect(nodeByRef($screen, 'sheet-error')['props']['text'])->toBe('That commit is no longer available to quote.')
-        ->and(nodeByRef($screen, 'quote-body')['props']['value'])->toBe('This, all of it.')
+        ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('This, all of it.')
         ->and(quoteButtonDisabled($screen))->toBeFalse()
         ->and(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
         ->and($screen->instance()->error)->toBeNull()
@@ -166,18 +166,18 @@ it('shows why devnull said no in the sheet, keeping the draft', function () {
 });
 
 it('forgets the draft when the sheet is swiped away', function () {
-    $screen = quoteSheetOnLog()->input('quote-body', 'Half a thought');
+    $screen = quoteSheetOnLog()->input('sheet-body', 'Half a thought');
 
     $screen->dismissSheet('sheet');
 
     expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeFalse()
         ->and($screen->instance())
         ->sheetCommit->toBeNull()
-        ->quoteBody->toBe('');
+        ->sheetBody->toBe('');
 
     $screen->tap('quote-c1');
 
-    expect(nodeByRef($screen, 'quote-body')['props']['value'])->toBe('')
+    expect(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('')
         ->and(quoteButtonDisabled($screen))->toBeTrue();
 
     Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
@@ -194,8 +194,8 @@ it('quotes from a commit page, where closing the sheet is all there is to do', f
     $screen = Native::visit('/log/commits/c2', platform: 'ios')
         ->tap('quote-c2')
         ->assertSee('Quote @ada')
-        ->input('quote-body', 'Worth a read.')
-        ->tap('send-quote')
+        ->input('sheet-body', 'Worth a read.')
+        ->tap('sheet-commit')
         ->assertNoNavigation();
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && $request->body() === '{"body":"Worth a read.","quoted_commit_id":"c2"}');

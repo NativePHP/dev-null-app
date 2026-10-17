@@ -30,9 +30,13 @@ use Native\Mobile\Edge\NativeComponent;
  * under a composer you type into where it is, as on the web.
  *
  * EDGE tells PHP nothing about focus, and gives PHP no way to focus a field
- * or scroll a list. So a touch on the field is taken as being in it, a fresh
- * field (a new key) with autofocus is how focus is given, and a new key on the
- * list is how it gets back to the top.
+ * or scroll a list. So a touch on the field is taken as being in it, and a new
+ * key on the list is how it gets back to the top.
+ *
+ * Nor does it say where a list is scrolled, so the nav bar's compose button
+ * can't tell whether the composer is on screen. It always opens the composer
+ * in a sheet (see OpensCommitSheet), which leaves the log where you were in
+ * it, and the commit goes on top as one from the composer does.
  *
  * It opens on the log as it was last time, then asks devnull again in the
  * background, and every 30 seconds while it's showing, as the web polls.
@@ -150,11 +154,6 @@ class Log extends NativeComponent
      */
     public int $composerKey = 0;
 
-    /**
-     * Asks the next fresh field to take the focus, until you touch it or type.
-     */
-    public bool $focusComposer = false;
-
     public function mount(): void
     {
         $this->log = app(ShownTabs::class)->get($this->me()?->id, 'log', self::Logs, 'following');
@@ -198,7 +197,7 @@ class Log extends NativeComponent
             NavAction::make('compose')
                 ->icon(ios: Ios::SquareAndPencil, android: Android::Edit)
                 ->a11yLabel('New commit')
-                ->press('compose'),
+                ->press('composeInSheet'),
         );
     }
 
@@ -419,27 +418,11 @@ class Log extends NativeComponent
     }
 
     /**
-     * The nav bar's compose button: back to the top of the log, into the composer.
-     */
-    public function compose(): void
-    {
-        $this->composing = true;
-        $this->focusComposer = true;
-        $this->listKey++;
-    }
-
-    /**
      * A touch on the composer's field puts you in it.
      */
     public function composerFocused(): void
     {
         $this->composing = true;
-        $this->focusComposer = false;
-    }
-
-    public function updatedBody(): void
-    {
-        $this->focusComposer = false;
     }
 
     public function remaining(): int
@@ -472,13 +455,12 @@ class Log extends NativeComponent
 
         $this->body = '';
         $this->composing = false;
-        $this->focusComposer = false;
         $this->composerKey++;
         $this->showCommitted($commit);
     }
 
     /**
-     * Puts a commit you just made at the top of the log, from the composer or a quote's sheet.
+     * Puts a commit you just made at the top of the log, from the composer or the sheet.
      */
     protected function showCommitted(Commit $commit): void
     {
@@ -522,7 +504,6 @@ class Log extends NativeComponent
         }
 
         $this->composing = false;
-        $this->focusComposer = false;
         $this->composerKey++;
     }
 
