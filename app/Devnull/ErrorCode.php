@@ -2,6 +2,8 @@
 
 namespace App\Devnull;
 
+use App\Devnull\Data\Pasteis;
+
 /**
  * The `code` devnull sends next to an error's message, for the errors the app
  * has to tell apart. A code never changes once released, where the wording
@@ -22,6 +24,7 @@ enum ErrorCode: string
     case OwnCommit = 'own_commit';
     case CommitUnavailable = 'commit_unavailable';
     case GitHubSyncFailed = 'github_sync_failed';
+    case PasteisExhausted = 'pasteis_exhausted';
 
     /**
      * What the app says for it, or null where devnull's own message says it
@@ -42,6 +45,7 @@ enum ErrorCode: string
             self::UserUnavailable => "fatal: this profile isn't available.",
             self::CommitUnavailable => "fatal: this commit isn't available.",
             self::GitHubSyncFailed => 'Could not sync from GitHub. Try again in a minute.',
+            self::PasteisExhausted => Pasteis::Exhausted,
             self::RateLimited, self::OwnCommit => null,
         };
     }

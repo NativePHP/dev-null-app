@@ -12,7 +12,8 @@ use Carbon\CarbonImmutable;
  * It also has what only you see in the web's profile settings: the lane you
  * chose (null for Automatic) and the one Automatic gives you, your GitHub
  * Sponsors page, and when your profile was last synced from GitHub (null when
- * it only was when you signed in).
+ * it only was when you signed in). It has whether pastéis mode is on, how
+ * many pastéis you can still give today, and how many others have given you.
  */
 final readonly class CurrentUser
 {
@@ -24,6 +25,9 @@ final readonly class CurrentUser
         public int $automaticLane = 0,
         public ?string $sponsorsUrl = null,
         public ?CarbonImmutable $githubSyncedAt = null,
+        public bool $pasteisMode = false,
+        public Pasteis $pasteisToday = new Pasteis,
+        public int $pasteisReceived = 0,
     ) {}
 
     /**
@@ -48,6 +52,9 @@ final readonly class CurrentUser
             automaticLane: $automaticLane,
             sponsorsUrl: is_string($sponsorsUrl) && preg_match('#^https://#i', $sponsorsUrl) === 1 ? $sponsorsUrl : null,
             githubSyncedAt: Commit::date($data['github_synced_at'] ?? null),
+            pasteisMode: ($data['pasteis_mode'] ?? false) === true,
+            pasteisToday: Pasteis::fromKept(['remaining' => $data['pasteis_remaining'] ?? null, 'resets_at' => $data['pasteis_resets_at'] ?? null]),
+            pasteisReceived: is_int($data['pasteis_received'] ?? null) ? max(0, $data['pasteis_received']) : 0,
         );
     }
 
@@ -57,6 +64,19 @@ final readonly class CurrentUser
     public static function remembered(User $user): self
     {
         return self::fromArray(['data' => $user->toArray()]);
+    }
+
+    /**
+     * Your pastéis for today, or null while pastéis mode is off.
+     */
+    public function pasteis(): ?Pasteis
+    {
+        return $this->pasteisMode ? $this->pasteisToday : null;
+    }
+
+    public function withPasteisMode(bool $pasteisMode): self
+    {
+        return new self(...[...get_object_vars($this), 'pasteisMode' => $pasteisMode]);
     }
 
     /**

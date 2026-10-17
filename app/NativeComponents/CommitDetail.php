@@ -2,6 +2,7 @@
 
 namespace App\NativeComponents;
 
+use App\Devnull\Account;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitThread;
 use App\Devnull\Data\Page;
@@ -363,6 +364,7 @@ class CommitDetail extends NativeComponent
 
         return view('native.commit-detail', [
             'viewer' => $this->me(),
+            'pasteis' => app(Account::class)->pasteis(),
             'rows' => $this->commit === null ? [] : Timeline::thread(
                 [...($this->earlierShown ? $this->ancestors : []), $this->commit, ...$this->series],
                 laneAbove: $earlier === [] ? null : end($earlier)->lane(),

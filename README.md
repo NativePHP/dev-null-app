@@ -73,4 +73,4 @@ CI needs a `COMPOSER_AUTH` repository secret with your `plugins.nativephp.com` c
 
 ## License
 
-MIT. Geist and Geist Mono are under the SIL Open Font License, see `resources/fonts/OFL.txt`. The icons in `resources/icons` are from [Lucide](https://lucide.dev), as on the web, under the ISC License, see `resources/icons/LICENSE`.
+MIT. Geist and Geist Mono are under the SIL Open Font License, see `resources/fonts/OFL.txt`. The icons in `resources/icons` are from [Lucide](https://lucide.dev), as on the web, under the ISC License, see `resources/icons/LICENSE`. The pastel de nata in `public/images` is drawn from the web's own `public/pastel-de-nata.svg`.

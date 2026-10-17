@@ -52,7 +52,20 @@ final readonly class Client
      */
     public const string LanePath = 'me/lane';
 
+    /**
+     * Where pastéis mode is switched on and off for the signed-in account.
+     */
+    public const string PasteisModePath = 'me/pasteis-mode';
+
     public function __construct(private DeviceKey $deviceKey, private string $baseUrl, private ResponseCache $cache) {}
+
+    /**
+     * Where a pastel is given to a commit, one per request.
+     */
+    public static function pastelPath(string $id): string
+    {
+        return 'commits/'.rawurlencode($id).'/pasteis';
+    }
 
     /**
      * Trades the code dev-null.sh sent back, with the PKCE verifier only this

@@ -208,20 +208,46 @@ final class ResponseCache
     // ── The app's own writes ──────────────────────
 
     /**
-     * Your star or bookmark changed: every copy of the commit takes the counts devnull sent back.
+     * Your star, bookmark or pastel changed: every copy of the commit takes the counts devnull sent back.
      *
      * @param  array<string, mixed>  $commit
      */
     public function commitReacted(array $commit): void
     {
         $id = (string) ($commit['id'] ?? '');
-        $reactions = array_intersect_key($commit, array_flip(['starred', 'stars_count', 'is_saved']));
+        $reactions = array_intersect_key($commit, array_flip(['starred', 'stars_count', 'is_saved', 'pasteis_count']));
 
         if ($id === '' || $reactions === []) {
             return;
         }
 
         $this->patchCommit($id, fn (array $kept): array => [...$kept, ...$reactions]);
+    }
+
+    /**
+     * You gave a pastel, and devnull answered with the commit, how many you
+     * have left today, and how many its author has been given in all. Every
+     * copy of the commit takes its count, their profile its total, and the
+     * kept `me` what you have left.
+     *
+     * @param  array<string, mixed>  $json
+     */
+    public function pastelGiven(array $json): void
+    {
+        $commit = is_array($json['data'] ?? null) ? $json['data'] : [];
+        $author = is_array($commit['author'] ?? null) ? $commit['author'] : [];
+
+        $this->commitReacted($commit);
+
+        if (is_string($author['username'] ?? null) && is_int($json['author_pasteis_received'] ?? null)) {
+            $this->patch('users/'.rawurlencode($author['username']), [], fn (array $kept): array => [...$kept, 'pasteis_received' => $json['author_pasteis_received']]);
+        }
+
+        if (is_int($json['pasteis_remaining'] ?? null)) {
+            $this->patch('me', [], fn (array $kept): array => is_array($kept['data'] ?? null)
+                ? [...$kept, 'data' => [...$kept['data'], 'pasteis_remaining' => $json['pasteis_remaining'], 'pasteis_resets_at' => $json['pasteis_resets_at'] ?? null]]
+                : $kept);
+        }
     }
 
     /**

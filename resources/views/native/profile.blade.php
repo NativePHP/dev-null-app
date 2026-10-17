@@ -98,6 +98,15 @@
                         @endforeach
                     </native:row>
                     @endif
+
+                    {{-- In pastéis mode, as on the web: how many pastéis they have been given. --}}
+                    @if (! $sketched && $pasteis !== null && $profile->pasteisReceived !== null)
+                        <native:row ref="pasteis-received" class="w-full gap-[6] items-center" a11y-label="{{ $profile->pasteisReceived }} pastéis received">
+                            <native:image :src="\App\Devnull\Data\Pasteis::Image" :width="20" :height="20" :fit="1" />
+                            <native:text font="mono-medium" class="text-sm text-theme-ink">{{ $profile->pasteisReceived }}</native:text>
+                            <native:text class="text-sm text-theme-ink-muted">pastéis received</native:text>
+                        </native:row>
+                    @endif
                 </native:column>
                 <native:column class="w-full h-[1] bg-theme-hairline" />
 
