@@ -249,17 +249,20 @@ it('switches between commits and replies like the web profile', function () {
 
     $screen = Native::visit('/log/users/ada')
         ->assertSet('tab', 'commits')
-        ->assertSee('Commits')
-        ->assertSee('Replies')
-        ->assertSee('A top-level commit')
-        ->tap('tab-replies')
+        ->assertSee('A top-level commit');
+
+    expect(nodeByRef($screen, 'profile-pager')['props'])->toMatchArray(['tabs' => ['Commits', 'Replies'], 'page' => 0]);
+
+    tapProfileTab($screen, 'replies')
         ->assertSet('tab', 'replies')
         ->assertSee('Agreed')
         ->assertSee('replying to @grace')
-        ->assertDontSee('A top-level commit')
-        // The web keeps the pinned commit to the commits tab.
-        ->assertDontSee('Pinned thought')
         ->assertSee("That's @ada's first reply.");
+
+    expect(nodeByRef($screen, 'profile-pager')['props']['page'])->toBe(1)
+        ->and(treeShows(showingProfile($screen), 'A top-level commit'))->toBeFalse()
+        // The web keeps the pinned commit to the commits tab.
+        ->and(treeShows(showingProfile($screen), 'Pinned thought'))->toBeFalse();
 
     Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/users/ada/commits?replies=1');
     Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/users/ada/commits');
@@ -277,7 +280,7 @@ it('loads older replies on the replies tab', function () {
         };
     });
 
-    Native::visit('/log/users/ada')->tap('tab-replies')->call('loadMore')->assertSee('Older reply');
+    tapProfileTab(Native::visit('/log/users/ada'), 'replies')->call('loadMore')->assertSee('Older reply');
 
     Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/users/ada/commits?replies=1&cursor=older');
 });
@@ -290,13 +293,11 @@ it('speaks git when there are no replies yet', function () {
         'GET /api/v1/users/local_dev/commits' => [pageJson([])],
     ]);
 
-    Native::visit('/log/users/ada')
-        ->tap('tab-replies')
+    tapProfileTab(Native::visit('/log/users/ada'), 'replies')
         ->assertSee('fatal: no replies yet')
         ->assertSee("@ada hasn't replied to anything yet.");
 
-    Native::visit('/log/users/local_dev')
-        ->tap('tab-replies')
+    tapProfileTab(Native::visit('/log/users/local_dev'), 'replies')
         ->assertSee('Your replies show up here. Join a conversation from your log.');
 });
 
@@ -374,8 +375,7 @@ it('shows your own profile on the Profile tab', function () {
         ->assertSet('username', 'local_dev')
         ->assertSee('Local Dev')
         ->assertSee('My own commit')
-        ->assertSee('Commits')
-        ->assertSee('Replies')
+        ->assertElement('pager', fn (array $node): bool => ($node['props']['tabs'] ?? null) === ['Commits', 'Replies'])
         ->assertSee('That was your first commit. Everyone starts somewhere.')
         ->assertMissingElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'follow')
         // Where the web puts "Edit on GitHub" in place of Follow.

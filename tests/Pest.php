@@ -8,6 +8,7 @@ use App\Devnull\ResponseCache;
 use App\Devnull\SshKey;
 use App\NativeComponents\Log;
 use App\NativeComponents\Notifications;
+use App\NativeComponents\Profile;
 use Codingwithrk\NativephpSocialAuth\Events\AppleSignInCompleted;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
@@ -241,6 +242,26 @@ function showingNotifications(TestableComponent $screen): array
 function tapLogTab(TestableComponent $screen, string $log): TestableComponent
 {
     return $screen->changeTab($screen->get('log') === $log ? 'backToTop' : 'showPage', (int) array_search($log, Log::Logs, true));
+}
+
+/**
+ * The list of the profile tab that's showing in its pager. The other tab's page
+ * beside it shows the first few commits kept for it, ready for a swipe.
+ *
+ * @return array<string, mixed>
+ */
+function showingProfile(TestableComponent $screen): array
+{
+    return nodeByRef($screen, 'profile');
+}
+
+/**
+ * A tap on one of a profile's tabs, which the pager draws, as for the Log's
+ * tabs (see tapLogTab).
+ */
+function tapProfileTab(TestableComponent $screen, string $tab): TestableComponent
+{
+    return $screen->changeTab($screen->get('tab') === $tab ? 'backToTop' : 'showPage', (int) array_search($tab, Profile::Tabs, true));
 }
 
 /**

@@ -3,6 +3,7 @@
 namespace App\NativeComponents;
 
 use App\Devnull\Data\Commit;
+use App\Devnull\Data\Page;
 use App\Devnull\Data\Profile as ProfileData;
 use App\Devnull\Data\User;
 use App\Devnull\ErrorCode;
@@ -39,6 +40,12 @@ use Native\Mobile\Facades\Browser;
  * It opens on the profile as it was last time, or opened from a commit, on
  * what the commit knew of its author, then asks devnull again behind it. The
  * header changes in place; newer commits wait in the pill (see HoldsNewCommits).
+ *
+ * Commits and Replies are pages you swipe between, as on the Log (see Log),
+ * under a header that scrolls up with the page you're on until the tabs pin
+ * under the nav bar. Only the tab you're on is live; the other shows the first
+ * few commits kept for it. Each has its own list, and the one you leave starts
+ * again at the top of a fresh one.
  */
 class Profile extends NativeComponent
 {
@@ -51,9 +58,26 @@ class Profile extends NativeComponent
     use ShowsCommits;
     use TalksToDevnull;
 
+    /**
+     * Every frame goes in full, as on the Log (see Log::$forceFullFrames). A tab
+     * tapped again goes back to the top in a list with a new key and the same
+     * rows, which EDGE's subtree reuse would otherwise never send.
+     */
+    protected bool $forceFullFrames = true;
+
     public string $username = '';
 
     public const array Tabs = ['commits', 'replies'];
+
+    /**
+     * The web's tab labels.
+     */
+    public const array Labels = ['commits' => 'Commits', 'replies' => 'Replies'];
+
+    /**
+     * How many kept commits the tab you're not on shows, enough to fill the screen while you swipe to it.
+     */
+    public const int PreviewCommits = 5;
 
     public ?ProfileData $profile = null;
 
@@ -64,6 +88,13 @@ class Profile extends NativeComponent
     public bool $sketched = false;
 
     public string $tab = 'commits';
+
+    /**
+     * The list key of the tab you're not on. The tab you're on uses $listKey.
+     *
+     * @var array<string, int>
+     */
+    public array $listKeys = [];
 
     /**
      * Whether the tab has had commits to show, kept or fresh. Until then it shows skeleton rows.
@@ -126,18 +157,41 @@ class Profile extends NativeComponent
         $this->refreshProfile(showNewer: true);
     }
 
-    public function showTab(string $tab): void
+    /**
+     * The pager settling on a tab, after a swipe or a tab tap. The tab it's already on changes nothing.
+     */
+    public function showPage(int $index): void
     {
-        if (! in_array($tab, self::Tabs, true) || $tab === $this->tab) {
-            return;
+        $tab = self::Tabs[$index] ?? null;
+
+        if ($tab !== null && $tab !== $this->tab) {
+            $this->switchTo($tab);
         }
+    }
 
-        $this->tab = $tab;
+    /**
+     * A tap on the tab you're on, which the pager sends instead of moving: back to the top of it.
+     */
+    public function backToTop(int $index): void
+    {
+        if ((self::Tabs[$index] ?? null) === $this->tab) {
+            $this->listKey++;
+        }
+    }
 
+    /**
+     * The tab you go to keeps the list its first few commits were drawn in,
+     * and fills it. The tab you leave starts again at the top of a fresh one.
+     */
+    private function switchTo(string $tab): void
+    {
         if ($this->isMe()) {
             app(ShownTabs::class)->remember($this->me()?->id, 'profile', $tab);
         }
 
+        $this->listKeys[$this->tab] = $this->listKey + 1;
+        $this->tab = $tab;
+        $this->listKey = $this->listKeys[$tab] ?? 0;
         $this->commits = [];
         $this->threads = [];
         $this->nextCursor = null;
@@ -375,22 +429,68 @@ class Profile extends NativeComponent
     /**
      * @return array<string, string|null>
      */
-    private function commitsQuery(): array
+    private function commitsQuery(?string $tab = null): array
     {
-        return ['replies' => $this->tab === 'replies' ? '1' : null];
+        return ['replies' => ($tab ?? $this->tab) === 'replies' ? '1' : null];
     }
 
     public function render(): View
     {
-        $pinnedCommit = $this->pinnedCommit();
+        $pages = array_map(fn (string $tab): array => $tab === $this->tab
+            ? $this->page($tab, $this->commits, $this->nextCursor, $this->commitsLoaded, $this->listKey)
+            : $this->previewPage($tab), self::Tabs);
 
         return view('native.profile', [
             'isBlocked' => $this->unavailable === ErrorCode::UserBlocked->value,
             'isMe' => $this->isMe(),
             'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),
-            'pinnedCommit' => $pinnedCommit,
-            'rows' => Timeline::feed($this->commits),
+            'pages' => $pages,
+            'pageIndex' => array_search($this->tab, self::Tabs, true),
+            'tabs' => array_values(self::Labels),
         ]);
+    }
+
+    /**
+     * The tab you're not on: the first few commits kept for it, as it will
+     * open, or skeleton rows with nothing kept.
+     *
+     * @return array<string, mixed>
+     */
+    private function previewPage(string $tab): array
+    {
+        $json = $this->cached($this->commitsPath(), $this->commitsQuery($tab));
+        $kept = is_array($json['data'] ?? null) ? $json['data'] : [];
+        $page = $json === null ? null : Page::fromArray(['data' => array_slice($kept, 0, self::PreviewCommits)] + $json, Commit::fromArray(...));
+
+        // Rows past the preview are left out, with a skeleton row for them, as for the next page.
+        $nextCursor = count($kept) > self::PreviewCommits ? 'preview' : $page?->nextCursor;
+
+        return $this->page($tab, $page->items ?? [], $nextCursor, $page !== null, $this->listKeys[$tab] ?? 0);
+    }
+
+    /**
+     * What a tab's page shows. The web leaves the pinned commit out of the replies tab.
+     *
+     * @param  list<Commit>  $commits
+     * @return array<string, mixed>
+     */
+    private function page(string $tab, array $commits, ?string $nextCursor, bool $loaded, int $listKey): array
+    {
+        $showing = $tab === $this->tab;
+
+        return [
+            'tab' => $tab,
+            'showing' => $showing,
+            'listKey' => $listKey,
+            'loaded' => $loaded,
+            'error' => $showing ? $this->error : null,
+            'pinnedCommit' => $tab === 'commits' ? $this->profile?->pinnedCommit : null,
+            'isEmpty' => $commits === [],
+            'nextCursor' => $nextCursor,
+            'rows' => Timeline::feed($commits),
+            // Replies the tab you're on has opened, under their commits.
+            'threads' => $showing ? $this->threads : [],
+        ];
     }
 }

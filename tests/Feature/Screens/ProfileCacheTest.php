@@ -57,7 +57,7 @@ it('opens on the profile kept last time, with no request and no spinner, then up
         ->assertSee('Analytical engine notes')
         ->assertSee('followers');
 
-    expect(showsLoading($screen->tree()))->toBeFalse()
+    expect(showsLoading(showingProfile($screen)))->toBeFalse()
         ->and(count(Http::recorded()))->toBe(0);
 
     finishRefreshes($screen);
@@ -85,8 +85,9 @@ it('opens on what a commit row knew of its author, then fills in the rest', func
     finishRefreshes($profile)
         ->assertElement('row', fn (array $node): bool => ($node['ref'] ?? null) === 'counts')
         ->assertElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'follow')
-        ->assertSee('Analytical engine notes')
-        ->assertMissingElement('row', fn (array $node): bool => ($node['ref'] ?? null) === 'loading-1');
+        ->assertSee('Analytical engine notes');
+
+    expect(showsLoading(showingProfile($profile)))->toBeFalse();
 });
 
 it('shows a spinner only the first time, when nothing is known of them', function () {
@@ -151,16 +152,17 @@ it('opens the replies tab at once when it was kept', function () {
     keep('users/ada/commits', pageJson([adaCommit(['id' => 'a1', 'body' => 'A commit'])]));
     keep('users/ada/commits', pageJson([adaCommit(['id' => 'r1', 'parent_id' => 'c0', 'body' => 'A reply'])]), ['replies' => '1']);
 
-    $screen = Native::visit('/log/users/ada')->tap('tab-replies')->assertSee('A reply')->assertDontSee('A commit');
+    $screen = tapProfileTab(Native::visit('/log/users/ada'), 'replies')->assertSee('A reply');
 
-    expect(showsLoading($screen->tree()))->toBeFalse();
+    expect(treeShows(showingProfile($screen), 'A commit'))->toBeFalse()
+        ->and(showsLoading(showingProfile($screen)))->toBeFalse();
     Http::assertNothingSent();
 });
 
 it('asks for the replies tab with its own query', function () {
     serveAda([]);
 
-    Native::visit('/log/users/ada')->tap('tab-replies');
+    tapProfileTab(Native::visit('/log/users/ada'), 'replies');
 
     Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/users/ada/commits?replies=1');
 });
