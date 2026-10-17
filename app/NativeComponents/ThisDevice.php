@@ -203,6 +203,16 @@ class ThisDevice extends NativeComponent
     }
 
     /**
+     * The switch: pastéis mode the other way from what it shows.
+     */
+    public function togglePasteisMode(): void
+    {
+        if ($this->current !== null) {
+            $this->setPasteisMode(! $this->current->pasteisMode);
+        }
+    }
+
+    /**
      * Switches pastéis mode, as the web's switch does. The switch, and every
      * screen's commits, take it at once; when devnull says no, it goes back
      * and the section says so in the web's words.

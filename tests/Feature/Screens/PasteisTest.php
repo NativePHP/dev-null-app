@@ -91,7 +91,7 @@ it('leaves pastéis out of the rows while the mode is off, as the web hides them
     expect(pasteisSent())->toBe([]);
 });
 
-it('puts the pastel and its count beside the star in pastéis mode, and the replies link down to its count', function () {
+it('puts the pastel and its count beside the star in pastéis mode, with Reply and the replies link made small to fit', function () {
     pasteisOn(7);
     fakeApi(['GET /api/v1/log/following' => [pageJson([
         commitJson(['id' => 'c2', 'pasteis_count' => 3, 'stars_count' => 1, 'replies_count' => 1, 'author' => pastelAuthor()]),
@@ -108,7 +108,10 @@ it('puts the pastel and its count beside the star in pastéis mode, and the repl
         ->and(pastelCount($screen, 'pastel-c2'))->toBe('3')
         ->and(findNode(nodeByRef($screen, 'pastel-c2'), fn (array $node): bool => ($node['type'] ?? null) === 'image')['props']['src'])->toBe(Pasteis::Image)
         ->and(nodeByRef($screen, 'replies-c2')['props']['a11y_label'])->toBe('1 reply')
-        ->and(pastelCount($screen, 'replies-c2'))->toBe('1');
+        ->and(pastelCount($screen, 'replies-c2'))->toBe('1')
+        // Reply is just its icon, which VoiceOver reads as Reply.
+        ->and(nodeByRef($screen, 'reply-to-c1')['props']['a11y_label'])->toBe('Reply')
+        ->and(findNode(nodeByRef($screen, 'reply-to-c1'), fn (array $node): bool => ($node['type'] ?? null) === 'text'))->toBeNull();
 });
 
 it('only counts the pastéis on your own commits, and on ones that are not published', function () {

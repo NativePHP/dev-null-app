@@ -102,7 +102,11 @@
                 </native:column>
             </native:column>
 
-            {{-- The web's pastéis mode section, word for word: its heading and two lines, with the switch beside them. --}}
+            {{--
+                The web's pastéis mode section, word for word: its heading and two lines, with the switch beside them,
+                drawn as the web draws it. EDGE's native:toggle is a UISwitch on iOS, which the screen's keyboard-dismiss
+                tap keeps from getting taps (NativePHP/mobile-air#545), so this is a pressable, 44pt wide to tap.
+            --}}
             <native:column ref="pasteis-mode" class="w-full pt-10">
                 <native:row class="w-full px-4 gap-6 items-start">
                     <native:column class="flex-1 gap-2">
@@ -110,7 +114,13 @@
                         <native:text class="text-sm leading-relaxed text-theme-ink-muted">A little appreciation, fresh daily. Get 10 pastéis to give to other people’s commits, one per click. Your allowance resets at 00:00 UTC.</native:text>
                         <native:text class="text-sm leading-relaxed text-theme-ink-muted">When off, all pastéis controls and counters are hidden. You still receive pastéis from others.</native:text>
                     </native:column>
-                    <native:toggle ref="pasteis-mode-switch" :value="$pasteisMode" :disabled="$savingPasteisMode" @change="setPasteisMode" a11y-label="Pastéis mode" />
+                    <native:pressable ref="pasteis-mode-switch" @press="togglePasteisMode" a11y-label="Pastéis mode, {{ $pasteisMode ? 'on' : 'off' }}">
+                        <native:row class="min-w-[44] h-[36] -mt-[6] items-center justify-center">
+                            <native:row :width="44" :height="24" class="rounded-full px-[3] items-center {{ $pasteisMode ? 'bg-theme-primary justify-end' : 'bg-theme-ink-muted/30 justify-start' }}">
+                                <native:column ref="pasteis-mode-thumb" :width="18" :height="18" class="rounded-full bg-theme-surface" />
+                            </native:row>
+                        </native:row>
+                    </native:pressable>
                 </native:row>
                 @if ($pasteisModeError)
                     <native:text ref="pasteis-mode-error" class="w-full px-4 pt-2 text-sm text-theme-destructive">{{ $pasteisModeError }}</native:text>

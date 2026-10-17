@@ -16,8 +16,9 @@
 
     The pastel is the web's: the pastel de nata and how many the commit was given, always, even 0. On someone else's
     published commit it gives one more per tap; on your own, or one that isn't published, it's just the count. It
-    only shows in pastéis mode ($pasteis), and with it on a phone has no room for "› 3 replies" as well, so that
-    shrinks to "› 3", and "⌄ 3" once open, with the words left to VoiceOver.
+    only shows in pastéis mode ($pasteis). EDGE shares a row's width out among its actions, so with one more the
+    widest gets squeezed and "Reply" wraps. In pastéis mode Reply is just its icon, and "› 3 replies" shrinks to
+    "› 3", and "⌄ 3" once open, with the words left to VoiceOver.
 
     Each action is at least 44pt wide and 36pt tall to tap, as Apple asks, with the row pulled in by the extra height so
     the commit keeps its rhythm. EDGE makes a pressable's whole box tappable, so the box is the target. Off the log,
@@ -44,6 +45,7 @@
 @php($hasThread = $expandable && $commit->replyPreview !== null)
 @php($showsReplies = $withReplies && ! $hasThread && $repliesCount > 0)
 @php($pasteis ??= app(\App\Devnull\Account::class)->pasteis())
+@php($replyLabelled = ! $showsReplies && $pasteis === null)
 @php($canGivePastel = $pasteis !== null && $viewer !== null && ! $isOwn && $commit->isApproved())
 @php($pastelLabel = \App\Devnull\Display::count($commit->pasteisCount, 'pastel', 'pastéis'))
 @php($pastelSize = $compact ? 18 : 20)
@@ -92,11 +94,11 @@
 
     @if ($withReply)
         <native:pressable ref="reply-to-{{ $commit->id }}" @press="replyTo('{{ $commit->id }}')" a11y-label="Reply">
-            <native:row class="min-w-[44] h-[36] px-2 gap-[6] items-center {{ $showsReplies ? 'justify-center' : '' }}">
+            <native:row class="min-w-[44] h-[36] px-2 gap-[6] items-center {{ $replyLabelled ? '' : 'justify-center' }}">
                 <native:icon :ios="\App\Icons\Lucide::MessageSquareReply->ios()" :android="\App\Icons\Lucide::MessageSquareReply->android()" :size="$iconSize" class="text-theme-ink-muted" />
-                @unless ($showsReplies)
+                @if ($replyLabelled)
                     <native:text class="{{ $labelSize }} text-theme-ink-muted">Reply</native:text>
-                @endunless
+                @endif
             </native:row>
         </native:pressable>
     @endif

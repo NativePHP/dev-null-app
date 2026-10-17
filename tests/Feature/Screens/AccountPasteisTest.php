@@ -48,9 +48,10 @@ it("has the web's pastéis mode section, word for word, with its switch", functi
 
     $switch = nodeByRef($screen, 'pasteis-mode-switch');
 
-    expect($switch['type'])->toBe('toggle')
-        ->and($switch['props']['value'] ?? false)->toBe($on)
-        ->and($switch['props']['a11y_label'] ?? null)->toBe('Pastéis mode')
+    expect($switch['type'])->toBe('pressable')
+        ->and($switch['props']['a11y_label'] ?? null)->toBe($on ? 'Pastéis mode, on' : 'Pastéis mode, off')
+        // Primary when on, as the web's.
+        ->and(strtolower(findNode($switch, fn (array $node): bool => (float) ($node['layout']['width'] ?? 0) === 44.0 && isset($node['style']['bg_color']))['style']['bg_color']) === strtolower((string) config('native-ui.theme.light.primary')))->toBe($on)
         // After Color, as on the web.
         ->and(array_column(findNodes($screen->tree(), fn (array $node): bool => in_array($node['ref'] ?? null, ['color', 'pasteis-mode', 'this-phone'], true)), 'ref'))->toBe(['color', 'pasteis-mode', 'this-phone']);
 })->with(['on' => true, 'off' => false]);
@@ -63,9 +64,9 @@ it('turns pastéis mode on at once, and every screen gives pastéis from then on
         'PUT /api/v1/me/pasteis-mode' => [meWithPasteis(true, remaining: 8)],
     ]);
 
-    $screen = Native::visit('/profile/device')->toggle('pasteis-mode-switch', true);
+    $screen = Native::visit('/profile/device')->tap('pasteis-mode-switch');
 
-    expect(nodeByRef($screen, 'pasteis-mode-switch')['props']['value'] ?? false)->toBeTrue()
+    expect(nodeByRef($screen, 'pasteis-mode-switch')['props']['a11y_label'])->toBe('Pastéis mode, on')
         ->and(app(Account::class)->pasteis())->not->toBeNull();
 
     finishRefreshes($screen)
@@ -86,7 +87,7 @@ it('turns pastéis mode off, and the pastéis leave the rows', function () {
         'PUT /api/v1/me/pasteis-mode' => [meWithPasteis(false)],
     ]);
 
-    Native::visit('/profile/device')->toggle('pasteis-mode-switch', false)->assertSet('pasteisModeError', null);
+    Native::visit('/profile/device')->tap('pasteis-mode-switch')->assertSet('pasteisModeError', null);
 
     expect(pasteisModeSaves())->toBe(['{"enabled":false}'])
         ->and(app(Account::class)->pasteis())->toBeNull();
@@ -99,12 +100,12 @@ it('puts the switch back when devnull says no, and says so in the web words', fu
     ]);
 
     $screen = Native::visit('/profile/device')
-        ->toggle('pasteis-mode-switch', true)
+        ->tap('pasteis-mode-switch')
         ->assertSet('savingPasteisMode', false)
         ->assertSet('pasteisModeError', ThisDevice::PasteisModeFailed)
         ->assertSee('Could not save pastéis mode. Please try again.');
 
-    expect(nodeByRef($screen, 'pasteis-mode-switch')['props']['value'] ?? false)->toBeFalse()
+    expect(nodeByRef($screen, 'pasteis-mode-switch')['props']['a11y_label'])->toBe('Pastéis mode, off')
         ->and(app(Account::class)->pasteis())->toBeNull();
 });
 
@@ -117,10 +118,13 @@ it('sends nothing when the switch already says what devnull has, or is still sav
 
     $screen = finishRefreshes(Native::visit('/profile/device'))
         ->call('setPasteisMode', true)
-        ->toggle('pasteis-mode-switch', false)
-        ->call('setPasteisMode', true);
+        ->tap('pasteis-mode-switch')
+        ->tap('pasteis-mode-switch')
+        ->call('setPasteisMode', true)
+        ->assertSet('savingPasteisMode', true);
 
-    expect(nodeByRef($screen, 'pasteis-mode-switch')['props']['disabled'] ?? false)->toBeTrue();
+    // Off, from the one tap that counted.
+    expect(nodeByRef($screen, 'pasteis-mode-switch')['props']['a11y_label'])->toBe('Pastéis mode, off');
 
     finishRefreshes($screen);
 
