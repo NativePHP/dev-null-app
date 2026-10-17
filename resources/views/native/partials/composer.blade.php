@@ -3,9 +3,9 @@
     type into where it is. Once you're in it, or it holds a draft, Commit sits under it, with the web's counter once
     few of the 4,000 characters are left. The ring is dashed until the commit is long enough to make, then solid.
 
-    The field is keyed, so a new $composerKey (or a new list key) mounts a fresh one: clean after a commit, and
-    focused when $focusComposer asks. A touch on it is how the screen learns you're in it, since a field reports
-    neither focus nor, on iOS, a caret in an empty field.
+    The field is keyed, so a new $composerKey (or a new list key) mounts a fresh one, clean after a commit. A touch on
+    it is how the screen learns you're in it, since a field reports neither focus nor, on iOS, a caret in an empty
+    field. The nav bar's compose button opens a composer in the sheet instead (see OpensCommitSheet).
 --}}
 <native:row ref="composer" class="w-full bg-theme-surface">
     <native:column :width="64" />
@@ -19,7 +19,6 @@
                     class="w-full text-theme-ink"
                     placeholder="What did you ship?"
                     native:model.debounce.150ms="body"
-                    :autofocus="$focusComposer"
                     multiline
                     :max-lines="8"
                     :max-length="\App\Devnull\Data\Commit::MaxLength"

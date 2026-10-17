@@ -138,6 +138,7 @@ it('commits without leaving the log, then clears the composer and puts the commi
     $screen->tap('commit')
         ->assertNoNavigation()
         ->assertNativeNotCalled('Dialog.Toast')
+        ->assertSet('sheetOpen', false)
         ->assertSet('body', '')
         ->assertSet('composing', false)
         ->assertSee('Shipped the mobile app.')
@@ -201,38 +202,6 @@ it('syncs the draft on a short debounce so a burst of typing arrives whole', fun
     Native::visit('/log')->assertElement('bare_text_input', fn (array $node): bool => ($node['ref'] ?? null) === 'body'
         && ($node['props']['sync_mode'] ?? null) === 'debounce'
         && ($node['props']['debounce_ms'] ?? null) === 150);
-});
-
-it('goes back to the top of the log and into the composer from the nav bar', function () {
-    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson()]))]);
-
-    $screen = Native::visit('/log');
-    $list = nodeByRef($screen, 'log')['id'];
-    $field = composerField($screen)['id'];
-
-    $screen->call('compose')
-        ->assertNoNavigation()
-        ->assertElement('button', commitButton(disabled: true));
-
-    // A new list starts at the top, and a new field with autofocus takes the focus as it appears.
-    expect(nodeByRef($screen, 'log')['id'])->not->toBe($list)
-        ->and(composerField($screen)['id'])->not->toBe($field)
-        ->and(composerField($screen)['props']['autofocus'] ?? false)->toBeTrue();
-
-    // Once you touch it or type, autofocus is no longer asked for.
-    $screen->input('body', 'S')->assertSet('focusComposer', false);
-
-    expect(composerField($screen)['props']['autofocus'] ?? false)->toBeFalse();
-
-    $screen->call('compose')->pressUp('composer-field')->assertSet('focusComposer', false);
-});
-
-it('keeps your draft when the nav bar puts you back in the composer', function () {
-    Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
-
-    $screen = Native::visit('/log')->input('body', 'Half a thought')->call('compose');
-
-    expect(composerField($screen)['props']['value'] ?? null)->toBe('Half a thought');
 });
 
 it('closes an empty composer when the log reloads, and keeps one with a draft open', function () {
