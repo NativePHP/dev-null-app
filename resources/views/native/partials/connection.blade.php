@@ -27,12 +27,15 @@
                 @endif
             </native:row>
             @if ($user->bio)
-                <native:text class="w-full mt-1 text-sm leading-relaxed text-theme-ink" :max-lines="2">{{ $user->bio }}</native:text>
+                <native:text class="w-full mt-1 text-sm text-theme-ink" :max-lines="2">{{ $user->bio }}</native:text>
             @endif
         </native:column>
 
         @if (! $isMe)
-            <native:button ref="follow-{{ $user->username }}" size="sm" :variant="$person->isFollowed ? 'secondary' : 'primary'" @press="toggleFollow('{{ $user->username }}')" class="w-[96] flex-shrink-0" a11y-hint="{{ $person->isFollowed ? 'Unfollows' : 'Follows' }} {{ $user->handle() }}">{{ $person->isFollowed ? 'Following' : 'Follow' }}</native:button>
+            {{-- A button sizes to its label, so it fills a slot of its own. --}}
+            <native:column :width="96" class="flex-shrink-0">
+                <native:button ref="follow-{{ $user->username }}" size="sm" :variant="$person->isFollowed ? 'secondary' : 'primary'" @press="toggleFollow('{{ $user->username }}')" class="w-full" a11y-hint="{{ $person->isFollowed ? 'Unfollows' : 'Follows' }} {{ $user->handle() }}">{{ $person->isFollowed ? 'Following' : 'Follow' }}</native:button>
+            </native:column>
         @endif
     </native:row>
     <native:column class="w-full h-[1] bg-theme-hairline" />
