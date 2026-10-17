@@ -2,6 +2,7 @@
 
 namespace App\Devnull;
 
+use App\Devnull\Data\Pasteis;
 use App\Devnull\Data\User;
 use Illuminate\Support\Facades\Cache;
 
@@ -15,6 +16,8 @@ final class Account
     private const string CacheKey = 'devnull.account';
 
     private const string UnreadKey = 'devnull.unread-notifications';
+
+    private const string PasteisKey = 'devnull.pasteis';
 
     public function user(): ?User
     {
@@ -44,7 +47,32 @@ final class Account
     }
 
     /**
-     * Signs this phone out: who it was, the badge, and every answer kept for a quick start.
+     * Your pastéis for today while pastéis mode is on, as devnull last said or
+     * as this phone has counted them since, or null while the mode is off.
+     */
+    public function pasteis(): ?Pasteis
+    {
+        $kept = Cache::get(self::PasteisKey);
+
+        return is_array($kept) ? Pasteis::fromKept($kept) : null;
+    }
+
+    /**
+     * Remembers your pastéis, or with null that pastéis mode is off.
+     */
+    public function rememberPasteis(?Pasteis $pasteis): void
+    {
+        if ($pasteis === null) {
+            Cache::forget(self::PasteisKey);
+
+            return;
+        }
+
+        Cache::forever(self::PasteisKey, $pasteis->toArray());
+    }
+
+    /**
+     * Signs this phone out: who it was, the badge, its pastéis, and every answer kept for a quick start.
      */
     public function forget(): void
     {
@@ -52,5 +80,6 @@ final class Account
 
         Cache::forget(self::CacheKey);
         Cache::forget(self::UnreadKey);
+        Cache::forget(self::PasteisKey);
     }
 }

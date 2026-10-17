@@ -2,6 +2,7 @@
 
 namespace App\NativeComponents;
 
+use App\Devnull\Account;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Page;
 use App\Devnull\Data\User;
@@ -718,6 +719,7 @@ class Log extends NativeComponent
 
         return view('native.log', [
             'viewer' => $viewer,
+            'pasteis' => app(Account::class)->pasteis(),
             'composerOpen' => $this->composing || $this->body !== '',
             'remaining' => $this->remaining(),
             'canCommit' => $this->canCommit(),

@@ -138,6 +138,7 @@ trait RefreshesInBackground
 
             if ($current->user->username !== '') {
                 app(Account::class)->remember($current->user);
+                app(Account::class)->rememberPasteis($current->pasteis());
             }
 
             app(Account::class)->rememberUnreadNotifications($current->unreadNotificationsCount);

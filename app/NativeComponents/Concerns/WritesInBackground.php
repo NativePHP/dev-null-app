@@ -17,16 +17,17 @@ use Throwable;
  * paints its spinner first (see FetchInBackground).
  *
  * A 401 signs the phone out, as any request does. Anything else that goes wrong
- * reaches $failed worded for the screen, by its code when the app knows it.
- * NativePHP drops the answer if the screen is no longer on top, and the next
- * `GET /me` picks up what changed.
+ * reaches $failed worded for the screen, by its code when the app knows it,
+ * with the error itself for a screen that tells codes apart. NativePHP drops
+ * the answer if the screen is no longer on top, and the next `GET /me` picks
+ * up what changed.
  */
 trait WritesInBackground
 {
     /**
      * @param  array<string, mixed>|null  $payload
      * @param  Closure(array<string, mixed>): void  $done
-     * @param  Closure(string): void  $failed
+     * @param  Closure(string, ?ApiException): void  $failed
      */
     protected function writeInBackground(string $method, string $path, ?array $payload, Closure $done, Closure $failed): void
     {
@@ -60,7 +61,7 @@ trait WritesInBackground
                     return;
                 }
 
-                $failed($exception->firstError());
+                $failed($exception->firstError(), $exception);
             })
             ->failed(fn (Throwable $exception) => $failed('fatal: '.$exception->getMessage()));
     }

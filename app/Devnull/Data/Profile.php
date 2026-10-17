@@ -16,12 +16,14 @@ final readonly class Profile
         public Activity $activity = new Activity,
         public bool $isMuting = false,
         public ?Achievements $achievements = null,
+        public ?int $pasteisReceived = null,
     ) {}
 
     /**
      * Reads a `GET /users/{username}` response: the user and counts in `data`,
      * and alongside it whether you follow or mute them, their pinned commit,
-     * their streaks, their activity and their achievements.
+     * their streaks, their activity, their achievements and how many pastéis
+     * they have been given (null when devnull doesn't say).
      *
      * @param  array<string, mixed>  $json
      */
@@ -30,6 +32,7 @@ final readonly class Profile
         $data = is_array($json['data'] ?? null) ? $json['data'] : $json;
         $counts = is_array($data['counts'] ?? null) ? $data['counts'] : [];
         $pinned = $json['pinned_commit'] ?? $data['pinned_commit'] ?? null;
+        $received = $json['pasteis_received'] ?? $data['pasteis_received'] ?? null;
 
         return new self(
             user: User::fromArray(is_array($data['user'] ?? null) ? $data['user'] : $data),
@@ -43,6 +46,7 @@ final readonly class Profile
             activity: Activity::fromArray($json['activity'] ?? $data['activity'] ?? null),
             isMuting: ($json['is_muting'] ?? $data['is_muting'] ?? false) === true,
             achievements: Achievements::fromArray($json['achievements'] ?? $data['achievements'] ?? null),
+            pasteisReceived: is_int($received) ? max(0, $received) : null,
         );
     }
 

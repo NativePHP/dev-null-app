@@ -26,7 +26,8 @@ use SensitiveParameter;
 /**
  * Your account, reached from your own profile, laid out like the web's profile
  * settings: your profile as devnull mirrors it from GitHub, with a sync, your
- * colour, then this phone's fingerprint, signing out and deleting the account.
+ * colour, pastéis mode, then this phone's fingerprint, signing out and deleting
+ * the account.
  * Where the app talks to only shows when it isn't dev-null.sh.
  *
  * It opens on you as devnull last said (or as this phone remembers you) and
@@ -79,6 +80,15 @@ class ThisDevice extends NativeComponent
     public bool $savingLane = false;
 
     public ?string $laneError = null;
+
+    public bool $savingPasteisMode = false;
+
+    public ?string $pasteisModeError = null;
+
+    /**
+     * What the web says when the switch couldn't be saved.
+     */
+    public const string PasteisModeFailed = 'Could not save pastéis mode. Please try again.';
 
     /**
      * Whether devnull has an Apple ID linked to you, or null until it says.
@@ -189,6 +199,48 @@ class ThisDevice extends NativeComponent
         }, function (string $message): void {
             $this->savingLane = false;
             $this->laneError = $message;
+        });
+    }
+
+    /**
+     * The switch: pastéis mode the other way from what it shows.
+     */
+    public function togglePasteisMode(): void
+    {
+        if ($this->current !== null) {
+            $this->setPasteisMode(! $this->current->pasteisMode);
+        }
+    }
+
+    /**
+     * Switches pastéis mode, as the web's switch does. The switch, and every
+     * screen's commits, take it at once; when devnull says no, it goes back
+     * and the section says so in the web's words.
+     */
+    public function setPasteisMode(bool $enabled): void
+    {
+        $before = $this->current;
+
+        if ($this->savingPasteisMode || $before === null || $before->pasteisMode === $enabled) {
+            return;
+        }
+
+        $this->savingPasteisMode = true;
+        $this->pasteisModeError = null;
+        $this->current = $before->withPasteisMode($enabled);
+        app(Account::class)->rememberPasteis($this->current->pasteis());
+
+        $this->writeInBackground('PUT', Client::PasteisModePath, ['enabled' => $enabled], function (array $json): void {
+            $this->savingPasteisMode = false;
+            $this->takeMe($json);
+        }, function () use ($enabled): void {
+            $this->savingPasteisMode = false;
+            $this->pasteisModeError = self::PasteisModeFailed;
+
+            if ($this->current !== null) {
+                $this->current = $this->current->withPasteisMode(! $enabled);
+                app(Account::class)->rememberPasteis($this->current->pasteis());
+            }
         });
     }
 
@@ -319,6 +371,7 @@ class ThisDevice extends NativeComponent
             'previewLane' => $this->chosenLane ?? $current?->automaticLane,
             'lanes' => $current === null ? [] : $this->laneOptions($current),
             'laneChanged' => $current !== null && $this->chosenLane !== $current->preferredLane,
+            'pasteisMode' => $current?->pasteisMode ?? false,
             'remote' => self::remote(),
             'offersApple' => AppleSignIn::isAvailable(),
             'appleStatus' => match ($this->appleLinked) {
@@ -409,6 +462,7 @@ class ThisDevice extends NativeComponent
 
         app(Account::class)->remember($current->user);
         app(Account::class)->rememberUnreadNotifications($current->unreadNotificationsCount);
+        app(Account::class)->rememberPasteis($current->pasteis());
         app(ResponseCache::class)->meChanged($json);
     }
 

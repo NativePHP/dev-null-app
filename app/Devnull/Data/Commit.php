@@ -70,6 +70,7 @@ final readonly class Commit
         public ?Commit $quotedCommit = null,
         public ?array $previewContent = null,
         public ?ReplyPreview $replyPreview = null,
+        public int $pasteisCount = 0,
     ) {}
 
     /**
@@ -128,6 +129,7 @@ final readonly class Commit
             quotedCommit: is_array($data['quoted_commit'] ?? null) ? self::fromArray($data['quoted_commit']) : null,
             previewContent: $previewSegments === null ? null : CommitBody::blocks($body, $previewSegments, $mentions),
             replyPreview: is_array($data['reply_preview'] ?? null) ? ReplyPreview::fromArray($data['reply_preview']) : null,
+            pasteisCount: max(0, (int) ($data['pasteis_count'] ?? 0)),
         );
     }
 
@@ -141,14 +143,22 @@ final readonly class Commit
         return new self(...[...get_object_vars($this), 'starred' => $starred, 'starsCount' => max(0, $this->starsCount + $change)]);
     }
 
+    /**
+     * This commit with $change more pastéis than it has, or fewer for a negative change.
+     */
+    public function withMorePasteis(int $change): self
+    {
+        return new self(...[...get_object_vars($this), 'pasteisCount' => max(0, $this->pasteisCount + $change)]);
+    }
+
     public function withSaved(bool $isSaved): self
     {
         return new self(...[...get_object_vars($this), 'isSaved' => $isSaved]);
     }
 
     /**
-     * This commit with the star and save state of a fresher copy of it, keeping
-     * everything else, such as the parent a list loaded with it.
+     * This commit with the star, save and pastéis state of a fresher copy of
+     * it, keeping everything else, such as the parent a list loaded with it.
      */
     public function withReactionsFrom(self $fresh): self
     {
@@ -157,6 +167,7 @@ final readonly class Commit
             'starred' => $fresh->starred,
             'starsCount' => $fresh->starsCount,
             'isSaved' => $fresh->isSaved ?? $this->isSaved,
+            'pasteisCount' => $fresh->pasteisCount,
         ]);
     }
 

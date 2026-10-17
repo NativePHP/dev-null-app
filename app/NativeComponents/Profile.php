@@ -2,6 +2,7 @@
 
 namespace App\NativeComponents;
 
+use App\Devnull\Account;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Profile as ProfileData;
 use App\Devnull\Data\User;
@@ -389,6 +390,7 @@ class Profile extends NativeComponent
             'isMe' => $this->isMe(),
             'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),
+            'pasteis' => app(Account::class)->pasteis(),
             'pinnedCommit' => $pinnedCommit,
             'rows' => Timeline::feed($this->commits),
         ]);
