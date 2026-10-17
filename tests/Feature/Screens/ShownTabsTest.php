@@ -56,12 +56,13 @@ it("opens your own profile on the tab you last had open, but someone else's on t
         'GET /api/v1/me' => [['data' => userWithCountsJson(), 'unread_notifications_count' => 0]],
     ]);
 
-    Native::visit('/profile')->tap('tab-replies')->assertSet('tab', 'replies');
+    tapProfileTab(Native::visit('/profile'), 'replies')->assertSet('tab', 'replies');
 
     Native::visit('/profile')->assertSet('tab', 'replies');
 
     // Someone else's profile opens on their commits, and switching it leaves yours alone.
-    Native::visit('/log/users/ada')->assertSet('tab', 'commits')->tap('tab-replies')->tap('tab-commits');
+    $ada = tapProfileTab(Native::visit('/log/users/ada')->assertSet('tab', 'commits'), 'replies');
+    tapProfileTab($ada, 'commits');
 
     expect(app(ShownTabs::class)->get('0199e5c4-0000-7000-8000-000000000001', 'profile', ['commits', 'replies'], 'commits'))->toBe('replies');
 });
