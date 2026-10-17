@@ -17,8 +17,9 @@
     The pastel is the web's: the pastel de nata and how many the commit was given, always, even 0. On someone else's
     published commit it gives one more per tap; on your own, or one that isn't published, it's just the count. It
     only shows in pastéis mode ($pasteis). EDGE shares a row's width out among its actions, so with one more the
-    widest gets squeezed and "Reply" wraps. In pastéis mode Reply is just its icon, and "› 3 replies" shrinks to
-    "› 3", and "⌄ 3" once open, with the words left to VoiceOver.
+    widest gets squeezed and "Reply" wraps. For now, in pastéis mode Reply is just its icon, and "› 3 replies"
+    shrinks to "› 3", and "⌄ 3" once open, with the words left to VoiceOver. That lasts until the More menu
+    (NativePHP/dev-null-app#7) takes the bookmark out of the row and makes room again.
 
     Each action is at least 44pt wide and 36pt tall to tap, as Apple asks, with the row pulled in by the extra height so
     the commit keeps its rhythm. EDGE makes a pressable's whole box tappable, so the box is the target. Off the log,

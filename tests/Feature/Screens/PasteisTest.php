@@ -69,7 +69,10 @@ function pasteisSent(): array
         ->all();
 }
 
-function pastelCount(TestableComponent $screen, string $ref): ?string
+/**
+ * The first text inside an element, such as a count beside its icon.
+ */
+function textInside(TestableComponent $screen, string $ref): ?string
 {
     return findNode(nodeByRef($screen, $ref), fn (array $node): bool => ($node['type'] ?? null) === 'text')['props']['text'] ?? null;
 }
@@ -91,7 +94,7 @@ it('leaves pastéis out of the rows while the mode is off, as the web hides them
     expect(pasteisSent())->toBe([]);
 });
 
-it('puts the pastel and its count beside the star in pastéis mode, with Reply and the replies link made small to fit', function () {
+it('puts the pastel and its count beside the star in pastéis mode', function () {
     pasteisOn(7);
     fakeApi(['GET /api/v1/log/following' => [pageJson([
         commitJson(['id' => 'c2', 'pasteis_count' => 3, 'stars_count' => 1, 'replies_count' => 1, 'author' => pastelAuthor()]),
@@ -104,15 +107,42 @@ it('puts the pastel and its count beside the star in pastéis mode, with Reply a
         ->and(nodeByRef($screen, 'pastel-c2')['props']['a11y_label'])->toBe('Give a pastel, 3 pastéis, 7 left today')
         ->and(nodeByRef($screen, 'pastel-c1')['props']['a11y_label'])->toBe('Give a pastel, 0 pastéis, 7 left today')
         // The web shows the count even when it's 0.
-        ->and(pastelCount($screen, 'pastel-c1'))->toBe('0')
-        ->and(pastelCount($screen, 'pastel-c2'))->toBe('3')
-        ->and(findNode(nodeByRef($screen, 'pastel-c2'), fn (array $node): bool => ($node['type'] ?? null) === 'image')['props']['src'])->toBe(Pasteis::Image)
-        ->and(nodeByRef($screen, 'replies-c2')['props']['a11y_label'])->toBe('1 reply')
-        ->and(pastelCount($screen, 'replies-c2'))->toBe('1')
-        // Reply is just its icon, which VoiceOver reads as Reply.
-        ->and(nodeByRef($screen, 'reply-to-c1')['props']['a11y_label'])->toBe('Reply')
-        ->and(findNode(nodeByRef($screen, 'reply-to-c1'), fn (array $node): bool => ($node['type'] ?? null) === 'text'))->toBeNull();
+        ->and(textInside($screen, 'pastel-c1'))->toBe('0')
+        ->and(textInside($screen, 'pastel-c2'))->toBe('3')
+        ->and(findNode(nodeByRef($screen, 'pastel-c2'), fn (array $node): bool => ($node['type'] ?? null) === 'image')['props']['src'])->toBe(Pasteis::Image);
 });
+
+/*
+ * Temporary. With the pastel in it, a phone's action row has no room for "Reply" and "› 3 replies" while the
+ * bookmark is in the row too, so in pastéis mode they shrink to their icon and count. Once the More menu
+ * (NativePHP/dev-null-app#7) takes the bookmark out of the row, whichever of the two PRs lands second gives them
+ * their words back and changes this test.
+ */
+it('shortens Reply and the replies link only in pastéis mode, leaving the words to VoiceOver', function (bool $pasteisMode) {
+    if ($pasteisMode) {
+        pasteisOn();
+    }
+
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([
+            commitJson(['id' => 'c2', 'replies_count' => 3, 'author' => pastelAuthor()]),
+            commitJson(['id' => 'c1', 'author' => pastelAuthor()]),
+        ])],
+        'GET /api/v1/commits/c2/replies' => [pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c2'])])],
+    ]);
+
+    $screen = Native::visit('/log', platform: 'ios');
+
+    expect(nodeByRef($screen, 'replies-c2')['props']['a11y_label'])->toBe('3 replies')
+        ->and(textInside($screen, 'replies-c2'))->toBe($pasteisMode ? '3' : '3 replies')
+        ->and(nodeByRef($screen, 'reply-to-c1')['props']['a11y_label'])->toBe('Reply')
+        ->and(textInside($screen, 'reply-to-c1'))->toBe($pasteisMode ? null : 'Reply');
+
+    $screen->tap('replies-c2');
+
+    expect(nodeByRef($screen, 'replies-c2')['props']['a11y_label'])->toBe('Hide replies')
+        ->and(textInside($screen, 'replies-c2'))->toBe($pasteisMode ? '3' : 'Hide replies');
+})->with(['pastéis mode on' => true, 'pastéis mode off' => false]);
 
 it('only counts the pastéis on your own commits, and on ones that are not published', function () {
     pasteisOn();
@@ -148,7 +178,7 @@ it('gives a pastel at once, then takes the count devnull sends back and keeps it
 
     // Before devnull answers: one more on the commit, one fewer for you.
     expect($screen->instance()->commits[0]->pasteisCount)->toBe(3)
-        ->and(pastelCount($screen, 'pastel-c1'))->toBe('3')
+        ->and(textInside($screen, 'pastel-c1'))->toBe('3')
         ->and(app(Account::class)->pasteis()?->left())->toBe(2)
         ->and(nodeByRef($screen, 'pastel-c1')['props']['a11y_label'])->toBe('Give a pastel, 3 pastéis, 2 left today');
 
@@ -262,7 +292,7 @@ it('gives pastéis to replies in a thread and on a commit page', function () {
     $screen = Native::visit('/log', platform: 'ios')->tap('pastel-r1');
 
     expect(pasteisSent())->toBe(['r1'])
-        ->and(pastelCount($screen, 'pastel-r1'))->toBe('2');
+        ->and(textInside($screen, 'pastel-r1'))->toBe('2');
 });
 
 it("shows how many pastéis a profile was given in pastéis mode, as the web does, and nothing while it's off", function (bool $on) {
