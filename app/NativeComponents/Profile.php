@@ -12,6 +12,7 @@ use App\Devnull\Timeline;
 use App\Icons\Lucide;
 use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
+use App\NativeComponents\Concerns\OpensAchievements;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
@@ -44,6 +45,7 @@ class Profile extends NativeComponent
 {
     use ExpandsThreads;
     use HoldsNewCommits;
+    use OpensAchievements;
     use OpensInTab {
         isShowing as isShowingPath;
     }

@@ -40,4 +40,20 @@ final readonly class Badge
     {
         return ! $this->unlocked && $this->target > 1;
     }
+
+    /**
+     * "unlocked", or how far along it is: "3 of 10".
+     */
+    public function statusLabel(): string
+    {
+        return $this->unlocked ? 'unlocked' : "{$this->progress} of {$this->target}";
+    }
+
+    /**
+     * How far along it is as a whole percentage, for the bar under a locked badge in the dialog.
+     */
+    public function progressPercent(): int
+    {
+        return min(100, (int) round($this->progress / $this->target * 100));
+    }
 }

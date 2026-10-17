@@ -3,13 +3,14 @@
 namespace App\Devnull\Data;
 
 /**
- * A profile's achievements as the web's shelf shows them: the Unix rank and
- * its level, the XP towards the next rank, and the badges, unlocked or not.
+ * A profile's achievements as the web's shelf and dialog show them: the Unix
+ * rank and its level, the XP towards the next rank, every rank, and the
+ * badges, unlocked or not.
  */
 final readonly class Achievements
 {
     /**
-     * @param  list<array{rank: string, level: int, min_xp: int}>  $ranks
+     * @param  list<Rank>  $ranks
      * @param  list<Badge>  $badges
      */
     public function __construct(
@@ -31,21 +32,13 @@ final readonly class Achievements
             return null;
         }
 
-        $ranks = [];
-
-        foreach (is_array($data['ranks'] ?? null) ? $data['ranks'] : [] as $rank) {
-            if (is_array($rank) && is_string($rank['rank'] ?? null) && is_int($rank['level'] ?? null) && is_int($rank['min_xp'] ?? null)) {
-                $ranks[] = ['rank' => $rank['rank'], 'level' => $rank['level'], 'min_xp' => $rank['min_xp']];
-            }
-        }
-
         return new self(
             level: $data['level'],
             rank: $data['rank'],
             xp: is_int($data['xp'] ?? null) ? max(0, $data['xp']) : 0,
             nextLevelXp: is_int($data['next_level_xp'] ?? null) ? $data['next_level_xp'] : null,
             levelProgress: is_int($data['level_progress'] ?? null) ? max(0, min(100, $data['level_progress'])) : 0,
-            ranks: $ranks,
+            ranks: array_values(array_filter(array_map(Rank::fromArray(...), is_array($data['ranks'] ?? null) ? $data['ranks'] : []))),
             badges: array_values(array_map(Badge::fromArray(...), array_filter(is_array($data['badges'] ?? null) ? $data['badges'] : [], is_array(...)))),
         );
     }
@@ -76,12 +69,36 @@ final readonly class Achievements
      */
     public function nextRankLabel(): string
     {
+        $next = $this->nextRank();
+
+        return $next === null ? 'Maximum rank (UID 0)' : ($next->minXp - $this->xp).' XP to '.$next->rank;
+    }
+
+    /**
+     * The rank a level above this one, as the web finds it, or null at the top.
+     */
+    public function nextRank(): ?Rank
+    {
         foreach ($this->ranks as $rank) {
-            if ($rank['level'] === $this->level + 1) {
-                return ($rank['min_xp'] - $this->xp).' XP to '.$rank['rank'];
+            if ($rank->level === $this->level + 1) {
+                return $rank;
             }
         }
 
-        return 'Maximum rank (UID 0)';
+        return null;
+    }
+
+    /**
+     * Where the badge with this id sits on the shelf, or null when there's none.
+     */
+    public function badgeIndex(string $id): ?int
+    {
+        foreach ($this->badges as $index => $badge) {
+            if ($badge->id === $id) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 }
