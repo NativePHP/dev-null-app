@@ -172,12 +172,22 @@ final readonly class Client
      */
     public function bookmark(string $id): Commit
     {
-        return $this->react('PUT', 'commits/'.rawurlencode($id).'/bookmark');
+        return $this->react('PUT', 'commits/'.rawurlencode($id).'/bookmark', saving: true);
     }
 
     public function unbookmark(string $id): Commit
     {
-        return $this->react('DELETE', 'commits/'.rawurlencode($id).'/bookmark');
+        return $this->react('DELETE', 'commits/'.rawurlencode($id).'/bookmark', saving: true);
+    }
+
+    /**
+     * The commits you saved, last saved first, as the web's Saved page lists them.
+     *
+     * @return Page<Commit>
+     */
+    public function saved(?string $cursor = null): Page
+    {
+        return Page::fromArray($this->get('saved', ['cursor' => $cursor]), Commit::fromArray(...));
     }
 
     /**
@@ -314,11 +324,16 @@ final readonly class Client
 
     /**
      * Stars, unstars, saves or unsaves, and gives every kept copy of the commit the new counts.
+     * Saving or unsaving puts it on top of your kept saved commits, or takes it out.
      */
-    private function react(string $method, string $path): Commit
+    private function react(string $method, string $path, bool $saving = false): Commit
     {
         $commit = $this->data($this->send($method, $path));
         $this->cache->commitReacted($commit);
+
+        if ($saving) {
+            $this->cache->commitSaved($commit);
+        }
 
         return Commit::fromArray($commit);
     }

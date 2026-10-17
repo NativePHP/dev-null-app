@@ -42,6 +42,7 @@ final class ResponseCache
         '#^commits/[^/]+/replies$#',
         '#^users/[^/]+$#',
         '#^users/[^/]+/commits$#',
+        '#^saved$#',
     ];
 
     /**
@@ -64,6 +65,11 @@ final class ResponseCache
      * How many of the commits deleted on this phone it remembers.
      */
     private const int RememberedDeletions = 50;
+
+    /**
+     * How many of the commits unsaved on this phone it remembers.
+     */
+    private const int RememberedUnsaves = 50;
 
     /**
      * What every copy of a user has of their profile, as a commit's author, a
@@ -222,6 +228,44 @@ final class ResponseCache
         }
 
         $this->patchCommit($id, fn (array $kept): array => [...$kept, ...$reactions]);
+    }
+
+    /**
+     * You saved or unsaved a commit. A commit you saved is the last you saved,
+     * so it goes on top of your saved commits; one you unsaved leaves them,
+     * and is remembered for the pages of them loaded past the first.
+     *
+     * @param  array<string, mixed>  $commit
+     */
+    public function commitSaved(array $commit): void
+    {
+        $id = (string) ($commit['id'] ?? '');
+        $userId = $this->userId();
+
+        if ($id === '' || $userId === null || ! is_bool($commit['is_saved'] ?? null)) {
+            return;
+        }
+
+        $this->patch('saved', [], fn (array $json): array => $commit['is_saved']
+            ? self::prepend($json, $commit)
+            : [...$json, 'data' => self::without($json['data'] ?? [], $id)]);
+
+        $unsaved = array_diff($this->unsavedIds(), [$id]);
+        $this->store()->forever("{$userId} unsaved", array_slice($commit['is_saved'] ? $unsaved : [$id, ...$unsaved], 0, self::RememberedUnsaves));
+    }
+
+    /**
+     * Commits unsaved on this phone lately, and not saved again since, for a
+     * screen showing more of your saved commits than the first page kept.
+     *
+     * @return list<string>
+     */
+    public function unsavedIds(): array
+    {
+        $userId = $this->userId();
+        $ids = $userId === null ? null : $this->store()->get("{$userId} unsaved");
+
+        return is_array($ids) ? array_values(array_filter($ids, is_string(...))) : [];
     }
 
     /**

@@ -27,6 +27,8 @@ it('keeps first pages of the GETs the screens show, and nothing else', function 
         ->and(ResponseCache::caches('commits/c1/replies'))->toBeTrue()
         ->and(ResponseCache::caches('users/ada'))->toBeTrue()
         ->and(ResponseCache::caches('users/ada/commits', ['replies' => '1']))->toBeTrue()
+        ->and(ResponseCache::caches('saved'))->toBeTrue()
+        ->and(ResponseCache::caches('saved', ['cursor' => 'page2']))->toBeFalse()
         ->and(ResponseCache::caches('log/following', ['cursor' => 'page2']))->toBeFalse()
         ->and(ResponseCache::caches('devices'))->toBeFalse()
         ->and(ResponseCache::caches('key-syncs'))->toBeFalse()
@@ -220,6 +222,39 @@ it('remembers the commits deleted on this phone, newest first and only the last 
     $this->cache->flush();
 
     expect($this->cache->deletedIds())->toBe([]);
+});
+
+it('puts a commit you saved on top of your saved commits, and takes one you unsaved out', function () {
+    $this->cache->put('saved', [], pageJson([commitJson(['id' => 'c2', 'is_saved' => true]), commitJson(['id' => 'c1', 'is_saved' => true])], 'page2'));
+
+    $this->cache->commitSaved(commitJson(['id' => 'c3', 'body' => 'Worth keeping', 'is_saved' => true]));
+    $this->cache->commitSaved(commitJson(['id' => 'c1', 'is_saved' => true]));
+
+    expect(array_column($this->cache->get('saved')['data'], 'id'))->toBe(['c1', 'c3', 'c2'])
+        ->and($this->cache->get('saved')['data'][1]['body'])->toBe('Worth keeping')
+        ->and($this->cache->get('saved')['meta']['next_cursor'])->toBe('page2');
+
+    $this->cache->commitSaved(commitJson(['id' => 'c3', 'is_saved' => false]));
+    $this->cache->commitSaved(['id' => 'c2']);
+
+    expect(array_column($this->cache->get('saved')['data'], 'id'))->toBe(['c1', 'c2']);
+});
+
+it('remembers the commits unsaved on this phone until they are saved again, newest first and only the last fifty', function () {
+    foreach (range(1, 52) as $n) {
+        $this->cache->commitSaved(commitJson(['id' => "c{$n}", 'is_saved' => false]));
+    }
+
+    $this->cache->commitSaved(commitJson(['id' => 'c51', 'is_saved' => true]));
+
+    expect($this->cache->unsavedIds())->toHaveCount(49)
+        ->and($this->cache->unsavedIds()[0])->toBe('c52')
+        ->and($this->cache->unsavedIds())->not->toContain('c51')
+        ->and($this->cache->unsavedIds())->not->toContain('c2');
+
+    $this->cache->flush();
+
+    expect($this->cache->unsavedIds())->toBe([]);
 });
 
 it('keeps a log the same whatever it was asked since, without what only ?since= answers', function () {

@@ -13,16 +13,17 @@ use Native\Mobile\Edge\Layouts\NativeLayout;
 use Native\Mobile\Edge\NativeComponent;
 
 /**
- * The three top-level sections: Log, Notifications and your Profile, with the
- * icons of the web's phone nav, picked out in the colour you chose for your
- * lane. Notifications wears a badge with the unread count devnull last gave.
+ * The top-level sections: Log, Notifications, Saved and your Profile, with the
+ * icons of the web's nav, picked out in the colour you chose for your lane.
+ * Notifications wears a badge with the unread count devnull last gave. The
+ * web's phone keeps Saved in its account menu; here it's a tab of its own.
  */
 class TabsLayout extends NativeLayout
 {
     /**
      * Each tab's URI. Commits and profiles open beneath the one they were tapped in.
      */
-    public const array Tabs = ['/log', '/notifications', '/profile'];
+    public const array Tabs = ['/log', '/notifications', '/saved', '/profile'];
 
     /**
      * The icon and "/dev/null" wordmark as the web's MobileHeader draws them, 105 x 28pt.
@@ -80,6 +81,7 @@ class TabsLayout extends NativeLayout
             ->labelVisibility('labeled')
             ->add(Tab::link('Log', '/log', ios: Lucide::GitCommitVertical->ios(), android: Lucide::GitCommitVertical->android()))
             ->add($notifications)
+            ->add(Tab::link('Saved', '/saved', ios: Lucide::Bookmark->ios(), android: Lucide::Bookmark->android()))
             ->add(Tab::link('Profile', '/profile', ios: Lucide::UserRound->ios(), android: Lucide::UserRound->android()));
     }
 
