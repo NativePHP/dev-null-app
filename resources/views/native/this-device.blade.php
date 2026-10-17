@@ -1,8 +1,12 @@
+@use('App\Devnull\Lane')
 @use('App\Icons\Ios')
 @use('App\Icons\Android')
 @use('App\Icons\Lucide')
 
-{{-- Laid out like the web's profile settings: a section each, with its heading, on the surface. --}}
+{{--
+    Laid out like the web's profile settings: a section each, with its heading, on the surface. The full-width buttons
+    are large, as Sign in with GitHub is, and the main ones wear your colour.
+--}}
 <native:scroll-view class="w-full h-full bg-theme-surface">
     <native:column class="w-full pt-6 pb-10">
         @include('native.partials.error')
@@ -41,9 +45,9 @@
                 </native:column>
 
                 <native:column class="w-full px-4 pt-5 gap-2">
-                    <native:button ref="edit-on-github" variant="primary" :ios-icon-trailing="Lucide::ArrowUpRight->ios()" :android-icon-trailing="Lucide::ArrowUpRight->android()" @press="editOnGitHub" class="w-full">Edit on GitHub</native:button>
+                    <native:button ref="edit-on-github" :variant="$myColour" size="lg" :ios-icon-trailing="Lucide::ArrowUpRight->ios()" :android-icon-trailing="Lucide::ArrowUpRight->android()" @press="editOnGitHub" class="w-full">Edit on GitHub</native:button>
                     {{-- The label stays put while it spins, so the button keeps its size. --}}
-                    <native:button ref="sync-github" variant="secondary" :ios-icon="Lucide::RefreshCw->ios()" :android-icon="Lucide::RefreshCw->android()" :loading="$syncing" :disabled="$syncing" @press="syncProfile" class="w-full">Sync from GitHub</native:button>
+                    <native:button ref="sync-github" variant="secondary" size="lg" :ios-icon="Lucide::RefreshCw->ios()" :android-icon="Lucide::RefreshCw->android()" :loading="$syncing" :disabled="$syncing" @press="syncProfile" class="w-full">Sync from GitHub</native:button>
                     <native:text ref="synced-at" class="text-xs leading-relaxed text-theme-ink-muted">{{ $syncedAt }}</native:text>
                     @if ($syncError)
                         <native:text ref="sync-error" class="text-sm text-theme-destructive">{{ $syncError }}</native:text>
@@ -94,8 +98,9 @@
                     @endforeach
                 </native:row>
 
+                {{-- In the colour picked, so you see it on a button before saving it. --}}
                 <native:column class="w-full px-4 pt-4 gap-2">
-                    <native:button ref="save-lane" variant="primary" :loading="$savingLane" :disabled="$savingLane || ! $laneChanged" @press="saveLane" class="w-full">Save color</native:button>
+                    <native:button ref="save-lane" :variant="Lane::token($previewLane)" size="lg" :loading="$savingLane" :disabled="$savingLane || ! $laneChanged" @press="saveLane" class="w-full">Save color</native:button>
                     @if ($laneError)
                         <native:text ref="lane-error" class="text-sm text-theme-destructive">{{ $laneError }}</native:text>
                     @endif
@@ -121,11 +126,11 @@
                 @if ($appleLinked === false)
                     {{-- Apple's black button (white in dark mode, the theme's accent) with its logo, as Apple's guidelines ask. --}}
                     <native:column class="w-full px-4 pt-4">
-                        <native:button ref="link-apple" variant="accent" :ios-icon="Ios::AppleLogo" @press="linkApple" class="w-full">Sign in with Apple</native:button>
+                        <native:button ref="link-apple" variant="accent" size="lg" :ios-icon="Ios::AppleLogo" @press="linkApple" class="w-full">Sign in with Apple</native:button>
                     </native:column>
                 @elseif ($appleLinked === true)
                     <native:column class="w-full px-4 pt-4">
-                        <native:button ref="unlink-apple" variant="secondary" @press="confirmUnlinkApple" class="w-full">Unlink Apple ID</native:button>
+                        <native:button ref="unlink-apple" variant="secondary" size="lg" @press="confirmUnlinkApple" class="w-full">Unlink Apple ID</native:button>
                     </native:column>
                 @endif
             </native:column>
@@ -153,12 +158,12 @@
             </native:column>
 
             <native:column class="w-full px-4 pt-4">
-                <native:button ref="devices" variant="secondary" :ios-icon="Ios::Iphone" :android-icon="Android::Smartphone" @press="openDevices" class="w-full">Your devices on dev-null.sh</native:button>
+                <native:button ref="devices" variant="secondary" size="lg" :ios-icon="Ios::Iphone" :android-icon="Android::Smartphone" @press="openDevices" class="w-full">Your devices on dev-null.sh</native:button>
             </native:column>
         </native:column>
 
         <native:column class="w-full px-4 pt-8 gap-2">
-            <native:button ref="sign-out" variant="secondary" @press="confirmSignOut" class="w-full">Sign out</native:button>
+            <native:button ref="sign-out" variant="secondary" size="lg" @press="confirmSignOut" class="w-full">Sign out</native:button>
             <native:text class="text-xs leading-relaxed text-theme-ink-muted">Deletes the key from this phone and signs you out.</native:text>
         </native:column>
 
@@ -169,7 +174,7 @@
             ])
 
             <native:column class="w-full px-4 pt-4">
-                <native:button ref="delete-account" variant="destructive" @press="confirmDeleteAccount" class="w-full">Delete account</native:button>
+                <native:button ref="delete-account" variant="destructive" size="lg" @press="confirmDeleteAccount" class="w-full">Delete account</native:button>
             </native:column>
         </native:column>
     </native:column>

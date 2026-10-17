@@ -462,6 +462,7 @@ class Notifications extends NativeComponent
         }
 
         return view('native.notifications', [
+            'myColour' => $this->myColour(),
             'types' => self::Types,
             'readAt' => $readAt,
             'pages' => $pages,

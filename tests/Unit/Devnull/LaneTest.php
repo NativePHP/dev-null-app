@@ -27,3 +27,53 @@ it('reads the lane the API sends', function (mixed $value, ?int $lane) {
     ['blue', null],
     [2.5, null],
 ]);
+
+it('names the theme token your colour is drawn in, Commit Blue before devnull says who you are', function (?int $lane, string $token) {
+    expect(Lane::token($lane))->toBe($token);
+})->with([
+    [0, 'lane-0'],
+    [5, 'lane-5'],
+    [null, 'primary'],
+]);
+
+/**
+ * WCAG 2's contrast ratio between two #rrggbb colours.
+ */
+function contrastRatio(string $first, string $second): float
+{
+    $luminance = function (string $hex): float {
+        $channels = array_map(function (string $pair): float {
+            $channel = hexdec($pair) / 255;
+
+            return $channel <= 0.03928 ? $channel / 12.92 : (($channel + 0.055) / 1.055) ** 2.4;
+        }, str_split(ltrim($hex, '#'), 2));
+
+        return 0.2126 * $channels[0] + 0.7152 * $channels[1] + 0.0722 * $channels[2];
+    };
+
+    [$lighter, $darker] = [max($luminance($first), $luminance($second)), min($luminance($first), $luminance($second))];
+
+    return ($lighter + 0.05) / ($darker + 0.05);
+}
+
+it('labels a button on each lane in whichever of white and ink reads better', function (string $mode, string $ink) {
+    $theme = (require dirname(__DIR__, 3).'/config/native-ui.php')['theme'][$mode];
+
+    foreach (range(0, Lane::Count - 1) as $lane) {
+        $fill = $theme["lane-{$lane}"];
+        $better = contrastRatio('#ffffff', $fill) >= contrastRatio($theme[$ink], $fill) ? '#ffffff' : $theme[$ink];
+
+        expect($theme["on-lane-{$lane}"])->toBe($better, "lane-{$lane} in {$mode}");
+    }
+})->with([
+    'light, against ink' => ['light', 'ink'],
+    'dark, against graphite' => ['dark', 'on-primary'],
+]);
+
+it('reads at 4.5:1 or better on every lifted lane in dark mode', function () {
+    $theme = (require dirname(__DIR__, 3).'/config/native-ui.php')['theme']['dark'];
+
+    foreach (range(0, Lane::Count - 1) as $lane) {
+        expect(contrastRatio($theme["on-lane-{$lane}"], $theme["lane-{$lane}"]))->toBeGreaterThanOrEqual(4.5);
+    }
+});

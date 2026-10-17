@@ -33,7 +33,7 @@
                         @elseif ($profile->isFollowing)
                             <native:button ref="follow" variant="secondary" size="sm" @press="toggleFollow" a11y-hint="Unfollows {{ $user->handle() }}">Unfollow</native:button>
                         @else
-                            <native:button ref="follow" variant="primary" size="sm" @press="toggleFollow">Follow</native:button>
+                            <native:button ref="follow" :variant="$myColour" size="sm" @press="toggleFollow">Follow</native:button>
                         @endif
                     </native:row>
 

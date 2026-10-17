@@ -362,6 +362,7 @@ class CommitDetail extends NativeComponent
         $earlier = $this->earlierShown ? [] : $this->ancestors;
 
         return view('native.commit-detail', [
+            'myColour' => $this->myColour(),
             'viewer' => $this->me(),
             'rows' => $this->commit === null ? [] : Timeline::thread(
                 [...($this->earlierShown ? $this->ancestors : []), $this->commit, ...$this->series],

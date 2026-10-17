@@ -717,6 +717,7 @@ class Log extends NativeComponent
         $showing = $pages[array_search($this->log, self::Logs, true)];
 
         return view('native.log', [
+            'myColour' => $this->myColour(),
             'viewer' => $viewer,
             'composerOpen' => $this->composing || $this->body !== '',
             'remaining' => $this->remaining(),

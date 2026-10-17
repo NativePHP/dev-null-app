@@ -122,7 +122,7 @@
                         />
                     </native:column>
                     @include('native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget'])
-                    <native:button ref="send-reply" size="sm" :disabled="$replyLength < 3 || $remaining < 0" @press="sendReply">Reply</native:button>
+                    <native:button ref="send-reply" :variant="$myColour" size="sm" :disabled="$replyLength < 3 || $remaining < 0" @press="sendReply">Reply</native:button>
                 </native:row>
             </native:column>
         </native:bottom-bar>

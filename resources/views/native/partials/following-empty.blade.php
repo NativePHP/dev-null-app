@@ -27,7 +27,7 @@
                         </native:row>
                         <native:text class="w-full text-sm text-theme-ink-muted" :max-lines="1">{{ $suggestion->plainText() }}</native:text>
                     </native:column>
-                    <native:button ref="follow-{{ $author->username }}" size="sm" @press="followSuggested('{{ $author->username }}')" a11y-label="Follow {{ $author->handle() }}">Follow</native:button>
+                    <native:button ref="follow-{{ $author->username }}" :variant="$myColour" size="sm" @press="followSuggested('{{ $author->username }}')" a11y-label="Follow {{ $author->handle() }}">Follow</native:button>
                 </native:row>
                 @unless ($loop->last)
                     <native:column class="w-full h-[1] bg-theme-hairline" />

@@ -3,6 +3,7 @@
 namespace App\NativeComponents\Layouts;
 
 use App\Devnull\Account;
+use App\Devnull\Lane;
 use App\Icons\Lucide;
 use App\NativeComponents\Log;
 use Native\Mobile\Edge\Elements\Image;
@@ -90,8 +91,7 @@ class TabsLayout extends NativeLayout
     public static function accent(): string
     {
         $primary = (string) theme('primary', '#3b6fe0');
-        $me = app(Account::class)->user();
 
-        return $me === null ? $primary : (string) theme('lane-'.$me->lane(), $primary);
+        return (string) theme(Lane::token(app(Account::class)->user()?->lane()), $primary);
     }
 }
