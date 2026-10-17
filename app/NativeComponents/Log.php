@@ -171,6 +171,7 @@ class Log extends NativeComponent
         $this->forgetRefreshes();
         $this->closeEmptyComposer();
         $this->forgetDeleted();
+        $this->forgetHidden();
         $this->showKept();
         $this->revalidate();
     }
@@ -657,6 +658,24 @@ class Log extends NativeComponent
 
         $this->commits = array_values(array_filter($this->commits, fn (Commit $commit): bool => ! isset($deleted[$commit->id])));
         $this->latestCommits = array_values(array_filter($this->latestCommits, fn (Commit $commit): bool => ! isset($deleted[$commit->id])));
+    }
+
+    /**
+     * Takes out the commits of anyone you muted or blocked since, as devnull
+     * leaves them out.
+     */
+    private function forgetHidden(): void
+    {
+        $hidden = array_flip(app(ResponseCache::class)->takeHiddenAuthorIds());
+
+        if ($hidden === []) {
+            return;
+        }
+
+        $shown = fn (Commit $commit): bool => ! isset($hidden[$commit->author->id]);
+
+        $this->commits = array_values(array_filter($this->commits, $shown));
+        $this->latestCommits = array_values(array_filter($this->latestCommits, $shown));
     }
 
     /**

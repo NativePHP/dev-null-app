@@ -2,6 +2,7 @@
 
 namespace App\Devnull\Exceptions;
 
+use App\Devnull\Data\User;
 use App\Devnull\ErrorCode;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Response;
@@ -19,8 +20,9 @@ class ApiException extends RuntimeException
      * @param  array<string, list<string>>  $errors
      * @param  int|null  $retryAfter  How many seconds the server asked to wait before trying again.
      * @param  string|null  $errorCode  The machine-readable code devnull sends next to the message, such as "device_not_approved".
+     * @param  User|null  $user  The user devnull sends with the error, as it sends the one you blocked with user_blocked.
      */
-    public function __construct(string $message, public readonly int $status = 0, public readonly array $errors = [], public readonly ?int $retryAfter = null, public readonly ?string $errorCode = null)
+    public function __construct(string $message, public readonly int $status = 0, public readonly array $errors = [], public readonly ?int $retryAfter = null, public readonly ?string $errorCode = null, public readonly ?User $user = null)
     {
         parent::__construct($message, $status);
     }
@@ -51,7 +53,7 @@ class ApiException extends RuntimeException
         return match ($status) {
             401 => new Unauthenticated($message, 401, errorCode: $code),
             422 => new ApiException($message, 422, $errors, errorCode: $code),
-            default => new ApiException($message, $status, retryAfter: self::retryAfter($retryAfter), errorCode: $code),
+            default => new ApiException($message, $status, retryAfter: self::retryAfter($retryAfter), errorCode: $code, user: is_array($json['user'] ?? null) ? User::fromArray($json['user']) : null),
         };
     }
 
