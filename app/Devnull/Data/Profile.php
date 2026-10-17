@@ -53,6 +53,11 @@ final readonly class Profile
         return new self(...[...get_object_vars($this), 'followersCount' => max(0, $this->followersCount + $change), 'isFollowing' => $isFollowing]);
     }
 
+    public function withMuting(bool $isMuting): self
+    {
+        return new self(...[...get_object_vars($this), 'isMuting' => $isMuting]);
+    }
+
     public function withPinnedCommit(?Commit $pinnedCommit): self
     {
         return new self(...[...get_object_vars($this), 'pinnedCommit' => $pinnedCommit]);

@@ -182,3 +182,115 @@ it('leaves the cache alone when a write fails', function () {
 
     expect(kept('log/following')['data'][0]['stars_count'])->toBe(1);
 });
+
+it('keeps mutes on the kept profile and the people you mute, and takes their commits out of the kept logs', function () {
+    $ada = userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace']);
+    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada']), 'is_muting' => false]);
+    keep('users/ada/commits', pageJson([commitJson(['id' => 'c2', 'author' => $ada])]));
+    keep('me/muted', pageJson([userJson(['id' => 'u3', 'username' => 'grace'])]));
+    keep('log/following', [...pageJson([commitJson(['id' => 'c2', 'author' => $ada]), commitJson(['id' => 'c1'])]), 'suggestions' => [commitJson(['id' => 'c4', 'author' => $ada])]]);
+    keep('log/trending', [...pageJson([commitJson(['id' => 'c3', 'author' => $ada])]), 'is_ranked' => true]);
+    serveApi([
+        'POST /api/v1/users/ada/mute' => [['data' => $ada, 'is_muting' => true]],
+        'DELETE /api/v1/users/ada/mute' => [['data' => $ada, 'is_muting' => false]],
+    ]);
+
+    $this->devnull->mute('ada');
+
+    expect(kept('users/ada')['is_muting'])->toBeTrue()
+        ->and(array_column(kept('me/muted')['data'], 'username'))->toBe(['ada', 'grace'])
+        ->and(array_column(kept('log/following')['data'], 'id'))->toBe(['c1'])
+        ->and(kept('log/following')['suggestions'])->toBe([])
+        ->and(kept('log/trending')['data'])->toBe([])
+        // Their own profile still shows their commits, as on the web.
+        ->and(array_column(kept('users/ada/commits')['data'], 'id'))->toBe(['c2']);
+
+    $this->devnull->unmute('ada');
+
+    expect(kept('users/ada')['is_muting'])->toBeFalse()
+        ->and(array_column(kept('me/muted')['data'], 'username'))->toBe(['grace']);
+});
+
+it('keeps blocks on the people you block, and drops their profile, their commits and the follows a block ends', function () {
+    $ada = userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace']);
+    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada']), 'is_following' => true, 'follows_you' => true]);
+    keep('users/ada/commits', pageJson([commitJson(['id' => 'c2', 'author' => $ada])]));
+    keep('users/ada/commits', pageJson([commitJson(['id' => 'r1', 'author' => $ada])]), ['replies' => '1']);
+    keep('users/local_dev', ['data' => userWithCountsJson(['username' => 'local_dev'], followers: 3, following: 2)]);
+    keep('me/blocked', pageJson([]));
+    keep('log/latest', pageJson([commitJson(['id' => 'c2', 'author' => $ada]), commitJson(['id' => 'c1'])]));
+    serveApi([
+        'POST /api/v1/users/ada/block' => [['data' => $ada, 'is_blocking' => true]],
+        'DELETE /api/v1/users/ada/block' => [['data' => $ada, 'is_blocking' => false]],
+    ]);
+
+    $this->devnull->block('ada');
+
+    expect(kept('users/ada'))->toBeNull()
+        ->and(kept('users/ada/commits'))->toBeNull()
+        ->and(kept('users/ada/commits', ['replies' => '1']))->toBeNull()
+        ->and(kept('users/local_dev')['data'])->toMatchArray(['followers_count' => 2, 'following_count' => 1])
+        ->and(array_column(kept('me/blocked')['data'], 'username'))->toBe(['ada'])
+        ->and(array_column(kept('log/latest')['data'], 'id'))->toBe(['c1']);
+
+    $this->devnull->unblock('ada');
+
+    // Unblocking doesn't bring back the follows.
+    expect(kept('me/blocked')['data'])->toBe([])
+        ->and(kept('users/local_dev')['data'])->toMatchArray(['followers_count' => 2, 'following_count' => 1]);
+});
+
+it('keeps your counts when you block someone with no follows between you', function () {
+    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada']), 'is_following' => false, 'follows_you' => false]);
+    keep('users/local_dev', ['data' => userWithCountsJson(['username' => 'local_dev'], followers: 3, following: 2)]);
+    serveApi(['POST /api/v1/users/ada/block' => [['data' => userJson(['id' => 'u2', 'username' => 'ada']), 'is_blocking' => true]]]);
+
+    $this->devnull->block('ada');
+
+    expect(kept('users/local_dev')['data'])->toMatchArray(['followers_count' => 3, 'following_count' => 2]);
+});
+
+it('lists the people you mute and block, and keeps their first pages', function () {
+    serveApi([
+        'GET /api/v1/me/muted' => [pageJson([userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace'])], 'next')],
+        'GET /api/v1/me/blocked' => [pageJson([userJson(['id' => 'u3', 'username' => 'grace'])])],
+    ]);
+
+    $muted = $this->devnull->muted();
+    $blocked = $this->devnull->blocked();
+
+    expect(array_map(fn ($user): string => $user->username, $muted->items))->toBe(['ada'])
+        ->and($muted->items[0]->name)->toBe('Ada Lovelace')
+        ->and($muted->nextCursor)->toBe('next')
+        ->and(array_map(fn ($user): string => $user->username, $blocked->items))->toBe(['grace'])
+        ->and($blocked->nextCursor)->toBeNull()
+        ->and(kept('me/muted')['data'][0]['username'])->toBe('ada')
+        ->and(kept('me/blocked')['data'][0]['username'])->toBe('grace');
+
+    $this->devnull->muted('next');
+
+    expect(kept('me/muted', ['cursor' => 'next']))->toBeNull();
+});
+
+it('leaves the cache alone when a mute or block fails, or devnull answers without the user', function (string $route, Closure $call) {
+    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada']), 'is_muting' => false]);
+    keep('me/blocked', pageJson([]));
+    keep('log/latest', pageJson([commitJson(['id' => 'c2', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])]));
+    serveApi([
+        $route => [['message' => 'Too Many Attempts.'], 429],
+        'DELETE /api/v1/users/ada/mute' => [['is_muting' => false]],
+    ]);
+
+    try {
+        $call($this->devnull);
+    } catch (ApiException) {
+    }
+
+    expect(kept('users/ada')['is_muting'])->toBeFalse()
+        ->and(kept('me/blocked')['data'])->toBe([])
+        ->and(kept('log/latest')['data'])->toHaveCount(1);
+})->with([
+    'a mute' => ['POST /api/v1/users/ada/mute', fn (Client $devnull) => $devnull->mute('ada')],
+    'a block' => ['POST /api/v1/users/ada/block', fn (Client $devnull) => $devnull->block('ada')],
+    'an answer without the user' => ['POST /api/v1/users/ada/mute', fn (Client $devnull) => $devnull->unmute('ada')],
+]);

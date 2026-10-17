@@ -52,6 +52,14 @@ final readonly class Client
      */
     public const string LanePath = 'me/lane';
 
+    /**
+     * The people the signed-in account mutes, and blocks, as the web's
+     * Settings → Safety lists them.
+     */
+    public const string MutedPath = 'me/muted';
+
+    public const string BlockedPath = 'me/blocked';
+
     public function __construct(private DeviceKey $deviceKey, private string $baseUrl, private ResponseCache $cache) {}
 
     /**
@@ -220,6 +228,57 @@ final readonly class Client
     {
         $this->send('DELETE', 'users/'.rawurlencode($username).'/follow');
         $this->cache->followChanged(rawurlencode($username), false);
+    }
+
+    /**
+     * Mutes someone, as the web's Mute does. It's silent: they aren't told,
+     * and the follows between you stay. Their commits leave your logs.
+     */
+    public function mute(string $username): void
+    {
+        $this->cache->muteChanged($this->json($this->send('POST', 'users/'.rawurlencode($username).'/mute')));
+    }
+
+    public function unmute(string $username): void
+    {
+        $this->cache->muteChanged($this->json($this->send('DELETE', 'users/'.rawurlencode($username).'/mute')));
+    }
+
+    /**
+     * Blocks someone, as the web's Block does, which ends the follows both
+     * ways. Neither of you sees the other's profile or commits after it.
+     */
+    public function block(string $username): void
+    {
+        $this->cache->blockChanged($this->json($this->send('POST', 'users/'.rawurlencode($username).'/block')));
+    }
+
+    /**
+     * Unblocking doesn't bring back the follows, as on the web.
+     */
+    public function unblock(string $username): void
+    {
+        $this->cache->blockChanged($this->json($this->send('DELETE', 'users/'.rawurlencode($username).'/block')));
+    }
+
+    /**
+     * The people you mute, last muted first.
+     *
+     * @return Page<User>
+     */
+    public function muted(?string $cursor = null): Page
+    {
+        return Page::fromArray($this->get(self::MutedPath, ['cursor' => $cursor]), User::fromArray(...));
+    }
+
+    /**
+     * The people you block, last blocked first.
+     *
+     * @return Page<User>
+     */
+    public function blocked(?string $cursor = null): Page
+    {
+        return Page::fromArray($this->get(self::BlockedPath, ['cursor' => $cursor]), User::fromArray(...));
     }
 
     /**

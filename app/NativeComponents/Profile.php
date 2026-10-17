@@ -18,10 +18,13 @@ use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Closure;
 use Illuminate\View\View;
+use Native\Mobile\Attributes\On;
 use Native\Mobile\Edge\Layouts\Builders\NavAction;
 use Native\Mobile\Edge\Layouts\Builders\NavBarOptions;
 use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Facades\Browser;
+use Native\Mobile\Facades\Dialog;
 
 /**
  * A developer's profile: who they are on GitHub, their counts and activity,
@@ -31,6 +34,10 @@ use Native\Mobile\Facades\Browser;
  * Across a block devnull shows neither of two people the other's profile, as
  * on the web: the one who blocked is told so, the other only that it isn't
  * available. devnull says which by its code (see ErrorCode).
+ *
+ * Someone else's profile has the web's safety menu in its nav bar: Mute or
+ * Unmute, and Block, or on a profile you blocked only Unblock. Each asks
+ * first, then changes straight away, and goes back if devnull says no.
  *
  * The Profile tab shows your own, with no username in the route. Like the web,
  * your own profile swaps Follow for "Edit on GitHub", and its nav bar leads to
@@ -54,6 +61,18 @@ class Profile extends NativeComponent
     public string $username = '';
 
     public const array Tabs = ['commits', 'replies'];
+
+    /**
+     * The alerts the safety menu confirms with, as the web words them. Each one's id names the profile too, so an
+     * answer only reaches the profile that asked.
+     */
+    public const string MuteAlert = 'mute';
+
+    public const string UnmuteAlert = 'unmute';
+
+    public const string BlockAlert = 'block';
+
+    public const string UnblockAlert = 'unblock';
 
     public ?ProfileData $profile = null;
 
@@ -106,16 +125,52 @@ class Profile extends NativeComponent
 
     public function navigationOptions(): ?NavBarOptions
     {
-        if (! $this->isMe()) {
-            return null;
+        if ($this->isMe()) {
+            return NavBarOptions::make()->action(
+                NavAction::make('account')
+                    ->icon(ios: Lucide::Settings2->ios(), android: Lucide::Settings2->android())
+                    ->a11yLabel('Account')
+                    ->press('openAccount'),
+            );
         }
 
-        return NavBarOptions::make()->action(
-            NavAction::make('account')
-                ->icon(ios: Lucide::Settings2->ios(), android: Lucide::Settings2->android())
-                ->a11yLabel('Account')
-                ->press('openAccount'),
+        $items = $this->safetyActions();
+
+        return $items === [] ? null : NavBarOptions::make()->action(
+            NavAction::make('safety')
+                ->icon(ios: Lucide::Ellipsis->ios(), android: Lucide::Ellipsis->android())
+                ->a11yLabel('More options for @'.$this->username)
+                ->items($items),
         );
+    }
+
+    /**
+     * The web's safety menu: Mute or Unmute, then Block, in red. A profile you
+     * blocked offers only Unblock, as the web's blocked page does, and one that
+     * blocked you offers nothing. It waits for devnull to say whether you mute
+     * them.
+     *
+     * @return list<NavAction>
+     */
+    private function safetyActions(): array
+    {
+        $handle = '@'.$this->username;
+
+        if ($this->isBlocking()) {
+            return [NavAction::make('unblock')->label("Unblock {$handle}")->icon(ios: Lucide::Ban->ios(), android: Lucide::Ban->android())->press('confirmBlock')];
+        }
+
+        if (! $this->canChangeSafety()) {
+            return [];
+        }
+
+        $muting = $this->profile?->isMuting === true;
+        $muteIcon = $muting ? Lucide::Volume2 : Lucide::VolumeX;
+
+        return [
+            NavAction::make($muting ? 'unmute' : 'mute')->label(($muting ? 'Unmute ' : 'Mute ').$handle)->icon(ios: $muteIcon->ios(), android: $muteIcon->android())->press('confirmMute'),
+            NavAction::make('block')->label("Block {$handle}")->icon(ios: Lucide::Ban->ios(), android: Lucide::Ban->android())->destructive()->press('confirmBlock'),
+        ];
     }
 
     /**
@@ -190,6 +245,145 @@ class Profile extends NativeComponent
         }
     }
 
+    /**
+     * Mute or Unmute, from the menu. Mute says what it does in the web's words.
+     */
+    public function confirmMute(): void
+    {
+        if (! $this->canChangeSafety()) {
+            return;
+        }
+
+        $handle = '@'.$this->username;
+
+        $this->profile?->isMuting === true
+            ? Dialog::alert("Unmute {$handle}?", '', [
+                ['label' => 'Cancel', 'style' => 'cancel'],
+                ['label' => 'Unmute'],
+            ])->id($this->alertId(self::UnmuteAlert))
+            : Dialog::alert("Mute {$handle}?", "You won't see their commits or hear from them, and they won't know.", [
+                ['label' => 'Cancel', 'style' => 'cancel'],
+                ['label' => 'Mute'],
+            ])->id($this->alertId(self::MuteAlert));
+    }
+
+    /**
+     * Block or Unblock, from the menu, in the web's words: its Block dialog,
+     * and for Unblock what the web's Safety settings say of it.
+     */
+    public function confirmBlock(): void
+    {
+        $handle = '@'.$this->username;
+
+        if ($this->isBlocking()) {
+            Dialog::alert("Unblock {$handle}?", "Unblocking doesn't bring back follows.", [
+                ['label' => 'Cancel', 'style' => 'cancel'],
+                ['label' => 'Unblock'],
+            ])->id($this->alertId(self::UnblockAlert));
+
+            return;
+        }
+
+        if (! $this->canChangeSafety()) {
+            return;
+        }
+
+        Dialog::alert("Block {$handle}?", "You'll stop following each other. Neither of you will be able to follow, reply to, or star the other, or see each other's commits. They won't be told, but they'll see your profile as unavailable. You can unblock them any time from your settings.", [
+            ['label' => 'Cancel', 'style' => 'cancel'],
+            ['label' => 'Block', 'style' => 'destructive'],
+        ])->id($this->alertId(self::BlockAlert));
+    }
+
+    #[On(ButtonPressed::class)]
+    public function onAlertButton(string $label = '', ?string $id = null): void
+    {
+        if ($id === $this->alertId(self::MuteAlert) && $label === 'Mute') {
+            $this->mute();
+        }
+
+        if ($id === $this->alertId(self::UnmuteAlert) && $label === 'Unmute') {
+            $this->unmute();
+        }
+
+        if ($id === $this->alertId(self::BlockAlert) && $label === 'Block') {
+            $this->block();
+        }
+
+        if ($id === $this->alertId(self::UnblockAlert) && $label === 'Unblock') {
+            $this->unblock();
+        }
+    }
+
+    /**
+     * Mutes straight away, so the profile says Muted, and puts it back if devnull says no.
+     */
+    public function mute(): void
+    {
+        $this->changeMute(true);
+    }
+
+    public function unmute(): void
+    {
+        $this->changeMute(false);
+    }
+
+    /**
+     * Blocks straight away: the profile becomes the blocked page. If devnull
+     * says no, the profile comes back as it was.
+     */
+    public function block(): void
+    {
+        if (! $this->canChangeSafety()) {
+            return;
+        }
+
+        $before = [$this->commits, $this->threads, $this->nextCursor];
+        $this->showBlocked();
+
+        $done = $this->attempt(function ($devnull): bool {
+            $devnull->block($this->username);
+
+            return true;
+        });
+
+        if ($done !== true) {
+            [$this->commits, $this->threads, $this->nextCursor] = $before;
+            $this->unavailable = null;
+        }
+    }
+
+    /**
+     * Unblocks straight away, from the menu or the blocked page's own button,
+     * which the web doesn't confirm. The header shows what it knows until
+     * devnull sends the profile again, without the follows the block ended.
+     */
+    public function unblock(): void
+    {
+        if (! $this->isBlocking()) {
+            return;
+        }
+
+        $before = [$this->sketched, $this->commitsLoaded];
+        $this->unavailable = null;
+        $this->sketched = true;
+        $this->commitsLoaded = false;
+
+        $done = $this->attempt(function ($devnull): bool {
+            $devnull->unblock($this->username);
+
+            return true;
+        });
+
+        if ($done !== true) {
+            [$this->sketched, $this->commitsLoaded] = $before;
+            $this->unavailable = ErrorCode::UserBlocked->value;
+
+            return;
+        }
+
+        $this->refreshProfile(showNewer: true);
+    }
+
     public function isMe(): bool
     {
         return $this->username !== '' && $this->me()?->username === $this->username;
@@ -229,11 +423,11 @@ class Profile extends NativeComponent
     }
 
     /**
-     * The web's muted and blocked people, where a block is undone, since the app can't unblock yet.
+     * The people you mute and block, beneath this tab.
      */
     public function openSafety(): void
     {
-        Browser::inApp(rtrim((string) config('devnull.url'), '/').'/settings/safety');
+        $this->openInTab('/safety');
     }
 
     public function openGitHubProfile(): void
@@ -284,22 +478,84 @@ class Profile extends NativeComponent
     }
 
     /**
-     * A profile across a block has its own page, as on the web, whatever devnull's message says.
+     * A profile across a block has its own page, as on the web, whatever devnull's message says. devnull sends who
+     * you blocked with it, for the page's name and avatar.
      */
     protected function refused(ApiException $exception): bool
     {
-        if (! $exception->is(ErrorCode::UserBlocked) && ! $exception->is(ErrorCode::UserUnavailable)) {
+        if ($exception->is(ErrorCode::UserBlocked)) {
+            if ($exception->user !== null && $exception->user->username === $this->username) {
+                $this->profile = new ProfileData($exception->user);
+                $this->sketched = true;
+            }
+
+            $this->showBlocked();
+            $this->error = null;
+
+            return true;
+        }
+
+        if (! $exception->is(ErrorCode::UserUnavailable)) {
             return false;
         }
 
         $this->unavailable = $exception->errorCode;
+        $this->forgetShownCommits();
+        $this->error = null;
+
+        return true;
+    }
+
+    private function showBlocked(): void
+    {
+        $this->unavailable = ErrorCode::UserBlocked->value;
+        $this->forgetShownCommits();
+    }
+
+    private function forgetShownCommits(): void
+    {
         $this->commits = [];
         $this->threads = [];
         $this->nextCursor = null;
         $this->forgetNewCommits();
-        $this->error = null;
+    }
 
-        return true;
+    private function isBlocking(): bool
+    {
+        return ! $this->isMe() && $this->unavailable === ErrorCode::UserBlocked->value;
+    }
+
+    /**
+     * Whether you can mute or block them: someone else, whose profile devnull has sent, across no block.
+     */
+    private function canChangeSafety(): bool
+    {
+        return $this->username !== '' && ! $this->isMe() && $this->profile !== null && ! $this->sketched && $this->unavailable === null;
+    }
+
+    private function changeMute(bool $muting): void
+    {
+        if (! $this->canChangeSafety() || $this->profile?->isMuting === $muting) {
+            return;
+        }
+
+        $before = $this->profile;
+        $this->profile = $before?->withMuting($muting);
+
+        $done = $this->attempt(function ($devnull) use ($muting): bool {
+            $muting ? $devnull->mute($this->username) : $devnull->unmute($this->username);
+
+            return true;
+        });
+
+        if ($done !== true) {
+            $this->profile = $before;
+        }
+    }
+
+    private function alertId(string $alert): string
+    {
+        return "{$alert}:{$this->username}";
     }
 
     private function refreshProfile(bool $showNewer = false): void
@@ -385,7 +641,7 @@ class Profile extends NativeComponent
         $pinnedCommit = $this->pinnedCommit();
 
         return view('native.profile', [
-            'isBlocked' => $this->unavailable === ErrorCode::UserBlocked->value,
+            'isBlocked' => $this->isBlocking(),
             'isMe' => $this->isMe(),
             'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),

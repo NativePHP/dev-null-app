@@ -26,7 +26,8 @@ use SensitiveParameter;
 /**
  * Your account, reached from your own profile, laid out like the web's profile
  * settings: your profile as devnull mirrors it from GitHub, with a sync, your
- * colour, then this phone's fingerprint, signing out and deleting the account.
+ * colour, the people you mute and block, then this phone's fingerprint,
+ * signing out and deleting the account.
  * Where the app talks to only shows when it isn't dev-null.sh.
  *
  * It opens on you as devnull last said (or as this phone remembers you) and
@@ -190,6 +191,14 @@ class ThisDevice extends NativeComponent
             $this->savingLane = false;
             $this->laneError = $message;
         });
+    }
+
+    /**
+     * The people you mute and block, as the web's Safety settings list them.
+     */
+    public function openSafety(): void
+    {
+        $this->navigate('/profile/safety');
     }
 
     /**

@@ -115,7 +115,7 @@ it('says you blocked them, by devnull\'s user_blocked code, in the web\'s words'
         ->assertDontSee('Whatever /dev/null says')
         ->assertDontSee('Follow');
 
-    $screen->tap('muted-and-blocked')->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'http://devnull.test/settings/safety');
+    $screen->tap('muted-and-blocked')->assertNavigatedTo('/log/safety');
 
     expect(kept('users/ada'))->toBeNull();
 });

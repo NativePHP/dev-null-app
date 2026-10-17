@@ -35,6 +35,8 @@ final class ResponseCache
      */
     private const array Cacheable = [
         '#^me$#',
+        '#^me/muted$#',
+        '#^me/blocked$#',
         '#^notifications$#',
         '#^notifications/[^/]+/group$#',
         '#^log/[^/]+$#',
@@ -64,6 +66,11 @@ final class ResponseCache
      * How many of the commits deleted on this phone it remembers.
      */
     private const int RememberedDeletions = 50;
+
+    /**
+     * How many of the people muted or blocked on this phone it remembers, until a log has taken their commits out.
+     */
+    private const int RememberedHidden = 50;
 
     /**
      * What every copy of a user has of their profile, as a commit's author, a
@@ -318,6 +325,131 @@ final class ResponseCache
     }
 
     /**
+     * You muted or unmuted someone, and devnull answered with them and
+     * whether you mute them now: their profile says so, and they join the top
+     * of the people you mute, or leave it. Once muted, their commits leave
+     * your logs, as devnull leaves them out. Unmuted, they come back with the
+     * next refresh.
+     *
+     * @param  array<string, mixed>  $json
+     */
+    public function muteChanged(array $json): void
+    {
+        [$user, $muting] = self::changedUser($json, 'is_muting');
+
+        if ($user === null) {
+            return;
+        }
+
+        $this->patch('users/'.rawurlencode($user['username']), [], fn (array $kept): array => [...$kept, 'is_muting' => $muting]);
+        $this->patch(Client::MutedPath, [], fn (array $kept): array => self::listed($kept, $user, $muting));
+
+        $this->rememberHidden($user['id'], $muting);
+
+        if ($muting) {
+            $this->dropFromLogs($user['id']);
+        }
+    }
+
+    /**
+     * You blocked or unblocked someone, and devnull answered with them and
+     * whether you block them now: they join the top of the people you block,
+     * or leave it. Across a block neither of you sees the other's profile or
+     * commits, and the follows between you end, so their profile and its
+     * commits go, their commits leave your logs, and your own counts lose
+     * the follows. Unblocking doesn't bring the follows back.
+     *
+     * @param  array<string, mixed>  $json
+     */
+    public function blockChanged(array $json): void
+    {
+        [$user, $blocking] = self::changedUser($json, 'is_blocking');
+
+        if ($user === null) {
+            return;
+        }
+
+        $this->patch(Client::BlockedPath, [], fn (array $kept): array => self::listed($kept, $user, $blocking));
+        $this->rememberHidden($user['id'], $blocking);
+
+        if (! $blocking) {
+            return;
+        }
+
+        $path = 'users/'.rawurlencode($user['username']);
+        $profile = $this->get($path);
+
+        if ($profile !== null && ($me = $this->username()) !== null) {
+            $this->patch("users/{$me}", [], fn (array $kept): array => self::count(
+                self::count($kept, 'following_count', ($profile['is_following'] ?? false) === true ? -1 : 0),
+                'followers_count',
+                ($profile['follows_you'] ?? false) === true ? -1 : 0,
+            ));
+        }
+
+        $this->forget($path);
+        $this->forget("{$path}/commits");
+        $this->forget("{$path}/commits", ['replies' => '1']);
+        $this->dropFromLogs($user['id']);
+    }
+
+    /**
+     * The user a mute or block answered with, and the state devnull says it left.
+     *
+     * @param  array<string, mixed>  $json
+     * @return array{0: array{id: string, username: string}|null, 1: bool}
+     */
+    private static function changedUser(array $json, string $state): array
+    {
+        $user = is_array($json['data'] ?? null) ? $json['data'] : [];
+
+        if (! is_string($user['id'] ?? null) || $user['id'] === '' || ! is_string($user['username'] ?? null) || $user['username'] === '') {
+            return [null, false];
+        }
+
+        return [$user, ($json[$state] ?? null) === true];
+    }
+
+    /**
+     * Takes someone's commits out of every kept log, and out of what an empty
+     * Following log suggests.
+     */
+    private function dropFromLogs(string $authorId): void
+    {
+        $userId = $this->userId();
+
+        foreach ($userId === null ? [] : $this->index($userId) as $meta) {
+            if (! str_starts_with($meta['path'], 'log/')) {
+                continue;
+            }
+
+            $this->patch($meta['path'], $meta['query'], function (array $json) use ($authorId): array {
+                foreach (['data', 'suggestions'] as $list) {
+                    if (is_array($json[$list] ?? null)) {
+                        $json[$list] = array_values(array_filter($json[$list], fn (mixed $commit): bool => ! is_array($commit) || ($commit['author']['id'] ?? null) !== $authorId));
+                    }
+                }
+
+                return $json;
+            });
+        }
+    }
+
+    /**
+     * A kept list of people, with $user on top, or without them.
+     *
+     * @param  array<string, mixed>  $json
+     * @param  array{id: string}  $user
+     * @return array<string, mixed>
+     */
+    private static function listed(array $json, array $user, bool $listed): array
+    {
+        $without = self::without($json['data'] ?? [], $user['id']);
+
+        return [...$json, 'data' => $listed ? [$user, ...$without] : $without];
+    }
+
+    /**
      * Commits deleted on this phone lately, for a ranked log, which can't tell
      * a commit that went from one that only fell down the ranking.
      *
@@ -329,6 +461,51 @@ final class ResponseCache
         $ids = $userId === null ? null : $this->store()->get("{$userId} deleted");
 
         return is_array($ids) ? array_values(array_filter($ids, is_string(...))) : [];
+    }
+
+    /**
+     * The people muted or blocked on this phone since a log last asked, whose
+     * commits it may still be showing from before: Trending keeps what it
+     * shows in place, and pages further down aren't kept to patch. Asking
+     * forgets them, so a mute undone on the web hides nothing for long.
+     *
+     * @return list<string>
+     */
+    public function takeHiddenAuthorIds(): array
+    {
+        $userId = $this->userId();
+
+        if ($userId === null) {
+            return [];
+        }
+
+        $ids = $this->hiddenAuthorIds($userId);
+        $this->store()->forget("{$userId} hidden");
+
+        return $ids;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function hiddenAuthorIds(string $userId): array
+    {
+        $ids = $this->store()->get("{$userId} hidden");
+
+        return is_array($ids) ? array_values(array_filter($ids, is_string(...))) : [];
+    }
+
+    private function rememberHidden(string $authorId, bool $hidden): void
+    {
+        $userId = $this->userId();
+
+        if ($userId === null) {
+            return;
+        }
+
+        $others = array_values(array_diff($this->hiddenAuthorIds($userId), [$authorId]));
+
+        $this->store()->forever("{$userId} hidden", array_slice($hidden ? [$authorId, ...$others] : $others, 0, self::RememberedHidden));
     }
 
     private function rememberDeletion(string $id): void

@@ -103,6 +103,17 @@
             </native:column>
         @endif
 
+        <native:column ref="safety" class="w-full pt-10">
+            @include('native.partials.settings-heading', [
+                'title' => 'Safety',
+                'description' => 'Everyone you mute or block, and a way to undo it.',
+            ])
+
+            <native:column class="w-full px-4 pt-4">
+                <native:button ref="muted-and-blocked" variant="secondary" :ios-icon-trailing="Lucide::ChevronRight->ios()" :android-icon-trailing="Lucide::ChevronRight->android()" @press="openSafety" class="w-full">Muted and blocked people</native:button>
+            </native:column>
+        </native:column>
+
         @if ($offersApple)
             <native:column ref="apple" class="w-full pt-10">
                 @include('native.partials.settings-heading', ['title' => 'Apple ID'])
