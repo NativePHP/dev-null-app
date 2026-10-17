@@ -116,6 +116,35 @@ it('holds their new commits in the pill and puts them on top without a request',
     expect(count(Http::recorded()))->toBe($requests);
 });
 
+it('puts the pill in the list between the tabs and the commits, in a header that pins, there before it shows', function () {
+    holdRefreshes();
+    keep('users/ada', adaProfile());
+    keep('users/ada/commits', pageJson([adaCommit(['id' => 'a1', 'body' => 'Older'])]));
+    serveAda([adaCommit(['id' => 'a2', 'body' => 'Brand new']), adaCommit(['id' => 'a1', 'body' => 'Older'])]);
+
+    $screen = Native::visit('/log/users/ada');
+    $list = fn (): array => findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'list');
+    $besideTheList = fn (): array => findNode($screen->tree(), fn (array $node): bool => in_array('list', array_column($node['children'] ?? [], 'type'), true))['children'];
+    $inTheList = fn (): array => array_slice(array_values(array_filter(array_map(
+        fn (array $node): ?string => findNode($node, fn (array $tab): bool => ($tab['ref'] ?? null) === 'tab-commits') !== null ? 'tabs' : $node['ref'] ?? null,
+        $list()['children'],
+    ), fn (?string $ref): bool => $ref !== null && ! str_starts_with($ref, 'day-'))), 0, 3);
+
+    // Hidden and empty until there are new commits, but already in its place, so showing it never changes the list's shape.
+    expect($besideTheList())->toHaveCount(1)
+        ->and($inTheList())->toBe(['tabs', 'new-commits-slot', 'commit-a1'])
+        ->and(nodeByRef($screen, 'new-commits-slot')['type'])->toBe('sticky_header')
+        ->and(nodeByRef($screen, 'new-commits-slot')['layout']['display'] ?? null)->toBe(1)
+        ->and(nodeByRef($screen, 'new-commits-slot')['children'] ?? [])->toBe([]);
+
+    finishRefreshes($screen)->assertSee('1 new commit');
+
+    expect($besideTheList())->toHaveCount(1)
+        ->and($inTheList())->toBe(['tabs', 'new-commits-slot', 'commit-a1'])
+        ->and(nodeByRef($screen, 'new-commits-slot')['layout']['display'] ?? null)->toBeNull()
+        ->and(findNode(nodeByRef($screen, 'new-commits-slot'), fn (array $node): bool => ($node['ref'] ?? null) === 'new-commits'))->not->toBeNull();
+});
+
 it('keeps a follow, so their profile opens followed next time', function () {
     keep('users/ada', adaProfile(followers: 5));
     keep('users/local_dev', ['data' => userWithCountsJson(following: 2), 'is_following' => false]);

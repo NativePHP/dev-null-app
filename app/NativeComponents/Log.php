@@ -36,9 +36,9 @@ use Native\Mobile\Edge\NativeComponent;
  *
  * It opens on the log as it was last time, then asks devnull again in the
  * background, and every 30 seconds while it's showing, as the web polls.
- * Commits newer than anything showing wait under the tabs in the new commits
- * pill (see HoldsNewCommits), which says how many devnull counted since the
- * newest one showing (?since=).
+ * Commits newer than anything showing wait under the composer in the new
+ * commits pill (see HoldsNewCommits), which says how many devnull counted
+ * since the newest one showing (?since=). Scrolled down, it pins under the tabs.
  *
  * Trending is ranked, so newer commits don't go on top of it. As on the web,
  * it's ranked when it opens and when you pull to refresh, and never re-ranked

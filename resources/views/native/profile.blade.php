@@ -3,6 +3,7 @@
     @include('native.partials.refresh-failed')
     @include('native.partials.commit-sheet')
 
+    {{-- The list stays alone in here, so the banners above coming and going never add a node beside it. --}}
     <native:column class="w-full flex-1">
     {{-- Keyed so a new key puts the profile back at the top, as the new commits pill does. --}}
     <native:list native:key="profile-{{ $listKey }}" class="w-full flex-1 bg-theme-surface" on-refresh="load" on-end-reached="loadMore" :end-reached-buffer="5">
@@ -115,6 +116,8 @@
                 ['key' => 'replies', 'label' => 'Replies', 'active' => $tab === 'replies', 'press' => "showTab('replies')"],
             ]])
 
+            @include('native.partials.new-commits-pill', ['label' => $newCommitsLabel, 'press' => 'showNewCommits', 'shown' => $newCommits !== []])
+
             @if (! $commitsLoaded && $error === null)
                 @foreach (range(1, 3) as $skeleton)
                     @include('native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits'])
@@ -156,7 +159,5 @@
             @endif
         @endif
     </native:list>
-
-    @include('native.partials.new-commits-pill', ['label' => $newCommitsLabel, 'press' => 'showNewCommits', 'shown' => $newCommits !== []])
     </native:column>
 </native:column>

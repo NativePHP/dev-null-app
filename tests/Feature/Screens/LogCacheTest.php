@@ -322,7 +322,7 @@ it('drops a commit deleted on its page as soon as you come back to the log', fun
     $commit->goBack()->assertDontSee('Delete me')->assertSee('Keep me');
 });
 
-it('keeps the pill in its slot beside the list, so showing it never adds a node next to the list', function () {
+it('puts the pill in the list between the composer and the commits, in a header that pins, there before it shows', function () {
     holdRefreshes();
     keep('log/following', pageJson([commitJson(['id' => 'c1'])]));
     fakeFreshLog([commitJson(['id' => 'c2', 'body' => 'Newer']), commitJson(['id' => 'c1'])]);
@@ -334,13 +334,19 @@ it('keeps the pill in its slot beside the list, so showing it never adds a node 
         return array_map(fn (array $node): string => $node['ref'] ?? $node['type'], $parent['children']);
     };
 
-    // Hidden and empty until there are new commits.
-    expect($besideTheList())->toBe(['log', 'new-commits-slot'])
+    $inTheList = fn (): array => array_slice(array_values(array_filter(childRefs($screen, 'log'), fn (?string $ref): bool => $ref !== null && ! str_starts_with($ref, 'day-'))), 0, 3);
+
+    // Hidden and empty until there are new commits, but already in its place, so showing it never changes the list's shape.
+    expect($besideTheList())->toBe(['log'])
+        ->and($inTheList())->toBe(['composer', 'new-commits-slot', 'commit-c1'])
+        ->and(nodeByRef($screen, 'new-commits-slot')['type'])->toBe('sticky_header')
         ->and(nodeByRef($screen, 'new-commits-slot')['layout']['display'] ?? null)->toBe(1)
         ->and(nodeByRef($screen, 'new-commits-slot')['children'] ?? [])->toBe([]);
 
     finishRefreshes($screen)->assertSee('1 new commit');
 
-    expect($besideTheList())->toBe(['log', 'new-commits-slot'])
-        ->and(nodeByRef($screen, 'new-commits-slot')['layout']['display'] ?? null)->toBeNull();
+    expect($besideTheList())->toBe(['log'])
+        ->and($inTheList())->toBe(['composer', 'new-commits-slot', 'commit-c1'])
+        ->and(nodeByRef($screen, 'new-commits-slot')['layout']['display'] ?? null)->toBeNull()
+        ->and(findNode(nodeByRef($screen, 'new-commits-slot'), fn (array $node): bool => ($node['ref'] ?? null) === 'new-commits'))->not->toBeNull();
 });
