@@ -4,6 +4,7 @@ namespace App\Devnull;
 
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitThread;
+use App\Devnull\Data\Connection;
 use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\Notification;
 use App\Devnull\Data\Page;
@@ -208,6 +209,25 @@ final readonly class Client
         $query = ['replies' => $tab === 'replies' ? '1' : null, 'cursor' => $cursor];
 
         return Page::fromArray($this->get('users/'.rawurlencode($username).'/commits', $query), Commit::fromArray(...));
+    }
+
+    /**
+     * The people following someone, or with 'following' the people they
+     * follow, newest follow first as the web lists them, 30 a page.
+     *
+     * @return Page<Connection>
+     */
+    public function connections(string $username, string $type, ?string $cursor = null): Page
+    {
+        return Page::fromArray($this->get(self::connectionsPath($username, $type), ['cursor' => $cursor]), Connection::fromArray(...));
+    }
+
+    /**
+     * Where someone's followers are, or with 'following' the people they follow.
+     */
+    public static function connectionsPath(string $username, string $type): string
+    {
+        return 'users/'.rawurlencode($username).'/'.($type === 'following' ? 'following' : 'followers');
     }
 
     public function follow(string $username): void

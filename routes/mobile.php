@@ -2,6 +2,7 @@
 
 use App\NativeComponents\AuthCallback;
 use App\NativeComponents\CommitDetail;
+use App\NativeComponents\Connections;
 use App\NativeComponents\Launch;
 use App\NativeComponents\Layouts\TabsLayout;
 use App\NativeComponents\Log;
@@ -21,10 +22,11 @@ Route::nativeGroup(TabsLayout::class, function (): void {
     Route::native('/profile', Profile::class);
     Route::native('/profile/device', ThisDevice::class);
 
-    // Commits and profiles open beneath the tab they were tapped in, so that tab's
-    // own navigation stack pushes them (see Concerns\OpensInTab).
+    // Commits, profiles and their followers open beneath the tab they were tapped
+    // in, so that tab's own navigation stack pushes them (see Concerns\OpensInTab).
     foreach (TabsLayout::Tabs as $tab) {
         Route::native("{$tab}/commits/{id}", CommitDetail::class);
         Route::native("{$tab}/users/{username}", Profile::class);
+        Route::native("{$tab}/users/{username}/{type}", Connections::class)->whereIn('type', Connections::Types);
     }
 });

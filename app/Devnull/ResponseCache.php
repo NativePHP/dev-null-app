@@ -42,6 +42,16 @@ final class ResponseCache
         '#^commits/[^/]+/replies$#',
         '#^users/[^/]+$#',
         '#^users/[^/]+/commits$#',
+        '#^users/[^/]+/(followers|following)$#',
+    ];
+
+    /**
+     * The kept answers that list people with whether you follow each one.
+     */
+    private const array FollowedPeople = [
+        '#^users/[^/]+/(followers|following)$#',
+        '#^notifications$#',
+        '#^notifications/[^/]+/group$#',
     ];
 
     /**
@@ -300,20 +310,39 @@ final class ResponseCache
     }
 
     /**
-     * You followed or unfollowed someone: their profile and your following count change.
+     * You followed or unfollowed someone: their profile and your following
+     * count change, and every list of people kept with whether you follow them.
+     * Without their profile kept, the screen's word is taken that it changed.
      */
     public function followChanged(string $username, bool $following): void
     {
-        $changed = false;
+        $kept = $this->get("users/{$username}");
+        $changed = $kept === null || ($kept['is_following'] ?? false) !== $following;
 
-        $this->patch("users/{$username}", [], function (array $json) use ($following, &$changed): array {
-            $changed = ($json['is_following'] ?? false) !== $following;
-
-            return $changed ? [...self::count($json, 'followers_count', $following ? 1 : -1), 'is_following' => $following] : $json;
-        });
+        if ($changed && $kept !== null) {
+            $this->patch("users/{$username}", [], fn (array $json): array => [...self::count($json, 'followers_count', $following ? 1 : -1), 'is_following' => $following]);
+        }
 
         if ($changed && ($me = $this->username()) !== null) {
             $this->patch("users/{$me}", [], fn (array $json): array => self::count($json, 'following_count', $following ? 1 : -1));
+        }
+
+        $this->patchFollowedPeople(rawurldecode($username), $following);
+    }
+
+    /**
+     * Marks someone followed, or not, wherever a kept list of people says whether you follow them.
+     */
+    private function patchFollowedPeople(string $username, bool $following): void
+    {
+        $userId = $this->userId();
+
+        foreach ($userId === null ? [] : $this->index($userId) as $meta) {
+            if (! self::listsFollowedPeople($meta['path'])) {
+                continue;
+            }
+
+            $this->patch($meta['path'], $meta['query'], fn (array $json): array => self::changeFollowed($json, $username, $following));
         }
     }
 
@@ -612,6 +641,39 @@ final class ResponseCache
         foreach ($node as $key => $child) {
             if (is_array($child)) {
                 $node[$key] = self::changeUser($child, $id, $profile);
+            }
+        }
+
+        return $node;
+    }
+
+    private static function listsFollowedPeople(string $path): bool
+    {
+        foreach (self::FollowedPeople as $pattern) {
+            if (preg_match($pattern, $path) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Gives every copy of the user with this username, anywhere in $node, that says whether you follow them, the new answer.
+     */
+    private static function changeFollowed(mixed $node, string $username, bool $following): mixed
+    {
+        if (! is_array($node)) {
+            return $node;
+        }
+
+        if (($node['username'] ?? null) === $username && array_key_exists('is_followed', $node)) {
+            $node['is_followed'] = $following;
+        }
+
+        foreach ($node as $key => $child) {
+            if (is_array($child)) {
+                $node[$key] = self::changeFollowed($child, $username, $following);
             }
         }
 
