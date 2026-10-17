@@ -4,6 +4,7 @@ use App\Devnull\Client;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\FetchInBackground;
 use App\Devnull\RequestSigner;
+use App\Devnull\ResponseCache;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -112,6 +113,35 @@ it('keeps stars and bookmarks on every kept copy', function () {
 
     $this->devnull->unstar('c1');
     expect(kept('log/following')['data'][0])->toMatchArray(['starred' => false, 'stars_count' => 1]);
+});
+
+it('keeps the kept saved commits up to date as you save and unsave, but not as you star', function () {
+    keep('saved', pageJson([commitJson(['id' => 'c2', 'is_saved' => true])], 'page2'));
+    serveApi([
+        'POST /api/v1/commits/c9/star' => [['data' => commitJson(['id' => 'c9', 'starred' => true, 'stars_count' => 1, 'is_saved' => true])]],
+        'PUT /api/v1/commits/c1/bookmark' => [['data' => commitJson(['id' => 'c1', 'is_saved' => true])]],
+        'DELETE /api/v1/commits/c2/bookmark' => [['data' => commitJson(['id' => 'c2', 'is_saved' => false])]],
+    ]);
+
+    // c9 was saved long ago, past the kept page: a star doesn't make it the last saved.
+    $this->devnull->star('c9');
+    expect(array_column(kept('saved')['data'], 'id'))->toBe(['c2']);
+
+    $this->devnull->bookmark('c1');
+    expect(array_column(kept('saved')['data'], 'id'))->toBe(['c1', 'c2']);
+
+    $this->devnull->unbookmark('c2');
+    expect(array_column(kept('saved')['data'], 'id'))->toBe(['c1'])
+        ->and(app(ResponseCache::class)->unsavedIds())->toBe(['c2']);
+});
+
+it('keeps the first page of your saved commits', function () {
+    serveApi(['GET /api/v1/saved' => [pageJson([commitJson(['id' => 'c1', 'is_saved' => true])], 'page2')]]);
+
+    expect($this->devnull->saved()->items[0]->id)->toBe('c1')
+        ->and($this->devnull->saved('page2')->nextCursor)->toBe('page2')
+        ->and(array_column(kept('saved')['data'], 'id'))->toBe(['c1'])
+        ->and(Http::recorded()[1][0]->url())->toBe('http://devnull.test/api/v1/saved?cursor=page2');
 });
 
 it('keeps a new commit and a new reply where they belong', function () {

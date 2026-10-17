@@ -8,6 +8,7 @@ use App\NativeComponents\Log;
 use App\NativeComponents\Notifications;
 use App\NativeComponents\Onboarding;
 use App\NativeComponents\Profile;
+use App\NativeComponents\Saved;
 use App\NativeComponents\ThisDevice;
 use Illuminate\Support\Facades\Route;
 
@@ -18,6 +19,7 @@ Route::native('/auth/callback', AuthCallback::class);
 Route::nativeGroup(TabsLayout::class, function (): void {
     Route::native('/log', Log::class);
     Route::native('/notifications', Notifications::class);
+    Route::native('/saved', Saved::class);
     Route::native('/profile', Profile::class);
     Route::native('/profile/device', ThisDevice::class);
 

@@ -21,13 +21,14 @@ function tabIcons(TestableComponent $screen): array
         ->all();
 }
 
-it('has Log, Notifications and Profile tabs with the Lucide icons of the web phone nav', function (string $platform) {
+it('has Log, Notifications, Saved and Profile tabs with the Lucide icons of the web nav', function (string $platform) {
     Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
 
     // The same drawings on both platforms. A custom icon has no Material font variant.
     expect(tabIcons(Native::visit('/log', platform: $platform)))->toBe([
         'Log' => ['custom:git-commit-vertical', null],
         'Notifications' => ['custom:bell', null],
+        'Saved' => ['custom:bookmark', null],
         'Profile' => ['custom:user-round', null],
     ]);
 })->with(['ios', 'android']);
@@ -62,6 +63,8 @@ it('pushes commits and profiles onto the tab they were opened from, so they slid
 
     Native::visit('/profile/commits/c1')->call('openProfile', 'ada')->assertNavigatedTo('/profile/users/ada');
     Native::visit('/notifications/commits/c1')->call('openCommit', 'c0')->assertNavigatedTo('/notifications/commits/c0');
+    Native::visit('/saved/commits/c1')->call('openProfile', 'ada')->assertNavigatedTo('/saved/users/ada');
+    Native::visit('/saved/users/ada')->call('openCommit', 'c0')->assertNavigatedTo('/saved/commits/c0');
 });
 
 it('stays put when a tap leads to the commit already showing', function () {
