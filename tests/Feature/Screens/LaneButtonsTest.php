@@ -23,10 +23,10 @@ function laneButtonColours(int $lane): array
 {
     return [
         'variant' => "lane-{$lane}",
-        'tint' => config("native-ui.theme.light.lane-{$lane}"),
-        'dark_tint' => config("native-ui.theme.dark.lane-{$lane}"),
-        'on_tint' => config("native-ui.theme.light.on-lane-{$lane}"),
-        'dark_on_tint' => config("native-ui.theme.dark.on-lane-{$lane}"),
+        'tint_color' => config("native-ui.theme.light.lane-{$lane}"),
+        'dark_tint_color' => config("native-ui.theme.dark.lane-{$lane}"),
+        'label_color' => config("native-ui.theme.light.on-lane-{$lane}"),
+        'dark_label_color' => config("native-ui.theme.dark.on-lane-{$lane}"),
     ];
 }
 
@@ -115,6 +115,18 @@ it('draws the tab underline in your lane, in its light and dark shades', functio
         ->and($pager['props']['tab_active_color'])->toBe(config('native-ui.theme.light.ink'));
 })->with(['/log', '/notifications'])->with([2, 5]);
 
+it('draws the underline under your profile\'s tabs in your lane too', function () {
+    signIn(['lane' => 5]);
+    serveApi([
+        'GET /api/v1/users/local_dev' => [['data' => userWithCountsJson(['lane' => 5]), 'is_following' => false]],
+        'GET /api/v1/users/local_dev/commits' => [pageJson([])],
+    ]);
+
+    $underline = findNode(nodeByRef(Native::visit('/profile'), 'tab-commits'), fn (array $node): bool => ($node['layout']['height'] ?? null) === 3.0);
+
+    expect(strtolower($underline['style']['bg_color']))->toBe(strtolower(config('native-ui.theme.light.lane-5')));
+});
+
 it('draws Save color in the colour you picked, before you save it', function () {
     signIn(['lane' => 3]);
     serveApi(['GET /api/v1/me' => [currentUserJson(['lane' => 3, 'preferred_lane' => 3, 'automatic_lane' => 3])]]);
@@ -139,7 +151,7 @@ it('leaves the other buttons in their own colours', function () {
     foreach (['sync-github' => 'secondary', 'devices' => 'secondary', 'sign-out' => 'secondary', 'delete-account' => 'destructive', 'link-apple' => 'accent'] as $ref => $variant) {
         expect(buttonProps($screen, $ref))
             ->toMatchArray(['variant' => $variant])
-            ->not->toHaveKeys(['tint', 'on_tint']);
+            ->not->toHaveKeys(['tint_color', 'label_color']);
     }
 });
 
