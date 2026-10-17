@@ -27,6 +27,9 @@ it('keeps first pages of the GETs the screens show, and nothing else', function 
         ->and(ResponseCache::caches('commits/c1/replies'))->toBeTrue()
         ->and(ResponseCache::caches('users/ada'))->toBeTrue()
         ->and(ResponseCache::caches('users/ada/commits', ['replies' => '1']))->toBeTrue()
+        ->and(ResponseCache::caches('users/ada/followers'))->toBeTrue()
+        ->and(ResponseCache::caches('users/ada/following'))->toBeTrue()
+        ->and(ResponseCache::caches('users/ada/followers', ['cursor' => 'page2']))->toBeFalse()
         ->and(ResponseCache::caches('log/following', ['cursor' => 'page2']))->toBeFalse()
         ->and(ResponseCache::caches('devices'))->toBeFalse()
         ->and(ResponseCache::caches('key-syncs'))->toBeFalse()
@@ -267,6 +270,41 @@ it('follows and unfollows on the kept profiles', function () {
 
     expect($this->cache->get('users/ada')['data']['followers_count'])->toBe(3)
         ->and($this->cache->get('users/local_dev')['data']['following_count'])->toBe(2);
+});
+
+it('counts a follow on your profile when theirs was never kept', function () {
+    $this->cache->put('users/local_dev', [], ['data' => userWithCountsJson(following: 2), 'is_following' => false]);
+
+    $this->cache->followChanged('grace', true);
+
+    expect($this->cache->get('users/local_dev')['data']['following_count'])->toBe(3)
+        ->and($this->cache->get('users/grace'))->toBeNull();
+
+    $this->cache->followChanged('grace', false);
+
+    expect($this->cache->get('users/local_dev')['data']['following_count'])->toBe(2);
+});
+
+it('marks them followed in every kept list of people that says so', function () {
+    $grace = userJson(['id' => 'g1', 'username' => 'grace', 'is_followed' => false, 'follows_you' => true]);
+    $linus = userJson(['id' => 'l1', 'username' => 'linus', 'is_followed' => false]);
+    $this->cache->put('users/ada/followers', [], pageJson([$grace, $linus]));
+    $this->cache->put('users/ada/following', [], pageJson([$grace]));
+    $this->cache->put('notifications', [], pageJson([notificationJson('followed', ['actor' => $grace, 'actors' => [userJson(['id' => 'g1', 'username' => 'grace'])]])]));
+    $this->cache->put('log/following', [], pageJson([commitJson(['author' => userJson(['id' => 'g1', 'username' => 'grace'])])]));
+
+    $this->cache->followChanged('grace', true);
+
+    expect(array_column($this->cache->get('users/ada/followers')['data'], 'is_followed'))->toBe([true, false])
+        ->and($this->cache->get('users/ada/followers')['data'][0]['follows_you'])->toBeTrue()
+        ->and($this->cache->get('users/ada/following')['data'][0]['is_followed'])->toBeTrue()
+        ->and($this->cache->get('notifications')['data'][0]['actor']['is_followed'])->toBeTrue()
+        ->and($this->cache->get('notifications')['data'][0]['actors'][0])->not->toHaveKey('is_followed')
+        ->and($this->cache->get('log/following')['data'][0]['author'])->not->toHaveKey('is_followed');
+
+    $this->cache->followChanged('grace', false);
+
+    expect($this->cache->get('users/ada/followers')['data'][0]['is_followed'])->toBeFalse();
 });
 
 it('keeps the Apple link on the kept you', function () {

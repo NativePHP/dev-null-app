@@ -29,6 +29,25 @@ it('keeps the first page of what it fetches, and never a later one', function ()
         ->and(kept('users/ada/commits'))->toBeNull();
 });
 
+it("keeps the first page of someone's followers and following", function () {
+    serveApi([
+        'GET /api/v1/users/ada/followers' => [pageJson([userJson(['id' => 'g1', 'username' => 'grace', 'is_followed' => true, 'follows_you' => false])], 'page2')],
+        'GET /api/v1/users/ada/following' => [pageJson([])],
+    ]);
+
+    $followers = $this->devnull->connections('ada', 'followers');
+    $this->devnull->connections('ada', 'followers', 'page2');
+    $this->devnull->connections('ada', 'following');
+
+    expect($followers->items[0]->user->username)->toBe('grace')
+        ->and($followers->items[0]->isFollowed)->toBeTrue()
+        ->and($followers->items[0]->followsYou)->toBeFalse()
+        ->and($followers->nextCursor)->toBe('page2')
+        ->and(kept('users/ada/followers')['data'][0]['username'])->toBe('grace')
+        ->and(kept('users/ada/followers', ['cursor' => 'page2']))->toBeNull()
+        ->and(kept('users/ada/following'))->toBe(pageJson([]));
+});
+
 it('signs a GET for the background to send, and the background sends it as signed', function () {
     $this->travelTo(now()->setTimestamp(1760000000));
     serveApi(['GET /api/v1/log/latest' => [pageJson([commitJson()])]]);

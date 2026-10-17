@@ -190,6 +190,16 @@ class Profile extends NativeComponent
         }
     }
 
+    /**
+     * Their followers, or the people they follow, from the counts under the bio.
+     */
+    public function openConnections(string $type): void
+    {
+        if (in_array($type, Connections::Types, true) && $this->showsContent() && ! $this->sketched) {
+            $this->openInTab('/users/'.rawurlencode($this->username).'/'.$type);
+        }
+    }
+
     public function isMe(): bool
     {
         return $this->username !== '' && $this->me()?->username === $this->username;

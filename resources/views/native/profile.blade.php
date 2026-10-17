@@ -89,12 +89,22 @@
                     </native:column>
 
                     @if (! $sketched)
+                    {{-- Following and followers open their lists, as the web links them. --}}
                     <native:row ref="counts" class="w-full gap-4">
-                        @foreach ([[$profile->commitsCount, 'commit', 'commits'], [$profile->followingCount, 'following', 'following'], [$profile->followersCount, 'follower', 'followers']] as [$count, $singular, $plural])
-                            <native:row class="gap-1 items-center">
-                                <native:text font="mono-medium" class="text-[13px] text-theme-ink">{{ $count }}</native:text>
-                                <native:text class="text-sm text-theme-ink-muted">{{ $count === 1 ? $singular : $plural }}</native:text>
-                            </native:row>
+                        @foreach ([[$profile->commitsCount, 'commit', 'commits', null], [$profile->followingCount, 'following', 'following', 'following'], [$profile->followersCount, 'follower', 'followers', 'followers']] as [$count, $singular, $plural, $list])
+                            @if ($list === null)
+                                <native:row class="gap-1 items-center">
+                                    <native:text font="mono-medium" class="text-[13px] text-theme-ink">{{ $count }}</native:text>
+                                    <native:text class="text-sm text-theme-ink-muted">{{ $count === 1 ? $singular : $plural }}</native:text>
+                                </native:row>
+                            @else
+                                <native:pressable ref="count-{{ $list }}" @press="openConnections('{{ $list }}')" a11y-label="{{ $count }} {{ $count === 1 ? $singular : $plural }}">
+                                    <native:row class="gap-1 items-center">
+                                        <native:text font="mono-medium" class="text-[13px] text-theme-ink">{{ $count }}</native:text>
+                                        <native:text class="text-sm text-theme-ink-muted">{{ $count === 1 ? $singular : $plural }}</native:text>
+                                    </native:row>
+                                </native:pressable>
+                            @endif
                         @endforeach
                     </native:row>
                     @endif
