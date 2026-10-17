@@ -14,12 +14,9 @@ use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Closure;
 use Illuminate\View\View;
-use Native\Mobile\Attributes\On;
 use Native\Mobile\Edge\Layouts\Builders\NavAction;
 use Native\Mobile\Edge\Layouts\Builders\NavBarOptions;
 use Native\Mobile\Edge\NativeComponent;
-use Native\Mobile\Events\Alert\ButtonPressed;
-use Native\Mobile\Facades\Dialog;
 
 /**
  * One commit: its ancestors above, its replies below, and a reply composer.
@@ -39,8 +36,6 @@ class CommitDetail extends NativeComponent
     use RefreshesInBackground;
     use ShowsCommits;
     use TalksToDevnull;
-
-    public const string DeleteAlert = 'delete-commit';
 
     public string $id = '';
 
@@ -128,7 +123,7 @@ class CommitDetail extends NativeComponent
                     ->icon(ios: Lucide::Trash2->ios(), android: Lucide::Trash2->android())
                     ->a11yLabel('Delete commit')
                     ->destructive()
-                    ->press('confirmDelete'),
+                    ->press("confirmDelete('{$this->id}')"),
             );
         }
 
@@ -237,38 +232,19 @@ class CommitDetail extends NativeComponent
         $this->repliesShown = true;
     }
 
-    public function confirmDelete(): void
+    /**
+     * The commit this page is about takes you back where you came from. Any
+     * other of yours leaves the page as it would coming back to it.
+     */
+    protected function showDeleted(string $id): void
     {
-        Dialog::alert('Delete this commit?', "There's no undo.", [
-            ['label' => 'Cancel', 'style' => 'cancel'],
-            ['label' => 'Delete', 'style' => 'destructive'],
-        ])->id(self::DeleteAlert);
-    }
+        if ($id === $this->id) {
+            $this->back();
 
-    #[On(ButtonPressed::class)]
-    public function onAlertButton(string $label = '', ?string $id = null): void
-    {
-        if ($id === self::DeleteAlert && $label === 'Delete') {
-            $this->delete();
-        }
-    }
-
-    public function delete(): void
-    {
-        if (! $this->isOwn()) {
             return;
         }
 
-        $deleted = $this->attempt(function ($devnull): bool {
-            $devnull->deleteCommit($this->id);
-
-            return true;
-        });
-
-        if ($deleted === true) {
-            Dialog::toast('rm '.($this->commit?->shortHash ?? Display::shortHash($this->id)).' → /dev/null', 'short');
-            $this->back();
-        }
+        $this->onResume();
     }
 
     protected function updateShownCommits(Closure $update): void

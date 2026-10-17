@@ -317,7 +317,7 @@ it('drops a commit deleted on its page as soon as you come back to the log', fun
     fakeApi(['DELETE /api/v1/commits/c2' => [null, 204]]);
 
     $log = Native::visit('/log');
-    $commit = $log->tap('commit-c2')->follow()->call('delete');
+    $commit = $log->tap('commit-c2')->follow()->call('deleteCommit', 'c2');
 
     $commit->goBack()->assertDontSee('Delete me')->assertSee('Keep me');
 });

@@ -8,10 +8,9 @@ use App\Devnull\ReportReason;
 use Closure;
 
 /**
- * The sheet a commit's More button opens (see partials/commit-sheet): Share
- * link, which does what copy link does, and Report commit, which turns the
- * sheet into the web's Report dialog. As on the web, only someone else's
- * published commit can be reported, so only those have More.
+ * The sheet under a commit (see partials/commit-sheet). Report commit, in the
+ * More menu, opens it as the web's Report dialog. As on the web, only someone
+ * else's published commit can be reported, so only their menus have it.
  *
  * Quote opens the same sheet as a composer, over the commit being quoted, as
  * the web's Quote dialog. Once devnull has the quote the sheet goes, and a
@@ -19,8 +18,7 @@ use Closure;
  *
  * The sheet keeps its commit while it slides away, so it doesn't empty on the
  * way down, and forgets it and any draft once iOS says it's gone, however it
- * was closed. Share link waits for that too: iOS shows the share sheet over
- * the screen, and can't while this one is still on it.
+ * was closed.
  */
 trait OpensCommitSheet
 {
@@ -35,9 +33,9 @@ trait OpensCommitSheet
     public ?Commit $sheetCommit = null;
 
     /**
-     * What the sheet shows: 'more' (Share link and Report commit), 'report' (the form), 'reported' (sent) or 'quote'.
+     * What the sheet shows: 'report' (the form), 'reported' (sent) or 'quote'.
      */
-    public string $sheetView = 'more';
+    public string $sheetView = 'report';
 
     /**
      * The reason picked on the report form, or '' until one is.
@@ -57,14 +55,9 @@ trait OpensCommitSheet
     public ?string $sheetError = null;
 
     /**
-     * The commit whose link to share once the sheet has gone.
+     * Report commit, in the More menu of someone else's published commit.
      */
-    public ?string $shareAfterSheet = null;
-
-    /**
-     * More, under someone else's published commit.
-     */
-    public function openCommitSheet(string $id): void
+    public function reportCommit(string $id): void
     {
         $commit = $this->shownCommit($id);
 
@@ -75,26 +68,6 @@ trait OpensCommitSheet
         $this->forgetCommitSheet();
         $this->sheetCommit = $commit;
         $this->sheetOpen = true;
-    }
-
-    /**
-     * Share link: the sheet goes, and the share sheet comes up once it has (see commitSheetClosed()).
-     */
-    public function shareFromSheet(): void
-    {
-        $this->shareAfterSheet = $this->sheetCommit?->id;
-        $this->sheetOpen = false;
-    }
-
-    /**
-     * Report commit: the sheet becomes the report form.
-     */
-    public function startReport(): void
-    {
-        if ($this->sheetCommit !== null) {
-            $this->sheetView = 'report';
-            $this->sheetError = null;
-        }
     }
 
     /**
@@ -170,18 +143,11 @@ trait OpensCommitSheet
     }
 
     /**
-     * iOS says the sheet has gone, swiped away or closed from here. What was
-     * drafted in it goes with it, and a link waiting to be shared is shared.
+     * iOS says the sheet has gone, swiped away or closed from here. What was drafted in it goes with it.
      */
     public function commitSheetClosed(): void
     {
-        $share = $this->shareAfterSheet;
-
         $this->forgetCommitSheet();
-
-        if ($share !== null) {
-            $this->shareCommit($share);
-        }
     }
 
     /**
@@ -210,12 +176,11 @@ trait OpensCommitSheet
     {
         $this->sheetOpen = false;
         $this->sheetCommit = null;
-        $this->sheetView = 'more';
+        $this->sheetView = 'report';
         $this->reportReason = '';
         $this->reportDetails = '';
         $this->quoteBody = '';
         $this->sheetError = null;
-        $this->shareAfterSheet = null;
     }
 
     /**

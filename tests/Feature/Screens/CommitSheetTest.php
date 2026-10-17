@@ -46,16 +46,16 @@ function sheetProps(TestableComponent $screen): array
 }
 
 /**
- * A log with one commit of Ada's, its sheet opened on the report form.
+ * A log with one commit of Ada's, its sheet opened on the report form from More.
  */
 function reportFormOnLog(array $reportAnswer = [null, 204]): TestableComponent
 {
     serveSheetLog([commitJson(['id' => 'c1', 'body' => 'Buy cheap stars at example.com', 'author' => sheetAda()])], $reportAnswer);
 
-    return Native::visit('/log', platform: 'ios')->tap('more-c1')->tap('sheet-report');
+    return Native::visit('/log', platform: 'ios')->tap('report-c1');
 }
 
-it('puts More in place of copy link only under commits you can report', function () {
+it('puts Report commit in More only on commits you can report', function () {
     serveSheetLog([
         commitJson(['id' => 'c3', 'author' => sheetAda()]),
         commitJson(['id' => 'c2']),
@@ -64,47 +64,21 @@ it('puts More in place of copy link only under commits you can report', function
 
     $screen = Native::visit('/log', platform: 'ios');
 
-    // Someone else's published commit: More, with the same target as the rest of the row.
-    expect(nodeByRef($screen, 'more-c3')['props']['a11y_label'])->toBe('More')
-        ->and(nodeByRef($screen, 'more-c3')['children'][0]['layout'])->toMatchArray(['min_width' => 44.0, 'height' => 36.0])
-        ->and(findNode(nodeByRef($screen, 'more-c3'), fn (array $node): bool => ($node['type'] ?? null) === 'icon')['props']['name'])->toBe('custom:ellipsis');
+    // Someone else's published commit: after a divider, the web's Report.
+    expect(array_slice(menuItems($screen, 'more-c3'), -2))->toBe(['divider', ['report-c3', 'Report commit', 'custom:flag']]);
 
-    // Your own commit, and someone else's that isn't published, keep copy link.
+    // Your own commit, and someone else's that isn't published, can't be reported.
     foreach (['c2', 'c1'] as $id) {
-        expect(nodeByRef($screen, 'copy-link-'.$id)['props']['a11y_label'])->toBe('Copy link');
+        expect(array_column(array_filter(menuItems($screen, 'more-'.$id), is_array(...)), 0))->not->toContain('report-'.$id);
     }
-
-    $screen->assertMissingElement('pressable', fn (array $node): bool => in_array($node['ref'] ?? null, ['copy-link-c3', 'more-c2', 'more-c1'], true));
 
     // The sheet is there, waiting, but down.
     expect(sheetProps($screen)['visible'])->toBeFalse();
 
-    // Nor does anything open it for a commit More isn't on.
-    $screen->call('openCommitSheet', 'c2')->call('openCommitSheet', 'c1');
+    // Nor does anything open it for a commit More has no Report on.
+    $screen->call('reportCommit', 'c2')->call('reportCommit', 'c1');
 
     expect(sheetProps($screen)['visible'])->toBeFalse();
-});
-
-it('opens a sheet with Share link and Report commit, and shares the link once the sheet has gone', function () {
-    serveSheetLog([commitJson(['id' => 'c1', 'author' => sheetAda(), 'html_url' => 'https://dev-null.sh/@ada/commits/c1'])]);
-
-    $screen = Native::visit('/log', platform: 'ios')->tap('more-c1');
-
-    expect(sheetProps($screen))->toMatchArray(['visible' => true, 'detents' => '0.3'])
-        ->and(childRefs($screen, 'sheet-more'))->toBe(['sheet-share', null, 'sheet-report']);
-
-    $screen->assertSee('Share link')->assertSee('Report commit');
-
-    // iOS can't put the share sheet up while this one is still on the screen.
-    $screen->tap('sheet-share')->assertNativeNotCalled('Share.Url');
-
-    expect(sheetProps($screen)['visible'])->toBeFalse();
-
-    $screen->dismissSheet('sheet')
-        ->assertNativeCalled('Share.Url', fn (array $params): bool => $params['url'] === 'https://dev-null.sh/@ada/commits/c1')
-        ->assertNoNavigation();
-
-    expect($screen->instance()->sheetCommit)->toBeNull();
 });
 
 it("turns the sheet into the web's report form", function () {
@@ -113,8 +87,7 @@ it("turns the sheet into the web's report form", function () {
     expect(sheetProps($screen))->toMatchArray(['visible' => true, 'detents' => 'large']);
 
     $screen->assertSee('Report commit')
-        ->assertSee('Your report is private. Only moderators can review it. Reporting does not hide this commit.')
-        ->assertDontSee('Share link');
+        ->assertSee('Your report is private. Only moderators can review it. Reporting does not hide this commit.');
 
     $body = nodeByRef($screen, 'report-body');
     $reasons = nodeByRef($screen, 'report-reason');
@@ -172,11 +145,11 @@ it('sends the reason and details, then says the report was received, until Done 
 
     expect(sheetProps($screen)['visible'])->toBeFalse();
 
-    $screen->dismissSheet('sheet')->assertNativeNotCalled('Share.Url');
+    $screen->dismissSheet('sheet');
 
     expect($screen->instance())
         ->sheetCommit->toBeNull()
-        ->sheetView->toBe('more')
+        ->sheetView->toBe('report')
         ->reportReason->toBe('')
         ->reportDetails->toBe('');
 });
@@ -221,7 +194,7 @@ it('forgets the draft when the sheet is swiped away', function () {
         ->reportDetails->toBe('');
 
     // Opened again, it starts over.
-    $screen->tap('more-c1')->assertSee('Share link')->tap('sheet-report');
+    $screen->tap('report-c1');
 
     expect(nodeByRef($screen, 'report-reason')['props']['value'])->toBe('')
         ->and(nodeByRef($screen, 'report-details')['props']['value'])->toBe('')
@@ -241,8 +214,7 @@ it('reports from a commit page and a profile too', function (string $uri, string
     });
 
     Native::visit($uri, platform: 'ios')
-        ->tap('more-'.$id)
-        ->tap('sheet-report')
+        ->tap('report-'.$id)
         ->selectRadio('report-reason', 'harassment')
         ->tap('send-report')
         ->assertSee('Report received. Moderators will review it privately.');
