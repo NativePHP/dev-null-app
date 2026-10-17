@@ -301,7 +301,7 @@ it('reads each image out by the description its author gave it, as the web does 
     ],
 ]);
 
-it('puts the web action row under each commit: the star, Quote, Reply and replies, then the bookmark and More', function () {
+it('puts the web action row under each commit: the star, Quote, Reply and replies, then More', function () {
     $ada = userJson(['id' => 'u2', 'username' => 'ada']);
 
     Http::fake(['devnull.test/*' => Http::response(pageJson([
@@ -318,14 +318,14 @@ it('puts the web action row under each commit: the star, Quote, Reply and replie
         ->assertSee('1 reply')
         ->assertElement('pressable', $pressable('star-c2', 'Unstar commit, 3 stars'))
         ->assertElement('pressable', $pressable('star-c1', 'Star commit, 1 star'))
-        ->assertElement('pressable', $pressable('bookmark-c2', 'Unsave commit'))
-        ->assertElement('pressable', $pressable('bookmark-c1', 'Save commit'))
-        // Someone else's pending commit can't be starred, quoted or saved, so the web leaves them off.
-        ->assertMissingElement('pressable', fn (array $node): bool => in_array($node['ref'] ?? null, ['star-c0', 'bookmark-c0'], true))
-        ->assertMissingElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'quote-c0');
+        ->assertElement('pressable', $pressable('more-c2', 'More'))
+        // Someone else's pending commit can't be starred or quoted, so the web leaves them off.
+        ->assertMissingElement('pressable', fn (array $node): bool => in_array($node['ref'] ?? null, ['star-c0', 'quote-c0'], true));
 
-    // The web's order: star, Quote, Reply and replies on the left, then the bookmark and More, standing in for copy link, on the right.
-    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'bookmark-c2', 'more-c2']);
+    // The web's order: star, Quote, Reply and replies on the left, then More, standing in for the bookmark, copy link and Report, on the right.
+    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'more-c2'])
+        // Nor can it be saved or reported, so all its menu has is the link.
+        ->and(menuItems($screen, 'more-c0'))->toBe([['share-c0', 'Share link', 'custom:link']]);
 
     $icon = fn (string $ref): ?array => findNode(nodeByRef($screen, $ref), fn (array $node): bool => ($node['type'] ?? null) === 'icon');
     $text = fn (string $ref, string $text): ?array => findNode(nodeByRef($screen, $ref), fn (array $node): bool => ($node['props']['text'] ?? null) === $text);
@@ -336,12 +336,11 @@ it('puts the web action row under each commit: the star, Quote, Reply and replie
         ->and($icon('star-c1')['props']['name'] ?? null)->toBe('custom:star')
         ->and($icon('star-c1')['props']['color'] ?? null)->toBe($muted)
         ->and($text('star-c1', '1')['props']['color'] ?? null)->toBe($muted)
-        ->and($icon('bookmark-c2')['props']['name'] ?? null)->toBe('custom:bookmark-filled')
-        ->and($icon('bookmark-c1')['props']['name'] ?? null)->toBe('custom:bookmark')
         ->and($icon('reply-to-c1')['props']['name'] ?? null)->toBe('custom:message-square-reply')
         ->and($icon('replies-c2')['props']['name'] ?? null)->toBe('chevron.right')
         ->and($text('replies-c2', '1 reply')['props']['color'] ?? null)->toBe($primary)
-        ->and($icon('more-c1')['props']['name'] ?? null)->toBe('custom:ellipsis');
+        ->and($icon('more-c1')['props']['name'] ?? null)->toBe('custom:ellipsis')
+        ->and($icon('more-c1')['props']['color'] ?? null)->toBe($muted);
 
     // Reply opens the commit with its reply composer focused.
     $screen->tap('reply-to-c1')->assertNavigatedTo('/log/commits/c1');
@@ -414,17 +413,21 @@ it('puts the star back when devnull says no', function () {
         ->and($screen->instance()->commits[0]->starsCount)->toBe(1);
 });
 
-it('saves and unsaves from the row', function () {
+it('saves and unsaves from More', function () {
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'is_saved' => false])])],
         'PUT /api/v1/commits/c1/bookmark' => [['data' => commitJson(['id' => 'c1', 'is_saved' => true])]],
         'DELETE /api/v1/commits/c1/bookmark' => [['data' => commitJson(['id' => 'c1', 'is_saved' => false])]],
     ]);
 
-    $screen = Native::visit('/log')->tap('bookmark-c1');
-    expect($screen->instance()->commits[0]->isSaved)->toBeTrue();
+    $screen = Native::visit('/log', platform: 'ios');
+    expect(menuItems($screen, 'more-c1')[0])->toBe(['save-c1', 'Save commit', 'custom:bookmark']);
 
-    $screen->tap('bookmark-c1');
+    $screen->tap('save-c1');
+    expect($screen->instance()->commits[0]->isSaved)->toBeTrue()
+        ->and(menuItems($screen, 'more-c1')[0])->toBe(['save-c1', 'Unsave commit', 'custom:bookmark-filled']);
+
+    $screen->tap('save-c1');
     expect($screen->instance()->commits[0]->isSaved)->toBeFalse();
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'PUT' && $request->url() === 'http://devnull.test/api/v1/commits/c1/bookmark');
@@ -490,11 +493,11 @@ it('closes a thread whose replies have all gone', function () {
     expect($screen->instance()->threads)->toBe([]);
 });
 
-it('copies the commit link devnull sends through the share sheet', function () {
+it('shares the commit link devnull sends through the share sheet, which has Copy', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson(['id' => 'c1', 'html_url' => 'https://dev-null.sh/@local_dev/commits/c1'])]))]);
 
     Native::visit('/log')
-        ->tap('copy-link-c1')
+        ->tap('share-c1')
         ->assertNativeCalled('Share.Url', fn (array $params): bool => $params['url'] === 'https://dev-null.sh/@local_dev/commits/c1')
         ->assertNoNavigation();
 });

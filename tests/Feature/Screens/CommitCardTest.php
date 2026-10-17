@@ -91,9 +91,12 @@ it('fills the whole option at 100%, with no spacer for EDGE to grow', function (
 
 it('gives every action under a commit a target big enough to tap, without growing the row', function () {
     $screen = logOf([['id' => 'c1', 'stars_count' => 6, 'replies_count' => 3, 'is_saved' => false]]);
-    $target = fn (string $ref): array => ($node = nodeByRef($screen, $ref))['type'] === 'pressable' ? $node['children'][0]['layout'] : $node['layout'];
+    // A pressable's box is its content; More's menu items ride along as children too.
+    $target = fn (string $ref): array => ($node = nodeByRef($screen, $ref))['type'] === 'pressable'
+        ? array_values(array_filter($node['children'], fn (array $child): bool => $child['type'] !== 'top_bar_action'))[0]['layout']
+        : $node['layout'];
 
-    foreach (['star-c1', 'quote-c1', 'bookmark-c1', 'more-c1'] as $ref) {
+    foreach (['star-c1', 'quote-c1', 'more-c1'] as $ref) {
         expect($target($ref))->toMatchArray(['min_width' => 44.0, 'height' => 36.0]);
     }
 

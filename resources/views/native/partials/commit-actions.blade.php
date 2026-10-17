@@ -1,15 +1,14 @@
 {{--
     The action row under a commit, in the web's order. On the left: the star and its count, Quote, Reply, and in Commit
-    Blue "› N replies" when the row has no thread under it already. On the right: the bookmark and copy link.
+    Blue "› N replies" when the row has no thread under it already. On the right: More.
 
-    The web puts Report last on the right, but a fifth icon there doesn't fit a phone: a profile row with "› 3 replies"
-    would need about 356pt of the 330pt it has. So on a commit you can report, someone else's published one, copy link
-    becomes More, which opens a sheet with Share link and Report commit (see commit-sheet). Your own commits, and ones
-    you can't react to, keep copy link.
+    The web's right side has the bookmark, copy link and Report, and a phone has no room for all three: a profile row
+    with "› 3 replies" would need about 356pt of the 330pt it has. So they share More, which opens the platform's own
+    menu (a UIMenu on iOS, a dropdown on Android, see CommitMenu for what's in it). Tapping More only opens the menu.
 
     Reply opens the commit with its reply composer focused. In a feed ($expandable) the replies link opens the thread in
     place, as on the web; elsewhere it opens the commit. Like the web, someone else's commit that isn't approved gets no
-    star, Quote or bookmark, and your own commit's star is just its count, since you can't star it.
+    star, Quote or Save commit, and your own commit's star is just its count, since you can't star it.
 
     Quote opens a sheet to write the quote in, over the commit being quoted (see commit-sheet).
 
@@ -34,7 +33,6 @@
 @php($viewer ??= app(\App\Devnull\Account::class)->user())
 @php($isOwn = $commit->author->id === $viewer?->id)
 @php($canReact = $commit->isApproved() || $isOwn)
-@php($canReport = $viewer !== null && ! $isOwn && $commit->isApproved() && ! $commit->isDeleted())
 @php($hasThread = $expandable && $commit->replyPreview !== null)
 @php($showsReplies = $withReplies && ! $hasThread && $repliesCount > 0)
 @php($starLabel = ($commit->starred ? 'Unstar commit' : 'Star commit').($commit->starsCount > 0 ? ', '.\App\Devnull\Display::count($commit->starsCount, 'star', 'stars') : ''))
@@ -93,25 +91,9 @@
 
     <native:spacer />
 
-    @if ($canReact && $commit->isSaved !== null)
-        <native:pressable ref="bookmark-{{ $commit->id }}" @press="toggleBookmark('{{ $commit->id }}')" a11y-label="{{ $commit->isSaved ? 'Unsave commit' : 'Save commit' }}">
-            <native:column class="min-w-[44] h-[36] items-center justify-center">
-                <native:icon :ios="\App\Icons\Lucide::Bookmark->ios($commit->isSaved)" :android="\App\Icons\Lucide::Bookmark->android($commit->isSaved)" :size="$iconSize" class="{{ $commit->isSaved ? 'text-theme-primary' : 'text-theme-ink-muted' }}" />
-            </native:column>
-        </native:pressable>
-    @endif
-
-    @if ($canReport)
-        <native:pressable ref="more-{{ $commit->id }}" @press="openCommitSheet('{{ $commit->id }}')" a11y-label="More">
-            <native:column class="min-w-[44] h-[36] items-center justify-center">
-                <native:icon :ios="\App\Icons\Lucide::Ellipsis->ios()" :android="\App\Icons\Lucide::Ellipsis->android()" :size="$iconSize" class="text-theme-ink-muted" />
-            </native:column>
-        </native:pressable>
-    @else
-        <native:pressable ref="copy-link-{{ $commit->id }}" @press="shareCommit('{{ $commit->id }}')" a11y-label="Copy link">
-            <native:column class="min-w-[44] h-[36] items-center justify-center">
-                <native:icon :ios="\App\Icons\Lucide::Link->ios()" :android="\App\Icons\Lucide::Link->android()" :size="$iconSize" class="text-theme-ink-muted" />
-            </native:column>
-        </native:pressable>
-    @endif
+    <native:pressable ref="more-{{ $commit->id }}" :menu="\App\Devnull\CommitMenu::items($commit, $viewer)" a11y-label="More">
+        <native:column class="min-w-[44] h-[36] items-center justify-center">
+            <native:icon :ios="\App\Icons\Lucide::Ellipsis->ios()" :android="\App\Icons\Lucide::Ellipsis->android()" :size="$iconSize" class="text-theme-ink-muted" />
+        </native:column>
+    </native:pressable>
 </native:row>

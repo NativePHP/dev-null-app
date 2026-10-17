@@ -119,10 +119,9 @@ it('draws the commit as the main thing, and what is around it muted', function (
         ->and(strtolower($reply['props']['color']))->toBe($muted)
         ->and($avatarRing('focused-commit'))->toEqual(48)
         ->and($avatarRing('commit-c1'))->toEqual(36)
-        ->and($iconSize('copy-link-c2'))->toEqual(16)
-        // Ada's commit, which you can report, has More where yours have copy link.
+        ->and($iconSize('more-c2'))->toEqual(16)
         ->and($iconSize('more-c1'))->toEqual(14)
-        ->and($iconSize('copy-link-r1'))->toEqual(14);
+        ->and($iconSize('more-r1'))->toEqual(14);
 
     $screen->assertDontSee('+0000')->assertSee('c2');
 });
@@ -210,14 +209,15 @@ it('deletes your own commit after a confirm', function () {
     fakeThread(extra: ['DELETE /api/v1/commits/c2' => [null, 204]]);
 
     $screen = Native::visit('/log/commits/c2')
-        ->call('confirmDelete')
+        ->press("confirmDelete('c2')")
         ->assertNativeCalled('Dialog.Alert', fn (array $params): bool => $params['title'] === 'Delete this commit?')
         ->emitNative(ButtonPressed::class, ['index' => 0, 'label' => 'Cancel', 'id' => 'delete-commit'])
         ->assertNoNavigation();
 
     Http::assertNotSent(fn (Request $request): bool => $request->method() === 'DELETE');
 
-    $screen->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Delete', 'id' => 'delete-commit'])
+    $screen->press("confirmDelete('c2')")
+        ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Delete', 'id' => 'delete-commit'])
         ->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === 'rm c2 → /dev/null')
         ->assertWentBack();
 
@@ -234,10 +234,13 @@ it('draws the delete action with the web\'s trash icon', function (string $platf
 })->with(['ios', 'android']);
 
 it('offers delete only on your own commits', function () {
-    fakeThread(['author' => userJson(['username' => 'ada'])], extra: ['DELETE /api/v1/commits/c2' => [null, 204]]);
+    fakeThread(['author' => userJson(['id' => 'u2', 'username' => 'ada'])], extra: ['DELETE /api/v1/commits/c2' => [null, 204]]);
 
     Native::visit('/log/commits/c2')
-        ->call('delete')
+        ->assertMissingElement('top_bar_action', fn (array $node): bool => ($node['props']['id'] ?? null) === 'delete')
+        ->call('confirmDelete', 'c2')
+        ->assertNativeNotCalled('Dialog.Alert')
+        ->call('deleteCommit', 'c2')
         ->assertNoNavigation();
 
     Http::assertNotSent(fn (Request $request): bool => $request->method() === 'DELETE');
@@ -386,7 +389,7 @@ it('reloads when you come back from a reply you deleted', function () {
         ->assertSee('Soon gone')
         ->tap('thread-reply-r1')
         ->follow()
-        ->call('delete')
+        ->call('deleteCommit', 'r1')
         ->assertWentBack();
 
     $reply->goBack()
@@ -435,7 +438,7 @@ it('stars the focused commit and its replies in place', function () {
         'PUT /api/v1/commits/r1/bookmark' => [['data' => commitJson(['id' => 'r1', 'is_saved' => true])]],
     ]);
 
-    $screen = Native::visit('/log/commits/c2')->tap('star-c2')->tap('replies-c2')->tap('bookmark-r1');
+    $screen = Native::visit('/log/commits/c2')->tap('star-c2')->tap('replies-c2')->tap('save-r1');
 
     expect($screen->instance()->commit->starred)->toBeTrue()
         ->and($screen->instance()->commit->body)->toBe('The focused commit')

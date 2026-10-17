@@ -707,6 +707,20 @@ function childRefs(TestableComponent $screen, string $ref): array
 }
 
 /**
+ * The menu a pressable opens, as each item's ref, label and icon, with a divider as 'divider'.
+ *
+ * @return list<string|array{0: string|null, 1: string|null, 2: string|null}>
+ */
+function menuItems(TestableComponent $screen, string $ref): array
+{
+    $items = array_filter(nodeByRef($screen, $ref)['children'] ?? [], fn (array $child): bool => ($child['type'] ?? null) === 'top_bar_action');
+
+    return array_values(array_map(fn (array $item): string|array => ($item['props']['divider'] ?? false) === true
+        ? 'divider'
+        : [$item['ref'] ?? null, $item['props']['label'] ?? null, $item['props']['icon'] ?? null], $items));
+}
+
+/**
  * A commit page with what it folds away opened: the earlier commits above its commit, and the replies under it.
  */
 function unfolded(TestableComponent $screen): TestableComponent
