@@ -25,6 +25,7 @@
         tabs-scrollable
         on-tab-reselect="backToTop"
         tab-active-color="theme-ink"
+        :tab-indicator-color="'theme-'.$myColour"
         tab-color="theme-ink-muted"
         tab-divider-color="theme-hairline"
         tab-font="semibold"

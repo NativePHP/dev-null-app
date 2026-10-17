@@ -1,2 +1,2 @@
-{{-- The web's Follow button on a follow: Follow in Commit Blue, or Following once you do. A tap flips it. --}}
-<native:button ref="follow-back-{{ $actor->username }}" size="sm" :variant="$isFollowing ? 'secondary' : 'primary'" @press="toggleFollowBack('{{ $actor->username }}')" a11y-hint="{{ $isFollowing ? 'Unfollows' : 'Follows' }} {{ $actor->handle() }}">{{ $isFollowing ? 'Following' : 'Follow' }}</native:button>
+{{-- The web's Follow button on a follow: Follow in your colour, or Following once you do. A tap flips it. --}}
+<native:button ref="follow-back-{{ $actor->username }}" size="sm" :variant="$isFollowing ? 'secondary' : $myColour" @press="toggleFollowBack('{{ $actor->username }}')" a11y-hint="{{ $isFollowing ? 'Unfollows' : 'Follows' }} {{ $actor->handle() }}">{{ $isFollowing ? 'Following' : 'Follow' }}</native:button>

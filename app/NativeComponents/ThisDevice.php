@@ -312,6 +312,7 @@ class ThisDevice extends NativeComponent
         $current = $this->current;
 
         return view('native.this-device', [
+            'myColour' => $this->myColour(),
             'user' => $current?->user,
             'fields' => $current === null ? [] : self::fields($current),
             'syncedAt' => $current?->githubSyncedAt === null ? 'Last synced when you signed in' : 'Last synced '.Display::ago($current->githubSyncedAt),

@@ -10,7 +10,8 @@ namespace App\Devnull;
  * for a server that doesn't send one.
  *
  * The colours themselves are `lane-0` to `lane-5` in the native-ui theme, so
- * `bg-theme-lane-{n}` picks the light or dark lift automatically.
+ * `bg-theme-lane-{n}` picks the light or dark lift automatically. Each has an
+ * `on-lane-{n}` for a button's label.
  */
 final class Lane
 {
@@ -33,6 +34,16 @@ final class Lane
         $lane = (int) $value;
 
         return $lane >= 0 && $lane < self::Count ? $lane : null;
+    }
+
+    /**
+     * The theme token a lane is drawn in, which is also a button variant: your
+     * lane's is what the tab bar, the main buttons and the pager tab underlines
+     * wear. Commit Blue (primary) before devnull has said whose phone this is.
+     */
+    public static function token(?int $lane): string
+    {
+        return $lane === null ? 'primary' : 'lane-'.$lane;
     }
 
     public static function for(string $id): int

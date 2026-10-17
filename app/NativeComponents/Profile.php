@@ -385,6 +385,7 @@ class Profile extends NativeComponent
         $pinnedCommit = $this->pinnedCommit();
 
         return view('native.profile', [
+            'myColour' => $this->myColour(),
             'isBlocked' => $this->unavailable === ErrorCode::UserBlocked->value,
             'isMe' => $this->isMe(),
             'newCommitsLabel' => $this->newCommitsLabel(),

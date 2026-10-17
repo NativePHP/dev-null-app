@@ -5,8 +5,9 @@
 
     {{--
         The logs as pages you swipe between, under DESIGN.md's page tabs, which the pager draws itself: a full-width
-        split, the active label in ink over a 3px blue underline. On the phone the underline follows your finger, the
-        label you're nearest lights up past halfway, and a tab tap scrolls the pager there, so none of it waits for PHP.
+        split, the active label in ink over a 3px underline in your colour. On the phone the underline follows your
+        finger, the label you're nearest lights up past halfway, and a tab tap scrolls the pager there, so none of it
+        waits for PHP.
 
         The pager says which log it settled on once the swipe has come to rest, not as the log changes under your
         finger: switching logs sends a frame big enough to make the swipe stutter if it lands mid-swipe. A tap on the
@@ -27,6 +28,7 @@
         :tabs="$tabs"
         on-tab-reselect="backToTop"
         tab-active-color="theme-ink"
+        :tab-indicator-color="'theme-'.$myColour"
         tab-color="theme-ink-muted"
         tab-divider-color="theme-hairline"
         tab-font="semibold"

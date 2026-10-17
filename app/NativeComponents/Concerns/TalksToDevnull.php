@@ -8,6 +8,7 @@ use App\Devnull\Data\User;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Exceptions\Unauthenticated;
+use App\Devnull\Lane;
 use Closure;
 
 /**
@@ -59,5 +60,14 @@ trait TalksToDevnull
     protected function me(): ?User
     {
         return app(Account::class)->user();
+    }
+
+    /**
+     * The theme token for your lane, which the main buttons and the pager tab
+     * underlines are drawn in.
+     */
+    protected function myColour(): string
+    {
+        return Lane::token($this->me()?->lane());
     }
 }

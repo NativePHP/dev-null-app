@@ -40,9 +40,11 @@ return [
     'theme' => [
 
         // devnull's tokens from DESIGN.md: a cool, nearly colourless shell, one
-        // working blue, and six author lanes that only ever mark the graph.
+        // working blue, and six author lanes that mark the graph. Your own lane
+        // also colours your buttons.
         'light' => [
-            // Commit Blue: the primary button, links, the active tab underline.
+            // Commit Blue: links, the new commits pill, and the main buttons and
+            // tab underlines before devnull has said whose phone this is.
             'primary' => '#3b6fe0',
             'on-primary' => '#ffffff',
 
@@ -80,13 +82,24 @@ return [
             'pending' => '#b45309',
             'pending-soft' => '#fef3c7',
 
-            // Author lanes. Identity only: graph nodes, rail segments, avatar rings.
+            // Author lanes: graph nodes, rail segments, avatar rings. Yours also
+            // colours the tab bar, the main buttons and the pager tab underlines.
             'lane-0' => '#d9480f',
             'lane-1' => '#2f9e44',
             'lane-2' => '#9c36b5',
             'lane-3' => '#0c8599',
             'lane-4' => '#c2255c',
             'lane-5' => '#b7791f',
+
+            // A button's label on each lane: white, except ink on green and
+            // ochre, where white falls well short of 4.5:1. White on orange and
+            // teal is 4.3:1, a hair short, and ink is no better there.
+            'on-lane-0' => '#ffffff',
+            'on-lane-1' => '#121417',
+            'on-lane-2' => '#ffffff',
+            'on-lane-3' => '#ffffff',
+            'on-lane-4' => '#ffffff',
+            'on-lane-5' => '#121417',
         ],
 
         // A faithful mirror on graphite, with the lanes and primary lifted.
@@ -129,6 +142,15 @@ return [
             'lane-3' => '#3bc9db',
             'lane-4' => '#f06595',
             'lane-5' => '#fcc419',
+
+            // The lifted lanes are all light enough that white won't read on
+            // them (3:1 at best), so labels are graphite, as on primary.
+            'on-lane-0' => '#111112',
+            'on-lane-1' => '#111112',
+            'on-lane-2' => '#111112',
+            'on-lane-3' => '#111112',
+            'on-lane-4' => '#111112',
+            'on-lane-5' => '#111112',
         ],
 
         // Corner radii (points / dp): 6px controls, 8px groups, circles for people and commits.

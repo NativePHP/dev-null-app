@@ -31,7 +31,7 @@
             @if ($composerOpen)
                 <native:row class="w-full gap-3 items-center justify-end">
                     @include('native.partials.body-counter', ['body' => $body, 'ref' => 'budget'])
-                    <native:button ref="commit" variant="primary" :disabled="! $canCommit" @press="commit">Commit</native:button>
+                    <native:button ref="commit" :variant="$myColour" :disabled="! $canCommit" @press="commit">Commit</native:button>
                 </native:row>
             @endif
         </native:column>
