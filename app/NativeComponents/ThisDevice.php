@@ -12,7 +12,9 @@ use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Hsl;
 use App\Devnull\Lane;
 use App\Devnull\ResponseCache;
+use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SearchesDevnull;
 use App\NativeComponents\Concerns\SignsInWithApple;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Concerns\WritesInBackground;
@@ -41,7 +43,9 @@ use SensitiveParameter;
  */
 class ThisDevice extends NativeComponent
 {
+    use OpensInTab;
     use RefreshesInBackground;
+    use SearchesDevnull;
     use SignsInWithApple;
     use TalksToDevnull;
     use WritesInBackground;

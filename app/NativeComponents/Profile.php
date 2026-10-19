@@ -18,6 +18,7 @@ use App\NativeComponents\Concerns\HoldsNewCommits;
 use App\NativeComponents\Concerns\OpensAchievements;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SearchesDevnull;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Closure;
@@ -66,6 +67,7 @@ class Profile extends NativeComponent
         isShowing as isShowingPath;
     }
     use RefreshesInBackground;
+    use SearchesDevnull;
     use ShowsCommits;
     use TalksToDevnull;
 
@@ -310,6 +312,16 @@ class Profile extends NativeComponent
     {
         if (in_array($type, Connections::Types, true) && $this->showsContent() && ! $this->sketched) {
             $this->openInTab('/users/'.rawurlencode($this->username).'/'.$type);
+        }
+    }
+
+    /**
+     * The commits you saved, on this tab's stack. Only your own profile offers it.
+     */
+    public function openSaved(): void
+    {
+        if ($this->isMe()) {
+            $this->openInTab('/saved');
         }
     }
 
