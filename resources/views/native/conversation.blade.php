@@ -9,52 +9,55 @@
     @include('native.partials.error')
     @include('native.partials.refresh-failed')
 
+    {{--
+        Each row is a child of the scroll view itself, not of one column inside it: SwiftUI keeps a reader's place by
+        the rows on screen, and with everything in a single row it held onto the bottom instead, so a new message
+        pulled someone reading back down to it.
+    --}}
     <native:scroll-view native:key="thread-{{ $username }}{{ $org }}" ref="thread" scroll-anchor="bottom" class="w-full flex-1 bg-theme-surface">
-        <native:column ref="thread-page" class="w-full pb-2 bg-theme-surface">
-            @if ($hasOlder)
-                <native:row class="w-full py-3 justify-center">
-                    <native:text ref="load-older" font="mono" class="text-[13px] text-theme-primary" @press="loadOlder">↑ earlier messages</native:text>
+        @if ($hasOlder)
+            <native:row class="w-full py-3 justify-center">
+                <native:text ref="load-older" font="mono" class="text-[13px] text-theme-primary" @press="loadOlder">↑ earlier messages</native:text>
+            </native:row>
+        @endif
+
+        @if (! $loaded && $error === null)
+            <native:column ref="loading-thread" class="w-full items-center py-16" a11y-label="Loading messages">
+                <native:activity-indicator />
+            </native:column>
+        @endif
+
+        @if ($loaded && $items === [] && $canPush)
+            <native:column ref="empty-thread" class="w-full items-center px-8 py-16">
+                <native:text font="mono" class="text-[13px] text-center text-theme-ink-muted">{{ $isOrg ? 'empty history. say hi to the org' : 'empty history. say hi to @'.$username }}</native:text>
+            </native:column>
+        @endif
+
+        @foreach ($items as $item)
+            @if ($item['type'] === 'day')
+                <native:row native:key="day-{{ $item['label'] }}" ref="day-{{ $item['label'] }}" class="w-full pt-4 pb-1 justify-center">
+                    <native:row class="px-3 py-[2] gap-[6] items-center rounded-full bg-theme-wash">
+                        <native:column :width="4" :height="4" class="rounded-full bg-theme-ink-muted" />
+                        <native:text font="mono" class="text-[11px] text-theme-ink-muted">{{ $item['label'] }}</native:text>
+                    </native:row>
                 </native:row>
+            @elseif ($item['type'] === 'head')
+                <native:row ref="head" class="w-full px-4 pt-4 gap-2 items-center">
+                    <native:column class="flex-1 h-[1] bg-theme-{{ $myColour }}/40" />
+                    <native:text font="mono-medium" class="text-[11px] text-theme-{{ $myColour }}">HEAD · {{ $item['count'] }} new</native:text>
+                    <native:column class="flex-1 h-[1] bg-theme-{{ $myColour }}/40" />
+                </native:row>
+            @elseif ($item['type'] === 'event')
+                <native:row native:key="event-{{ $item['message']->id }}" ref="event-{{ $item['message']->id }}" class="w-full px-6 pt-3 justify-center">
+                    <native:text font="mono" class="text-[11px] text-center text-theme-ink-muted" :max-lines="2">* {{ $item['text'] }}</native:text>
+                </native:row>
+            @else
+                @include('native.partials.message-item', $item)
             @endif
+        @endforeach
 
-            @if (! $loaded && $error === null)
-                <native:column ref="loading-thread" class="w-full items-center py-16" a11y-label="Loading messages">
-                    <native:activity-indicator />
-                </native:column>
-            @endif
-
-            @if ($loaded && $items === [] && $canPush)
-                <native:column ref="empty-thread" class="w-full items-center px-8 py-16">
-                    <native:text font="mono" class="text-[13px] text-center text-theme-ink-muted">{{ $isOrg ? 'empty history. say hi to the org' : 'empty history. say hi to @'.$username }}</native:text>
-                </native:column>
-            @endif
-
-            @foreach ($items as $item)
-                @if ($item['type'] === 'day')
-                    <native:row native:key="day-{{ $item['label'] }}" ref="day-{{ $item['label'] }}" class="w-full pt-4 pb-1 justify-center">
-                        <native:row class="px-3 py-[2] gap-[6] items-center rounded-full bg-theme-wash">
-                            <native:column :width="4" :height="4" class="rounded-full bg-theme-ink-muted" />
-                            <native:text font="mono" class="text-[11px] text-theme-ink-muted">{{ $item['label'] }}</native:text>
-                        </native:row>
-                    </native:row>
-                @elseif ($item['type'] === 'head')
-                    <native:row ref="head" class="w-full px-4 pt-4 gap-2 items-center">
-                        <native:column class="flex-1 h-[1] bg-theme-{{ $myColour }}/40" />
-                        <native:text font="mono-medium" class="text-[11px] text-theme-{{ $myColour }}">HEAD · {{ $item['count'] }} new</native:text>
-                        <native:column class="flex-1 h-[1] bg-theme-{{ $myColour }}/40" />
-                    </native:row>
-                @elseif ($item['type'] === 'event')
-                    <native:row native:key="event-{{ $item['message']->id }}" ref="event-{{ $item['message']->id }}" class="w-full px-6 pt-3 justify-center">
-                        <native:text font="mono" class="text-[11px] text-center text-theme-ink-muted" :max-lines="2">* {{ $item['text'] }}</native:text>
-                    </native:row>
-                @else
-                    @include('native.partials.message-item', $item)
-                @endif
-            @endforeach
-
-            {{-- The bar sits over the end of the thread, so the thread clears it, the home indicator and the typing line. --}}
-            <native:column ref="composer-clearance" class="w-full h-[{{ $composerHeight }}]" />
-        </native:column>
+        {{-- The bar sits over the end of the thread, so the thread clears it, the home indicator and the typing line. --}}
+        <native:column ref="composer-clearance" class="w-full h-[{{ $composerHeight + 8 }}]" />
     </native:scroll-view>
 
     @if ($loaded)

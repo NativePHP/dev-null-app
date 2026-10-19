@@ -129,3 +129,14 @@ it('remembers your Remotes whenever devnull says who you are', function () {
 
     expect(app(Account::class)->remotes())->toEqual(new Remotes(requests: true, unreadCount: 4));
 });
+
+it('keeps Remotes on when devnull is too old to say', function () {
+    fakeApi([
+        'GET /api/v1/me' => [currentUserJson()],
+        'GET /api/v1/saved' => [pageJson([])],
+    ]);
+
+    finishRefreshes(Native::visit('/profile/saved'));
+
+    expect(app(Account::class)->remotes())->toEqual(new Remotes);
+});

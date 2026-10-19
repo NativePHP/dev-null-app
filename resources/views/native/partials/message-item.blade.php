@@ -13,7 +13,8 @@
 @php($replyAuthor = $message->replyTo === null ? null : ($message->replyTo['user_id'] === $viewer?->id ? 'You' : ($authors[$message->replyTo['user_id']]->name ?? 'Someone')))
 @php($replyLane = $message->replyTo === null ? 'primary' : \App\Devnull\Lane::token(($authors[$message->replyTo['user_id']] ?? null)?->lane()))
 <native:row native:key="message-{{ $key }}" ref="message-{{ $key }}" class="w-full px-3 {{ $startsRun ? 'pt-3' : 'pt-[3]' }} {{ $mine ? 'justify-end' : 'justify-start' }}">
-    <native:column class="max-w-[300] gap-1 {{ $mine ? 'items-end' : 'items-start' }}">
+    {{-- A set width, not a max: a column that only hugs its bubble measures the text on one line and clips it. --}}
+    <native:column class="w-[300] gap-1 {{ $mine ? 'items-end' : 'items-start' }}">
         @if ($isOrg && ! $mine && $startsRun && $author)
             <native:row ref="author-{{ $key }}" class="gap-[6] items-center px-1">
                 @include('native.partials.avatar', ['user' => $author, 'size' => 16])

@@ -277,3 +277,18 @@ it('stashes the conversation from its menu and goes back', function () {
 
     expect(sentTo('POST', 'remotes/@ada/archive'))->toHaveCount(1);
 });
+
+it('leaves HEAD out when nothing above it was read, as the web does', function () {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => 'first']),
+        remoteMessageJson(['id' => 2, 'body' => 'second']),
+    ]));
+
+    finishRefreshes(Native::visit('/remotes/conversations/ada'))->assertSee('first')->assertDontSee('HEAD');
+});
+
+it('opens the partner profile from the menu, in the tab it is in', function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
+
+    finishRefreshes(Native::visit('/remotes/conversations/ada'))->call('viewProfile')->assertNavigatedTo('/remotes/users/ada');
+});

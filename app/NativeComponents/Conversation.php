@@ -285,7 +285,7 @@ class Conversation extends NativeComponent
         }
 
         $this->lastTypingAt = $now;
-        $this->writeInBackground('PUT', $this->path().'/typing', null, fn () => null, fn () => null);
+        $this->writeInBackground('PUT', $this->threadPath().'/typing', null, fn () => null, fn () => null);
     }
 
     /**
@@ -299,7 +299,7 @@ class Conversation extends NativeComponent
             return;
         }
 
-        $json = $this->attempt(fn (Client $devnull): array => $devnull->olderMessages($this->path(), $first->id));
+        $json = $this->attempt(fn (Client $devnull): array => $devnull->olderMessages($this->threadPath(), $first->id));
 
         if ($json === null) {
             return;
@@ -399,12 +399,12 @@ class Conversation extends NativeComponent
 
     public function stash(): void
     {
-        $this->writeInBackground('POST', $this->path().'/archive', null, fn () => $this->back(), fn () => null);
+        $this->writeInBackground('POST', $this->threadPath().'/archive', null, fn () => $this->back(), fn () => null);
     }
 
     public function pop(): void
     {
-        $this->writeInBackground('DELETE', $this->path().'/archive', null, function (): void {
+        $this->writeInBackground('DELETE', $this->threadPath().'/archive', null, function (): void {
             $this->thread = $this->thread === null ? null : new Thread(...[...get_object_vars($this->thread), 'isArchived' => false]);
         }, fn () => null);
     }
@@ -434,7 +434,7 @@ class Conversation extends NativeComponent
     {
         $this->requestError = null;
 
-        $this->writeInBackground('POST', $this->path().'/'.$answer, null, function () use ($answer): void {
+        $this->writeInBackground('POST', $this->threadPath().'/'.$answer, null, function () use ($answer): void {
             if ($answer === 'drop') {
                 $this->back();
 
@@ -555,7 +555,7 @@ class Conversation extends NativeComponent
 
         $this->readThroughId = $latest;
 
-        $this->writeInBackground('PUT', $this->path().'/read', ['through' => $latest], fn () => $this->refreshUnreadNotifications(), fn () => null);
+        $this->writeInBackground('PUT', $this->threadPath().'/read', ['through' => $latest], fn () => $this->refreshUnreadNotifications(), fn () => null);
     }
 
     /**
@@ -575,14 +575,14 @@ class Conversation extends NativeComponent
         }
     }
 
-    private function path(): string
+    private function threadPath(): string
     {
         return Client::threadPath($this->username, $this->org === '' ? null : $this->org);
     }
 
     private function messagesPath(): string
     {
-        return $this->path().'/messages';
+        return $this->threadPath().'/messages';
     }
 
     private function isOrg(): bool
@@ -769,8 +769,11 @@ class Conversation extends NativeComponent
         $all = [...$this->messages, ...$this->pending];
         $items = [];
         $day = null;
-        $headShown = false;
         $status = $this->statusMessage($all, $viewer);
+        $unread = array_keys(array_filter($all, fn (Message $message): bool => $this->head !== null && ! $message->isPending() && $message->id > $this->head && $message->id <= $this->headUntil && $message->userId !== $viewer?->id && ! $message->isEvent()));
+
+        // As on the web, HEAD only shows when you'd read something above it.
+        $headAt = ($unread[0] ?? 0) > 0 ? $unread[0] : null;
 
         foreach ($all as $index => $message) {
             $label = $message->createdAt === null ? null : Display::dayLabel($message->createdAt);
@@ -780,11 +783,8 @@ class Conversation extends NativeComponent
                 $day = $label;
             }
 
-            $isNew = ! $headShown && $index > 0 && $this->head !== null && ! $message->isPending() && $message->id > $this->head && $message->id <= $this->headUntil && $message->userId !== $viewer?->id && ! $message->isEvent();
-
-            if ($isNew) {
-                $headShown = true;
-                $items[] = ['type' => 'head', 'count' => count(array_filter($all, fn (Message $later): bool => $later->id > $this->head && $later->id <= $this->headUntil && $later->userId !== $viewer?->id && ! $later->isEvent()))];
+            if ($index === $headAt) {
+                $items[] = ['type' => 'head', 'count' => count($unread)];
             }
 
             if ($message->isEvent()) {

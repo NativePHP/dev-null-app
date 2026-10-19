@@ -57,7 +57,8 @@ final readonly class CurrentUser
             pasteisMode: ($data['pasteis_mode'] ?? false) === true,
             pasteisToday: Pasteis::fromKept(['remaining' => $data['pasteis_remaining'] ?? null, 'resets_at' => $data['pasteis_resets_at'] ?? null]),
             pasteisReceived: is_int($data['pasteis_received'] ?? null) ? max(0, $data['pasteis_received']) : 0,
-            remotes: Remotes::fromArray($data['remotes'] ?? null),
+            // Only devnull saying null means they're off: a devnull too old to say has them on, as everyone starts.
+            remotes: array_key_exists('remotes', $data) ? Remotes::fromArray($data['remotes']) : new Remotes,
         );
     }
 
