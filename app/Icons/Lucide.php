@@ -61,6 +61,8 @@ enum Lucide
     case SquarePen;
     case UsersRound;
     case Search;
+    case Reply;
+    case SmilePlus;
 
     // The achievement badges, named as devnull names their icons (see forBadge()).
     case Terminal;
@@ -148,6 +150,8 @@ enum Lucide
             self::SquarePen => 'square-pen',
             self::UsersRound => 'users-round',
             self::Search => 'search',
+            self::Reply => 'reply',
+            self::SmilePlus => 'smile-plus',
             self::Terminal => 'terminal',
             self::FileCode => 'file-code',
             self::Flame => 'flame',

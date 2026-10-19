@@ -1,10 +1,9 @@
 {{--
     A Remotes thread: the messages, oldest first, anchored to the latest at the bottom as a chat is, then the
-    composer in the bottom bar. The bar keeps one line above the field for who's typing, empty or not, so the field
-    never moves when someone starts or stops. While the thread can't take a message, the bar says why instead, in
-    the web's words, with Merge and Drop for a request.
+    composer in the bottom bar. Who's typing shows under the title in the nav bar, so the bar never changes height
+    for it. While the thread can't take a message, the bar says why instead, in the web's words, with Merge and Drop
+    for a request.
 --}}
-@php($composerHeight = \App\Devnull\Display::replyBarClearance($draft) + 24 + ($replyTo ? 44 : 0))
 <native:column class="w-full h-full bg-theme-background">
     @include('native.partials.error')
     @include('native.partials.refresh-failed')
@@ -56,21 +55,13 @@
             @endif
         @endforeach
 
-        {{-- The bar sits over the end of the thread, so the thread clears it, the home indicator and the typing line. --}}
-        <native:column ref="composer-clearance" class="w-full h-[{{ $composerHeight + 8 }}]" />
+        {{-- The bar sits over the end of the thread, so the thread clears it. The scroll view clears the home indicator. --}}
+        <native:column ref="composer-clearance" class="w-full h-[{{ $composerClearance }}]" />
     </native:scroll-view>
 
     @if ($loaded)
         <native:bottom-bar>
             <native:column ref="composer-bar" class="w-full bg-theme-surface">
-                @if ($canPush)
-                    {{-- Above the bar's line, as the web's sits above its composer, so the field keeps its padding tight. --}}
-                    <native:row ref="typing-line" class="w-full h-[24] px-4 items-center">
-                        @if ($typing)
-                            <native:text ref="typing" font="mono" class="text-[11px] text-theme-ink-muted" :max-lines="1">{{ $typing }}</native:text>
-                        @endif
-                    </native:row>
-                @endif
                 <native:column class="w-full h-[1] bg-theme-hairline" />
                 @if ($canPush)
                     @if ($replyTo)
@@ -85,12 +76,13 @@
                             </native:pressable>
                         </native:row>
                     @endif
-                    <native:row class="w-full px-4 pt-[6] gap-3 items-center">
+                    {{-- The same room above and below the field, so the bar sits evenly on the keyboard. --}}
+                    <native:row class="w-full px-4 py-2 gap-3 items-center">
                         <native:column class="flex-1">
                             <native:bare-text-input
                                 native:key="message-input-{{ $composerKey }}"
                                 ref="message-input"
-                                class="w-full py-[6] text-theme-ink"
+                                class="w-full py-[4] text-theme-ink"
                                 :autofocus="$composerKey > 0"
                                 :placeholder="$placeholder"
                                 native:model.debounce.150ms="draft"
@@ -135,7 +127,7 @@
         </native:bottom-bar>
     @endif
 
-    {{-- A long press on a message: the reactions the web offers first, the rest, and Reply. --}}
+    {{-- React on a message: the reactions the web offers first, then the rest. --}}
     <native:bottom-sheet ref="message-sheet" :visible="$sheetOpen" detents="0.45" @dismiss="messageSheetClosed">
         @if ($sheetMessage)
             <native:column class="w-full px-5 pt-6 pb-8 gap-5">
@@ -162,9 +154,6 @@
                         </native:row>
                     @endforeach
                 </native:column>
-                @if ($canPush)
-                    <native:button ref="reply" variant="secondary" size="lg" :ios-icon="\App\Icons\Lucide::MessageSquareReply->ios()" :android-icon="\App\Icons\Lucide::MessageSquareReply->android()" @press="reply({{ $sheetMessage->id }})" class="w-full">Reply</native:button>
-                @endif
             </native:column>
         @endif
     </native:bottom-sheet>

@@ -128,7 +128,24 @@ class Conversation extends NativeComponent
     public int $composerKey = 0;
 
     /**
-     * The message a long press opened the reactions sheet for.
+     * The composer bar's height with one line in its field: its top line, then the field and Push with 8 points
+     * above and below.
+     */
+    public const int ComposerBarHeight = 46;
+
+    /**
+     * The "Replying to …" bar above the field.
+     */
+    public const int ReplyingBarHeight = 44;
+
+    /**
+     * The message whose React and Reply show beside it, as the web shows them on hover. A tap on a message shows them,
+     * and a tap on it again, or on another message, moves them.
+     */
+    public ?int $actionsForId = null;
+
+    /**
+     * The message React opened the reactions sheet for.
      */
     public ?int $sheetMessageId = null;
 
@@ -317,14 +334,29 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * A long press on a message: its reactions and Reply, in a sheet.
+     * A tap on a message shows its React and Reply beside it, or hides them if they were showing.
      */
-    public function openMessage(int $id): void
+    public function toggleActions(int $id): void
+    {
+        $message = $this->findMessage($id);
+
+        if ($message === null || $message->isEvent() || $message->isPending()) {
+            return;
+        }
+
+        $this->actionsForId = $this->actionsForId === $id ? null : $id;
+    }
+
+    /**
+     * React: the web's reactions for the message, in a sheet.
+     */
+    public function openReactions(int $id): void
     {
         if ($this->findMessage($id)?->isEvent() !== false) {
             return;
         }
 
+        $this->actionsForId = null;
         $this->sheetMessageId = $id;
         $this->sheetOpen = true;
     }
@@ -337,6 +369,7 @@ class Conversation extends NativeComponent
     public function reply(int $id): void
     {
         $this->replyToId = $id;
+        $this->actionsForId = null;
         $this->sheetOpen = false;
         $this->composerKey++;
     }
@@ -724,8 +757,18 @@ class Conversation extends NativeComponent
         return $this->thread->orgName ?? ($names === [] ? 'Just you' : implode(', ', $names));
     }
 
+    /**
+     * Under the title: who's typing while anyone is, as the web shows above its composer, otherwise the handle, or
+     * how many are in the org.
+     */
     private function subtitle(): ?string
     {
+        $typing = self::typingText($this->thread->typing ?? [], $this->isOrg());
+
+        if ($typing !== null) {
+            return $typing;
+        }
+
         if (! $this->isOrg()) {
             return '@'.$this->username;
         }
@@ -756,7 +799,7 @@ class Conversation extends NativeComponent
             'isOrg' => $this->isOrg(),
             'access' => $thread->access ?? Thread::Open,
             'items' => $this->items($viewer),
-            'typing' => self::typingText($thread?->typing ?? [], $this->isOrg()),
+            'composerClearance' => self::composerClearance($this->draft, $this->replyToId !== null),
             'replyTo' => $this->findMessage($this->replyToId),
             'sheetMessage' => $this->findMessage($this->sheetMessageId),
             'quickReactions' => $this->quickReactions(),
@@ -764,6 +807,18 @@ class Conversation extends NativeComponent
             'canPush' => $thread !== null && $thread->access === Thread::Open,
             'placeholder' => $this->isOrg() ? 'Message '.($thread->orgName ?? 'the org') : 'Message @'.$this->username,
         ]);
+    }
+
+    /**
+     * How far the thread pads its end to clear the composer bar: the bar with one line in its field, the lines the
+     * draft has grown by, the reply bar while replying, and a little room. The scroll view adds the home indicator
+     * itself while the keyboard is down, so this is the same either way.
+     */
+    private static function composerClearance(string $draft, bool $replying): int
+    {
+        $grownBy = Display::replyBarClearance($draft) - Display::ReplyBarHeight - Display::HomeIndicatorHeight;
+
+        return self::ComposerBarHeight + $grownBy + ($replying ? self::ReplyingBarHeight : 0) + 8;
     }
 
     /**

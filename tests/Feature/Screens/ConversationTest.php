@@ -2,6 +2,7 @@
 
 use App\Devnull\Account;
 use App\Devnull\Data\Remotes;
+use App\NativeComponents\Conversation;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
@@ -58,9 +59,10 @@ it('shows the thread with your messages on the right and theirs on the left, tit
         ->assertSee('Today')
         ->assertSee('pulled 14:05');
 
-    // Theirs at the start of the row, yours at the end, in a thread that opens on its latest message.
-    expect(nodeByRef($screen, 'message-1')['layout']['justify_content'])->toBe(0)
-        ->and(nodeByRef($screen, 'message-2')['layout']['justify_content'])->toBe(2)
+    // Theirs at the start of the row with the gutter for React and Reply after it, yours at the end with the gutter
+    // before it, in a thread that opens on its latest message.
+    expect(childRefs($screen, 'message-1'))->toBe(['swipe-1', 'actions-1'])
+        ->and(childRefs($screen, 'message-2'))->toBe(['actions-2', 'swipe-2'])
         ->and(nodeByRef($screen, 'thread')['props']['scroll_anchor'] ?? null)->toBe('bottom');
 });
 
@@ -92,6 +94,9 @@ it('polls for what came after the last message, and for reactions changed since'
         ->assertSee('second')
         ->assertSee('🚀')
         ->assertSee('@ada is typing…');
+
+    // Under the title, so the composer never changes height for it.
+    expect(findNode($screen->tree(), fn (array $node): bool => ($node['props']['nav_subtitle'] ?? null) === '@ada is typing…'))->not->toBeNull();
 
     $polls = collect(Http::recorded())->map(fn (array $sent): string => (string) parse_url($sent[0]->url(), PHP_URL_QUERY))->filter(fn (string $query): bool => str_contains($query, 'after'));
 
@@ -144,14 +149,50 @@ it('says a message devnull refused was rejected, and retries it under the same c
     expect(array_map(fn (string $body): string => json_decode($body, true)['client_id'], sentTo('POST', 'remotes/@ada/messages')))->toBe([$clientId, $clientId]);
 });
 
-it('replies to a message from its sheet', function () {
+it('shows React and Reply beside a tapped message, as the web shows them on hover', function () {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?']),
+        remoteMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => 'which one?']),
+    ], ['read_through_id' => 2]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+
+    expect(childRefs($screen, 'actions-1'))->toBe([]);
+
+    // Reply sits nearest the bubble: after theirs, before yours.
+    $screen->tap('bubble-1');
+    expect(childRefs($screen, 'actions-1'))->toBe(['reply-1', 'react-1']);
+
+    $screen->tap('bubble-2');
+    expect(childRefs($screen, 'actions-1'))->toBe([])
+        ->and(childRefs($screen, 'actions-2'))->toBe(['react-2', 'reply-2']);
+
+    // A second tap puts them away.
+    $screen->tap('bubble-2');
+    expect(childRefs($screen, 'actions-2'))->toBe([]);
+});
+
+it('opens the reactions from React, without Reply in them', function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))
+        ->tap('bubble-1')
+        ->tap('react-1')
+        ->assertSet('sheetOpen', true)
+        ->assertSet('actionsForId', null);
+
+    expect(childRefs($screen, 'quick-reactions'))->not->toBeEmpty()
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'reply'))->toBeNull();
+});
+
+it('replies to a message from its Reply button', function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?'])], ['read_through_id' => 1]));
 
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))
-        ->call('openMessage', 1)
-        ->assertSet('sheetOpen', true)
-        ->tap('reply')
+        ->tap('bubble-1')
+        ->tap('reply-1')
         ->assertSee('Replying to Ada Lovelace')
+        ->assertSet('actionsForId', null)
         ->set('draft', 'yes')
         ->call('send');
 
@@ -320,4 +361,18 @@ it('opens the partner profile from the menu, in the tab it is in', function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
 
     finishRefreshes(Native::visit('/remotes/conversations/ada'))->call('viewProfile')->assertNavigatedTo('/remotes/users/ada');
+});
+
+it('pads the end of the thread for the composer bar alone, and for the reply bar while replying', function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+    $clearance = fn (): mixed => nodeByRef($screen, 'composer-clearance')['layout']['height'] ?? null;
+
+    // The scroll view adds the home indicator itself while the keyboard is down, so it isn't counted here.
+    expect($clearance())->toEqual(Conversation::ComposerBarHeight + 8);
+
+    $screen->tap('bubble-1')->tap('reply-1');
+
+    expect($clearance())->toEqual(Conversation::ComposerBarHeight + Conversation::ReplyingBarHeight + 8);
 });
