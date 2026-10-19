@@ -13,27 +13,6 @@ A native iOS and Android app for [devnull](https://dev-null.sh), the social netw
 - Muting and blocking, your account settings, and your lane colour.
 - Signing in with GitHub, or with an Apple ID you've linked.
 
-## Try it on your phone with Jump
-
-The quickest way to run the app is [Jump](https://bifrost.nativephp.com/jump), NativePHP's free app for running a project on your phone without Xcode or Android Studio.
-
-1. Install Jump on your iPhone or Android phone.
-2. Clone this repo and set it up:
-
-   ```sh
-   git clone https://github.com/NativePHP/dev-null-app.git
-   cd dev-null-app
-   composer setup
-   ```
-
-3. Start Jump's server, then scan the QR code it shows with Jump. Your phone and your computer need to be on the same Wi-Fi.
-
-   ```sh
-   php artisan native:jump
-   ```
-
-`composer setup` needs NativePHP plugin credentials for the Secure Storage plugin. If you don't have them, run `composer setup:free` instead (see [Without plugin credentials](#without-plugin-credentials)) and add `DEVNULL_KEY_STORE=file` to `.env`. Otherwise the app won't make its key on a real phone.
-
 ## Building it yourself
 
 Clone the repo and:
@@ -86,6 +65,26 @@ These can be set in `.env`:
 - `GOOGLE_SERVER_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID` and `GOOGLE_IOS_REVERSED_CLIENT_ID` belong to the social-auth plugin's Google Sign-In, which the app doesn't use. NativePHP won't build without the first, so keep the placeholders from `.env.example`.
 
 A production build for a real iPhone needs an explicit App ID for `NATIVEPHP_APP_ID` with the Sign in with Apple capability, since the plugin adds its entitlement. A wildcard provisioning profile can't carry it.
+
+## Running it in Jump
+
+[Jump](https://bifrost.nativephp.com/jump) is NativePHP's free app for running a project on your phone without Xcode or Android Studio. It can run this app, but you can't sign in there yet, so you won't get past the welcome screen.
+
+To run it, install Jump on your phone, clone the repo and run `composer setup` as above, then start Jump's server and scan the QR code it shows with Jump. Your phone and your computer need to be on the same Wi-Fi.
+
+```sh
+php artisan native:jump
+```
+
+Without plugin credentials, add `DEVNULL_KEY_STORE=file` to `.env` as well. Jump runs on a real phone, where the app won't make its key without the Secure Storage plugin.
+
+Signing in is what doesn't work. dev-null.sh sends the sign-in browser back to the app at `devnull://auth/callback`, but inside Jump the browser only comes back for Jump's own `jump://` links. Getting that far would take:
+
+1. devnull running locally, behind a tunnel (ngrok, Cloudflare and so on), with `DEVNULL_URL` set to the tunnel's URL,
+2. `jump://` added to `redirect_uri_prefixes` in devnull's `config/mobile.php`, so the authorize page will redirect there,
+3. the app sending `jump://auth/callback` as its `redirect_uri`, which it doesn't today.
+
+Even then, Jump doesn't pass a `jump://` link on to the app it's running, so the sign-in never reaches the app. Until it does, build the app yourself to sign in.
 
 ## How signing in works
 
