@@ -9,8 +9,8 @@ use Carbon\CarbonImmutable;
  * A `GET /me` answer: who this device is signed in as, how many of their
  * notifications are still unread, and whether an Apple ID is linked to them.
  *
- * It also has what only you see in the web's profile settings: the lane you
- * chose (null for Automatic) and the one Automatic gives you, your GitHub
+ * It also has what only you see in the web's profile settings: the lane or
+ * custom colour you chose (null for Automatic) and the one Automatic gives you, your GitHub
  * Sponsors page, and when your profile was last synced from GitHub (null when
  * it only was when you signed in). It has whether pastéis mode is on, how
  * many pastéis you can still give today, and how many others have given you.
@@ -21,7 +21,7 @@ final readonly class CurrentUser
         public User $user,
         public int $unreadNotificationsCount = 0,
         public bool $appleLinked = false,
-        public ?int $preferredLane = null,
+        public int|string|null $preferredLane = null,
         public int $automaticLane = 0,
         public ?string $sponsorsUrl = null,
         public ?CarbonImmutable $githubSyncedAt = null,
@@ -38,7 +38,7 @@ final readonly class CurrentUser
         $data = is_array($json['data'] ?? null) ? $json['data'] : [];
         $unread = $json['unread_notifications_count'] ?? $data['unread_notifications_count'] ?? 0;
         $user = User::fromArray($data);
-        $automaticLane = Lane::from($data['automatic_lane'] ?? null) ?? Lane::for($user->id);
+        $automaticLane = Lane::palette($data['automatic_lane'] ?? null) ?? Lane::for($user->id);
         $sponsorsUrl = $data['sponsors_url'] ?? null;
 
         return new self(

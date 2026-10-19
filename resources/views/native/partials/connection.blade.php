@@ -9,7 +9,7 @@
 @php($user = $person->user)
 <native:pressable native:key="person-{{ $user->id }}" ref="person-{{ $user->username }}" @press="open('{{ $user->username }}')" class="w-full bg-theme-surface" a11y-label="{{ $user->name }}, {{ $user->handle() }}{{ $person->followsYou && $showsFollowsYou ? ', follows you' : '' }}">
     <native:row class="w-full px-4 py-3 gap-3 items-start">
-        <native:stack :width="48" :height="48" center class="rounded-full bg-theme-lane-{{ $user->lane() }} flex-shrink-0">
+        <native:stack :width="48" :height="48" center class="rounded-full bg-theme-{{ \App\Devnull\Lane::token($user->lane()) }} flex-shrink-0">
             <native:stack :width="44" :height="44" center class="rounded-full bg-theme-surface">
                 @include('native.partials.avatar', ['user' => $user, 'size' => 40])
             </native:stack>

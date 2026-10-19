@@ -5,7 +5,7 @@
     is placed along the way (see Display::elbowDashes), and the ones on the corner are turned to follow it, as in
     dashed-ring. Any corner radius makes EDGE clip a node to its shape, so the last dash is cut 1pt short of the avatar.
 --}}
-@php($colour = $lane === \App\Devnull\Lane::Rail ? 'bg-theme-rail' : 'bg-theme-lane-'.$lane)
+@php($colour = 'bg-theme-'.\App\Devnull\Lane::token($lane))
 @php($from ??= 31.5)
 @php($to ??= 64)
 <native:column ref="thread-elbow" class="absolute top-0 left-0 w-[{{ $to - 1 }}] h-[{{ \App\Devnull\Display::ElbowLevel + 1 }}] rounded-[0.5]">

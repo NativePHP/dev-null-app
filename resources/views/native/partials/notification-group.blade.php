@@ -15,7 +15,7 @@
                         <native:text font="semibold" class="flex-shrink text-[15px] text-theme-ink" :max-lines="1">{{ $item->actor->name }}</native:text>
                         <native:spacer />
                         @php($itemIcon = \App\Icons\Lucide::forNotification($item->type))
-                        <native:icon :ios="$itemIcon->ios($item->isStar())" :android="$itemIcon->android($item->isStar())" :size="16" class="{{ $item->isModeration() ? 'text-theme-ink-muted' : 'text-theme-lane-'.$item->actor->lane() }}" />
+                        <native:icon :ios="$itemIcon->ios($item->isStar())" :android="$itemIcon->android($item->isStar())" :size="16" class="{{ $item->isModeration() ? 'text-theme-ink-muted' : 'text-theme-'.\App\Devnull\Lane::token($item->actor->lane()) }}" />
                         <native:text font="mono" class="text-[13px] text-theme-ink-muted flex-shrink-0">{{ \App\Devnull\Display::relativeTime($item->createdAt) }}</native:text>
                         @if ($item->isFollow() && $item->actorIsFollowed !== null)
                             @include('native.partials.follow-back', ['actor' => $item->actor, 'isFollowing' => $item->actorIsFollowed])

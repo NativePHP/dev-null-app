@@ -9,6 +9,7 @@ use App\Devnull\Data\CurrentUser;
 use App\Devnull\DeviceKey;
 use App\Devnull\Display;
 use App\Devnull\Exceptions\KeychainUnavailable;
+use App\Devnull\Hsl;
 use App\Devnull\Lane;
 use App\Devnull\ResponseCache;
 use App\NativeComponents\Concerns\RefreshesInBackground;
@@ -69,9 +70,27 @@ class ThisDevice extends NativeComponent
     public ?CurrentUser $current = null;
 
     /**
-     * The colour picked on the screen, which the preview shows until it's saved: a lane, or null for Automatic.
+     * The colour picked on the screen, which the preview shows until it's saved: a lane, a custom `#rrggbb` colour,
+     * or null for Automatic.
      */
-    public ?int $chosenLane = null;
+    public int|string|null $chosenLane = null;
+
+    /**
+     * Whether the sheet for mixing a custom colour is open, as the web's Custom opens the system's colour picker.
+     */
+    public bool $mixingColour = false;
+
+    /**
+     * The custom colour being mixed, as `#rrggbb`, and the hue, saturation and lightness its sliders show. It starts
+     * as the colour it was opened on, exactly, until a slider moves.
+     */
+    public string $mixedColour = '#000000';
+
+    public float $hue = 0;
+
+    public float $saturation = 0;
+
+    public float $lightness = 0;
 
     public bool $syncing = false;
 
@@ -167,10 +186,17 @@ class ThisDevice extends NativeComponent
 
     /**
      * Previews a colour, 'auto' or a lane. Nothing changes on devnull until it's saved.
+     * 'custom' opens the sheet that mixes a colour of your own.
      */
     public function chooseLane(string $lane): void
     {
-        $chosen = $lane === 'auto' ? null : Lane::from($lane);
+        if ($lane === 'custom') {
+            $this->mixColour();
+
+            return;
+        }
+
+        $chosen = $lane === 'auto' ? null : Lane::palette($lane);
 
         if ($lane !== 'auto' && $chosen === null) {
             return;
@@ -181,8 +207,55 @@ class ThisDevice extends NativeComponent
     }
 
     /**
+     * Opens the custom colour sheet on the custom colour you have, or on the
+     * one you're previewing, as the web opens its colour picker.
+     */
+    public function mixColour(): void
+    {
+        $colour = $this->customColour() ?? (string) theme('lane-'.(Lane::palette($this->chosenLane) ?? $this->current?->automaticLane ?? 0));
+
+        $this->mixedColour = strtolower($colour);
+        $hsl = Hsl::fromHex($this->mixedColour);
+        $this->hue = $hsl->hue;
+        $this->saturation = $hsl->saturation;
+        $this->lightness = $hsl->lightness;
+        $this->mixingColour = true;
+    }
+
+    public function updatedHue(): void
+    {
+        $this->mixedColour = (new Hsl($this->hue, $this->saturation, $this->lightness))->hex();
+    }
+
+    public function updatedSaturation(): void
+    {
+        $this->updatedHue();
+    }
+
+    public function updatedLightness(): void
+    {
+        $this->updatedHue();
+    }
+
+    /**
+     * Previews the colour mixed, which Save color then saves like any other.
+     */
+    public function useMixedColour(): void
+    {
+        $this->chosenLane = $this->mixedColour;
+        $this->laneError = null;
+        $this->mixingColour = false;
+    }
+
+    public function colourSheetClosed(): void
+    {
+        $this->mixingColour = false;
+    }
+
+    /**
      * Saves the colour picked. Once devnull has it, this phone remembers you
-     * with it, so the tab bar and your profile take it at once.
+     * with it, so the tab bar and your profile take it at once. A custom
+     * colour goes as the web's colour picker sends it, with no lane.
      */
     public function saveLane(): void
     {
@@ -193,7 +266,9 @@ class ThisDevice extends NativeComponent
         $this->savingLane = true;
         $this->laneError = null;
 
-        $this->writeInBackground('PUT', Client::LanePath, ['lane' => $this->chosenLane], function (array $json): void {
+        $body = Lane::isCustom($this->chosenLane) ? ['lane' => null, 'color' => $this->chosenLane] : ['lane' => $this->chosenLane];
+
+        $this->writeInBackground('PUT', Client::LanePath, $body, function (array $json): void {
             $this->savingLane = false;
             $this->takeMe($json);
         }, function (string $message): void {
@@ -417,10 +492,11 @@ class ThisDevice extends NativeComponent
     }
 
     /**
-     * Automatic, then the six lanes, as the web's picker offers them. Automatic
-     * shows the lane it gives you, and says which for VoiceOver.
+     * Automatic, then the six lanes, then Custom, as the web's picker offers
+     * them. Automatic shows the lane it gives you, and says which for
+     * VoiceOver. Custom shows your custom colour once you have one.
      *
-     * @return list<array{key: string, label: string, a11y: string, lane: int, auto: bool, chosen: bool}>
+     * @return list<array{key: string, label: string, a11y: string, lane: int|string|null, auto: bool, chosen: bool}>
      */
     private function laneOptions(CurrentUser $current): array
     {
@@ -437,7 +513,32 @@ class ThisDevice extends NativeComponent
             $options[] = ['key' => (string) $lane, 'label' => $name, 'a11y' => $name, 'lane' => $lane, 'auto' => false, 'chosen' => $this->chosenLane === $lane];
         }
 
+        $custom = $this->customColour();
+
+        $options[] = [
+            'key' => 'custom',
+            'label' => 'Custom',
+            'a11y' => $custom === null ? 'Custom color' : "Custom color ({$custom})",
+            'lane' => $custom,
+            'auto' => false,
+            'chosen' => Lane::isCustom($this->chosenLane),
+        ];
+
         return $options;
+    }
+
+    /**
+     * The custom colour you're previewing, or else the one you have.
+     */
+    private function customColour(): ?string
+    {
+        foreach ([$this->chosenLane, $this->current?->preferredLane] as $lane) {
+            if (is_string($lane) && Lane::isCustom($lane)) {
+                return $lane;
+            }
+        }
+
+        return null;
     }
 
     /**

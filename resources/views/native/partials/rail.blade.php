@@ -26,7 +26,7 @@
 @php($avatarSize ??= 48)
 @php($center = 32)
 @php($endDot = 20)
-@php($segment = fn (int|string $lane): string => $lane === \App\Devnull\Lane::Rail ? 'bg-theme-rail' : 'bg-theme-lane-'.$lane)
+@php($segment = fn (int|string $lane): string => 'bg-theme-'.\App\Devnull\Lane::token($lane))
 
 @if ($node === null)
     @if ($previous !== null)

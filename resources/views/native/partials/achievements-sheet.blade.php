@@ -23,8 +23,8 @@
                 <native:column class="w-full gap-[6]">
                     <native:row class="w-full gap-2 items-center">
                         <native:text font="semibold" class="flex-1 text-base text-theme-ink" :max-lines="1">Developer Achievements</native:text>
-                        <native:column ref="sheet-rank" class="px-2 py-[2] rounded-full border border-theme-lane-{{ $lane }}/25 bg-theme-lane-{{ $lane }}/10">
-                            <native:text font="mono-medium" class="text-xs text-theme-lane-{{ $lane }}">{{ $achievements->label() }}</native:text>
+                        <native:column ref="sheet-rank" class="px-2 py-[2] rounded-full border border-theme-{{ \App\Devnull\Lane::token($lane) }}/25 bg-theme-{{ \App\Devnull\Lane::token($lane) }}/10">
+                            <native:text font="mono-medium" class="text-xs text-theme-{{ \App\Devnull\Lane::token($lane) }}">{{ $achievements->label() }}</native:text>
                         </native:column>
                     </native:row>
                     <native:text ref="sheet-summary" font="mono" class="w-full text-xs text-theme-ink-muted">{{ $profile->user->handle() }} · {{ $achievements->xp }} XP · {{ $achievements->unlockedCount() }}/{{ count($achievements->badges) }} badges unlocked</native:text>
@@ -36,7 +36,7 @@
                         <native:spacer />
                         <native:text ref="sheet-next-rank" font="mono" class="text-xs text-theme-ink-muted">{{ $achievements->nextRankLabel() }}</native:text>
                     </native:row>
-                    @include('native.partials.progress-bar', ['ref' => 'sheet-level-progress', 'percent' => $achievements->levelProgress, 'fill' => "bg-theme-lane-{$lane}", 'label' => "{$achievements->levelProgress}% of the way to the next rank"])
+                    @include('native.partials.progress-bar', ['ref' => 'sheet-level-progress', 'percent' => $achievements->levelProgress, 'fill' => 'bg-theme-'.\App\Devnull\Lane::token($lane), 'label' => "{$achievements->levelProgress}% of the way to the next rank"])
                 </native:column>
 
                 <native:column class="w-full">
@@ -47,7 +47,7 @@
                                     <native:column class="px-3 py-[6]">
                                         <native:text font="mono-medium" class="text-xs {{ $achievementsTab === $key ? 'text-theme-ink' : 'text-theme-ink-muted' }}">{{ $title }} ({{ $count }})</native:text>
                                     </native:column>
-                                    <native:column class="w-full h-[2] {{ $achievementsTab === $key ? 'bg-theme-lane-'.$lane : 'bg-transparent' }}" />
+                                    <native:column class="w-full h-[2] {{ $achievementsTab === $key ? 'bg-theme-'.\App\Devnull\Lane::token($lane) : 'bg-transparent' }}" />
                                 </native:column>
                             </native:pressable>
                         @endforeach
@@ -59,7 +59,7 @@
                     <native:column ref="sheet-badges" class="w-full gap-2">
                         @foreach ($achievements->badges as $index => $badge)
                             @php($icon = \App\Icons\Lucide::forBadge($badge->icon))
-                            <native:column ref="sheet-badge-{{ $badge->id }}" class="w-full p-3 gap-[6] rounded-lg {{ $index === $markedIndex ? 'border-2 border-theme-lane-'.$lane : 'border border-theme-hairline' }} {{ $badge->unlocked ? 'bg-theme-surface' : 'bg-theme-wash/20' }}" a11y-label="{{ $badge->name }}, {{ $badge->statusLabel() }}. {{ $badge->description }}">
+                            <native:column ref="sheet-badge-{{ $badge->id }}" class="w-full p-3 gap-[6] rounded-lg {{ $index === $markedIndex ? 'border-2 border-theme-'.\App\Devnull\Lane::token($lane) : 'border border-theme-hairline' }} {{ $badge->unlocked ? 'bg-theme-surface' : 'bg-theme-wash/20' }}" a11y-label="{{ $badge->name }}, {{ $badge->statusLabel() }}. {{ $badge->description }}">
                                 <native:row class="w-full gap-2 items-center">
                                     <native:column :width="24" :height="24" class="items-center justify-center rounded border bg-theme-wash {{ $badge->unlocked ? 'border-theme-hairline' : 'border-theme-hairline/60' }}">
                                         <native:icon :ios="$icon->ios()" :android="$icon->android()" :size="14" class="{{ $badge->unlocked ? 'text-theme-ink' : 'text-theme-ink-muted/60' }}" />
@@ -86,16 +86,16 @@
                     <native:column ref="sheet-ranks" class="w-full gap-2">
                         @foreach ($achievements->ranks as $rank)
                             @php($current = $rank->level === $achievements->level)
-                            <native:row ref="sheet-rank-{{ $rank->level }}" class="w-full p-3 gap-3 items-center rounded-lg {{ $current ? 'border-2 border-theme-lane-'.$lane.' bg-theme-surface' : ($rank->achieved ? 'border border-theme-hairline bg-theme-surface' : 'border border-theme-hairline/60 bg-theme-wash/20 opacity-70') }}" a11y-label="Level {{ $rank->level }}, {{ $rank->rank }}{{ $current ? ', current' : '' }}. {{ $rank->description }}. {{ $rank->achieved ? 'Achieved' : 'Requires '.$rank->minXp.' XP' }}">
-                                <native:column :width="24" :height="24" class="items-center justify-center rounded {{ $current ? 'bg-theme-lane-'.$lane : 'bg-theme-wash' }}">
+                            <native:row ref="sheet-rank-{{ $rank->level }}" class="w-full p-3 gap-3 items-center rounded-lg {{ $current ? 'border-2 border-theme-'.\App\Devnull\Lane::token($lane).' bg-theme-surface' : ($rank->achieved ? 'border border-theme-hairline bg-theme-surface' : 'border border-theme-hairline/60 bg-theme-wash/20 opacity-70') }}" a11y-label="Level {{ $rank->level }}, {{ $rank->rank }}{{ $current ? ', current' : '' }}. {{ $rank->description }}. {{ $rank->achieved ? 'Achieved' : 'Requires '.$rank->minXp.' XP' }}">
+                                <native:column :width="24" :height="24" class="items-center justify-center rounded {{ $current ? 'bg-theme-'.\App\Devnull\Lane::token($lane) : 'bg-theme-wash' }}">
                                     <native:text font="mono-medium" class="text-xs {{ $current ? 'text-theme-surface' : ($rank->achieved ? 'text-theme-ink' : 'text-theme-ink-muted') }}">{{ $rank->level }}</native:text>
                                 </native:column>
                                 <native:column class="flex-1 gap-[2]">
                                     <native:row class="gap-2 items-center">
                                         <native:text font="mono-medium" class="text-xs text-theme-ink">{{ $rank->rank }}</native:text>
                                         @if ($current)
-                                            <native:column class="px-[6] rounded bg-theme-lane-{{ $lane }}/15">
-                                                <native:text font="mono-medium" class="text-[10px] text-theme-lane-{{ $lane }}">CURRENT</native:text>
+                                            <native:column class="px-[6] rounded bg-theme-{{ \App\Devnull\Lane::token($lane) }}/15">
+                                                <native:text font="mono-medium" class="text-[10px] text-theme-{{ \App\Devnull\Lane::token($lane) }}">CURRENT</native:text>
                                             </native:column>
                                         @endif
                                     </native:row>

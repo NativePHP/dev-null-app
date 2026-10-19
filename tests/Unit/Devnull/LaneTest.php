@@ -15,25 +15,42 @@ it('puts authors in the same lane as the web', function (string $id, int $lane) 
     [str_repeat('a', 40), 4],
 ]);
 
-it('reads the lane the API sends', function (mixed $value, ?int $lane) {
+it('reads the lane the API sends, a palette lane or a custom colour', function (mixed $value, int|string|null $lane) {
     expect(Lane::from($value))->toBe($lane);
 })->with([
     [0, 0],
     [5, 5],
     ['3', 3],
+    ['#1a2b3c', '#1a2b3c'],
+    ['#1A2B3C', '#1a2b3c'],
     [6, null],
     [-1, null],
     [null, null],
     ['blue', null],
+    ['#fff', null],
+    ['1a2b3c', null],
+    ['#1a2b3c80', null],
     [2.5, null],
 ]);
 
-it('names the theme token your colour is drawn in, Commit Blue before devnull says who you are', function (?int $lane, string $token) {
+it('only takes the palette where only a palette lane will do', function () {
+    expect(Lane::palette(4))->toBe(4)
+        ->and(Lane::palette('#1a2b3c'))->toBeNull()
+        ->and(Lane::isCustom('#1a2b3c'))->toBeTrue()
+        ->and(Lane::isCustom(3))->toBeFalse()
+        ->and(Lane::isCustom(Lane::Rail))->toBeFalse();
+});
+
+it('names the theme token a lane is drawn in, Commit Blue before devnull says who you are', function (int|string|null $lane, string $token) {
     expect(Lane::token($lane))->toBe($token);
 })->with([
     [0, 'lane-0'],
     [5, 'lane-5'],
     [null, 'primary'],
+    [Lane::Rail, 'rail'],
+    ['#1a2b3c', 'lane-1a2b3c'],
+    ['#1A2B3C', 'lane-1a2b3c'],
+    ['blue', 'primary'],
 ]);
 
 /**

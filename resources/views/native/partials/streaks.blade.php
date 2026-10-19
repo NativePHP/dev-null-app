@@ -5,7 +5,7 @@
         @if ($streaks->current > 0)
             <native:text font="mono" class="text-[13px] text-theme-ink-muted">·</native:text>
             <native:row class="gap-[6] items-center">
-                <native:column :width="8" :height="8" class="rounded-full bg-theme-lane-{{ $lane }}" />
+                <native:column :width="8" :height="8" class="rounded-full bg-theme-{{ \App\Devnull\Lane::token($lane) }}" />
                 <native:text font="mono" class="text-[13px] text-theme-ink-muted">current <native:text font="mono-medium" class="text-theme-ink">{{ $streaks->current }}</native:text></native:text>
             </native:row>
         @endif

@@ -7,7 +7,7 @@
     <native:column ref="profile-header" class="w-full px-4 pt-6 pb-4 gap-4">
         <native:row class="w-full items-start justify-between">
             {{-- The avatar wears the author's lane as a ring, offset from the surface. --}}
-            <native:stack :width="92" :height="92" class="rounded-full bg-theme-lane-{{ $user->lane() }}">
+            <native:stack :width="92" :height="92" class="rounded-full bg-theme-{{ \App\Devnull\Lane::token($user->lane()) }}">
                 <native:stack :width="88" :height="88" class="rounded-full bg-theme-surface">
                     @include('native.partials.avatar', ['user' => $user, 'size' => 80])
                 </native:stack>
@@ -31,7 +31,7 @@
                 owner's lane. EDGE's rows don't wrap on iOS, so the handle gives way first.
             --}}
             <native:row ref="profile-handle" class="w-full gap-2 items-center">
-                <native:column :width="8" :height="8" class="rounded-full bg-theme-lane-{{ $user->lane() }} flex-shrink-0" />
+                <native:column :width="8" :height="8" class="rounded-full bg-theme-{{ \App\Devnull\Lane::token($user->lane()) }} flex-shrink-0" />
                 <native:text font="mono" class="text-[13px] text-theme-ink-muted flex-shrink" :max-lines="1">{{ $user->handle() }}</native:text>
                 @if ($profile->followsYou && ! $sketched)
                     <native:column class="px-2 py-[2] rounded bg-theme-wash flex-shrink-0">
@@ -44,8 +44,8 @@
                     </native:column>
                 @endif
                 @if ($profile->achievements && ! $sketched)
-                    <native:column ref="rank" class="px-2 py-[2] rounded-full border border-theme-lane-{{ $user->lane() }}/25 bg-theme-lane-{{ $user->lane() }}/10 flex-shrink-0" a11y-label="Level {{ $profile->achievements->level }}, {{ $profile->achievements->rank }}">
-                        <native:text font="mono-medium" class="text-[11px] text-theme-lane-{{ $user->lane() }}">{{ $profile->achievements->label() }}</native:text>
+                    <native:column ref="rank" class="px-2 py-[2] rounded-full border border-theme-{{ \App\Devnull\Lane::token($user->lane()) }}/25 bg-theme-{{ \App\Devnull\Lane::token($user->lane()) }}/10 flex-shrink-0" a11y-label="Level {{ $profile->achievements->level }}, {{ $profile->achievements->rank }}">
+                        <native:text font="mono-medium" class="text-[11px] text-theme-{{ \App\Devnull\Lane::token($user->lane()) }}">{{ $profile->achievements->label() }}</native:text>
                     </native:column>
                 @endif
             </native:row>

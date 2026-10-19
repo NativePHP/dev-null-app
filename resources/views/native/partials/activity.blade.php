@@ -20,7 +20,7 @@
             @foreach ($cells as $cell)
                 <native:column class="flex-1 h-full rounded-[2] {{ $cell->level === 0 ? 'bg-theme-wash' : 'bg-theme-surface' }}">
                     @if ($cell->level > 0)
-                        <native:column class="w-full h-full rounded-[2] bg-theme-lane-{{ $lane }} opacity-[{{ $cell->opacity() }}]" />
+                        <native:column class="w-full h-full rounded-[2] bg-theme-{{ \App\Devnull\Lane::token($lane) }} opacity-[{{ $cell->opacity() }}]" />
                     @endif
                 </native:column>
             @endforeach
@@ -43,7 +43,7 @@
             @php($swatch = new \App\Devnull\Data\ActivityCell(0, $level))
             <native:column :width="10" :height="10" class="rounded-[2] {{ $level === 0 ? 'bg-theme-wash' : 'bg-theme-surface' }}">
                 @if ($level > 0)
-                    <native:column class="w-full h-full rounded-[2] bg-theme-lane-{{ $lane }} opacity-[{{ $swatch->opacity() }}]" />
+                    <native:column class="w-full h-full rounded-[2] bg-theme-{{ \App\Devnull\Lane::token($lane) }} opacity-[{{ $swatch->opacity() }}]" />
                 @endif
             </native:column>
         @endforeach

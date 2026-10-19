@@ -87,8 +87,8 @@ class TabsLayout extends NativeLayout
     }
 
     /**
-     * Your lane's colour, in its light or dark lift, or Commit Blue before
-     * devnull has said who you are.
+     * Your lane's colour, in its light or dark lift, or your custom colour,
+     * or Commit Blue before devnull has said who you are.
      */
     public static function accent(): string
     {

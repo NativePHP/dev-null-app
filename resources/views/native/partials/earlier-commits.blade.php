@@ -7,7 +7,7 @@
     which runs on solid into the commit below.
 --}}
 @php($label = \App\Devnull\Display::count($count, 'earlier commit', 'earlier commits'))
-@php($colour = $lane === \App\Devnull\Lane::Rail ? 'bg-theme-rail' : 'bg-theme-lane-'.$lane)
+@php($colour = 'bg-theme-'.\App\Devnull\Lane::token($lane))
 <native:pressable ref="earlier-commits" @press="showEarlier" class="w-full bg-theme-surface" a11y-label="Show {{ $label }}">
     <native:row class="w-full">
         <native:column :width="64" />

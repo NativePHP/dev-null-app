@@ -23,7 +23,7 @@
 @php($spine ??= null)
 @php($tombstones ??= false)
 @php($more ??= null)
-@php($segment = fn (int|string $lane): string => $lane === \App\Devnull\Lane::Rail ? 'bg-theme-rail' : 'bg-theme-lane-'.$lane)
+@php($segment = fn (int|string $lane): string => 'bg-theme-'.\App\Devnull\Lane::token($lane))
 @php($avatarLine = 76 + $indent)
 @if ($reply->isDeleted())
     @php($opened = $tombstones && array_key_exists($reply->id, $tombstoneReplies ?? []))

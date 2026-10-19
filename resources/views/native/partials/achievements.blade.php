@@ -32,7 +32,7 @@
                     <native:spacer />
                     <native:text ref="next-rank" font="mono" class="text-[11px] text-theme-ink-muted">{{ $achievements->nextRankLabel() }}</native:text>
                 </native:row>
-                @include('native.partials.progress-bar', ['ref' => 'level-progress', 'percent' => $achievements->levelProgress, 'fill' => "bg-theme-lane-{$lane}", 'label' => "{$achievements->levelProgress}% of the way to the next rank"])
+                @include('native.partials.progress-bar', ['ref' => 'level-progress', 'percent' => $achievements->levelProgress, 'fill' => 'bg-theme-'.\App\Devnull\Lane::token($lane), 'label' => "{$achievements->levelProgress}% of the way to the next rank"])
             </native:column>
         </native:column>
     </native:pressable>

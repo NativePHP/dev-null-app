@@ -17,7 +17,7 @@ final readonly class User
         public string $name,
         public ?string $avatarUrl = null,
         public ?string $bio = null,
-        public ?int $lane = null,
+        public int|string|null $lane = null,
         public ?string $company = null,
         public ?string $location = null,
         public ?string $website = null,
@@ -56,7 +56,7 @@ final readonly class User
     /**
      * The user in the API's shape, so it can be kept and read back.
      *
-     * @return array{id: string, username: string, name: string, avatar_url: ?string, bio: ?string, lane: ?int, company: ?string, location: ?string, website: ?string, github_url: ?string, html_url: ?string, feed_url: ?string, created_at: ?string}
+     * @return array{id: string, username: string, name: string, avatar_url: ?string, bio: ?string, lane: int|string|null, company: ?string, location: ?string, website: ?string, github_url: ?string, html_url: ?string, feed_url: ?string, created_at: ?string}
      */
     public function toArray(): array
     {
@@ -78,10 +78,11 @@ final readonly class User
     }
 
     /**
-     * The lane the user picked on the web, or the one devnull gave them.
-     * Hashing the id is only for a server too old to send it.
+     * The lane the user picked on the web, a palette lane or a custom
+     * `#rrggbb` colour, or the one devnull gave them. Hashing the id is only
+     * for a server too old to send it.
      */
-    public function lane(): int
+    public function lane(): int|string
     {
         return $this->lane ?? Lane::for($this->id);
     }

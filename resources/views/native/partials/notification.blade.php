@@ -13,7 +13,7 @@
     weight from font_weight over the face it was given, so the face alone draws regular.
 --}}
 @php($icon = \App\Icons\Lucide::forNotification($notification->type))
-@php($iconColour = $notification->isModeration() ? 'text-theme-ink-muted' : 'text-theme-lane-'.$notification->actor->lane())
+@php($iconColour = $notification->isModeration() ? 'text-theme-ink-muted' : 'text-theme-'.\App\Devnull\Lane::token($notification->actor->lane()))
 @php($open = array_key_exists($notification->id, $expanded))
 @php($failed = in_array($notification->id, $failedGroups, true))
 @php($noun = $notification->groupNoun())
