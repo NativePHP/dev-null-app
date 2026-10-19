@@ -258,6 +258,7 @@ class Onboarding extends NativeComponent
         app(Account::class)->rememberPasteis($current->pasteis());
         app(Account::class)->rememberRemotes($current->remotes);
         $this->keepProfile($current->user);
+        app(Account::class)->rememberTimezone($current->timezone);
         $this->replace('/log');
     }
 

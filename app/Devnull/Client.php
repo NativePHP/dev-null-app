@@ -10,9 +10,11 @@ use App\Devnull\Data\DraftImage;
 use App\Devnull\Data\Notification;
 use App\Devnull\Data\Page;
 use App\Devnull\Data\Profile;
+use App\Devnull\Data\ScheduledCommit;
 use App\Devnull\Data\User;
 use App\Devnull\Exceptions\ApiException;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -90,6 +92,17 @@ final readonly class Client
      * Where a `/feature` or `/bug` draft goes, to be opened as an issue upstream.
      */
     public const string IssuesPath = 'issues';
+
+    /**
+     * Where the signed-in account's timezone is saved, or unset.
+     */
+    public const string TimezonePath = 'me/timezone';
+
+    /**
+     * The commits the signed-in account scheduled, as the web's Scheduled
+     * commits page lists them.
+     */
+    public const string ScheduledCommitsPath = 'scheduled-commits';
 
     public function __construct(private DeviceKey $deviceKey, private string $baseUrl, private ResponseCache $cache) {}
 
@@ -261,6 +274,57 @@ final readonly class Client
             $body."--{$boundary}--\r\n",
             "multipart/form-data; boundary={$boundary}",
         );
+    }
+
+    /**
+     * Schedules a commit to be submitted at $at, as the web's Schedule commit
+     * does. Only you see it until then. Your list of them starts again.
+     */
+    public function scheduleCommit(string $body, CarbonInterface $at): ScheduledCommit
+    {
+        $scheduled = $this->data($this->send('POST', self::ScheduledCommitsPath, payload: ['body' => $body, 'scheduled_at' => self::scheduleTime($at)]));
+        $this->cache->forget(self::ScheduledCommitsPath);
+
+        return ScheduledCommit::fromArray($scheduled);
+    }
+
+    /**
+     * Your scheduled commits, the ones waiting first, 20 a page. They're
+     * paged by number, which a Page carries as its cursor.
+     *
+     * @return Page<ScheduledCommit>
+     */
+    public function scheduledCommits(?string $page = null): Page
+    {
+        return Page::fromArray($this->get(self::ScheduledCommitsPath, ['page' => $page]), ScheduledCommit::fromArray(...));
+    }
+
+    /**
+     * A new body and time for a scheduled commit that's still waiting.
+     */
+    public function updateScheduledCommit(string $id, string $body, CarbonInterface $at): ScheduledCommit
+    {
+        $scheduled = $this->data($this->send('PUT', self::ScheduledCommitsPath.'/'.rawurlencode($id), payload: ['body' => $body, 'scheduled_at' => self::scheduleTime($at)]));
+        $this->cache->forget(self::ScheduledCommitsPath);
+
+        return ScheduledCommit::fromArray($scheduled);
+    }
+
+    /**
+     * Cancels a scheduled commit that's still waiting, as the web's Cancel does.
+     */
+    public function cancelScheduledCommit(string $id): void
+    {
+        $this->send('DELETE', self::ScheduledCommitsPath.'/'.rawurlencode($id));
+        $this->cache->forget(self::ScheduledCommitsPath);
+    }
+
+    /**
+     * A time as devnull takes one to schedule for: ISO 8601 with its offset, in UTC.
+     */
+    public static function scheduleTime(CarbonInterface $at): string
+    {
+        return CarbonImmutable::instance($at)->utc()->format('Y-m-d\TH:i:sP');
     }
 
     public function deleteCommit(string $id): void

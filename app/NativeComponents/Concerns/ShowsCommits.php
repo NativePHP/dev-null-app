@@ -7,9 +7,11 @@ use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Pasteis;
 use App\Devnull\Data\User;
+use App\Devnull\Display;
 use App\Devnull\ErrorCode;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\ResponseCache;
+use App\Devnull\Timezone;
 use Closure;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Events\Alert\ButtonPressed;
@@ -22,9 +24,9 @@ use Native\Mobile\Facades\Share;
  * Reply, and the More menu's Save commit, Share link, Pin to profile, Report
  * commit and Delete commit (Quote and Report open a sheet, see
  * OpensCommitSheet), plus opening its link preview or images in the in-app
- * browser, "Show more" on a long one, and voting on its poll (see
- * VotesOnPolls). Taps name the commit rather than a URL, so a URL is never
- * rebuilt from an attribute.
+ * browser, "Show more" on a long one, voting on its poll (see VotesOnPolls),
+ * and the time of the commit a page is about. Taps name the commit rather
+ * than a URL, so a URL is never rebuilt from an attribute.
  *
  * A commit can be tapped where a row nests it too: the commit a row quotes,
  * and the replies a feed shows under a commit.
@@ -106,6 +108,19 @@ trait ShowsCommits
     {
         if (! in_array($id, $this->unfolded, true)) {
             $this->unfolded[] = $id;
+        }
+    }
+
+    /**
+     * The time of the commit a page is about, tapped: when it was made, in your
+     * timezone, as the web's tooltip shows it when you hover the time.
+     */
+    public function showTime(string $id): void
+    {
+        $createdAt = $this->shownCommit($id)?->createdAt;
+
+        if ($createdAt !== null) {
+            Dialog::toast(Display::fullDateTime($createdAt).' in '.Timezone::city(app(Timezone::class)->yours()));
         }
     }
 

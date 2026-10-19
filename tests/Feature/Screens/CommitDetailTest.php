@@ -155,6 +155,19 @@ it('shows the short hash under the focused commit, without the full date', funct
     expect($hash['text'] ?? $hash['props']['text'] ?? null)->toBe('c2');
 });
 
+it('says when the commit was made, in your timezone, when its time is tapped, as the web does on hover', function (?string $chosen, string $toast) {
+    phoneIn('Europe/Lisbon');
+    app(Account::class)->rememberTimezone($chosen);
+    fakeThread(['created_at' => '2026-10-14T20:13:05Z']);
+
+    Native::visit('/log/commits/c2')
+        ->tap('focused-time')
+        ->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === $toast);
+})->with([
+    "the phone's" => [null, '9:13 PM · Oct 14, 2026 in Lisbon'],
+    'the one you chose' => ['Asia/Tokyo', '5:13 AM · Oct 15, 2026 in Tokyo'],
+]);
+
 it('posts a reply, with no countdown while there is room', function () {
     fakeThread(extra: ['POST /api/v1/commits' => [['data' => commitJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'A fresh reply'])], 201]]);
 
