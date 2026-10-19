@@ -59,10 +59,12 @@ it('shows the thread with your messages on the right and theirs on the left, tit
         ->assertSee('Today')
         ->assertSee('pulled 14:05');
 
-    // Theirs at the start of the row with the gutter for React and Reply after it, yours at the end with the gutter
-    // before it, in a thread that opens on its latest message.
-    expect(childRefs($screen, 'message-1'))->toBe(['swipe-1', 'actions-1'])
-        ->and(childRefs($screen, 'message-2'))->toBe(['actions-2', 'swipe-2'])
+    // Theirs at the start of the row with the slot for React and Reply right after the bubble, yours at the end with
+    // the slot right before it, in a thread that opens on its latest message.
+    expect(nodeByRef($screen, 'content-1')['layout']['justify_content'])->toBe(0)
+        ->and(childRefs($screen, 'content-1'))->toBe(['bubble-1', 'actions-1'])
+        ->and(nodeByRef($screen, 'content-2')['layout']['justify_content'])->toBe(2)
+        ->and(childRefs($screen, 'content-2'))->toBe(['actions-2', 'bubble-2'])
         ->and(nodeByRef($screen, 'thread')['props']['scroll_anchor'] ?? null)->toBe('bottom');
 });
 
@@ -156,20 +158,27 @@ it('shows React and Reply beside a tapped message, as the web shows them on hove
     ], ['read_through_id' => 2]));
 
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+    $buttons = fn (int $id): array => nodeByRef($screen, "actions-{$id}-buttons");
 
-    expect(childRefs($screen, 'actions-1'))->toBe([]);
+    // Reply sits nearest the bubble: after theirs, before yours. Until a tap they're faded out, tucked toward it.
+    expect(childRefs($screen, 'actions-1-buttons'))->toBe(['reply-1', 'react-1'])
+        ->and(childRefs($screen, 'actions-2-buttons'))->toBe(['react-2', 'reply-2'])
+        ->and($buttons(1)['style']['opacity'])->toEqual(0)
+        ->and($buttons(1)['props'])->toMatchArray(['translate-x' => -8.0, 'animate-duration' => 180.0])
+        ->and($buttons(2)['props']['translate-x'])->toEqual(8);
 
-    // Reply sits nearest the bubble: after theirs, before yours.
+    // A tap fades and slides them into place.
     $screen->tap('bubble-1');
-    expect(childRefs($screen, 'actions-1'))->toBe(['reply-1', 'react-1']);
+    expect($buttons(1)['style']['opacity'])->toEqual(1)
+        ->and($buttons(1)['props']['translate-x'])->toEqual(0);
 
     $screen->tap('bubble-2');
-    expect(childRefs($screen, 'actions-1'))->toBe([])
-        ->and(childRefs($screen, 'actions-2'))->toBe(['react-2', 'reply-2']);
+    expect($buttons(1)['style']['opacity'])->toEqual(0)
+        ->and($buttons(2)['style']['opacity'])->toEqual(1);
 
     // A second tap puts them away.
     $screen->tap('bubble-2');
-    expect(childRefs($screen, 'actions-2'))->toBe([]);
+    expect($buttons(2)['style']['opacity'])->toEqual(0);
 });
 
 it('opens the reactions from React, without Reply in them', function () {

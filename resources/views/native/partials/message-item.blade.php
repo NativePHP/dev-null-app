@@ -5,8 +5,8 @@
     emoji, yours outlined in your lane and a tap to take it back or add yours. A run ends in the time, or for the
     message the web gives a status, in that status.
 
-    A tap shows React and Reply beside it, as the web shows them on hover, in a gutter the row always keeps so nothing
-    moves; a double tap toggles a heart. Swiping it sideways replies to it, as the web's touch screens do: someone
+    A tap shows React and Reply right beside the bubble, as the web shows them on hover, in a slot its row always keeps
+    so nothing moves; a double tap toggles a heart. Swiping it sideways replies to it, as the web's touch screens do: someone
     else's to the right, your own to the left. A message still being pushed takes none of them, and nothing reacts or
     replies while the thread can't take a message.
 --}}
@@ -16,10 +16,7 @@
 @php($replyLane = $message->replyTo === null ? 'primary' : \App\Devnull\Lane::token(($authors[$message->replyTo['user_id']] ?? null)?->lane()))
 @php($replyable = ($canPush ?? false) && ! $message->isPending())
 @php($showsActions = $replyable && $actionsForId === $message->id)
-<native:row native:key="message-{{ $key }}" ref="message-{{ $key }}" class="w-full px-3 gap-1 items-center {{ $startsRun ? 'pt-3' : 'pt-[3]' }}">
-    @if ($mine)
-        @include('native.partials.message-actions')
-    @endif
+<native:row native:key="message-{{ $key }}" ref="message-{{ $key }}" class="w-full px-3 {{ $startsRun ? 'pt-3' : 'pt-[3]' }}">
     @if ($replyable)
         <native:gesture-area ref="swipe-{{ $key }}" @swipe="swipedMessage({{ $message->id }})" class="flex-1">
     @endif
@@ -39,20 +36,42 @@
             </native:column>
         @endif
 
-        @foreach ($message->images as $index => $image)
-            <native:image ref="image-{{ $key }}-{{ $index }}" @press="toggleActions({{ $message->id }})" :src="$image->url" :width="240" :height="(int) round(240 / $image->ratio())" :fit="2" class="rounded-xl bg-theme-wash" a11y-label="{{ $image->label($index, count($message->images)) }}" />
-        @endforeach
+        {{-- An image-only message keeps React and Reply beside its images; otherwise they go beside the bubble. --}}
+        @if ($message->images !== [] && $message->body === '')
+            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}">
+                @if ($mine)
+                    @include('native.partials.message-actions')
+                @endif
+                <native:column class="gap-1">
+                    @include('native.partials.message-images')
+                </native:column>
+                @if (! $mine)
+                    @include('native.partials.message-actions')
+                @endif
+            </native:row>
+        @else
+            @include('native.partials.message-images')
+        @endif
 
         @if ($message->body !== '')
-            @if ($message->isPending())
-                <native:column ref="bubble-{{ $key }}" class="px-3 py-2 rounded-2xl {{ $message->status === 'rejected' ? 'border border-theme-destructive bg-theme-surface' : 'bg-theme-'.$myColour.'/60' }}">
-                    @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour])
-                </native:column>
-            @else
-                <native:column ref="bubble-{{ $key }}" class="px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}" @press="toggleActions({{ $message->id }})" @doubleTap="heart({{ $message->id }})" a11y-hint="Tap for React and Reply">
-                    @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary'])
-                </native:column>
-            @endif
+            {{-- The bubble shrinks to wrap short of the slot for React and Reply, which keeps its width either way. --}}
+            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}">
+                @if ($mine)
+                    @include('native.partials.message-actions')
+                @endif
+                @if ($message->isPending())
+                    <native:column ref="bubble-{{ $key }}" class="flex-shrink px-3 py-2 rounded-2xl {{ $message->status === 'rejected' ? 'border border-theme-destructive bg-theme-surface' : 'bg-theme-'.$myColour.'/60' }}">
+                        @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour])
+                    </native:column>
+                @else
+                    <native:column ref="bubble-{{ $key }}" class="flex-shrink px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}" @press="toggleActions({{ $message->id }})" @doubleTap="heart({{ $message->id }})" a11y-hint="Tap for React and Reply">
+                        @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary'])
+                    </native:column>
+                @endif
+                @if (! $mine)
+                    @include('native.partials.message-actions')
+                @endif
+            </native:row>
         @endif
 
         @if ($message->linkPreview?->isReady())
@@ -96,8 +115,5 @@
     </native:column>
     @if ($replyable)
         </native:gesture-area>
-    @endif
-    @if (! $mine)
-        @include('native.partials.message-actions')
     @endif
 </native:row>
