@@ -237,7 +237,9 @@ it('mixes a custom colour in a sheet, previews it, then saves it as the web\'s c
         ->assertSet('mixedColour', laneColour(1))
         ->assertSet('chosenLane', 1);
 
-    expect(nodeByRef($screen, 'colour-sheet')['props']['visible'])->toBeTrue();
+    // Each slider sends every step as it's dragged, so the swatch follows your finger rather than waiting for it to rest.
+    expect(nodeByRef($screen, 'colour-sheet')['props']['visible'])->toBeTrue()
+        ->and(array_map(fn (string $ref): string => nodeByRef($screen, $ref)['props']['sync_mode'], ['hue', 'saturation', 'lightness']))->toBe(['live', 'live', 'live']);
 
     $screen->slide('hue', 120)->slide('saturation', 60)->slide('lightness', 50)->assertSet('mixedColour', '#33cc33');
 
