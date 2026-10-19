@@ -56,6 +56,11 @@ enum Lucide
     case VolumeX;
     case Volume2;
     case Ban;
+    case Archive;
+    case ArchiveRestore;
+    case SquarePen;
+    case UsersRound;
+    case Search;
 
     // The achievement badges, named as devnull names their icons (see forBadge()).
     case Terminal;
@@ -138,6 +143,11 @@ enum Lucide
             self::VolumeX => 'volume-x',
             self::Volume2 => 'volume-2',
             self::Ban => 'ban',
+            self::Archive => 'archive',
+            self::ArchiveRestore => 'archive-restore',
+            self::SquarePen => 'square-pen',
+            self::UsersRound => 'users-round',
+            self::Search => 'search',
             self::Terminal => 'terminal',
             self::FileCode => 'file-code',
             self::Flame => 'flame',

@@ -160,6 +160,35 @@ it('replies to a message from its sheet', function () {
     expect(json_decode(sentTo('POST', 'remotes/@ada/messages')[0], true)['reply_to_id'])->toBe(1);
 });
 
+it('replies to a message swiped away from its edge, as the web does on a touch screen, and raises the keyboard', function () {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?']),
+        remoteMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => 'which one?']),
+    ], ['read_through_id' => 2]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+
+    expect(nodeByRef($screen, 'message-input')['props'])->not->toHaveKey('autofocus');
+
+    // Theirs goes right; a swipe the other way, or a flick while scrolling, does nothing.
+    $screen->swipe('swipe-1', 'left')->swipe('swipe-1', 'up')->assertSet('replyToId', null);
+    $screen->swipe('swipe-1', 'right')->assertSet('replyToId', 1)->assertSee('Replying to Ada Lovelace');
+
+    expect(nodeByRef($screen, 'message-input')['props']['autofocus'] ?? null)->toBeTrue();
+
+    // Yours goes left.
+    $screen->swipe('swipe-2', 'right')->assertSet('replyToId', 1);
+    $screen->swipe('swipe-2', 'left')->assertSet('replyToId', 2)->assertSee('Replying to yourself');
+});
+
+it('takes no swipe to reply while the thread cannot take a message', function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1, 'access' => 'request']));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+
+    expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'swipe-1'))->toBeNull();
+});
+
 it('tells the others you are typing at most every three seconds', function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
 

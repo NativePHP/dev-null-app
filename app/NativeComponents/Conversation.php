@@ -122,6 +122,12 @@ class Conversation extends NativeComponent
     public ?int $replyToId = null;
 
     /**
+     * Mounts the composer's field afresh when you pick a message to reply to, so it takes focus and raises the
+     * keyboard, as the web focuses its field.
+     */
+    public int $composerKey = 0;
+
+    /**
      * The message a long press opened the reactions sheet for.
      */
     public ?int $sheetMessageId = null;
@@ -194,8 +200,8 @@ class Conversation extends NativeComponent
         }
 
         $items[] = $this->thread->isArchived
-            ? NavAction::make('pop')->label('Pop')->icon(ios: Lucide::ArrowUp->ios(), android: Lucide::ArrowUp->android())->press('pop')
-            : NavAction::make('stash')->label('Stash')->icon(ios: Lucide::FoldVertical->ios(), android: Lucide::FoldVertical->android())->press('stash');
+            ? NavAction::make('pop')->label('Pop')->icon(ios: Lucide::ArchiveRestore->ios(), android: Lucide::ArchiveRestore->android())->press('pop')
+            : NavAction::make('stash')->label('Stash')->icon(ios: Lucide::Archive->ios(), android: Lucide::Archive->android())->press('stash');
 
         return $options->action(
             NavAction::make('conversation-actions')
@@ -332,6 +338,24 @@ class Conversation extends NativeComponent
     {
         $this->replyToId = $id;
         $this->sheetOpen = false;
+        $this->composerKey++;
+    }
+
+    /**
+     * Swiping a message sideways replies to it, as on the web's touch screens: someone else's to the right, away from
+     * its edge, and your own to the left. Any other swipe, as a flick while scrolling, does nothing.
+     */
+    public function swipedMessage(int $id, string $direction): void
+    {
+        $message = $this->findMessage($id);
+
+        if ($message === null || $message->isEvent() || $message->isPending()) {
+            return;
+        }
+
+        if ($direction === ($message->userId === $this->me()?->id ? 'left' : 'right')) {
+            $this->reply($id);
+        }
     }
 
     public function cancelReply(): void

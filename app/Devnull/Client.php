@@ -75,6 +75,11 @@ final readonly class Client
 
     public const string RemotePreferencesPath = 'me/remote-preferences';
 
+    /** Who you could start a remote or an org with, as the web's pickers ask. */
+    public const string RemoteCandidatesPath = 'remotes/candidates';
+
+    public const string OrgsPath = 'remotes/orgs';
+
     public function __construct(private DeviceKey $deviceKey, private string $baseUrl, private ResponseCache $cache) {}
 
     /**
@@ -247,6 +252,39 @@ final readonly class Client
     public function remotes(?string $tab = null, ?string $before = null): array
     {
         return $this->get(self::RemotesPath, ['tab' => $tab, 'before' => $before]);
+    }
+
+    /**
+     * People matching a term, each with the web's reason you can't message
+     * them, or add them to a new org, when there is one. Never kept: who you
+     * can reach changes as people follow, block and turn Remotes off.
+     *
+     * @return list<array{user: User, reason: string|null}>
+     */
+    public function remoteCandidates(string $term, string $for): array
+    {
+        $candidates = $this->json($this->send('GET', self::RemoteCandidatesPath, ['q' => $term, 'for' => $for]))['candidates'] ?? null;
+
+        return array_values(array_map(
+            fn (array $candidate): array => [
+                'user' => User::fromArray($candidate['user']),
+                'reason' => is_string($candidate['reason'] ?? null) ? $candidate['reason'] : null,
+            ],
+            array_filter(is_array($candidates) ? $candidates : [], fn (mixed $candidate): bool => is_array($candidate) && is_array($candidate['user'] ?? null)),
+        ));
+    }
+
+    /**
+     * Starts an org, as the web's New org does: you maintain it, and the
+     * people named contribute. Answers its id.
+     *
+     * @param  list<string>  $members
+     */
+    public function createOrg(?string $name, array $members): string
+    {
+        $org = $this->json($this->send('POST', self::OrgsPath, payload: ['name' => $name, 'members' => $members]))['org'] ?? null;
+
+        return is_array($org) && is_string($org['id'] ?? null) ? $org['id'] : '';
     }
 
     /**

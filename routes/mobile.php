@@ -7,6 +7,8 @@ use App\NativeComponents\Conversation;
 use App\NativeComponents\Launch;
 use App\NativeComponents\Layouts\TabsLayout;
 use App\NativeComponents\Log;
+use App\NativeComponents\NewOrg;
+use App\NativeComponents\NewRemote;
 use App\NativeComponents\Notifications;
 use App\NativeComponents\Onboarding;
 use App\NativeComponents\Profile;
@@ -24,6 +26,8 @@ Route::nativeGroup(TabsLayout::class, function (): void {
     Route::native('/log', Log::class);
     Route::native('/notifications', Notifications::class);
     Route::native('/remotes', Remotes::class);
+    Route::native('/remotes/new', NewRemote::class);
+    Route::native('/remotes/new-org', NewOrg::class);
     Route::native('/profile', Profile::class);
     Route::native('/profile/device', ThisDevice::class);
     Route::native('/profile/saved', Saved::class);

@@ -6,12 +6,16 @@ use App\Devnull\Account;
 use App\Devnull\Client;
 use App\Devnull\Data\Conversation as ConversationData;
 use App\Devnull\Exceptions\ApiException;
+use App\Devnull\ShownTabs;
+use App\Icons\Lucide;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Layouts\TabsLayout;
 use Illuminate\View\View;
 use Native\Mobile\Attributes\Poll;
+use Native\Mobile\Edge\Layouts\Builders\NavAction;
+use Native\Mobile\Edge\Layouts\Builders\NavBarOptions;
 use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Edge\Transition;
 
@@ -22,6 +26,10 @@ use Native\Mobile\Edge\Transition;
  * written to. Open lists the ones you haven't stashed, Stashed the ones you
  * have, and Fetched, while devnull takes requests at all, the first messages
  * from people you don't follow, waiting for you to merge or drop them.
+ *
+ * The tabs are pages you swipe between, as on the Log and Notifications: the
+ * one you're on and one either side, which show the first few rows kept for
+ * them.
  *
  * It opens on the inbox as it was last time, then asks devnull behind it, and
  * again every 15 seconds while it's showing, as the web's inbox polls. Rows
@@ -43,6 +51,11 @@ class Remotes extends NativeComponent
     public const array Tabs = ['open' => 'Open', 'fetched' => 'Fetched', 'stashed' => 'Stashed'];
 
     /**
+     * How many kept rows a tab beside the one you're on shows, enough to fill the screen while you swipe to it.
+     */
+    public const int PreviewRows = 8;
+
+    /**
      * Every frame goes in full, as on the Log (see Log::$forceFullFrames), since a row moves to the top when it
      * has a new message.
      */
@@ -61,6 +74,18 @@ class Remotes extends NativeComponent
     public string $tab = 'open';
 
     /**
+     * Mounts a fresh list for the tab you're on when it changes, at the top.
+     */
+    public int $listKey = 0;
+
+    /**
+     * The list key of each tab you're not on.
+     *
+     * @var array<string, int>
+     */
+    public array $listKeys = [];
+
+    /**
      * How many requests wait in Fetched, which its tab counts, as the web's does.
      */
     public int $requestsCount = 0;
@@ -73,6 +98,7 @@ class Remotes extends NativeComponent
     public function mount(): void
     {
         $this->off = app(Account::class)->remotes() === null;
+        $this->tab = app(ShownTabs::class)->get($this->me()?->id, 'remotes', array_keys($this->tabs()), 'open');
         $this->showKept();
         $this->revalidate();
     }
@@ -91,6 +117,41 @@ class Remotes extends NativeComponent
     public function navTitle(): string
     {
         return 'Remotes';
+    }
+
+    /**
+     * The web's buttons at the top of the inbox, with its icons: New org, then New remote. With Remotes off there's
+     * nothing to start.
+     */
+    public function navigationOptions(): ?NavBarOptions
+    {
+        if ($this->off) {
+            return null;
+        }
+
+        return NavBarOptions::make()
+            ->action(
+                NavAction::make('new-org')
+                    ->icon(ios: Lucide::UsersRound->ios(), android: Lucide::UsersRound->android())
+                    ->a11yLabel('New org')
+                    ->press('newOrg'),
+            )
+            ->action(
+                NavAction::make('new-remote')
+                    ->icon(ios: Lucide::SquarePen->ios(), android: Lucide::SquarePen->android())
+                    ->a11yLabel('New remote')
+                    ->press('newRemote'),
+            );
+    }
+
+    public function newRemote(): void
+    {
+        $this->openInTab('/new');
+    }
+
+    public function newOrg(): void
+    {
+        $this->openInTab('/new-org');
     }
 
     /**
@@ -137,18 +198,42 @@ class Remotes extends NativeComponent
         return true;
     }
 
+    /**
+     * Shows a tab, and the pager follows. The one you're on goes back to its top.
+     */
     public function showTab(string $tab): void
     {
-        if (! array_key_exists($tab, $this->tabs()) || $tab === $this->tab) {
+        if (! array_key_exists($tab, $this->tabs())) {
             return;
         }
 
-        $this->tab = $tab;
-        $this->conversations = [];
-        $this->hasMore = false;
-        $this->loaded = false;
-        $this->showKept();
-        $this->revalidate();
+        if ($tab === $this->tab) {
+            $this->listKey++;
+
+            return;
+        }
+
+        $this->switchTo($tab);
+    }
+
+    /**
+     * The pager settling on a tab, after a swipe or a tap along the top. The one it's already on changes nothing.
+     */
+    public function showPage(int $index): void
+    {
+        $tab = array_keys($this->tabs())[$index] ?? null;
+
+        if ($tab !== null && $tab !== $this->tab) {
+            $this->switchTo($tab);
+        }
+    }
+
+    /**
+     * A tap on the tab you're on, which the pager sends instead of moving: back to the top of it.
+     */
+    public function backToTop(int $index): void
+    {
+        $this->showTab(array_keys($this->tabs())[$index] ?? '');
     }
 
     public function loadMore(): void
@@ -211,13 +296,34 @@ class Remotes extends NativeComponent
     }
 
     /**
+     * The tab you go to keeps the list its first rows were drawn in, which can't have been scrolled, and fills it.
+     * The one you leave starts again at the top of a fresh one.
+     */
+    private function switchTo(string $tab): void
+    {
+        app(ShownTabs::class)->remember($this->me()?->id, 'remotes', $tab);
+        $this->listKeys[$this->tab] = $this->listKey + 1;
+        $this->listKey = $this->listKeys[$tab] ?? 0;
+        $this->tab = $tab;
+        $this->conversations = [];
+        $this->hasMore = false;
+        $this->loaded = false;
+        $this->error = null;
+        $this->refreshFailed = false;
+        $this->showKept();
+        $this->revalidate();
+    }
+
+    /**
      * Open is the inbox itself, so it's asked for without a tab, as the web's links leave it off.
      *
      * @return array<string, string|null>
      */
-    private function query(): array
+    private function query(?string $tab = null): array
     {
-        return $this->tab === 'open' ? [] : ['tab' => $this->tab];
+        $tab ??= $this->tab;
+
+        return $tab === 'open' ? [] : ['tab' => $tab];
     }
 
     private function showKept(): void
@@ -270,18 +376,71 @@ class Remotes extends NativeComponent
     public function render(): View
     {
         $viewer = $this->me();
+        $tabs = $this->tabs();
+        $keys = array_keys($tabs);
+        $index = (int) array_search($this->tab, $keys, true);
+        $from = max(0, $index - 1);
+        $to = min(count($keys) - 1, $index + 1);
+
+        $pages = [];
+
+        foreach (array_slice($keys, $from, $to - $from + 1) as $tab) {
+            $pages[] = $tab === $this->tab
+                ? $this->page($tab, $this->conversations, $this->loaded, $this->hasMore, $this->error, $this->listKey)
+                : $this->preview($tab);
+        }
 
         return view('native.remotes', [
-            'viewer' => $viewer,
             'myColour' => $this->myColour(),
-            'tabs' => $this->tabs(),
+            'tabLabels' => array_map(
+                fn (string $tab): string => $tab === 'fetched' && $this->requestsCount > 0 ? "{$tabs[$tab]} · {$this->requestsCount}" : $tabs[$tab],
+                $keys,
+            ),
+            'pages' => $pages,
+            'pageIndex' => $index,
+            'pagesFrom' => $from,
+            'pagesTo' => $to,
+        ]);
+    }
+
+    /**
+     * A tab beside the one you're on: the first few rows kept for it, as it will open.
+     *
+     * @return array<string, mixed>
+     */
+    private function preview(string $tab): array
+    {
+        $json = $this->off ? null : $this->cached(Client::RemotesPath, $this->query($tab));
+
+        return $this->page($tab, array_slice($json === null ? [] : self::conversationsFrom($json), 0, self::PreviewRows), $json !== null, false, null, $this->listKeys[$tab] ?? 0);
+    }
+
+    /**
+     * What a tab's page shows.
+     *
+     * @param  list<ConversationData>  $conversations
+     * @return array<string, mixed>
+     */
+    private function page(string $tab, array $conversations, bool $loaded, bool $hasMore, ?string $error, int $listKey): array
+    {
+        $viewer = $this->me();
+
+        return [
+            'tab' => $tab,
+            'showing' => $tab === $this->tab,
+            'listKey' => $listKey,
+            'loaded' => $loaded,
+            'hasMore' => $hasMore,
+            'error' => $error,
             'rows' => array_map(fn (ConversationData $conversation): array => [
                 'conversation' => $conversation,
                 'title' => $conversation->title($viewer?->id),
                 'others' => $conversation->others($viewer?->id),
                 'preview' => $conversation->lastMessage?->preview($viewer?->id, $conversation->isOrg()) ?? '',
                 'mine' => $conversation->lastMessage !== null && $conversation->lastMessage->userId === $viewer?->id,
-            ], $this->conversations),
-        ]);
+                'viewer' => $viewer,
+                'myColour' => $this->myColour(),
+            ], $conversations),
+        ];
     }
 }

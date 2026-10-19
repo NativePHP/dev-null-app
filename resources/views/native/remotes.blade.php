@@ -1,7 +1,8 @@
 {{--
-    The web's Remotes inbox: Open, Fetched (while devnull takes requests, counting them) and Stashed along the top, in
-    your lane's underline, then a row per conversation, the latest first. While you have Remotes off, the tab shows
-    the web's page for /remotes then, its 404, word for word.
+    The web's Remotes inbox: Open, Fetched (while devnull takes requests, counting them) and Stashed along the top, then
+    a row per conversation, the latest first. The tabs are pages you swipe between, as on the Log: the pager draws them
+    in a full-width split, the underline in your lane follows your finger, and a tap on the tab you're on takes it back
+    to its top. While you have Remotes off, the tab shows the web's page for /remotes then, its 404, word for word.
 --}}
 <native:column class="w-full h-full bg-theme-background">
     @if ($off)
@@ -15,47 +16,29 @@
         @include('native.partials.error')
         @include('native.partials.refresh-failed')
 
-        <native:row ref="remotes-tabs" class="w-full px-4 gap-6 bg-theme-surface">
-            @foreach ($tabs as $key => $label)
-                <native:pressable ref="tab-{{ $key }}" @press="showTab('{{ $key }}')" a11y-label="{{ $label }}{{ $key === 'fetched' && $requestsCount > 0 ? ', '.$requestsCount.' waiting' : '' }}">
-                    <native:column class="pt-3 gap-[10]">
-                        <native:row class="gap-[6] items-center">
-                            <native:text font="medium" class="text-sm {{ $key === $tab ? 'text-theme-ink' : 'text-theme-ink-muted' }}">{{ $label }}</native:text>
-                            @if ($key === 'fetched' && $requestsCount > 0)
-                                <native:column ref="requests-count" class="px-[6] rounded-full bg-theme-{{ $myColour }}">
-                                    <native:text font="mono-medium" class="text-[11px] leading-5 text-theme-on-{{ $myColour }}">{{ $requestsCount }}</native:text>
-                                </native:column>
-                            @endif
-                        </native:row>
-                        <native:column class="w-full h-[2] rounded-full {{ $key === $tab ? 'bg-theme-'.$myColour : 'bg-theme-surface' }}" />
-                    </native:column>
-                </native:pressable>
+        <native:pager
+            native:key="remotes-pager"
+            ref="remotes-pager"
+            horizontal
+            report-on-settle
+            class="w-full flex-1 bg-theme-surface"
+            :count="count($tabLabels)"
+            :page="$pageIndex"
+            :from="$pagesFrom"
+            :to="$pagesTo"
+            on-page-change="showPage"
+            :tabs="$tabLabels"
+            on-tab-reselect="backToTop"
+            tab-active-color="theme-ink"
+            :tab-indicator-color="'theme-'.$myColour"
+            tab-color="theme-ink-muted"
+            tab-divider-color="theme-hairline"
+            tab-font="semibold"
+            a11y-label="Remotes"
+        >
+            @foreach ($pages as $page)
+                @include('native.partials.remotes-page', ['page' => $page])
             @endforeach
-        </native:row>
-        <native:column class="w-full h-[1] bg-theme-hairline" />
-
-        <native:list native:key="remotes-{{ $tab }}" ref="remotes" class="w-full flex-1 bg-theme-surface" on-refresh="load" on-end-reached="loadMore" :end-reached-buffer="5">
-            @if (! $loaded && $error === null)
-                @foreach (range(1, 4) as $skeleton)
-                    @include('native.partials.remote-row-loading', ['ref' => 'loading-'.$skeleton])
-                @endforeach
-            @endif
-
-            @if ($loaded && $rows === [] && $error === null)
-                @include('native.partials.empty', match ($tab) {
-                    'stashed' => ['command' => 'nothing stashed', 'message' => 'Stash a conversation from its menu. It pops back into Open when someone writes.'],
-                    'fetched' => ['command' => 'no requests fetched', 'message' => 'First messages from people you don’t follow wait here until you merge or drop them.'],
-                    default => ['command' => 'no conversations yet', 'message' => 'Start one from a profile with Remote.'],
-                })
-            @endif
-
-            @foreach ($rows as $row)
-                @include('native.partials.remote-row', $row)
-            @endforeach
-
-            @if ($loaded && $hasMore)
-                @include('native.partials.remote-row-loading', ['ref' => 'loading-more'])
-            @endif
-        </native:list>
+        </native:pager>
     @endif
 </native:column>

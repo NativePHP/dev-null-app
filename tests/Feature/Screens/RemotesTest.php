@@ -111,12 +111,52 @@ it('has the web tabs, with Fetched only while devnull takes requests, counting t
 
     $screen = finishRefreshes(Native::visit('/remotes'));
 
-    expect(childRefs($screen, 'remotes-tabs'))->toBe($requests ? ['tab-open', 'tab-fetched', 'tab-stashed'] : ['tab-open', 'tab-stashed']);
-
-    if ($requests) {
-        expect(nodeByRef($screen, 'requests-count'))->not->toBeEmpty();
-    }
+    // The pager draws them along the top, as on the Log, with the count in Fetched's label.
+    expect(nodeByRef($screen, 'remotes-pager')['props']['tabs'])->toBe($requests ? ['Open', 'Fetched · 2', 'Stashed'] : ['Open', 'Stashed']);
 })->with(['requests on' => true, 'requests off' => false]);
+
+it('swipes between the tabs as the Log does, and opens on the one you had last time', function () {
+    app(Account::class)->rememberRemotes(new Remotes(requests: true));
+    serveApi(function (Request $request) {
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        return Http::response(remotesInboxJson(($query['tab'] ?? 'open') === 'stashed' ? [conversationJson(['is_archived' => true])] : []));
+    });
+
+    $screen = finishRefreshes(Native::visit('/remotes'));
+    $pager = fn (): array => nodeByRef($screen, 'remotes-pager');
+
+    expect($pager()['props'])->toMatchArray(['horizontal' => true, 'count' => 3, 'page' => 0, 'window_from' => 0, 'window_to' => 1, 'report_on_settle' => true])
+        ->and($pager()['props'])->toHaveKey('on_tab_reselect');
+
+    finishRefreshes($screen->changeTab('showPage', 2))->assertSet('tab', 'stashed')->assertSee('Ada Lovelace');
+
+    expect($pager()['props'])->toMatchArray(['page' => 2, 'window_from' => 1, 'window_to' => 2]);
+
+    // Switching to another tab at the bottom and back mounts Remotes afresh, on Stashed.
+    fakeApi(['GET /api/v1/remotes' => [remotesInboxJson([conversationJson(['is_archived' => true])])]]);
+
+    finishRefreshes(Native::visit('/remotes'))->assertSet('tab', 'stashed');
+});
+
+it('shows the first rows kept for the tab beside the one you are on, ready for a swipe', function () {
+    app(Account::class)->rememberRemotes(new Remotes(requests: false));
+    serveApi(function (Request $request) {
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        return Http::response(remotesInboxJson(($query['tab'] ?? 'open') === 'stashed'
+            ? [conversationJson(['id' => 'conv-stashed', 'is_archived' => true])]
+            : [conversationJson(['id' => 'conv-open', 'partner' => userJson(['id' => 'u-grace', 'username' => 'grace', 'name' => 'Grace Hopper'])])]));
+    });
+
+    // Stashed has been seen before, so it was kept.
+    $screen = finishRefreshes(Native::visit('/remotes'));
+    finishRefreshes($screen->changeTab('showPage', 1));
+    finishRefreshes($screen->changeTab('showPage', 0))->assertSet('tab', 'open');
+
+    expect(nodeByRef($screen, 'remotes'))->not->toBeEmpty()
+        ->and(childRefs($screen, 'remotes-stashed'))->toBe(['remote-conv-stashed']);
+});
 
 it('lists the stashed conversations and the fetched requests on their tabs, with their own empty states', function () {
     app(Account::class)->rememberRemotes(new Remotes(requests: true));
@@ -128,8 +168,8 @@ it('lists the stashed conversations and the fetched requests on their tabs, with
 
     $screen = finishRefreshes(Native::visit('/remotes'))->assertSee('no conversations yet');
 
-    finishRefreshes($screen->tap('tab-stashed'))->assertSee('Ada Lovelace')->assertSet('tab', 'stashed');
-    finishRefreshes($screen->tap('tab-fetched'))->assertSee('no requests fetched');
+    finishRefreshes($screen->changeTab('showPage', 2))->assertSee('Ada Lovelace')->assertSet('tab', 'stashed');
+    finishRefreshes($screen->changeTab('showPage', 1))->assertSee('no requests fetched');
 
     expect(collect(Http::recorded())->map(fn (array $sent): string => (string) parse_url($sent[0]->url(), PHP_URL_QUERY))->filter()->values()->all())
         ->toContain('tab=stashed', 'tab=fetched');

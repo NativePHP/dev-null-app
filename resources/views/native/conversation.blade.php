@@ -63,13 +63,16 @@
     @if ($loaded)
         <native:bottom-bar>
             <native:column ref="composer-bar" class="w-full bg-theme-surface">
-                <native:column class="w-full h-[1] bg-theme-hairline" />
                 @if ($canPush)
-                    <native:row ref="typing-line" class="w-full h-[24] px-4 items-end">
+                    {{-- Above the bar's line, as the web's sits above its composer, so the field keeps its padding tight. --}}
+                    <native:row ref="typing-line" class="w-full h-[24] px-4 items-center">
                         @if ($typing)
                             <native:text ref="typing" font="mono" class="text-[11px] text-theme-ink-muted" :max-lines="1">{{ $typing }}</native:text>
                         @endif
                     </native:row>
+                @endif
+                <native:column class="w-full h-[1] bg-theme-hairline" />
+                @if ($canPush)
                     @if ($replyTo)
                         <native:row ref="replying" class="w-full h-[44] px-4 gap-3 items-center">
                             <native:column class="w-[2] h-[28] rounded-full bg-theme-{{ $myColour }}" />
@@ -82,11 +85,13 @@
                             </native:pressable>
                         </native:row>
                     @endif
-                    <native:row class="w-full px-4 pb-2 gap-3 items-center">
+                    <native:row class="w-full px-4 pt-[6] gap-3 items-center">
                         <native:column class="flex-1">
                             <native:bare-text-input
+                                native:key="message-input-{{ $composerKey }}"
                                 ref="message-input"
-                                class="w-full py-2 text-theme-ink"
+                                class="w-full py-[6] text-theme-ink"
+                                :autofocus="$composerKey > 0"
                                 :placeholder="$placeholder"
                                 native:model.debounce.150ms="draft"
                                 multiline

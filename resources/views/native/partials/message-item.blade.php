@@ -5,14 +5,19 @@
     emoji, yours outlined in your lane and a tap to take it back or add yours. A run ends in the time, or for the
     message the web gives a status, in that status.
 
-    A long press opens the message's reactions and Reply; a double tap toggles a heart. A message still being
-    pushed takes neither.
+    A long press opens the message's reactions and Reply; a double tap toggles a heart. Swiping it sideways replies to
+    it, as the web's touch screens do: someone else's to the right, your own to the left. A message still being pushed
+    takes none of them, and nothing replies while the thread can't take a message.
 --}}
 @php($key = $message->id > 0 ? $message->id : $message->clientId)
 @php($laneToken = \App\Devnull\Lane::token(($author ?? null)?->lane()))
 @php($replyAuthor = $message->replyTo === null ? null : ($message->replyTo['user_id'] === $viewer?->id ? 'You' : ($authors[$message->replyTo['user_id']]->name ?? 'Someone')))
 @php($replyLane = $message->replyTo === null ? 'primary' : \App\Devnull\Lane::token(($authors[$message->replyTo['user_id']] ?? null)?->lane()))
+@php($replyable = ($canPush ?? false) && ! $message->isPending())
 <native:row native:key="message-{{ $key }}" ref="message-{{ $key }}" class="w-full px-3 {{ $startsRun ? 'pt-3' : 'pt-[3]' }} {{ $mine ? 'justify-end' : 'justify-start' }}">
+    @if ($replyable)
+        <native:gesture-area ref="swipe-{{ $key }}" @swipe="swipedMessage({{ $message->id }})">
+    @endif
     {{-- A set width, not a max: a column that only hugs its bubble measures the text on one line and clips it. --}}
     <native:column class="w-[300] gap-1 {{ $mine ? 'items-end' : 'items-start' }}">
         @if ($isOrg && ! $mine && $startsRun && $author)
@@ -88,4 +93,7 @@
             <native:text font="mono" class="px-1 text-[11px] text-theme-ink-muted">{{ $message->time() }}</native:text>
         @endif
     </native:column>
+    @if ($replyable)
+        </native:gesture-area>
+    @endif
 </native:row>
