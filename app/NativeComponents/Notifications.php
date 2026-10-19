@@ -11,6 +11,7 @@ use App\Devnull\Exceptions\Unauthenticated;
 use App\Devnull\ShownTabs;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SearchesDevnull;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Carbon\CarbonImmutable;
 use Illuminate\View\View;
@@ -40,6 +41,7 @@ class Notifications extends NativeComponent
 {
     use OpensInTab;
     use RefreshesInBackground;
+    use SearchesDevnull;
     use TalksToDevnull;
 
     /**

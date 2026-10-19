@@ -12,6 +12,7 @@ use App\Devnull\Timeline;
 use App\Icons\Lucide;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SearchesDevnull;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Closure;
@@ -40,6 +41,7 @@ class CommitDetail extends NativeComponent
 {
     use OpensInTab;
     use RefreshesInBackground;
+    use SearchesDevnull;
     use ShowsCommits;
     use TalksToDevnull;
 

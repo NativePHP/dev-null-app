@@ -28,6 +28,7 @@ enum Lucide
     case Link;
     case Star;
     case Bookmark;
+    case Search;
     case Trash2;
     case CornerDownRight;
     case ChevronRight;
@@ -120,6 +121,7 @@ enum Lucide
             self::Link => 'link',
             self::Star => $filled ? 'star-filled' : 'star',
             self::Bookmark => $filled ? 'bookmark-filled' : 'bookmark',
+            self::Search => 'search',
             self::Trash2 => 'trash-2',
             self::ArrowUp => 'arrow-up',
             self::Quote => 'quote',

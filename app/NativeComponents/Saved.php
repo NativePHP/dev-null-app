@@ -11,6 +11,7 @@ use App\Devnull\Timeline;
 use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SearchesDevnull;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Layouts\TabsLayout;
@@ -22,7 +23,7 @@ use Native\Mobile\Edge\Transition;
 /**
  * The commits you saved, last saved first, as the web's Saved page lists them:
  * the Log's rows, with a day marker wherever the day of the commits changes.
- * Only you see them.
+ * Only you see them. It opens from your profile, on that tab's stack.
  *
  * Unsaving one here takes its row away once devnull says it's done, as on the
  * web. Saving or unsaving anywhere else changes the kept list too (see
@@ -37,6 +38,7 @@ class Saved extends NativeComponent
     use ExpandsThreads;
     use OpensInTab;
     use RefreshesInBackground;
+    use SearchesDevnull;
     use ShowsCommits {
         toggleBookmark as private toggleSaved;
     }

@@ -17,6 +17,7 @@ use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SearchesDevnull;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Closure;
@@ -70,6 +71,7 @@ class Log extends NativeComponent
     use HoldsNewCommits;
     use OpensInTab;
     use RefreshesInBackground;
+    use SearchesDevnull;
     use ShowsCommits;
     use TalksToDevnull;
 

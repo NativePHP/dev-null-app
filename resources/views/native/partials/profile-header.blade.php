@@ -94,6 +94,15 @@
                 @endif
             @endforeach
         </native:row>
+
+            @if ($isMe)
+                <native:pressable ref="saved" @press="openSaved" class="self-start" a11y-label="Saved commits">
+                    <native:row class="gap-2 items-center">
+                        <native:icon :ios="\App\Icons\Lucide::Bookmark->ios()" :android="\App\Icons\Lucide::Bookmark->android()" :size="16" class="text-theme-ink-muted" />
+                        <native:text class="text-sm text-theme-ink">Saved</native:text>
+                    </native:row>
+                </native:pressable>
+            @endif
         @endif
 
         {{-- In pastéis mode, as on the web: how many pastéis they have been given. --}}

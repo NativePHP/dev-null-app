@@ -21,14 +21,14 @@ function tabIcons(TestableComponent $screen): array
         ->all();
 }
 
-it('has Log, Notifications, Saved and Profile tabs with the Lucide icons of the web nav', function (string $platform) {
+it('has Log, Notifications, Search and Profile tabs with the Lucide icons of the web nav', function (string $platform) {
     Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
 
     // The same drawings on both platforms. A custom icon has no Material font variant.
     expect(tabIcons(Native::visit('/log', platform: $platform)))->toBe([
         'Log' => ['custom:git-commit-vertical', null],
         'Notifications' => ['custom:bell', null],
-        'Saved' => ['custom:bookmark', null],
+        'Search' => ['custom:search', null],
         'Profile' => ['custom:user-round', null],
     ]);
 })->with(['ios', 'android']);
@@ -63,8 +63,8 @@ it('pushes commits and profiles onto the tab they were opened from, so they slid
 
     Native::visit('/profile/commits/c1')->call('openProfile', 'ada')->assertNavigatedTo('/profile/users/ada');
     Native::visit('/notifications/commits/c1')->call('openCommit', 'c0')->assertNavigatedTo('/notifications/commits/c0');
-    Native::visit('/saved/commits/c1')->call('openProfile', 'ada')->assertNavigatedTo('/saved/users/ada');
-    Native::visit('/saved/users/ada')->call('openCommit', 'c0')->assertNavigatedTo('/saved/commits/c0');
+    Native::visit('/profile/saved')->call('openProfile', 'ada')->assertNavigatedTo('/profile/users/ada');
+    Native::visit('/profile/users/ada')->call('openCommit', 'c0')->assertNavigatedTo('/profile/commits/c0');
 });
 
 it('stays put when a tap leads to the commit already showing', function () {
@@ -102,4 +102,41 @@ it('stays put when a tap leads to the profile already showing', function () {
     // Your own avatar on the Profile tab, which is your profile at /profile.
     Native::visit('/profile')->press("openProfile('local_dev')")->assertNoNavigation();
     Native::visit('/profile')->tap('commit-c2')->assertNavigatedTo('/profile/commits/c2');
+});
+
+it('finds a developer from search and opens them on the tab you were on', function () {
+    Http::fake([
+        'devnull.test/search/users*' => Http::response(['users' => [userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada'])]]),
+        'devnull.test/api/v1/users/ada' => Http::response(['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']), 'is_following' => false, 'activity' => ['scale' => 'week', 'buckets' => []], 'streaks' => ['longest' => 0, 'current' => 0], 'pinned_commit' => null]),
+        'devnull.test/api/v1/users/ada/commits*' => Http::response(pageJson([])),
+        'devnull.test/*' => Http::response(pageJson([])),
+    ]);
+
+    $screen = Native::visit('/log')->search('@ada');
+
+    expect($screen->searchResults())->toBe([[
+        'title' => 'Ada',
+        'subtitle' => '@ada',
+        'method' => 'openFoundUser',
+        'args' => ['ada'],
+    ]]);
+
+    $screen->call('openFoundUser', 'ada')->assertNavigatedTo('/log/users/ada');
+
+    Http::assertSent(fn ($request): bool => $request->url() === 'http://devnull.test/search/users?q=ada' && ! $request->hasHeader('X-SSH-Signature'));
+});
+
+it('opens the commits you saved from your profile, still on that tab', function () {
+    Http::fake([
+        'devnull.test/api/v1/users/local_dev' => Http::response(['data' => userWithCountsJson(commits: 0, followers: 0, following: 0), 'is_following' => false, 'activity' => ['scale' => 'week', 'buckets' => []], 'streaks' => ['longest' => 0, 'current' => 0], 'pinned_commit' => null]),
+        'devnull.test/api/v1/users/local_dev/commits*' => Http::response(pageJson([])),
+        'devnull.test/*' => Http::response(pageJson([])),
+    ]);
+
+    Native::visit('/profile')
+        ->tap('saved')
+        ->assertNavigatedTo('/profile/saved')
+        ->follow()
+        ->assertTabActive('Profile')
+        ->assertNavTitle('Saved');
 });

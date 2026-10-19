@@ -252,7 +252,7 @@ it('marks Quote and Reply on a saved commit with a stashed draft', function () {
     stash('quote-c1', 'This, all of it.');
     stash('reply-c1', 'A reply in progress');
 
-    $screen = finishRefreshes(Native::visit('/saved', platform: 'ios'));
+    $screen = finishRefreshes(Native::visit('/profile/saved', platform: 'ios'));
 
     expect(showsRef($screen, 'quote-stash-c1'))->toBeTrue()
         ->and(showsRef($screen, 'reply-stash-c1'))->toBeTrue();

@@ -213,6 +213,39 @@ final readonly class Client
     }
 
     /**
+     * People whose name or handle matches, as the web's user search lists
+     * them. That route is public and sits beside the signed API, so this
+     * request is not signed and a block is not applied.
+     *
+     * @return list<User>
+     */
+    public function searchUsers(string $query): array
+    {
+        $query = ltrim(trim($query), '@');
+
+        if ($query === '') {
+            return [];
+        }
+
+        try {
+            $response = Http::acceptJson()->timeout(20)->get($this->origin().'/search/users', ['q' => $query]);
+        } catch (ConnectionException) {
+            throw ApiException::couldNotConnect($this->baseUrl);
+        }
+
+        if (! $response->successful()) {
+            throw ApiException::fromResponse($response);
+        }
+
+        $users = $response->json('users');
+
+        return array_values(array_map(
+            User::fromArray(...),
+            array_filter(is_array($users) ? $users : [], is_array(...)),
+        ));
+    }
+
+    /**
      * Reports a commit to devnull's moderators, privately, as the web's Report
      * button does. Nothing on the commit changes, so nothing kept changes
      * either. Reporting one again keeps the first report.
