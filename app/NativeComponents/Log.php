@@ -494,11 +494,13 @@ class Log extends NativeComponent
 
     /**
      * Opening a log: Trending is ranked afresh, as a page load does on the web. The others refresh behind what's kept.
+     * Your settings come too, for the timezone the app shows times in.
      */
     private function open(): void
     {
         $this->isRanked() ? $this->rank() : $this->revalidate();
         $this->openWhoToFollow();
+        $this->refreshSettings();
     }
 
     /**

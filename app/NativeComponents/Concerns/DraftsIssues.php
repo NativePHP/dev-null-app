@@ -193,7 +193,7 @@ trait DraftsIssues
      */
     protected function canDraftIssue(): bool
     {
-        return $this->sheetOpen && $this->sheetView === 'compose';
+        return $this->sheetOpen && $this->sheetView === 'compose' && ! $this->scheduling;
     }
 
     /**

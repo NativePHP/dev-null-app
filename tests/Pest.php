@@ -6,6 +6,7 @@ use App\Devnull\Data\User;
 use App\Devnull\DeviceKey;
 use App\Devnull\ResponseCache;
 use App\Devnull\SshKey;
+use App\Devnull\Timezone;
 use App\NativeComponents\Log;
 use App\NativeComponents\Notifications;
 use App\NativeComponents\Profile;
@@ -1017,4 +1018,59 @@ function sentTo(string $method, string $path): array
         ->map(fn (array $sent): string => $sent[0]->body())
         ->values()
         ->all();
+}
+
+/**
+ * A commit you scheduled, as devnull lists it: still waiting, until a test says otherwise. Its body's segments
+ * follow its body, as the server works them out.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function scheduledCommitJson(array $overrides = []): array
+{
+    $body = array_key_exists('body', $overrides) ? $overrides['body'] : 'Shipping this tomorrow.';
+
+    return [
+        'id' => '0199e5c4-3333-7000-8000-00000000da7e',
+        'body' => $body,
+        'body_segments' => $body === null || $body === '' ? [] : [['type' => 'text', 'text' => $body]],
+        'preview_segments' => null,
+        'poll_options' => null,
+        'image_count' => 0,
+        'scheduled_at' => '2026-10-20T08:00:00Z',
+        'submitted_at' => null,
+        'status' => 'scheduled',
+        ...$overrides,
+    ];
+}
+
+/**
+ * A page of scheduled commits, which devnull pages by number.
+ *
+ * @param  list<array<string, mixed>>  $items
+ * @return array<string, mixed>
+ */
+function scheduledPageJson(array $items, ?int $nextPage = null): array
+{
+    $path = 'http://devnull.test/api/v1/scheduled-commits';
+
+    return [
+        'data' => $items,
+        'links' => ['first' => $path.'?page=1', 'last' => null, 'prev' => null, 'next' => $nextPage === null ? null : $path.'?page='.$nextPage],
+        'meta' => ['current_page' => $nextPage === null ? 1 : $nextPage - 1, 'path' => $path, 'per_page' => 20],
+    ];
+}
+
+/**
+ * Puts the phone in a timezone, as iOS does: /etc/localtime links to the zone, through one more link.
+ */
+function phoneIn(string $timezone): void
+{
+    $directory = sys_get_temp_dir().'/devnull-localtime-'.bin2hex(random_bytes(4));
+    mkdir($directory);
+    symlink('/var/db/timezone/tz/2026a.1.0/zoneinfo/'.$timezone, $directory.'/zone');
+    symlink($directory.'/zone', $directory.'/localtime');
+
+    app()->instance(Timezone::class, new Timezone(localtime: $directory.'/localtime'));
 }

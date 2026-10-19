@@ -13,12 +13,14 @@ use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Hsl;
 use App\Devnull\Lane;
 use App\Devnull\ResponseCache;
+use App\Devnull\Timezone;
 use App\Devnull\WhoToFollow;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SignsInWithApple;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Concerns\WritesInBackground;
+use Carbon\CarbonImmutable;
 use Illuminate\View\View;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Edge\NativeComponent;
@@ -30,9 +32,9 @@ use SensitiveParameter;
 /**
  * Your account, reached from your own profile, laid out like the web's profile
  * settings: your profile as devnull mirrors it from GitHub, with a sync, your
- * colour, pastéis mode, Remotes and their settings, the people you mute and
- * block, then this phone's
- * fingerprint, signing out and deleting the account.
+ * colour, your timezone, pastéis mode, Remotes and their settings, the people
+ * you mute and block, then this phone's fingerprint, signing out and deleting
+ * the account.
  * Where the app talks to only shows when it isn't dev-null.sh.
  *
  * It opens on you as devnull last said (or as this phone remembers you) and
@@ -105,6 +107,38 @@ class ThisDevice extends NativeComponent
 
     public ?string $laneError = null;
 
+    /**
+     * The timezone picked on the screen, which shows until it's saved, or null to leave it unset and use the phone's.
+     */
+    public ?string $chosenTimezone = null;
+
+    /**
+     * Whether the sheet that lists the timezones is up, and what's typed to find one. It keeps its list while it
+     * slides away, until iOS says it's gone.
+     */
+    public bool $pickingTimezone = false;
+
+    public bool $listingTimezones = false;
+
+    public string $timezoneQuery = '';
+
+    /**
+     * The timezone devnull has for you, and whether your profile shows your local time, as `me/settings` last said.
+     * Until it has, the timezone is the one this phone remembers.
+     */
+    public ?string $savedTimezone = null;
+
+    public bool $savedShowLocalTime = false;
+
+    /**
+     * The web's "Show my local time on my profile", as picked on the screen. It only counts with a timezone.
+     */
+    public bool $showLocalTime = false;
+
+    public bool $savingTimezone = false;
+
+    public ?string $timezoneError = null;
+
     public bool $savingPasteisMode = false;
 
     public ?string $pasteisModeError = null;
@@ -144,6 +178,8 @@ class ThisDevice extends NativeComponent
             $this->chosenLane = $this->current->preferredLane;
         }
 
+        $this->savedTimezone = $this->chosenTimezone = app(Account::class)->timezone();
+
         try {
             $this->fingerprint = app(DeviceKey::class)->current()->fingerprint();
         } catch (KeychainUnavailable $exception) {
@@ -164,6 +200,8 @@ class ThisDevice extends NativeComponent
                 $this->appleLinked = CurrentUser::fromArray($json)->appleLinked;
             }
         });
+
+        $this->refresh(Client::SettingsPath, [], fn (array $json) => $this->takeSettings(is_array($json['data'] ?? null) ? $json['data'] : []), quiet: true);
     }
 
     protected function showsContent(): bool
@@ -303,6 +341,92 @@ class ThisDevice extends NativeComponent
     public function setShowsWhoToFollow(bool $shows): void
     {
         app(WhoToFollow::class)->show($this->me()?->id, $shows);
+    }
+
+    /**
+     * Opens the sheet that lists every timezone, as the web's picker opens its list.
+     */
+    public function pickTimezone(): void
+    {
+        $this->timezoneQuery = '';
+        $this->pickingTimezone = true;
+        $this->listingTimezones = true;
+    }
+
+    /**
+     * A timezone tapped in the sheet: the section shows it, and the sheet goes. Nothing changes on devnull until it's saved.
+     */
+    public function chooseTimezone(string $timezone): void
+    {
+        if (! Timezone::isKnown($timezone)) {
+            return;
+        }
+
+        $this->chosenTimezone = $timezone;
+        $this->timezoneError = null;
+        $this->pickingTimezone = false;
+    }
+
+    /**
+     * The web's "Use … from this browser", with the phone's timezone.
+     */
+    public function usePhoneTimezone(): void
+    {
+        if (($phone = app(Timezone::class)->phone()) !== null) {
+            $this->chosenTimezone = $phone;
+            $this->timezoneError = null;
+        }
+    }
+
+    /**
+     * The web's Unset: no timezone, so the phone's is used and none is shared, nor your local time.
+     */
+    public function unsetTimezone(): void
+    {
+        $this->chosenTimezone = null;
+        $this->showLocalTime = false;
+        $this->timezoneError = null;
+    }
+
+    /**
+     * The web's "Show my local time on my profile". Nothing changes on devnull until the timezone is saved.
+     */
+    public function setShowLocalTime(bool $shows): void
+    {
+        $this->showLocalTime = $shows && $this->chosenTimezone !== null;
+        $this->timezoneError = null;
+    }
+
+    public function timezoneSheetClosed(): void
+    {
+        $this->pickingTimezone = false;
+        $this->listingTimezones = false;
+    }
+
+    /**
+     * Saves the timezone picked, or that there's none, with whether your
+     * profile shows your local time, as the web's Save timezone does. Once
+     * devnull has it, this phone remembers it, so times show in it at once.
+     */
+    public function saveTimezone(): void
+    {
+        if ($this->savingTimezone || $this->current === null || ! $this->timezoneChanged()) {
+            return;
+        }
+
+        $timezone = $this->chosenTimezone;
+        $showsLocalTime = $timezone !== null && $this->showLocalTime;
+        $this->savingTimezone = true;
+        $this->timezoneError = null;
+
+        $this->writeInBackground('PUT', Client::TimezonePath, ['timezone' => $timezone, 'show_local_time' => $showsLocalTime], function (array $json) use ($timezone, $showsLocalTime): void {
+            $this->savingTimezone = false;
+            $this->takeMe($json);
+            $this->takeSettings(['timezone' => $timezone, 'show_local_time' => $showsLocalTime]);
+        }, function (string $message): void {
+            $this->savingTimezone = false;
+            $this->timezoneError = $message;
+        });
     }
 
     /**
@@ -579,6 +703,9 @@ class ThisDevice extends NativeComponent
             'previewLane' => $this->chosenLane ?? $current?->automaticLane,
             'lanes' => $current === null ? [] : $this->laneOptions($current),
             'laneChanged' => $current !== null && $this->chosenLane !== $current->preferredLane,
+            'phoneTimezone' => app(Timezone::class)->phone(),
+            'timezoneChanged' => $current !== null && $this->timezoneChanged(),
+            'timezones' => $this->listingTimezones ? $this->timezones() : ['zones' => [], 'more' => 0],
             'pasteisMode' => $current?->pasteisMode ?? false,
             'showsWhoToFollow' => app(WhoToFollow::class)->shows($this->me()?->id),
             'remotes' => $current?->remotes,
@@ -649,6 +776,81 @@ class ThisDevice extends NativeComponent
     }
 
     /**
+     * Takes your timezone, and whether your profile shows your local time, as
+     * devnull has them. What's picked and not saved yet stays picked;
+     * otherwise each follows devnull. This phone remembers the timezone, so
+     * times show in it.
+     *
+     * @param  array<string, mixed>  $settings
+     */
+    private function takeSettings(array $settings): void
+    {
+        $timezone = Timezone::isKnown($settings['timezone'] ?? null) ? $settings['timezone'] : null;
+        $showsLocalTime = $timezone !== null && ($settings['show_local_time'] ?? false) === true;
+
+        if ($this->chosenTimezone === $this->savedTimezone && $this->showLocalTime === $this->savedShowLocalTime) {
+            $this->chosenTimezone = $timezone;
+            $this->showLocalTime = $showsLocalTime;
+        }
+
+        $this->savedTimezone = $timezone;
+        $this->savedShowLocalTime = $showsLocalTime;
+        app(Account::class)->rememberTimezone($timezone);
+    }
+
+    /**
+     * Whether what's picked differs from what devnull has, so Save timezone has something to save.
+     */
+    private function timezoneChanged(): bool
+    {
+        return $this->chosenTimezone !== $this->savedTimezone
+            || ($this->chosenTimezone !== null && $this->showLocalTime !== $this->savedShowLocalTime);
+    }
+
+    /**
+     * The most timezones the sheet lists at once. All of them would make a
+     * frame bigger than EDGE takes.
+     */
+    public const int TimezonesShown = 50;
+
+    /**
+     * The timezones the sheet lists, by how far each is from UTC now and then
+     * by name, as the web's picker lists them. Before anything is typed,
+     * those at the phone's offset, with the one picked first. Then the ones
+     * whose name or city has every word typed, up to TimezonesShown, and how
+     * many more there are.
+     *
+     * @return array{zones: list<array{name: string, offset: string, city: string}>, more: int}
+     */
+    private function timezones(): array
+    {
+        $words = array_filter(explode(' ', strtolower(str_replace(['_', '/'], ' ', trim($this->timezoneQuery)))));
+        $now = CarbonImmutable::now();
+        $here = $now->setTimezone(app(Timezone::class)->here())->getOffset();
+        $zones = [];
+
+        foreach (Timezone::all() as $name) {
+            $offset = $now->setTimezone($name)->getOffset();
+            $haystack = strtolower(str_replace(['_', '/'], ' ', $name));
+
+            $listed = $words === []
+                ? $offset === $here || $name === $this->chosenTimezone
+                : array_filter($words, fn (string $word): bool => ! str_contains($haystack, $word)) === [];
+
+            if ($listed) {
+                $zones[] = ['name' => $name, 'offset' => Timezone::offset($name, $now), 'city' => Timezone::city($name), 'order' => [$name === $this->chosenTimezone && $words === [] ? 0 : 1, $offset, $name]];
+            }
+        }
+
+        usort($zones, fn (array $a, array $b): int => $a['order'] <=> $b['order']);
+
+        return [
+            'zones' => array_map(fn (array $zone): array => ['name' => $zone['name'], 'offset' => $zone['offset'], 'city' => $zone['city']], array_slice($zones, 0, self::TimezonesShown)),
+            'more' => max(0, count($zones) - self::TimezonesShown),
+        ];
+    }
+
+    /**
      * The custom colour you're previewing, or else the one you have.
      */
     private function customColour(): ?string
@@ -663,8 +865,8 @@ class ThisDevice extends NativeComponent
     }
 
     /**
-     * Shows you as devnull sent you. A colour picked and not saved yet stays
-     * picked; otherwise the picker follows the one devnull has. While the
+     * Shows you as devnull sent you. A colour or timezone picked and not saved
+     * yet stays picked; otherwise each follows the one devnull has. While the
      * pastéis or Remotes switches are saving, they keep what they show.
      * Whether Apple is linked only comes with `GET /me`, so it's left to the
      * refresh.

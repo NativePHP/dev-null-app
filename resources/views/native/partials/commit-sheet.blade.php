@@ -28,6 +28,12 @@
     stash@{0} and the counter on the right. An issue draft has no tools, as on the web. With photos, Commit spins while
     they upload, and no body at all will do.
 
+    A new commit can be scheduled instead, with the web's clock button among the tools: "Submit at" opens under the
+    field with the system's date and time picker, in the phone's timezone, within the 30 days devnull allows, and the
+    web's lines on what scheduling means and Scheduled commits →. The bar's check becomes Schedule commit, and waits for
+    a time too. As on the web, an issue can't be scheduled, so neither shows the other. devnull's app API schedules a
+    body alone, so the clock greys out while there are photos or a poll, and they grey out while it's on.
+
     It's full height for the forms, and short for the receipts. It's always on the screen, shown or not, so iOS can
     slide it away and say when it's gone.
 
@@ -49,7 +55,8 @@
                     @if ($issueCommand)
                         @include('native.partials.sheet-bar-button', ['ref' => 'sheet-open-issue', 'icon' => \App\Icons\Lucide::Check, 'label' => 'Open issue', 'main' => true, 'loading' => $openingIssue, 'press' => $openingIssue || ! \App\Devnull\IssueCommand::fits($sheetBody) ? null : 'openIssueFromSheet'])
                     @else
-                        @include('native.partials.sheet-bar-button', ['ref' => 'sheet-commit', 'icon' => \App\Icons\Lucide::Check, 'label' => $replying ? 'Reply' : 'Commit', 'main' => true, 'press' => $canCommit ? 'commitFromSheet' : null])
+                        @php($schedulingThis = $scheduling && $sheetView === 'compose')
+                        @include('native.partials.sheet-bar-button', ['ref' => 'sheet-commit', 'icon' => \App\Icons\Lucide::Check, 'label' => match (true) { $schedulingThis => 'Schedule commit', $replying => 'Reply', default => 'Commit' }, 'main' => true, 'loading' => $sendingSchedule, 'press' => $sendingSchedule || ! $canCommit || ($schedulingThis && ! $hasScheduledTime) ? null : 'commitFromSheet'])
                     @endif
                 </native:row>
                 <native:column class="w-full h-[1] bg-theme-hairline" />
@@ -96,6 +103,8 @@
 
                             @if ($quoting)
                                 @include('native.partials.quoted-commit', ['quoted' => $sheetCommit, 'static' => true])
+                            @elseif ($scheduling)
+                                @include('native.partials.schedule-picker')
                             @elseif (! $replying && ! $issueCommand)
                                 @include('native.partials.issue-suggestions', [
                                     'suggestions' => $sheetTyped ? \App\Devnull\IssueCommand::suggested($sheetBody) : [],
