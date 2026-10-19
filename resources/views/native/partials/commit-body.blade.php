@@ -4,6 +4,13 @@
     The runs inside a paragraph sit flush left with no blank lines between them on purpose: under whitespace-pre-wrap
     any whitespace between those tags would print. Each line ends in a tag or a directive, whose newline PHP drops.
 
+    A standalone /dev/null is the wordmark, in semibold with tighter tracking like the web's. The web outlines its
+    middle slash in lane-0; EDGE text runs can't stroke a glyph, so that slash is solid lane-0 instead, in the regular
+    weight, which is nearer the outline's thin lines than a solid semibold slash or a faded one. iOS breaks lines
+    after a slash, so a word joiner (U+2060) after each one keeps the wordmark on one line. It never breaks before a
+    slash, even after a space, so a zero-width space (U+200B) after a space lets the line break there as a browser
+    would; without it, a few wordmarks in a row can't wrap at all. VoiceOver skips both and still reads "/dev/null".
+
     A body too long to show whole in a list shows its start, as devnull cut it, and "Show more" in Commit Blue, which
     opens the rest where it is. The commit a page is about ($focused) is always whole. $muted sets it in muted ink, for
     the commits around the one a page is about.
@@ -25,6 +32,9 @@
 <native:text :text="$run->text" font="semibold" class="font-semibold text-theme-primary" @press="openProfile('{{ $run->username }}')" />
 @elseif ($run->isCode)
 <native:text :text="$run->text" font="mono" class="text-[13px] bg-theme-wash" />
+@elseif ($run->isWordmark)
+@php($afterSpace = $loop->index > 0 && ctype_space(substr($block->runs[$loop->index - 1]->text, -1)))
+<native:text font="semibold" class="font-semibold tracking-tight">@if ($afterSpace)&#x200B;@endif/&#x2060;dev<native:text text="/" font="default" class="font-normal text-theme-lane-0" />&#x2060;null</native:text>
 @else
 <native:text :text="$run->text" />
 @endif

@@ -15,6 +15,7 @@ function runsOf(array $blocks): array
     return array_map(fn (BodyRun $run): array => match (true) {
         $run->isMention() => [$run->text, '@'.$run->username],
         $run->isCode => [$run->text, 'code'],
+        $run->isWordmark => [$run->text, 'wordmark'],
         default => [$run->text],
     }, $blocks[0]->runs);
 }
@@ -117,4 +118,56 @@ it('reads mentions and segments straight from the API', function () {
 
     expect($commit->mentions)->toHaveCount(2)
         ->and(runsOf($commit->content))->toBe([['😀 '], ['@ada', '@ada'], [' '], ['x', 'code'], [' '], ['@bob', '@bob']]);
+});
+
+it('draws a standalone /dev/null as the wordmark, keeping its text', function () {
+    $body = 'piped to /dev/null, then /dev/null. (/dev/null)';
+
+    $blocks = CommitBody::blocks($body, null);
+
+    expect(runsOf($blocks))->toBe([
+        ['piped to '],
+        ['/dev/null', 'wordmark'],
+        [', then '],
+        ['/dev/null', 'wordmark'],
+        ['. ('],
+        ['/dev/null', 'wordmark'],
+        [')'],
+    ])->and(implode('', array_map(fn (BodyRun $run): string => $run->text, $blocks[0]->runs)))->toBe($body);
+});
+
+it('leaves /dev/null inside longer paths, words, URLs and usernames as text', function () {
+    $body = '/dev/nullable /dev/null/log a/dev/null /dev/null_1 /DEV/NULL https://example.com/dev/null @devnull';
+
+    expect(runsOf(CommitBody::blocks($body, null)))->toBe([[$body]]);
+});
+
+it('draws the wordmark beside mentions but not in inline code or code blocks', function () {
+    $body = "@ada sent it to /dev/null, not `/dev/null`:\n```sh\necho hi > /dev/null\n```";
+
+    $blocks = CommitBody::blocks($body, [
+        ['type' => 'text', 'text' => '@ada sent it to /dev/null, not '],
+        ['type' => 'code', 'code' => '/dev/null'],
+        ['type' => 'text', 'text' => ':'],
+        ['type' => 'block', 'language' => 'sh', 'html' => 'echo hi &gt; /dev/null'],
+    ], [new Mention('ada', 0, 4)]);
+
+    expect(runsOf($blocks))->toBe([
+        ['@ada', '@ada'],
+        [' sent it to '],
+        ['/dev/null', 'wordmark'],
+        [', not '],
+        ['/dev/null', 'code'],
+        [':'],
+    ])->and($blocks[1]->code)->toBe('echo hi > /dev/null');
+});
+
+it('draws the wordmark at the end of a preview, before the ellipsis it was cut with', function () {
+    $body = 'Logs go to /dev/null and nowhere else, which is the whole point of it.';
+
+    expect(runsOf(CommitBody::blocks($body, [['type' => 'text', 'text' => 'Logs go to /dev/null…']])))->toBe([
+        ['Logs go to '],
+        ['/dev/null', 'wordmark'],
+        ['…'],
+    ]);
 });

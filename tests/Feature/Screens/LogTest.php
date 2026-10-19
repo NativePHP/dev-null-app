@@ -205,6 +205,24 @@ it('shows inline code on a wash and keeps mentions on both sides of it', functio
     ]);
 });
 
+it('draws a standalone /dev/null as the wordmark: semibold, tight, its middle slash regular in lane-0, held on one line', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson(['body' => 'Piped to /dev/null, not /dev/nullable (/dev/null)'])]))]);
+
+    $screen = Native::visit('/log');
+    $wordmarks = findNodes($screen->tree(), fn (array $node): bool => ($node['props']['letter_spacing'] ?? null) === -0.025);
+    $slash = $wordmarks[0]['children'][1]['props'];
+
+    expect(paragraphRuns($screen, 'Piped to'))->toBe([['Piped to '], ['/dev/null', 'wordmark'], [', not /dev/nullable ('], ['/dev/null', 'wordmark'], [')']])
+        ->and(array_map(fn (array $wordmark): array => array_map(fn (array $run): string => $run['props']['text'], $wordmark['children']), $wordmarks))->toBe([
+            ["\u{200B}/\u{2060}dev", '/', "\u{2060}null"],
+            ["/\u{2060}dev", '/', "\u{2060}null"],
+        ])
+        ->and($wordmarks[0]['props'])->toMatchArray(['font_name' => 'semibold', 'font_weight' => 5])
+        ->and($slash)->toMatchArray(['font_name' => 'default', 'font_weight' => 3])
+        ->and(strtolower($slash['color']))->toBe(strtolower(config('native-ui.theme.light.lane-0')))
+        ->and(strtolower($slash['dark_color']))->toBe(strtolower(config('native-ui.theme.dark.lane-0')));
+});
+
 it('shows a link preview as a compact row and opens it in the browser', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
         'id' => 'c1',

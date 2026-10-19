@@ -618,7 +618,9 @@ function pageJson(array $items, ?string $nextCursor = null, string $path = 'http
 
 /**
  * The runs of the first paragraph whose text contains $text, as [text, style]:
- * 'mention' for a pressable run, 'code' for one on a wash, or nothing for prose.
+ * 'mention' for a pressable run, 'code' for one on a wash, 'wordmark' for one
+ * drawn from runs of its own (read without its invisible line-break hints), or
+ * nothing for prose.
  *
  * @return list<array{0: string, 1?: string}>
  */
@@ -646,6 +648,7 @@ function paragraphRuns(TestableComponent $screen, string $text): array
     return array_map(fn (array $run): array => match (true) {
         isset($run['on_press']) => [$run['props']['text'], 'mention'],
         isset($run['style']['bg_color']) => [$run['props']['text'], 'code'],
+        isset($run['children']) => [str_replace(["\u{200B}", "\u{2060}"], '', implode('', array_map(fn (array $part): string => $part['props']['text'], $run['children']))), 'wordmark'],
         default => [$run['props']['text']],
     }, $paragraph['children']);
 }

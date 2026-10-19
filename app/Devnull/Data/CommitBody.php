@@ -4,8 +4,9 @@ namespace App\Devnull\Data;
 
 /**
  * Turns a commit's `body_segments` into blocks to draw, the way the web's
- * CommitBody does: prose (with mentions linked) and inline code flow together
- * in paragraphs, and fenced code blocks stand on their own.
+ * CommitBody does: prose (with mentions linked, and `/dev/null` as the
+ * wordmark) and inline code flow together in paragraphs, and fenced code
+ * blocks stand on their own.
  *
  * Mention offsets count code points into the whole body, but segments aren't
  * exact slices of it: inline code loses its backticks, a block its fences, and
@@ -24,6 +25,12 @@ final class CommitBody
     private const string Ellipsis = '…';
 
     private const string FencedBlock = '/\G`{3,}[^`\r\n]*\r?\n(?:([\s\S]*?)\r?\n)?`{3,}[ \t]*(?![^\r\n])/u';
+
+    /**
+     * A `/dev/null` that stands on its own, not part of a longer path, a word
+     * or a name. The web's rule, from withWordmarks() in linkified-text.tsx.
+     */
+    private const string Wordmark = '/(?<![\p{L}\p{M}\p{N}_.\/-])(\/dev\/null)(?![\p{L}\p{M}\p{N}_\/-])/u';
 
     /**
      * @param  list<array<string, mixed>>|null  $segments  The `body_segments`, or null when the API sent none.
@@ -53,7 +60,7 @@ final class CommitBody
                     $start = $text === '' ? false : mb_strpos($body, $text, $cursor);
 
                     if ($start === false) {
-                        $runs[] = new BodyRun($text.($cut ? self::Ellipsis : ''));
+                        array_push($runs, ...self::withWordmarks($text.($cut ? self::Ellipsis : '')));
 
                         break;
                     }
@@ -127,7 +134,7 @@ final class CommitBody
             }
 
             if ($offset > $position) {
-                $runs[] = new BodyRun(mb_substr($text, $position, $offset - $position));
+                array_push($runs, ...self::withWordmarks(mb_substr($text, $position, $offset - $position)));
             }
 
             $runs[] = new BodyRun($handle, username: $mention->username);
@@ -135,7 +142,27 @@ final class CommitBody
         }
 
         if ($position < $length) {
-            $runs[] = new BodyRun(mb_substr($text, $position));
+            array_push($runs, ...self::withWordmarks(mb_substr($text, $position)));
+        }
+
+        return $runs;
+    }
+
+    /**
+     * Splits prose around each standalone `/dev/null`, which becomes a
+     * wordmark run. Like the web, the prose between two mentions is looked at
+     * on its own.
+     *
+     * @return list<BodyRun>
+     */
+    private static function withWordmarks(string $prose): array
+    {
+        $runs = [];
+
+        foreach (preg_split(self::Wordmark, $prose, flags: PREG_SPLIT_DELIM_CAPTURE) ?: [$prose] as $index => $part) {
+            if ($part !== '') {
+                $runs[] = new BodyRun($part, isWordmark: $index % 2 === 1);
+            }
         }
 
         return $runs;
