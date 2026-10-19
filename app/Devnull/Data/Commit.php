@@ -157,6 +157,14 @@ final readonly class Commit
     }
 
     /**
+     * This commit with the poll a fresher copy of it has, as after you voted.
+     */
+    public function withPoll(?Poll $poll): self
+    {
+        return new self(...[...get_object_vars($this), 'poll' => $poll]);
+    }
+
+    /**
      * This commit with the star, save and pastéis state of a fresher copy of
      * it, keeping everything else, such as the parent a list loaded with it.
      */
@@ -258,6 +266,22 @@ final readonly class Commit
     public function isApproved(): bool
     {
         return $this->status === 'approved';
+    }
+
+    /**
+     * Whether $viewer may vote on the commit's poll, as the web decides it: someone else's published commit, whose
+     * poll is open and hasn't had their vote yet.
+     */
+    public function canBeVotedOnBy(?User $viewer): bool
+    {
+        return $viewer !== null
+            && $this->poll !== null
+            && $this->isApproved()
+            && $this->author->id !== $viewer->id
+            && $this->poll->closesAt !== null
+            && ! $this->poll->hasVoted
+            && ! $this->poll->showsResults()
+            && ! $this->poll->hasExpired();
     }
 
     /**

@@ -35,6 +35,10 @@ use Native\Mobile\Edge\NativeComponent;
  * The reply is stashed as you type, per commit, as on the web (see Stash), so
  * leaving the page keeps it, and it's in the reply bar again, marked as
  * restored, when you come back to the commit.
+ *
+ * The reply bar has no room for photos or a preview, so its expand button
+ * opens the reply in the composer sheet, which has them (see replyInSheet()).
+ * The draft goes with it, and back to the bar if the sheet closes unsent.
  */
 class CommitDetail extends NativeComponent
 {
@@ -265,6 +269,32 @@ class CommitDetail extends NativeComponent
     {
         $this->reply = '';
         $this->updatedReply();
+    }
+
+    /**
+     * A reply sent from the composer sheet goes under the commit, as one sent from the reply bar does.
+     */
+    protected function showCommitted(Commit $commit): void
+    {
+        if ($commit->parentId !== $this->id) {
+            return;
+        }
+
+        $this->reply = '';
+        $this->replyRestored = false;
+        $this->replies = [...$this->replies, $commit];
+        $this->repliesShown = true;
+    }
+
+    /**
+     * The reply bar takes back the draft it handed the sheet, as it was left there.
+     */
+    protected function commitSheetGone(string $view): void
+    {
+        if ($view === 'reply') {
+            $this->reply = app(Stash::class)->get($this->me()?->id, $this->replyStashName());
+            $this->replyRestored = false;
+        }
     }
 
     /**

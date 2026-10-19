@@ -3,6 +3,8 @@
 use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\CurrentUser;
+use App\Devnull\Data\DraftImage;
+use App\Devnull\Data\PollDraft;
 use App\Devnull\Data\User;
 use App\Devnull\DeviceKey;
 use App\Devnull\ErrorCode;
@@ -110,6 +112,60 @@ it('quotes a commit with its id next to the body, and no parent', function () {
 
     Http::assertSent(fn (Request $request): bool => $request->body() === '{"body":"This, all of it.","quoted_commit_id":"c1"}'
         && str_ends_with(receivedMessage($request), "\nPOST\n/api/v1/commits\n".'{"body":"This, all of it.","quoted_commit_id":"c1"}'));
+});
+
+it('starts a poll with a commit, its options trimmed and its length in minutes', function () {
+    Http::fake(['devnull.test/*' => Http::response(['data' => commitJson(['id' => 'p1'])], 201)]);
+
+    app(Client::class)->createCommit('Tabs or spaces?', poll: PollDraft::payload(['Tabs', ' Spaces '], '3 days'));
+
+    Http::assertSent(fn (Request $request): bool => $request->body() === '{"body":"Tabs or spaces?","poll":{"options":["Tabs","Spaces"],"duration":4320}}'
+        && $request->header('X-SSH-Signature')[0] === testKey()->sign(receivedMessage($request), 'devnull-api'));
+});
+
+it('signs a commit with images as multipart, with their SHA-256s on a line before the JSON body', function () {
+    $first = new DraftImage(testPhoto('jpg'), 'image/jpeg', 40, 30, '  A cabin at sunrise.  ');
+    $second = new DraftImage(testPhoto('png'), 'image/png', 40, 30);
+
+    $request = app(Client::class)->signedCommitWithImages('Offsite photo dump', [$first, $second], quotedCommitId: 'c1');
+
+    expect($request->url)->toBe('http://devnull.test/api/v1/commits')
+        ->and($request->method)->toBe('POST')
+        ->and($request->contentType)->toMatch('/^multipart\/form-data; boundary=devnull-[0-9a-f]{32}$/');
+
+    $boundary = substr($request->contentType, strlen('multipart/form-data; boundary='));
+    $parts = explode("--{$boundary}", $request->body);
+    $payload = '{"body":"Offsite photo dump","quoted_commit_id":"c1","image_descriptions":["A cabin at sunrise.",null]}';
+
+    expect(array_slice($parts, 1))->toBe([
+        "\r\nContent-Disposition: form-data; name=\"payload\"; filename=\"payload.json\"\r\nContent-Type: application/json\r\n\r\n{$payload}\r\n",
+        "\r\nContent-Disposition: form-data; name=\"images[]\"; filename=\"image-1.jpeg\"\r\nContent-Type: image/jpeg\r\n\r\n".file_get_contents($first->path)."\r\n",
+        "\r\nContent-Disposition: form-data; name=\"images[]\"; filename=\"image-2.png\"\r\nContent-Type: image/png\r\n\r\n".file_get_contents($second->path)."\r\n",
+        "--\r\n",
+    ]);
+
+    $message = RequestSigner::message(
+        $request->headers['X-Devnull-Timestamp'],
+        $request->headers['X-Devnull-Nonce'],
+        'POST',
+        '/api/v1/commits',
+        hash_file('sha256', $first->path).','.hash_file('sha256', $second->path)."\n".$payload,
+    );
+
+    expect($request->headers['X-Devnull-Timestamp'])->toBe('1760000000')
+        ->and($request->headers['X-SSH-Signature'])->toBe(testKey()->sign($message, 'devnull-api-images'));
+});
+
+it('sends a signed request with the content type it was signed with', function () {
+    Http::fake(['devnull.test/*' => Http::response(['data' => commitJson()], 201)]);
+
+    $request = app(Client::class)->signedCommitWithImages('Look', [new DraftImage(testPhoto(), 'image/png', 40, 30)], parentId: 'c1');
+
+    expect(Client::sendSigned($request)->status())->toBe(201);
+
+    Http::assertSent(fn (Request $request2): bool => $request2->header('Content-Type') === [$request->contentType]
+        && $request2->body() === $request->body
+        && $request2->header('X-SSH-Signature') === [$request->headers['X-SSH-Signature']]);
 });
 
 it('uses a fresh nonce for every request', function () {

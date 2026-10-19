@@ -18,10 +18,10 @@ final class FetchInBackground extends AsyncTask
      * @param  array<string, string>  $headers
      * @return array{status: int, json: mixed, retry_after: string}
      */
-    public function handle(string $url, array $headers, string $method = 'GET', string $body = ''): array
+    public function handle(string $url, array $headers, string $method = 'GET', string $body = '', string $contentType = 'application/json'): array
     {
         try {
-            $response = Client::sendSigned(new SignedRequest($url, $headers, $method, $body));
+            $response = Client::sendSigned(new SignedRequest($url, $headers, $method, $body, $contentType));
         } catch (ConnectionException) {
             return ['status' => 0, 'json' => null, 'retry_after' => ''];
         }

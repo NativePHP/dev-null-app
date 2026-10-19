@@ -5,6 +5,13 @@
     commit, without the card. A draft stashed last time comes back in it, with the web's stash@{0} and drop on the left
     of Commit's row.
 
+    A commit's page opens its reply here too, as "Reply to @handle", over the commit being answered as a static card,
+    for the photos and the preview its reply bar has no room for. Commit says Reply there.
+
+    Under what's being written come its photos, then the poll editor, then a row of tools: photos, the camera, a poll
+    (not on a reply), and the preview, which shows the draft as the commit it would become in place of the field (see
+    AttachesToCommits). With photos, Commit spins while they upload, and a short body, or none, will do.
+
     Report commit, in someone else's published commit's More menu, opens it as the web's Report dialog: the private,
     not-hidden line, the commit's body clamped to three lines, the four reasons, optional details, and Send report,
     which waits for a reason. Once devnull has the report, the sheet says so, with Done. If devnull says no, why shows
@@ -15,29 +22,45 @@
 --}}
 <native:bottom-sheet ref="sheet" :visible="$sheetOpen" :detents="$sheetView === 'reported' ? '0.3' : 'large'" @dismiss="commitSheetClosed">
     @if ($sheetCommit || $sheetView === 'compose')
-        @if (in_array($sheetView, ['quote', 'compose'], true))
-            @php($sheetLength = mb_strlen(trim($sheetBody)))
+        @if (in_array($sheetView, ['quote', 'compose', 'reply'], true))
             @php($quoting = $sheetView === 'quote')
+            @php($replying = $sheetView === 'reply')
             <native:scroll-view ref="sheet-composer" class="w-full flex-1">
                 <native:column class="w-full px-5 pt-6 pb-10 gap-4">
-                    <native:text font="semibold" class="text-lg text-theme-ink">{{ $quoting ? 'Quote '.$sheetCommit->author->handle() : 'New commit' }}</native:text>
+                    <native:text font="semibold" class="text-lg text-theme-ink">{{ match (true) { $quoting => 'Quote '.$sheetCommit->author->handle(), $replying => 'Reply to '.$sheetCommit->author->handle(), default => 'New commit' } }}</native:text>
 
-                    <native:bare-text-input
-                        ref="sheet-body"
-                        class="w-full text-theme-ink"
-                        :placeholder="$quoting ? 'Add your take' : 'What did you ship?'"
-                        native:model.debounce.150ms="sheetBody"
-                        autofocus
-                        multiline
-                        :max-lines="8"
-                        :max-length="\App\Devnull\Data\Commit::MaxLength"
-                        size="lg"
-                        a11y-label="Your commit"
-                    />
-
-                    @if ($quoting)
-                        @include('native.partials.quoted-commit', ['quoted' => $sheetCommit, 'static' => true])
+                    @if ($replying)
+                        @include('native.partials.quoted-commit', ['quoted' => $sheetCommit, 'static' => true, 'label' => 'Replying to'])
                     @endif
+
+                    @if ($previewing)
+                        @include('native.partials.composer-preview')
+                    @else
+                        <native:bare-text-input
+                            ref="sheet-body"
+                            class="w-full text-theme-ink"
+                            :placeholder="match (true) { $quoting => 'Add your take', $replying => 'Reply to '.$sheetCommit->author->handle(), default => 'What did you ship?' }"
+                            native:model.debounce.150ms="sheetBody"
+                            autofocus
+                            multiline
+                            :max-lines="8"
+                            :max-length="\App\Devnull\Data\Commit::MaxLength"
+                            size="lg"
+                            a11y-label="Your commit"
+                        />
+
+                        @include('native.partials.composer-photos')
+
+                        @if ($sheetPoll !== null && ! $replying)
+                            @include('native.partials.poll-editor')
+                        @endif
+
+                        @if ($quoting)
+                            @include('native.partials.quoted-commit', ['quoted' => $sheetCommit, 'static' => true])
+                        @endif
+                    @endif
+
+                    @include('native.partials.composer-tools')
 
                     @if ($sheetError)
                         <native:text ref="sheet-error" class="w-full text-sm text-theme-destructive">{{ $sheetError }}</native:text>
@@ -49,7 +72,8 @@
                             <native:spacer />
                         @endif
                         @include('native.partials.body-counter', ['body' => $sheetBody, 'ref' => 'sheet-budget'])
-                        <native:button ref="sheet-commit" :variant="$myColour" :disabled="$sheetLength < \App\Devnull\Data\Commit::MinLength || $sheetLength > \App\Devnull\Data\Commit::MaxLength" @press="commitFromSheet">Commit</native:button>
+                        {{-- The label stays put while it spins, so the button keeps its size. --}}
+                        <native:button ref="sheet-commit" :variant="$myColour" :loading="$sheetSending" :disabled="$sheetSending || ! \App\Devnull\Data\Draft::canCommit($sheetBody, $sheetImages, $replying ? null : $sheetPoll)" @press="commitFromSheet">{{ $replying ? 'Reply' : 'Commit' }}</native:button>
                     </native:row>
                 </native:column>
             </native:scroll-view>

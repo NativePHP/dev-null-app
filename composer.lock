@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "db9e34f24e114a45a188e38b4d6524f8",
+    "content-hash": "b21d8afc9fe4684cf40902c02c26b386",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2892,6 +2892,70 @@
                 "source": "https://github.com/NativePHP/mobile-browser/tree/1.1.0"
             },
             "time": "2026-09-03T18:26:19+00:00"
+        },
+        {
+            "name": "nativephp/mobile-camera",
+            "version": "dev-fix/present-over-sheets",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/NativePHP/mobile-camera.git",
+                "reference": "e838409c0368bb2d1dd33be8679602e5560196ae"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/NativePHP/mobile-camera/zipball/e838409c0368bb2d1dd33be8679602e5560196ae",
+                "reference": "e838409c0368bb2d1dd33be8679602e5560196ae",
+                "shasum": ""
+            },
+            "require": {
+                "nativephp/mobile": "^3.0 || ^4.0",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^2.7|^3.0|^4.0"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Native\\Mobile\\Providers\\CameraServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Native\\Mobile\\Providers\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "pest"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "NativePHP",
+                    "email": "info@nativephp.com"
+                }
+            ],
+            "description": "Camera plugin for NativePHP Mobile (Photo capture, Video recording, Gallery picker)",
+            "support": {
+                "source": "https://github.com/NativePHP/mobile-camera/tree/fix/present-over-sheets",
+                "issues": "https://github.com/NativePHP/mobile-camera/issues"
+            },
+            "time": "2026-10-19T19:09:59+00:00"
         },
         {
             "name": "nativephp/mobile-secure-storage",
@@ -11080,6 +11144,12 @@
             "alias_normalized": "4.6.0.0"
         },
         {
+            "package": "nativephp/mobile-camera",
+            "version": "dev-fix/present-over-sheets",
+            "alias": "1.0.5",
+            "alias_normalized": "1.0.5.0"
+        },
+        {
             "package": "nativephp/mobile-ui",
             "version": "dev-combined/dev-null-app",
             "alias": "0.8.0",
@@ -11089,6 +11159,7 @@
     "minimum-stability": "stable",
     "stability-flags": {
         "nativephp/mobile": 20,
+        "nativephp/mobile-camera": 20,
         "nativephp/mobile-ui": 20
     },
     "prefer-stable": true,

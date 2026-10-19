@@ -107,7 +107,9 @@
         <native:bottom-bar>
             <native:column ref="reply-bar" class="w-full bg-theme-surface">
                 <native:column class="w-full h-[1] bg-theme-hairline" />
-                <native:row class="w-full px-4 py-2 gap-3 items-center">
+                <native:row class="w-full pl-2 pr-4 py-2 gap-1 items-center">
+                    {{-- The bar has no room for photos or a preview, so this opens the reply in the composer sheet, which has them. --}}
+                    @include('native.partials.composer-tool', ['ref' => 'reply-expand', 'icon' => \App\Icons\Lucide::Maximize2, 'label' => 'Reply with photos or a preview', 'press' => "replyInSheet('{$commit->id}')"])
                     {{-- EDGE sends no focus event, so a press on the field is how the page learns you're replying. --}}
                     <native:column ref="reply-field" class="flex-1" @pressUp="replyTapped">
                         <native:bare-text-input
@@ -121,7 +123,9 @@
                             :max-length="\App\Devnull\Data\Commit::MaxLength"
                         />
                     </native:column>
+                    <native:column class="w-[8]" />
                     @include('native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget'])
+                    <native:column class="w-[8]" />
                     <native:button ref="send-reply" :variant="$myColour" size="sm" :disabled="$replyLength < 3 || $remaining < 0" @press="sendReply">Reply</native:button>
                 </native:row>
                 {{-- A reply stashed when you left the commit comes back with the web's stash@{0} and drop under it. --}}

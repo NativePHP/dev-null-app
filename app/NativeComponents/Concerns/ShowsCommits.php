@@ -21,9 +21,9 @@ use Native\Mobile\Facades\Share;
  * The actions under a commit: the star, the pastel in pastéis mode, Quote,
  * Reply, and the More menu's Save commit, Share link, Report commit and Delete
  * commit (Quote and Report open a sheet, see OpensCommitSheet), plus opening
- * its link preview or images in the in-app browser, and "Show more" on a long
- * one. Taps name the commit rather than a URL, so a URL is never rebuilt from
- * an attribute.
+ * its link preview or images in the in-app browser, "Show more" on a long
+ * one, and voting on its poll (see VotesOnPolls). Taps name the commit rather
+ * than a URL, so a URL is never rebuilt from an attribute.
  *
  * A commit can be tapped where a row nests it too: the commit a row quotes,
  * and the replies a feed shows under a commit.
@@ -31,6 +31,7 @@ use Native\Mobile\Facades\Share;
 trait ShowsCommits
 {
     use OpensCommitSheet;
+    use VotesOnPolls;
     use WritesInBackground;
 
     public const string DeleteAlert = 'delete-commit';
