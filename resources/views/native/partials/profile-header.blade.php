@@ -17,10 +17,18 @@
                 {{-- Follow waits for devnull to say whether you already do. --}}
             @elseif ($isMe)
                 <native:button ref="edit-on-github" variant="secondary" size="sm" :ios-icon-trailing="\App\Icons\Lucide::ArrowUpRight->ios()" :android-icon-trailing="\App\Icons\Lucide::ArrowUpRight->android()" @press="editOnGitHub">Edit on GitHub</native:button>
-            @elseif ($profile->isFollowing)
-                <native:button ref="follow" variant="secondary" size="sm" @press="toggleFollow" a11y-hint="Unfollows {{ $user->handle() }}">Unfollow</native:button>
             @else
-                <native:button ref="follow" :variant="$myColour" size="sm" @press="toggleFollow">Follow</native:button>
+                {{-- The web's Remote, beside Follow, when you can push to them. --}}
+                <native:row class="gap-2 items-center">
+                    @if ($canRemote)
+                        <native:button ref="remote" variant="secondary" size="sm" :ios-icon="\App\Icons\Lucide::MessagesSquare->ios()" :android-icon="\App\Icons\Lucide::MessagesSquare->android()" @press="openRemote" a11y-label="Remote {{ $user->handle() }}">Remote</native:button>
+                    @endif
+                    @if ($profile->isFollowing)
+                        <native:button ref="follow" variant="secondary" size="sm" @press="toggleFollow" a11y-hint="Unfollows {{ $user->handle() }}">Unfollow</native:button>
+                    @else
+                        <native:button ref="follow" :variant="$myColour" size="sm" @press="toggleFollow">Follow</native:button>
+                    @endif
+                </native:row>
             @endif
         </native:row>
 

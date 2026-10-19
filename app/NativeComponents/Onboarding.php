@@ -253,6 +253,7 @@ class Onboarding extends NativeComponent
         app(Account::class)->remember($current->user);
         app(Account::class)->rememberUnreadNotifications($current->unreadNotificationsCount);
         app(Account::class)->rememberPasteis($current->pasteis());
+        app(Account::class)->rememberRemotes($current->remotes);
         $this->replace('/log');
     }
 

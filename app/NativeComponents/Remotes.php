@@ -1,0 +1,287 @@
+<?php
+
+namespace App\NativeComponents;
+
+use App\Devnull\Account;
+use App\Devnull\Client;
+use App\Devnull\Data\Conversation as ConversationData;
+use App\Devnull\Exceptions\ApiException;
+use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\TalksToDevnull;
+use App\NativeComponents\Layouts\TabsLayout;
+use Illuminate\View\View;
+use Native\Mobile\Attributes\Poll;
+use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Edge\Transition;
+
+/**
+ * Remotes, the web's direct messages: your conversations and orgs, the one
+ * with the latest message first, each with who it's with, its last message,
+ * and how many messages are ahead of what you pulled, or when it was last
+ * written to. Open lists the ones you haven't stashed, Stashed the ones you
+ * have, and Fetched, while devnull takes requests at all, the first messages
+ * from people you don't follow, waiting for you to merge or drop them.
+ *
+ * It opens on the inbox as it was last time, then asks devnull behind it, and
+ * again every 15 seconds while it's showing, as the web's inbox polls. Rows
+ * change in place, so the list never jumps: a conversation with a new
+ * message moves to the top as it does on the web.
+ *
+ * While you have Remotes off, devnull answers the inbox as the web answers
+ * /remotes, with a 404, and the tab shows the web's page for it.
+ */
+class Remotes extends NativeComponent
+{
+    use OpensInTab;
+    use RefreshesInBackground;
+    use TalksToDevnull;
+
+    /**
+     * The web's tabs. Fetched only shows while devnull takes requests.
+     */
+    public const array Tabs = ['open' => 'Open', 'fetched' => 'Fetched', 'stashed' => 'Stashed'];
+
+    /**
+     * Every frame goes in full, as on the Log (see Log::$forceFullFrames), since a row moves to the top when it
+     * has a new message.
+     */
+    protected bool $forceFullFrames = true;
+
+    /** @var list<ConversationData> */
+    public array $conversations = [];
+
+    public bool $hasMore = false;
+
+    /**
+     * Whether the tab has had conversations to show, kept or fresh. Until then it shows skeleton rows.
+     */
+    public bool $loaded = false;
+
+    public string $tab = 'open';
+
+    /**
+     * How many requests wait in Fetched, which its tab counts, as the web's does.
+     */
+    public int $requestsCount = 0;
+
+    /**
+     * You have Remotes off, as devnull or your account last said.
+     */
+    public bool $off = false;
+
+    public function mount(): void
+    {
+        $this->off = app(Account::class)->remotes() === null;
+        $this->showKept();
+        $this->revalidate();
+    }
+
+    /**
+     * Back from a thread, where you may have pulled, pushed or stashed: take what's kept, then ask devnull.
+     */
+    public function onResume(): void
+    {
+        $this->forgetRefreshes();
+        $this->off = app(Account::class)->remotes() === null;
+        $this->showKept();
+        $this->revalidate();
+    }
+
+    public function navTitle(): string
+    {
+        return 'Remotes';
+    }
+
+    /**
+     * The web's inbox poll, every 15 seconds. A poll that fails says nothing; the next one tries again.
+     */
+    #[Poll(15000)]
+    public function pollInbox(): void
+    {
+        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($json), quiet: true);
+    }
+
+    /**
+     * Pull to refresh.
+     */
+    public function load(): void
+    {
+        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($json), again: true);
+        $this->refreshUnreadNotifications();
+    }
+
+    protected function revalidate(): void
+    {
+        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($json));
+        $this->refreshUnreadNotifications();
+    }
+
+    protected function showsContent(): bool
+    {
+        return $this->loaded;
+    }
+
+    /**
+     * devnull answers a 404 while you have Remotes off, as the web does.
+     */
+    protected function refused(ApiException $exception): bool
+    {
+        if ($exception->status !== 404) {
+            return false;
+        }
+
+        $this->off = true;
+        app(Account::class)->rememberRemotes(null);
+
+        return true;
+    }
+
+    public function showTab(string $tab): void
+    {
+        if (! array_key_exists($tab, $this->tabs()) || $tab === $this->tab) {
+            return;
+        }
+
+        $this->tab = $tab;
+        $this->conversations = [];
+        $this->hasMore = false;
+        $this->loaded = false;
+        $this->showKept();
+        $this->revalidate();
+    }
+
+    public function loadMore(): void
+    {
+        $last = $this->conversations[array_key_last($this->conversations) ?? -1] ?? null;
+
+        if (! $this->hasMore || $last === null) {
+            return;
+        }
+
+        $json = $this->attempt(fn (Client $devnull): array => $devnull->remotes($this->query()['tab'] ?? null, $last->id));
+
+        if ($json === null) {
+            return;
+        }
+
+        $shown = array_flip(array_map(fn (ConversationData $conversation): string => $conversation->id, $this->conversations));
+
+        $this->conversations = [...$this->conversations, ...array_values(array_filter(
+            self::conversationsFrom($json),
+            fn (ConversationData $conversation): bool => ! isset($shown[$conversation->id]),
+        ))];
+        $this->hasMore = ($json['has_more'] ?? false) === true;
+    }
+
+    /**
+     * Opens a conversation's thread in this tab, titled as its row is until devnull answers.
+     */
+    public function openConversation(string $id): void
+    {
+        foreach ($this->conversations as $conversation) {
+            if ($conversation->id === $id) {
+                $this->openInTab($conversation->path(), ['conversation' => $conversation]);
+
+                return;
+            }
+        }
+    }
+
+    /**
+     * The 404's way out, as the web's: back to your log.
+     */
+    public function backToLog(): void
+    {
+        $this->replace(TabsLayout::Tabs[0])->transition(Transition::None);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function tabs(): array
+    {
+        $tabs = self::Tabs;
+
+        if (! (app(Account::class)->remotes()->requests ?? false)) {
+            unset($tabs['fetched']);
+        }
+
+        return $tabs;
+    }
+
+    /**
+     * Open is the inbox itself, so it's asked for without a tab, as the web's links leave it off.
+     *
+     * @return array<string, string|null>
+     */
+    private function query(): array
+    {
+        return $this->tab === 'open' ? [] : ['tab' => $this->tab];
+    }
+
+    private function showKept(): void
+    {
+        if (! $this->off && ($json = $this->cached(Client::RemotesPath, $this->query())) !== null) {
+            $this->takeFresh($json);
+        }
+    }
+
+    /**
+     * A fresh first page replaces the top of the list. The conversations loaded below it stay, unless the fresh page
+     * has them, as the web keeps its older rows under a polled first page. The unread count goes to the tab's badge.
+     *
+     * @param  array<string, mixed>  $json
+     */
+    private function takeFresh(array $json): void
+    {
+        $fresh = self::conversationsFrom($json);
+        $freshIds = array_flip(array_map(fn (ConversationData $conversation): string => $conversation->id, $fresh));
+        $oldest = $fresh[array_key_last($fresh) ?? -1]->lastMessageAt ?? null;
+
+        $later = $oldest === null || ! $this->hasMore ? [] : array_values(array_filter(
+            $this->conversations,
+            fn (ConversationData $conversation): bool => ! isset($freshIds[$conversation->id]) && $conversation->lastMessageAt !== null && $conversation->lastMessageAt <= $oldest,
+        ));
+
+        $this->conversations = [...$fresh, ...$later];
+        $this->hasMore = $later === [] ? ($json['has_more'] ?? false) === true : $this->hasMore;
+        $this->requestsCount = is_int($json['requests_count'] ?? null) ? $json['requests_count'] : 0;
+        $this->loaded = true;
+        $this->off = false;
+
+        if (is_int($json['unread_count'] ?? null)) {
+            app(Account::class)->rememberUnreadRemotes($json['unread_count']);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $json
+     * @return list<ConversationData>
+     */
+    private static function conversationsFrom(array $json): array
+    {
+        return array_values(array_map(
+            fn (array $conversation): ConversationData => ConversationData::fromArray($conversation),
+            array_filter(is_array($json['data'] ?? null) ? $json['data'] : [], is_array(...)),
+        ));
+    }
+
+    public function render(): View
+    {
+        $viewer = $this->me();
+
+        return view('native.remotes', [
+            'viewer' => $viewer,
+            'myColour' => $this->myColour(),
+            'tabs' => $this->tabs(),
+            'rows' => array_map(fn (ConversationData $conversation): array => [
+                'conversation' => $conversation,
+                'title' => $conversation->title($viewer?->id),
+                'others' => $conversation->others($viewer?->id),
+                'preview' => $conversation->lastMessage?->preview($viewer?->id, $conversation->isOrg()) ?? '',
+                'mine' => $conversation->lastMessage !== null && $conversation->lastMessage->userId === $viewer?->id,
+            ], $this->conversations),
+        ]);
+    }
+}

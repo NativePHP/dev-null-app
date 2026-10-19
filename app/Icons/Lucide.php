@@ -22,6 +22,7 @@ enum Lucide
 {
     case GitCommitVertical;
     case Bell;
+    case MessagesSquare;
     case UserRound;
     case Settings2;
     case MessageSquareReply;
@@ -114,6 +115,7 @@ enum Lucide
         $name = match ($this) {
             self::GitCommitVertical => 'git-commit-vertical',
             self::Bell => 'bell',
+            self::MessagesSquare => 'messages-square',
             self::UserRound => 'user-round',
             self::Settings2 => 'settings-2',
             self::MessageSquareReply => 'message-square-reply',

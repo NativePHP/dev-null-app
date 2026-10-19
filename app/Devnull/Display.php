@@ -116,6 +116,14 @@ final class Display
     }
 
     /**
+     * The time of day under a group of messages, as the web prints it, in the same time zone as dayLabel().
+     */
+    public static function clock(CarbonInterface $date, ?CarbonInterface $now = null): string
+    {
+        return CarbonImmutable::instance($date)->setTimezone(($now ?? CarbonImmutable::now())->getTimezone())->format('H:i');
+    }
+
+    /**
      * The date the way `git log` prints it, offset included, since the device
      * time zone isn't visible to PHP.
      */

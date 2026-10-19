@@ -161,12 +161,19 @@ class Profile extends NativeComponent
     public function navigationOptions(): ?NavBarOptions
     {
         if ($this->isMe()) {
-            return NavBarOptions::make()->action(
-                NavAction::make('account')
-                    ->icon(ios: Lucide::Settings2->ios(), android: Lucide::Settings2->android())
-                    ->a11yLabel('Account')
-                    ->press('openAccount'),
-            );
+            return NavBarOptions::make()
+                ->action(
+                    NavAction::make('saved')
+                        ->icon(ios: Lucide::Bookmark->ios(), android: Lucide::Bookmark->android())
+                        ->a11yLabel('Saved')
+                        ->press('openSaved'),
+                )
+                ->action(
+                    NavAction::make('account')
+                        ->icon(ios: Lucide::Settings2->ios(), android: Lucide::Settings2->android())
+                        ->a11yLabel('Account')
+                        ->press('openAccount'),
+                );
         }
 
         $items = $this->safetyActions();
@@ -478,6 +485,35 @@ class Profile extends NativeComponent
         $this->navigate('/profile/device');
     }
 
+    /**
+     * The commits you saved, which the web's phone keeps in its account menu.
+     */
+    public function openSaved(): void
+    {
+        $this->navigate('/profile/saved');
+    }
+
+    /**
+     * Your Remotes thread with them, empty until one of you pushes, as the web's Remote button opens it.
+     */
+    public function openRemote(): void
+    {
+        if ($this->canRemote()) {
+            $this->openInTab('/conversations/'.rawurlencode($this->username), $this->profile === null ? [] : ['user' => $this->profile->user]);
+        }
+    }
+
+    /**
+     * Whether the web would offer Remote here: you have Remotes on, it isn't you or someone across a block, and they
+     * follow you, unless devnull takes requests from anyone. Whether they have Remotes on only shows in the thread.
+     */
+    private function canRemote(): bool
+    {
+        $remotes = app(Account::class)->remotes();
+
+        return $remotes !== null && $this->canChangeSafety() && ($this->profile?->followsYou === true || $remotes->requests);
+    }
+
     public function editOnGitHub(): void
     {
         Browser::inApp('https://github.com/settings/profile');
@@ -720,6 +756,7 @@ class Profile extends NativeComponent
             'myColour' => $this->myColour(),
             'isBlocked' => $this->isBlocking(),
             'isMe' => $this->isMe(),
+            'canRemote' => $this->canRemote(),
             'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),
             'stashed' => app(Stash::class)->names($this->me()?->id),

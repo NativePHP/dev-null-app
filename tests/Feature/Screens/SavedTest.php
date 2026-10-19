@@ -47,9 +47,9 @@ function savedIds(TestableComponent $screen): array
 it('lists the commits you saved, last saved first, in the rows of the log', function () {
     fakeApi(['GET /api/v1/saved' => [savedPage([savedCommit('s2'), savedCommit('s1')])]]);
 
-    $screen = finishRefreshes(Native::visit('/saved'))
+    $screen = finishRefreshes(Native::visit('/profile/saved'))
         ->assertNavTitle('Saved')
-        ->assertTabActive('Saved')
+        ->assertTabActive('Profile')
         ->assertSee('Only you')
         ->assertSee('Commits you want to come back to. Most recently saved first.')
         ->assertSee('Saved s2')
@@ -64,7 +64,7 @@ it('opens on the saved commits kept last time, with no request and no skeleton, 
     keep('saved', savedPage([savedCommit('s1')]));
     serveApi(['GET /api/v1/saved' => [savedPage([savedCommit('s2'), savedCommit('s1')])]]);
 
-    $screen = Native::visit('/saved')->assertSee('Saved s1')->assertDontSee('Saved s2');
+    $screen = Native::visit('/profile/saved')->assertSee('Saved s1')->assertDontSee('Saved s2');
 
     expect(showsLoading($screen->tree()))->toBeFalse()
         ->and(Http::recorded())->toHaveCount(0);
@@ -79,7 +79,7 @@ it('shows skeleton rows the first time, until devnull answers', function () {
     holdRefreshes();
     serveApi(['GET /api/v1/saved' => [savedPage([savedCommit('s1')])]]);
 
-    $screen = Native::visit('/saved');
+    $screen = Native::visit('/profile/saved');
 
     expect(showsLoading($screen->tree()))->toBeTrue();
 
@@ -91,7 +91,7 @@ it('shows skeleton rows the first time, until devnull answers', function () {
 it('says so as the web does when nothing is saved, and Explore Trending opens the Log on Trending', function () {
     fakeApi(['GET /api/v1/saved' => [savedPage([])]]);
 
-    $screen = finishRefreshes(Native::visit('/saved'))
+    $screen = finishRefreshes(Native::visit('/profile/saved'))
         ->assertSee('fatal: no saved commits yet')
         ->assertSee('Save a commit to find it here. Your saved commits are private.')
         ->assertDontSee("You've reached the end of your saved commits.");
@@ -108,7 +108,7 @@ it('takes a commit off the list once devnull says it is unsaved, and keeps it wh
         'DELETE /api/v1/commits/s2/bookmark' => [$status === 200 ? ['data' => savedCommit('s2', ['is_saved' => false])] : ['message' => 'Server Error'], $status],
     ]);
 
-    $screen = finishRefreshes(Native::visit('/saved'))->tap('save-s2');
+    $screen = finishRefreshes(Native::visit('/profile/saved'))->tap('save-s2');
 
     expect(savedIds($screen))->toBe($ids)
         ->and(array_column(kept('saved')['data'], 'id'))->toBe($ids)
@@ -125,7 +125,7 @@ it('keeps a commit when only a reply under it is unsaved', function () {
         'DELETE /api/v1/commits/r1/bookmark' => [['data' => [...$reply, 'is_saved' => false]]],
     ]);
 
-    $screen = finishRefreshes(Native::visit('/saved'))->call('toggleBookmark', 'r1');
+    $screen = finishRefreshes(Native::visit('/profile/saved'))->call('toggleBookmark', 'r1');
 
     expect(savedIds($screen))->toBe(['s1']);
 });
@@ -138,7 +138,7 @@ it('starts again from the top when the last commit showing is unsaved and there 
         'GET /api/v1/saved' => [savedPage([savedCommit('s2'), savedCommit('s1')])],
     ]);
 
-    $screen = Native::visit('/saved')->tap('save-s3')->assertDontSee('fatal: no saved commits yet');
+    $screen = Native::visit('/profile/saved')->tap('save-s3')->assertDontSee('fatal: no saved commits yet');
 
     expect(showsLoading($screen->tree()))->toBeTrue();
 
@@ -152,7 +152,7 @@ it('loads the next page at the end of the list, and pulls to refresh', function 
         ? savedPage([savedCommit('s1')])
         : savedPage([savedCommit('s3'), savedCommit('s2')], nextCursor: 'page2')));
 
-    $screen = finishRefreshes(Native::visit('/saved'))->assertElement('row', fn (array $node): bool => ($node['ref'] ?? null) === 'loading-more');
+    $screen = finishRefreshes(Native::visit('/profile/saved'))->assertElement('row', fn (array $node): bool => ($node['ref'] ?? null) === 'loading-more');
 
     $screen->call('loadMore')->assertSee("You've reached the end of your saved commits.");
 
@@ -171,7 +171,7 @@ it('lays a fresh first page over the list, keeping the pages below it in place',
     keep('saved', savedPage([savedCommit('s5'), savedCommit('s4'), savedCommit('s3')], nextCursor: 'page2'));
     serveApi(['GET /api/v1/saved' => [savedPage([savedCommit('s2'), savedCommit('s1')], nextCursor: 'page3')]]);
 
-    $screen = Native::visit('/saved')->call('loadMore');
+    $screen = Native::visit('/profile/saved')->call('loadMore');
     expect(savedIds($screen))->toBe(['s5', 's4', 's3', 's2', 's1']);
 
     serveApi(['GET /api/v1/saved' => [savedPage(array_map(fn (string $id): array => savedCommit($id), $fresh), $cursor)]]);
@@ -201,13 +201,13 @@ it('shows a commit saved on another screen the next time it opens, and leaves ou
     finishRefreshes(Native::visit('/log'))->tap('save-c1');
 
     holdRefreshes();
-    $saved = Native::visit('/saved')->assertSee('Worth keeping');
+    $saved = Native::visit('/profile/saved')->assertSee('Worth keeping');
     expect(savedIds($saved))->toBe(['c1', 's1']);
 
     Native::visit('/log')->tap('save-s1');
 
     holdRefreshes();
-    expect(savedIds(Native::visit('/saved')))->toBe(['c1']);
+    expect(savedIds(Native::visit('/profile/saved')))->toBe(['c1']);
 });
 
 it('drops a commit unsaved on its own page as soon as you come back, even past the first page', function () {
@@ -220,10 +220,10 @@ it('drops a commit unsaved on its own page as soon as you come back, even past t
         'DELETE /api/v1/commits/s1/bookmark' => [['data' => savedCommit('s1', ['is_saved' => false])]],
     ]);
 
-    $saved = Native::visit('/saved')->call('loadMore');
+    $saved = Native::visit('/profile/saved')->call('loadMore');
     expect(savedIds($saved))->toBe(['s2', 's1']);
 
-    $commit = $saved->tap('commit-s1')->assertNavigatedTo('/saved/commits/s1')->follow()->tap('save-s1');
+    $commit = $saved->tap('commit-s1')->assertNavigatedTo('/profile/commits/s1')->follow()->tap('save-s1');
 
     expect(savedIds($commit->goBack()))->toBe(['s2']);
 });
@@ -237,11 +237,11 @@ it('keeps a commit saved again after it was unsaved', function () {
         'GET /api/v1/commits/s1/replies' => [pageJson([])],
     ]);
 
-    $commit = Native::visit('/saved/commits/s1');
+    $commit = Native::visit('/profile/commits/s1');
     $commit->tap('save-s1')->tap('save-s1');
 
     holdRefreshes();
-    expect(savedIds(Native::visit('/saved')))->toBe(['s1']);
+    expect(savedIds(Native::visit('/profile/saved')))->toBe(['s1']);
 });
 
 it('deletes your own saved commit from its menu, and lets its row go', function () {
@@ -260,7 +260,7 @@ it('deletes your own saved commit from its menu, and lets its row go', function 
         ]));
     });
 
-    $screen = finishRefreshes(Native::visit('/saved', platform: 'ios'))
+    $screen = finishRefreshes(Native::visit('/profile/saved', platform: 'ios'))
         ->tap('delete-s2')
         ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Delete', 'id' => 'delete-commit'])
         ->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === 'rm s2 → /dev/null')
@@ -275,7 +275,7 @@ it('quotes and reports from Saved with your lane colour on the sheet', function 
     signIn(['lane' => 4]);
     fakeApi(['GET /api/v1/saved' => [savedPage([savedCommit('s1')])]]);
 
-    $screen = finishRefreshes(Native::visit('/saved', platform: 'ios'))->tap("{$item}-s1");
+    $screen = finishRefreshes(Native::visit('/profile/saved', platform: 'ios'))->tap("{$item}-s1");
 
     expect(nodeByRef($screen, $button)['props']['variant'] ?? null)->toBe('lane-4');
 })->with([
@@ -283,9 +283,9 @@ it('quotes and reports from Saved with your lane colour on the sheet', function 
     'Report commit' => ['report', 'send-report'],
 ]);
 
-it('opens commits and profiles on the Saved tab', function () {
+it('opens commits and profiles under your profile, where Saved opens', function () {
     fakeApi(['GET /api/v1/saved' => [savedPage([savedCommit('s1')])]]);
 
-    finishRefreshes(Native::visit('/saved'))->tap('commit-s1')->assertNavigatedTo('/saved/commits/s1');
-    finishRefreshes(Native::visit('/saved'))->call('openProfile', 'ada')->assertNavigatedTo('/saved/users/ada');
+    finishRefreshes(Native::visit('/profile/saved'))->tap('commit-s1')->assertNavigatedTo('/profile/commits/s1');
+    finishRefreshes(Native::visit('/profile/saved'))->call('openProfile', 'ada')->assertNavigatedTo('/profile/users/ada');
 });

@@ -14,17 +14,17 @@ use Native\Mobile\Edge\Layouts\NativeLayout;
 use Native\Mobile\Edge\NativeComponent;
 
 /**
- * The top-level sections: Log, Notifications, Saved and your Profile, with the
- * icons of the web's nav, picked out in the colour you chose for your lane.
- * Notifications wears a badge with the unread count devnull last gave. The
- * web's phone keeps Saved in its account menu; here it's a tab of its own.
+ * The top-level sections: Log, Notifications, Remotes and your Profile, with
+ * the icons of the web's nav, picked out in the colour you chose for your lane.
+ * Notifications and Remotes wear a badge with the unread count devnull last
+ * gave. Saved opens from your own profile.
  */
 class TabsLayout extends NativeLayout
 {
     /**
      * Each tab's URI. Commits and profiles open beneath the one they were tapped in.
      */
-    public const array Tabs = ['/log', '/notifications', '/saved', '/profile'];
+    public const array Tabs = ['/log', '/notifications', '/remotes', '/profile'];
 
     /**
      * The icon and "/dev/null" wordmark as the web's MobileHeader draws them, 105 x 28pt.
@@ -71,19 +71,25 @@ class TabsLayout extends NativeLayout
     public function tabBar(NativeComponent $screen): ?TabBar
     {
         $notifications = Tab::link('Notifications', '/notifications', ios: Lucide::Bell->ios(), android: Lucide::Bell->android());
-        $unread = app(Account::class)->unreadNotifications();
+        $remotes = Tab::link('Remotes', '/remotes', ios: Lucide::MessagesSquare->ios(), android: Lucide::MessagesSquare->android());
 
-        if ($unread > 0) {
-            $notifications->badge($unread > 99 ? '99+' : (string) $unread);
-        }
+        self::badge($notifications, app(Account::class)->unreadNotifications());
+        self::badge($remotes, app(Account::class)->unreadRemotes());
 
         return TabBar::make()
             ->activeColor(self::accent())
             ->labelVisibility('labeled')
             ->add(Tab::link('Log', '/log', ios: Lucide::GitCommitVertical->ios(), android: Lucide::GitCommitVertical->android()))
             ->add($notifications)
-            ->add(Tab::link('Saved', '/saved', ios: Lucide::Bookmark->ios(), android: Lucide::Bookmark->android()))
+            ->add($remotes)
             ->add(Tab::link('Profile', '/profile', ios: Lucide::UserRound->ios(), android: Lucide::UserRound->android()));
+    }
+
+    private static function badge(Tab $tab, int $unread): void
+    {
+        if ($unread > 0) {
+            $tab->badge($unread > 99 ? '99+' : (string) $unread);
+        }
     }
 
     /**

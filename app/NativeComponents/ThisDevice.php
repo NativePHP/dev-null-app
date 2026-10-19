@@ -6,6 +6,7 @@ use App\Devnull\Account;
 use App\Devnull\AppleSignIn;
 use App\Devnull\Client;
 use App\Devnull\Data\CurrentUser;
+use App\Devnull\Data\Remotes;
 use App\Devnull\DeviceKey;
 use App\Devnull\Display;
 use App\Devnull\Exceptions\KeychainUnavailable;
@@ -27,7 +28,8 @@ use SensitiveParameter;
 /**
  * Your account, reached from your own profile, laid out like the web's profile
  * settings: your profile as devnull mirrors it from GitHub, with a sync, your
- * colour, pastéis mode, the people you mute and block, then this phone's
+ * colour, pastéis mode, Remotes and their settings, the people you mute and
+ * block, then this phone's
  * fingerprint, signing out and deleting the account.
  * Where the app talks to only shows when it isn't dev-null.sh.
  *
@@ -108,6 +110,21 @@ class ThisDevice extends NativeComponent
      * What the web says when the switch couldn't be saved.
      */
     public const string PasteisModeFailed = 'Could not save pastéis mode. Please try again.';
+
+    public bool $savingRemotes = false;
+
+    public ?string $remotesError = null;
+
+    public bool $savingRemotePreferences = false;
+
+    public ?string $remotePreferencesError = null;
+
+    /**
+     * What the web says when the Remotes switch, or the settings on its Remotes page, couldn't be saved.
+     */
+    public const string RemotesFailed = 'Could not save remotes. Please try again.';
+
+    public const string RemotePreferencesFailed = 'Could not save your remote settings. Try again.';
 
     /**
      * Whether devnull has an Apple ID linked to you, or null until it says.
@@ -333,6 +350,97 @@ class ThisDevice extends NativeComponent
     }
 
     /**
+     * Switches Remotes, as the web's switch does. The switch and the Remotes
+     * tab take it at once, and devnull is told from the background; flipped
+     * again before devnull answers, it's saved again once it has, so the last
+     * flip wins. When devnull says no, it goes back, saying so in the web's words.
+     */
+    public function setRemotes(bool $enabled): void
+    {
+        if ($this->current === null || ($this->current->remotes !== null) === $enabled) {
+            return;
+        }
+
+        $this->remotesError = null;
+        $this->showRemotes($enabled ? new Remotes : null);
+
+        if (! $this->savingRemotes) {
+            $this->saveRemotes($enabled);
+        }
+    }
+
+    private function saveRemotes(bool $enabled): void
+    {
+        $this->savingRemotes = true;
+
+        $this->writeInBackground('PUT', Client::RemotesSwitchPath, ['enabled' => $enabled], function (array $json) use ($enabled): void {
+            $this->savingRemotes = false;
+
+            if ($this->current !== null && ($this->current->remotes !== null) !== $enabled) {
+                $this->saveRemotes($this->current->remotes !== null);
+
+                return;
+            }
+
+            $this->takeMe($json);
+        }, function () use ($enabled): void {
+            $this->savingRemotes = false;
+            $this->remotesError = self::RemotesFailed;
+            $this->showRemotes($enabled ? null : new Remotes);
+        });
+    }
+
+    /**
+     * Share pulls, as the web's checkbox: whether others see when you pull their messages, and you theirs.
+     */
+    public function setPullReceipts(bool $pullReceipts): void
+    {
+        $remotes = $this->current?->remotes;
+
+        if ($remotes !== null && $remotes->pullReceipts !== $pullReceipts) {
+            $this->saveRemotePreferences($remotes->with($remotes->from, $pullReceipts), $remotes);
+        }
+    }
+
+    /**
+     * Who can push to you straight away, which the web only offers while devnull lets people pick everyone.
+     */
+    public function setRemotesFrom(string $from): void
+    {
+        $remotes = $this->current?->remotes;
+
+        if ($remotes !== null && $remotes->everyone && in_array($from, [Remotes::Following, Remotes::Everyone], true) && $remotes->from !== $from) {
+            $this->saveRemotePreferences($remotes->with($from, $remotes->pullReceipts), $remotes);
+        }
+    }
+
+    private function saveRemotePreferences(Remotes $remotes, Remotes $before): void
+    {
+        $this->remotePreferencesError = null;
+        $this->savingRemotePreferences = true;
+        $this->showRemotes($remotes);
+
+        $this->writeInBackground('PUT', Client::RemotePreferencesPath, ['from' => $remotes->from, 'pull_receipts' => $remotes->pullReceipts], function (array $json): void {
+            $this->savingRemotePreferences = false;
+            $this->takeMe($json);
+        }, function () use ($before): void {
+            $this->savingRemotePreferences = false;
+            $this->remotePreferencesError = self::RemotePreferencesFailed;
+            $this->showRemotes($before);
+        });
+    }
+
+    private function showRemotes(?Remotes $remotes): void
+    {
+        if ($this->current === null) {
+            return;
+        }
+
+        $this->current = $this->current->withRemotes($remotes);
+        app(Account::class)->rememberRemotes($remotes);
+    }
+
+    /**
      * The devices page on dev-null.sh, where this phone is listed once approved.
      */
     public function openDevices(): void
@@ -461,6 +569,7 @@ class ThisDevice extends NativeComponent
             'lanes' => $current === null ? [] : $this->laneOptions($current),
             'laneChanged' => $current !== null && $this->chosenLane !== $current->preferredLane,
             'pasteisMode' => $current?->pasteisMode ?? false,
+            'remotes' => $current?->remotes,
             'remote' => self::remote(),
             'offersApple' => AppleSignIn::isAvailable(),
             'appleStatus' => match ($this->appleLinked) {
@@ -544,8 +653,9 @@ class ThisDevice extends NativeComponent
     /**
      * Shows you as devnull sent you. A colour picked and not saved yet stays
      * picked; otherwise the picker follows the one devnull has. While the
-     * pastéis switch is saving, it keeps what it shows. Whether Apple is
-     * linked only comes with `GET /me`, so it's left to the refresh.
+     * pastéis or Remotes switches are saving, they keep what they show.
+     * Whether Apple is linked only comes with `GET /me`, so it's left to the
+     * refresh.
      *
      * @param  array<string, mixed>  $json
      */
@@ -563,6 +673,10 @@ class ThisDevice extends NativeComponent
 
         if ($this->savingPasteisMode && $this->current !== null) {
             $current = $current->withPasteisMode($this->current->pasteisMode);
+        }
+
+        if (($this->savingRemotes || $this->savingRemotePreferences) && $this->current !== null) {
+            $current = $current->withRemotes($this->current->remotes);
         }
 
         return $this->current = $current;
@@ -583,6 +697,7 @@ class ThisDevice extends NativeComponent
         app(Account::class)->remember($current->user);
         app(Account::class)->rememberUnreadNotifications($current->unreadNotificationsCount);
         app(Account::class)->rememberPasteis($current->pasteis());
+        app(Account::class)->rememberRemotes($current->remotes);
         app(ResponseCache::class)->meChanged($json);
     }
 

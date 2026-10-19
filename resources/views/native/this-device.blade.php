@@ -132,6 +132,56 @@
                 </native:column>
             @endif
 
+            @if ($user)
+                {{--
+                    The web's Remotes switch, word for word, with the settings its Remotes page keeps in a menu under it
+                    while Remotes are on: who can push to you, only while devnull offers Everyone, and Share pulls.
+                --}}
+                <native:column ref="remotes" class="w-full pt-10">
+                    <native:row class="w-full px-4 gap-6 items-start">
+                        <native:column class="flex-1 gap-2">
+                            <native:text font="semibold" class="text-lg text-theme-ink">Remotes</native:text>
+                            <native:text class="text-sm leading-relaxed text-theme-ink-muted">One-to-one messages with other developers. People you follow can push to you, and you can push to people who follow you. Whether you share pulls (read receipts) is up to you, from Remotes.</native:text>
+                            <native:text class="text-sm leading-relaxed text-theme-ink-muted">When off, nobody can message you and Remotes is hidden. Your conversations are kept for when you turn it back on.</native:text>
+                        </native:column>
+                        <native:toggle ref="remotes-switch" :value="$remotes !== null" @change="setRemotes" a11y-label="Remotes" />
+                    </native:row>
+                    @if ($remotesError)
+                        <native:text ref="remotes-error" class="w-full px-4 pt-2 text-sm text-theme-destructive">{{ $remotesError }}</native:text>
+                    @endif
+
+                    @if ($remotes)
+                        @if ($remotes->everyone)
+                            <native:column ref="remotes-from" class="mx-4 mt-4 rounded-lg border border-theme-hairline bg-theme-surface">
+                                <native:text font="mono" class="w-full px-3 pt-3 pb-1 text-[13px] text-theme-ink-muted">who can push to you</native:text>
+                                @foreach (['following' => 'People you follow', 'everyone' => 'Everyone'] as $from => $label)
+                                    <native:pressable ref="remotes-from-{{ $from }}" @press="setRemotesFrom('{{ $from }}')" a11y-label="{{ $label }}{{ $remotes->from === $from ? ', selected' : '' }}">
+                                        <native:row class="w-full px-3 py-3 gap-3 items-center">
+                                            <native:text class="flex-1 text-[15px] text-theme-ink">{{ $label }}</native:text>
+                                            @if ($remotes->from === $from)
+                                                <native:icon :ios="Lucide::Check->ios()" :android="Lucide::Check->android()" :size="16" class="text-theme-{{ $myColour }}" />
+                                            @endif
+                                        </native:row>
+                                    </native:pressable>
+                                @endforeach
+                                <native:text class="w-full px-3 pb-3 text-xs leading-relaxed text-theme-ink-muted">{{ $remotes->requests ? 'Anyone else lands in Fetched until you merge them. Requests already fetched stay there.' : 'Anyone else can push to you once you follow them.' }}</native:text>
+                            </native:column>
+                        @endif
+
+                        <native:row ref="share-pulls" class="w-full px-4 pt-6 gap-6 items-start">
+                            <native:column class="flex-1 gap-1">
+                                <native:text font="medium" class="text-[15px] text-theme-ink">Share pulls</native:text>
+                                <native:text class="text-sm leading-relaxed text-theme-ink-muted">When off, nobody sees when you pull their messages, and you don't see when they pull yours.</native:text>
+                            </native:column>
+                            <native:toggle ref="share-pulls-switch" :value="$remotes->pullReceipts" @change="setPullReceipts" a11y-label="Share pulls" />
+                        </native:row>
+                        @if ($remotePreferencesError)
+                            <native:text ref="remote-preferences-error" class="w-full px-4 pt-2 text-sm text-theme-destructive">{{ $remotePreferencesError }}</native:text>
+                        @endif
+                    @endif
+                </native:column>
+            @endif
+
             <native:column ref="safety" class="w-full pt-10">
                 @include('native.partials.settings-heading', [
                     'title' => 'Safety',

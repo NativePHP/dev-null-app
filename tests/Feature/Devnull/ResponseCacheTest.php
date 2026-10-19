@@ -407,3 +407,20 @@ it('keeps a patched answer only as long as the one it came from', function () {
 
     expect($this->cache->get('me'))->toBeNull();
 });
+
+it("keeps the Remotes inbox and a thread's first page, but never a thread's poll or an older page", function () {
+    $this->cache->put('remotes', [], remotesInboxJson([conversationJson()]));
+    $this->cache->put('remotes', ['tab' => 'stashed'], remotesInboxJson([]));
+    $this->cache->put('remotes/@ada/messages', [], threadJson([remoteMessageJson()]));
+    $this->cache->put('remotes/orgs/org-1/messages', [], threadJson([remoteMessageJson()]));
+    $this->cache->put('remotes/@ada/messages', ['after' => '1', 'reactions_after' => '0'], threadJson([remoteMessageJson(['id' => 2])]));
+    $this->cache->put('remotes', ['before' => 'conv-1'], remotesInboxJson([]));
+
+    expect($this->cache->get('remotes'))->not->toBeNull()
+        ->and($this->cache->get('remotes', ['tab' => 'stashed']))->not->toBeNull()
+        ->and($this->cache->get('remotes/orgs/org-1/messages'))->not->toBeNull()
+        ->and($this->cache->get('remotes/@ada/messages')['data']['messages'][0]['id'])->toBe(1)
+        ->and(ResponseCache::caches('remotes/@ada/messages', ['after' => '1']))->toBeFalse()
+        ->and(ResponseCache::caches('remotes', ['before' => 'conv-1']))->toBeFalse()
+        ->and(ResponseCache::caches('remotes/reactions'))->toBeFalse();
+});

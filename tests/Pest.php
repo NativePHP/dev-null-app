@@ -797,3 +797,107 @@ function dayMarkers(TestableComponent $screen): array
         return $text['text'] ?? $text['props']['text'] ?? '';
     }, findNodes($tree, fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'day-')));
 }
+
+/**
+ * A Remotes message as devnull sends it to someone in the conversation. Its segments follow its body unless a test
+ * sends its own.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function remoteMessageJson(array $overrides = []): array
+{
+    $body = $overrides['body'] ?? 'Shipped it.';
+
+    return [
+        'id' => 1,
+        'user_id' => 'u2',
+        'client_id' => '9f0f6f3e-0000-4000-8000-000000000001',
+        'body' => $body,
+        'body_segments' => $body === '' ? [] : [['type' => 'text', 'text' => $body]],
+        'mentions' => [],
+        'reply_to_id' => null,
+        'reply_to' => null,
+        'link_preview' => null,
+        'images' => [],
+        'reactions' => [],
+        'event' => null,
+        'subject_id' => null,
+        'created_at' => '2026-10-19T15:00:00Z',
+        ...$overrides,
+    ];
+}
+
+/**
+ * A row of the Remotes inbox: a conversation with Ada, unless a test says otherwise.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function conversationJson(array $overrides = []): array
+{
+    return [
+        'id' => 'conv-1',
+        'kind' => 'direct',
+        'name' => null,
+        'partner' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]),
+        'members' => null,
+        'last_message' => remoteMessageJson(),
+        'last_message_at' => '2026-10-19T15:00:00.000000Z',
+        'ahead' => 0,
+        'partner_read_through_id' => 0,
+        'partner_read_at' => null,
+        'is_archived' => false,
+        ...$overrides,
+    ];
+}
+
+/**
+ * `GET /remotes` as devnull answers it.
+ *
+ * @param  list<array<string, mixed>>  $conversations
+ * @return array<string, mixed>
+ */
+function remotesInboxJson(array $conversations, bool $hasMore = false, int $unread = 0, int $requests = 0): array
+{
+    return ['data' => $conversations, 'has_more' => $hasMore, 'unread_count' => $unread, 'requests_count' => $requests];
+}
+
+/**
+ * A Remotes thread with Ada as devnull answers it, its first page or a poll.
+ *
+ * @param  list<array<string, mixed>>  $messages
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function threadJson(array $messages, array $overrides = []): array
+{
+    return ['data' => [
+        'partner' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]),
+        'messages' => $messages,
+        'has_older' => false,
+        'reactions_version' => 0,
+        'reaction_changes' => [],
+        'read_through_id' => 0,
+        'partner_read_through_id' => 0,
+        'partner_read_at' => null,
+        'partner_typing' => false,
+        'is_archived' => false,
+        'access' => 'open',
+        ...$overrides,
+    ]];
+}
+
+/**
+ * The requests sent to devnull with a method and a path, as their bodies.
+ *
+ * @return list<string>
+ */
+function sentTo(string $method, string $path): array
+{
+    return collect(Http::recorded())
+        ->filter(fn (array $sent): bool => $sent[0]->method() === $method && parse_url($sent[0]->url(), PHP_URL_PATH) === '/api/v1/'.$path)
+        ->map(fn (array $sent): string => $sent[0]->body())
+        ->values()
+        ->all();
+}

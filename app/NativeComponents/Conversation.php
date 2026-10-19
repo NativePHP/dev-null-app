@@ -1,0 +1,879 @@
+<?php
+
+namespace App\NativeComponents;
+
+use App\Devnull\Client;
+use App\Devnull\Data\Conversation as ConversationData;
+use App\Devnull\Data\Message;
+use App\Devnull\Data\Thread;
+use App\Devnull\Data\User;
+use App\Devnull\Display;
+use App\Icons\Lucide;
+use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\TalksToDevnull;
+use App\NativeComponents\Concerns\WritesInBackground;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Str;
+use Illuminate\View\View;
+use Native\Mobile\Attributes\Poll;
+use Native\Mobile\Edge\Layouts\Builders\NavAction;
+use Native\Mobile\Edge\Layouts\Builders\NavBarOptions;
+use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Facades\Browser;
+
+/**
+ * A Remotes thread, with a person or an org, as the web's thread shows it:
+ * the messages oldest first, yours on the right in your lane, with a day
+ * marker wherever the day changes and HEAD where you left off, then the
+ * composer at the bottom.
+ *
+ * It opens on the thread as it was last time and asks devnull behind it, then
+ * polls for what came after the last message, as the web does: every two
+ * seconds while anyone has written or typed in the last minute, every four
+ * otherwise. The scroll view stays on the latest message while you're there,
+ * and leaves you be while you read back. What's new is pulled (marked read)
+ * as it arrives, since the thread is on screen.
+ *
+ * A message you push shows staged at once, then pushed once devnull has it,
+ * or rejected with a retry, which sends it again under the same client id so
+ * it's never stored twice. A long press on a message opens its reactions and
+ * Reply, and a double tap toggles a heart, as on the web's phone layout.
+ *
+ * When the composer can't push (a request to merge, your own request waiting,
+ * someone who doesn't follow you, or has Remotes off), the bar says so in the
+ * web's words, and a request offers Merge and Drop.
+ */
+class Conversation extends NativeComponent
+{
+    use OpensInTab;
+    use RefreshesInBackground;
+    use TalksToDevnull;
+    use WritesInBackground;
+
+    /**
+     * The web's poll: every 1.5 seconds within a minute of someone writing or typing, every 4 seconds otherwise. A
+     * poll here can only fire every two seconds, so an idle thread skips every other one.
+     */
+    public const int ActiveWindow = 60;
+
+    public const float IdlePoll = 3.9;
+
+    /**
+     * How often the composer tells the others you're typing, at most, as the web's does.
+     */
+    public const int TypingPing = 3;
+
+    /**
+     * The reactions a long press offers first, before any you use more, as the web's quick bar.
+     */
+    public const array QuickReactions = ['😂', '✅', '❤️'];
+
+    /**
+     * The rest the sheet offers, every one of them in devnull's shortcode set.
+     */
+    public const array MoreReactions = ['👍', '👀', '🔥', '🎉', '🚀', '💯', '🙏', '🤔', '👏', '😅', '😮', '😢', '🙌', '💀', '✨', '🤝'];
+
+    /**
+     * Every frame goes in full, as on the Log (see Log::$forceFullFrames): messages come in at the bottom and their
+     * reactions change in place, which EDGE's subtree reuse would otherwise miss.
+     */
+    protected bool $forceFullFrames = true;
+
+    /**
+     * Who the thread is with, from the route: a username, or an org's id.
+     */
+    public string $username = '';
+
+    public string $org = '';
+
+    /**
+     * Everything about the thread but its messages, as devnull last sent it.
+     */
+    public ?Thread $thread = null;
+
+    /** @var list<Message> */
+    public array $messages = [];
+
+    /**
+     * Messages you pushed that devnull hasn't taken yet, staged or rejected, after the rest.
+     *
+     * @var list<Message>
+     */
+    public array $pending = [];
+
+    public bool $hasOlder = false;
+
+    public int $reactionsVersion = 0;
+
+    /**
+     * Where you'd pulled to, and the latest message, when the thread opened, for the HEAD marker.
+     */
+    public ?int $head = null;
+
+    public int $headUntil = 0;
+
+    public int $readThroughId = 0;
+
+    public bool $loaded = false;
+
+    public string $draft = '';
+
+    public ?int $replyToId = null;
+
+    /**
+     * The message a long press opened the reactions sheet for.
+     */
+    public ?int $sheetMessageId = null;
+
+    public bool $sheetOpen = false;
+
+    /**
+     * The messages whose reaction you changed and devnull hasn't answered for yet, which a poll leaves alone.
+     *
+     * @var array<int, true>
+     */
+    public array $reacting = [];
+
+    /**
+     * The emoji you react with, most used first, which the sheet's quick reactions follow.
+     *
+     * @var list<array{emoji: string, count: int}>
+     */
+    public array $usage = [];
+
+    public float $lastActivityAt = 0;
+
+    public float $lastPolledAt = 0;
+
+    public float $lastTypingAt = 0;
+
+    /**
+     * Why Merge or Drop didn't go through, shown in the request's bar.
+     */
+    public ?string $requestError = null;
+
+    /**
+     * What the inbox's row knew, to title the thread until devnull answers.
+     */
+    public ?ConversationData $row = null;
+
+    public function mount(): void
+    {
+        $row = $this->data('conversation');
+        $this->row = $row instanceof ConversationData ? $row : null;
+        $this->showKept();
+        $this->revalidate();
+        $this->refresh('remotes/reactions', [], fn (array $json) => $this->usage = self::usageFrom($json), quiet: true);
+    }
+
+    public function onResume(): void
+    {
+        $this->forgetRefreshes();
+        $this->showKept();
+        $this->revalidate();
+    }
+
+    public function navTitle(): string
+    {
+        return $this->title() ?: 'Remotes';
+    }
+
+    public function navigationOptions(): ?NavBarOptions
+    {
+        $options = NavBarOptions::make()->subtitle($this->subtitle());
+
+        if ($this->thread === null) {
+            return $options;
+        }
+
+        $items = [];
+
+        if (! $this->isOrg()) {
+            $items[] = NavAction::make('view-profile')->label('View profile')->icon(ios: Lucide::UserRound->ios(), android: Lucide::UserRound->android())->press('viewProfile');
+        }
+
+        $items[] = $this->thread->isArchived
+            ? NavAction::make('pop')->label('Pop')->icon(ios: Lucide::ArrowUp->ios(), android: Lucide::ArrowUp->android())->press('pop')
+            : NavAction::make('stash')->label('Stash')->icon(ios: Lucide::FoldVertical->ios(), android: Lucide::FoldVertical->android())->press('stash');
+
+        return $options->action(
+            NavAction::make('conversation-actions')
+                ->icon(ios: Lucide::Ellipsis->ios(), android: Lucide::Ellipsis->android())
+                ->a11yLabel('Conversation actions')
+                ->items($items),
+        );
+    }
+
+    /**
+     * The web's poll, for what came after the last message and the reactions changed since.
+     */
+    #[Poll(2000)]
+    public function poll(): void
+    {
+        $now = self::now();
+        $active = $now - $this->lastActivityAt < self::ActiveWindow;
+
+        if (! $this->loaded || (! $active && $now - $this->lastPolledAt < self::IdlePoll)) {
+            return;
+        }
+
+        $this->lastPolledAt = $now;
+
+        $this->refresh($this->messagesPath(), [
+            'after' => (string) $this->lastId(),
+            'reactions_after' => (string) $this->reactionsVersion,
+        ], fn (array $json) => $this->takePoll($json), quiet: true);
+    }
+
+    protected function revalidate(): void
+    {
+        $this->refresh($this->messagesPath(), [], fn (array $json) => $this->takeThread($json, fresh: true));
+        $this->refreshUnreadNotifications();
+    }
+
+    protected function showsContent(): bool
+    {
+        return $this->loaded;
+    }
+
+    /**
+     * Pushes what's in the composer, staged at once, as the web does.
+     */
+    public function send(): void
+    {
+        $body = trim($this->draft);
+        $me = $this->me();
+
+        if ($body === '' || mb_strlen($body) > Message::MaxLength || $me === null || $this->thread?->access !== Thread::Open) {
+            return;
+        }
+
+        $message = Message::staged($me->id, (string) Str::uuid(), $body, $this->findMessage($this->replyToId));
+
+        $this->pending[] = $message;
+        $this->draft = '';
+        $this->replyToId = null;
+        $this->lastActivityAt = self::now();
+        $this->lastTypingAt = 0;
+
+        $this->push($message);
+    }
+
+    /**
+     * Sends a rejected message again, with the same client id, so devnull stores it once however often it's sent.
+     */
+    public function retry(string $clientId): void
+    {
+        foreach ($this->pending as $index => $message) {
+            if ($message->clientId === $clientId && $message->status === Message::Rejected) {
+                $this->pending[$index] = $message->withStatus(Message::Staged);
+                $this->push($this->pending[$index]);
+            }
+        }
+    }
+
+    /**
+     * Tells the others you're typing, at most every three seconds, while the composer has something in it.
+     */
+    public function updatedDraft(): void
+    {
+        $now = self::now();
+
+        if (trim($this->draft) === '' || $this->thread?->access !== Thread::Open || $now - $this->lastTypingAt < self::TypingPing || $this->lastId() === 0) {
+            return;
+        }
+
+        $this->lastTypingAt = $now;
+        $this->writeInBackground('PUT', $this->path().'/typing', null, fn () => null, fn () => null);
+    }
+
+    /**
+     * The messages before the first one showing, as the web loads them when you scroll back.
+     */
+    public function loadOlder(): void
+    {
+        $first = $this->messages[0] ?? null;
+
+        if (! $this->hasOlder || $first === null) {
+            return;
+        }
+
+        $json = $this->attempt(fn (Client $devnull): array => $devnull->olderMessages($this->path(), $first->id));
+
+        if ($json === null) {
+            return;
+        }
+
+        $older = Thread::fromArray($json);
+        $this->messages = self::merged($older->messages, $this->messages);
+        $this->hasOlder = $older->hasOlder;
+    }
+
+    /**
+     * A long press on a message: its reactions and Reply, in a sheet.
+     */
+    public function openMessage(int $id): void
+    {
+        if ($this->findMessage($id)?->isEvent() !== false) {
+            return;
+        }
+
+        $this->sheetMessageId = $id;
+        $this->sheetOpen = true;
+    }
+
+    public function messageSheetClosed(): void
+    {
+        $this->sheetOpen = false;
+    }
+
+    public function reply(int $id): void
+    {
+        $this->replyToId = $id;
+        $this->sheetOpen = false;
+    }
+
+    public function cancelReply(): void
+    {
+        $this->replyToId = null;
+    }
+
+    /**
+     * A double tap toggles a heart, as on the web.
+     */
+    public function heart(int $id): void
+    {
+        $this->toggleReaction($id, '❤️');
+    }
+
+    /**
+     * Leaves the emoji on the message, or takes it back, at once. If devnull says no, it goes back as it was.
+     */
+    public function toggleReaction(int $id, string $emoji): void
+    {
+        $message = $this->findMessage($id);
+        $me = $this->me();
+        $this->sheetOpen = false;
+
+        if ($message === null || $message->isPending() || $message->isEvent() || $me === null || $this->thread?->access !== Thread::Open) {
+            return;
+        }
+
+        $reacted = $message->hasReacted($me->id, $emoji);
+        $reactions = $reacted
+            ? array_values(array_filter($message->reactions, fn (array $reaction): bool => ! ($reaction['user_id'] === $me->id && $reaction['emoji'] === $emoji)))
+            : [...$message->reactions, ['user_id' => $me->id, 'emoji' => $emoji]];
+
+        $this->replaceMessage($message->withReactions($reactions));
+        $this->reacting[$id] = true;
+        $this->lastActivityAt = self::now();
+
+        $this->writeInBackground($reacted ? 'DELETE' : 'POST', Client::reactionsPath($id), ['emoji' => $emoji], function (array $json) use ($id): void {
+            unset($this->reacting[$id]);
+
+            if (is_array($json['reactions'] ?? null) && ($message = $this->findMessage($id)) !== null) {
+                $this->replaceMessage($message->withReactions(Message::reactionsFrom($json['reactions'])));
+            }
+        }, function () use ($id, $message): void {
+            unset($this->reacting[$id]);
+            $this->replaceMessage($message);
+        });
+    }
+
+    /**
+     * Merges their request, so you can reply. Done, the composer takes the bar's place.
+     */
+    public function merge(): void
+    {
+        $this->answerRequest('merge');
+    }
+
+    /**
+     * Drops their request, without telling them, and goes back to the inbox.
+     */
+    public function drop(): void
+    {
+        $this->answerRequest('drop');
+    }
+
+    public function stash(): void
+    {
+        $this->writeInBackground('POST', $this->path().'/archive', null, fn () => $this->back(), fn () => null);
+    }
+
+    public function pop(): void
+    {
+        $this->writeInBackground('DELETE', $this->path().'/archive', null, function (): void {
+            $this->thread = $this->thread === null ? null : new Thread(...[...get_object_vars($this->thread), 'isArchived' => false]);
+        }, fn () => null);
+    }
+
+    public function viewProfile(): void
+    {
+        if ($this->username !== '') {
+            $this->openInTab('/users/'.rawurlencode($this->username), $this->thread?->partner === null ? [] : ['user' => $this->thread->partner]);
+        }
+    }
+
+    public function openProfile(string $username): void
+    {
+        $this->openInTab('/users/'.rawurlencode($username));
+    }
+
+    public function openLink(int $id): void
+    {
+        $url = $this->findMessage($id)?->linkPreview?->url;
+
+        if ($url !== null) {
+            Browser::inApp($url);
+        }
+    }
+
+    private function answerRequest(string $answer): void
+    {
+        $this->requestError = null;
+
+        $this->writeInBackground('POST', $this->path().'/'.$answer, null, function () use ($answer): void {
+            if ($answer === 'drop') {
+                $this->back();
+
+                return;
+            }
+
+            $this->thread = $this->thread === null ? null : new Thread(...[...get_object_vars($this->thread), 'access' => Thread::Open]);
+        }, function (): void {
+            $this->requestError = 'Could not update the request. Try again.';
+        });
+    }
+
+    private function push(Message $message): void
+    {
+        $payload = ['body' => $message->body, 'client_id' => $message->clientId];
+
+        if ($message->replyToId !== null) {
+            $payload['reply_to_id'] = $message->replyToId;
+        }
+
+        $this->writeInBackground('POST', $this->messagesPath(), $payload, function (array $json) use ($message): void {
+            $pushed = Message::fromArray(is_array($json['data'] ?? null) ? $json['data'] : []);
+
+            $this->pending = array_values(array_filter($this->pending, fn (Message $pending): bool => $pending->clientId !== $message->clientId));
+
+            if ($pushed->id > 0) {
+                $this->messages = self::merged($this->messages, [$pushed]);
+                $this->readThroughId = max($this->readThroughId, $pushed->id);
+            }
+
+            $this->lastActivityAt = self::now();
+        }, function () use ($message): void {
+            $this->pending = array_map(
+                fn (Message $pending): Message => $pending->clientId === $message->clientId ? $pending->withStatus(Message::Rejected) : $pending,
+                $this->pending,
+            );
+        });
+    }
+
+    /**
+     * The thread's first page, kept or fresh. The first fresh one notes where you'd pulled to for HEAD, before this
+     * screen pulls what's showing. Messages loaded before the page stay above it.
+     *
+     * @param  array<string, mixed>  $json
+     */
+    private function takeThread(array $json, bool $fresh = false): void
+    {
+        $thread = Thread::fromArray($json);
+
+        if ($thread->partner === null && ! $thread->isOrg()) {
+            return;
+        }
+
+        $earliest = $thread->messages[0]->id ?? PHP_INT_MAX;
+        $older = array_values(array_filter($this->messages, fn (Message $message): bool => $message->id < $earliest));
+
+        $this->thread = $thread;
+        $this->messages = self::merged($older, $thread->messages);
+        $this->hasOlder = $older === [] ? $thread->hasOlder : $this->hasOlder;
+        $this->reactionsVersion = max($this->reactionsVersion, $thread->reactionsVersion);
+        $this->readThroughId = max($this->readThroughId, $thread->readThroughId);
+        $this->dropPushed();
+
+        $this->loaded = true;
+
+        if (! $fresh) {
+            return;
+        }
+
+        if ($this->head === null) {
+            $this->head = $thread->readThroughId;
+            $this->headUntil = $this->lastId();
+        }
+
+        $this->markRead();
+    }
+
+    /**
+     * What a poll brought: messages after the last one, reactions changed since the version seen, and the rest of the
+     * thread as it is now. New messages, or someone typing, keep the poll quick for another minute.
+     *
+     * @param  array<string, mixed>  $json
+     */
+    private function takePoll(array $json): void
+    {
+        $poll = Thread::fromArray($json);
+        $last = $this->lastId();
+        $new = array_values(array_filter($poll->messages, fn (Message $message): bool => $message->id > $last));
+
+        foreach ($poll->reactionChanges as $id => $reactions) {
+            if (! isset($this->reacting[$id]) && ($message = $this->findMessage($id)) !== null) {
+                $this->replaceMessage($message->withReactions($reactions));
+            }
+        }
+
+        $this->thread = new Thread(...[...get_object_vars($poll), 'messages' => [], 'reactionChanges' => [], 'hasOlder' => $this->hasOlder]);
+        $this->messages = self::merged($this->messages, $new);
+        $this->reactionsVersion = max($this->reactionsVersion, $poll->reactionsVersion);
+        $this->dropPushed();
+
+        if ($new !== [] || $poll->typing !== []) {
+            $this->lastActivityAt = self::now();
+        }
+
+        $this->markRead();
+    }
+
+    /**
+     * Pulls through the latest message, since the thread is on screen, and asks devnull for the badge again after.
+     */
+    private function markRead(): void
+    {
+        $latest = $this->lastId();
+
+        if ($latest <= $this->readThroughId) {
+            return;
+        }
+
+        $this->readThroughId = $latest;
+
+        $this->writeInBackground('PUT', $this->path().'/read', ['through' => $latest], fn () => $this->refreshUnreadNotifications(), fn () => null);
+    }
+
+    /**
+     * Staged messages devnull has now sent back, by client id, go: the real one shows in their place.
+     */
+    private function dropPushed(): void
+    {
+        $sent = array_flip(array_map(fn (Message $message): string => $message->clientId, $this->messages));
+
+        $this->pending = array_values(array_filter($this->pending, fn (Message $pending): bool => ! isset($sent[$pending->clientId])));
+    }
+
+    private function showKept(): void
+    {
+        if (($json = $this->cached($this->messagesPath())) !== null) {
+            $this->takeThread($json);
+        }
+    }
+
+    private function path(): string
+    {
+        return Client::threadPath($this->username, $this->org === '' ? null : $this->org);
+    }
+
+    private function messagesPath(): string
+    {
+        return $this->path().'/messages';
+    }
+
+    private function isOrg(): bool
+    {
+        return $this->org !== '';
+    }
+
+    private function lastId(): int
+    {
+        return $this->messages[array_key_last($this->messages) ?? -1]->id ?? 0;
+    }
+
+    private function findMessage(?int $id): ?Message
+    {
+        foreach ($this->messages as $message) {
+            if ($message->id === $id) {
+                return $message;
+            }
+        }
+
+        return null;
+    }
+
+    private function replaceMessage(Message $replacement): void
+    {
+        $this->messages = array_map(fn (Message $message): Message => $message->id === $replacement->id ? $replacement : $message, $this->messages);
+    }
+
+    /**
+     * Now, to the microsecond, as the clock the poll and the typing pings are timed by.
+     */
+    private static function now(): float
+    {
+        return (float) CarbonImmutable::now()->format('U.u');
+    }
+
+    /**
+     * Two lists of messages as one, oldest first, the later list winning where both have a message.
+     *
+     * @param  list<Message>  $first
+     * @param  list<Message>  $second
+     * @return list<Message>
+     */
+    private static function merged(array $first, array $second): array
+    {
+        $byId = [];
+
+        foreach ([...$first, ...$second] as $message) {
+            $byId[$message->id] = $message;
+        }
+
+        ksort($byId);
+
+        return array_values($byId);
+    }
+
+    /**
+     * @param  array<string, mixed>  $json
+     * @return list<array{emoji: string, count: int}>
+     */
+    private static function usageFrom(array $json): array
+    {
+        $usage = [];
+
+        foreach (is_array($json['usage'] ?? null) ? $json['usage'] : [] as $used) {
+            if (is_array($used) && is_string($used['emoji'] ?? null) && is_int($used['count'] ?? null)) {
+                $usage[] = ['emoji' => $used['emoji'], 'count' => $used['count']];
+            }
+        }
+
+        return $usage;
+    }
+
+    /**
+     * The quick reactions: the web's three, where one you use at least three times more than a slot's own takes
+     * that slot, in place.
+     *
+     * @return list<string>
+     */
+    private function quickReactions(): array
+    {
+        $counts = array_column($this->usage, 'count', 'emoji');
+        $slots = self::QuickReactions;
+
+        foreach ($this->usage as $used) {
+            if (in_array($used['emoji'], $slots, true)) {
+                continue;
+            }
+
+            $weakest = array_reduce(array_keys($slots), fn (?int $carry, int $slot): int => $carry === null || ($counts[$slots[$slot]] ?? 0) < ($counts[$slots[$carry]] ?? 0) ? $slot : $carry);
+
+            if ($used['count'] >= ($counts[$slots[$weakest]] ?? 0) + 3) {
+                $slots[$weakest] = $used['emoji'];
+            }
+        }
+
+        return $slots;
+    }
+
+    private function title(): string
+    {
+        $viewerId = $this->me()?->id;
+
+        if ($this->thread === null) {
+            return $this->row?->title($viewerId) ?? ($this->isOrg() ? '' : '@'.$this->username);
+        }
+
+        if (! $this->isOrg()) {
+            return $this->thread->partner->name ?? '@'.$this->username;
+        }
+
+        $others = array_values(array_filter($this->thread->members, fn (array $member): bool => $member['user']->id !== $viewerId));
+        $names = array_map(fn (array $member): string => (string) strtok($member['user']->name, ' '), $others);
+
+        return $this->thread->orgName ?? ($names === [] ? 'Just you' : implode(', ', $names));
+    }
+
+    private function subtitle(): ?string
+    {
+        if (! $this->isOrg()) {
+            return '@'.$this->username;
+        }
+
+        $count = $this->thread === null ? count($this->row->members ?? []) : count($this->thread->members);
+
+        return $count === 0 ? 'org' : 'org · '.Display::count($count, 'member', 'members');
+    }
+
+    public function render(): View
+    {
+        $viewer = $this->me();
+        $thread = $this->thread;
+
+        $authors = [];
+
+        foreach ([$viewer, $thread?->partner, ...array_column($thread->members ?? [], 'user')] as $person) {
+            if ($person !== null) {
+                $authors[$person->id] = $person;
+            }
+        }
+
+        return view('native.conversation', [
+            'viewer' => $viewer,
+            'authors' => $authors,
+            'myColour' => $this->myColour(),
+            'partner' => $thread?->partner,
+            'isOrg' => $this->isOrg(),
+            'access' => $thread->access ?? Thread::Open,
+            'items' => $this->items($viewer),
+            'typing' => self::typingText($thread?->typing ?? [], $this->isOrg()),
+            'replyTo' => $this->findMessage($this->replyToId),
+            'sheetMessage' => $this->findMessage($this->sheetMessageId),
+            'quickReactions' => $this->quickReactions(),
+            'moreReactions' => self::MoreReactions,
+            'canPush' => $thread !== null && $thread->access === Thread::Open,
+            'placeholder' => $this->isOrg() ? 'Message '.($thread->orgName ?? 'the org') : 'Message @'.$this->username,
+        ]);
+    }
+
+    /**
+     * The web's typing line: one person by handle, two by both, more by how many.
+     *
+     * @param  list<string>  $usernames
+     */
+    private static function typingText(array $usernames, bool $isOrg): ?string
+    {
+        return match (count($usernames)) {
+            0 => null,
+            1 => '@'.$usernames[0].' is typing…',
+            2 => '@'.$usernames[0].' and @'.$usernames[1].' are typing…',
+            default => count($usernames).' people are typing…',
+        };
+    }
+
+    /**
+     * What the thread shows, top to bottom: a day marker where the day changes, HEAD before the first message you
+     * hadn't pulled when it opened, an org's events as log lines, and each message with whether it starts or ends a
+     * run of messages by the same person, which is where the web puts the author and the time.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function items(?User $viewer): array
+    {
+        $all = [...$this->messages, ...$this->pending];
+        $items = [];
+        $day = null;
+        $headShown = false;
+        $status = $this->statusMessage($all, $viewer);
+
+        foreach ($all as $index => $message) {
+            $label = $message->createdAt === null ? null : Display::dayLabel($message->createdAt);
+
+            if ($label !== null && $label !== $day) {
+                $items[] = ['type' => 'day', 'label' => $label];
+                $day = $label;
+            }
+
+            $isNew = ! $headShown && $index > 0 && $this->head !== null && ! $message->isPending() && $message->id > $this->head && $message->id <= $this->headUntil && $message->userId !== $viewer?->id && ! $message->isEvent();
+
+            if ($isNew) {
+                $headShown = true;
+                $items[] = ['type' => 'head', 'count' => count(array_filter($all, fn (Message $later): bool => $later->id > $this->head && $later->id <= $this->headUntil && $later->userId !== $viewer?->id && ! $later->isEvent()))];
+            }
+
+            if ($message->isEvent()) {
+                $items[] = ['type' => 'event', 'message' => $message, 'text' => $message->eventText($viewer?->id)];
+
+                continue;
+            }
+
+            $previous = $items[array_key_last($items) ?? -1] ?? null;
+            $startsRun = ($previous['type'] ?? null) !== 'message' || $previous['message']->userId !== $message->userId;
+
+            if (! $startsRun) {
+                $items[array_key_last($items)]['endsRun'] = false;
+            }
+
+            $items[] = [
+                'type' => 'message',
+                'message' => $message,
+                'mine' => $message->userId === $viewer?->id,
+                'startsRun' => $startsRun,
+                'endsRun' => true,
+                'status' => $message === $status ? $this->statusOf($message) : null,
+                'author' => $message->user ?? $this->authorOf($message->userId),
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * The message whose status the thread shows, as the web picks it: the latest one you're still pushing, or else
+     * your latest message, or in an org the latest message at all.
+     *
+     * @param  list<Message>  $all
+     */
+    private function statusMessage(array $all, ?User $viewer): ?Message
+    {
+        if ($this->pending !== []) {
+            return $this->pending[array_key_last($this->pending)];
+        }
+
+        foreach (array_reverse($all) as $message) {
+            if (! $message->isEvent() && ($this->isOrg() || $message->userId === $viewer?->id)) {
+                return $message;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * What the status line says under the message: staged, pushed or pulled (with when, with one person), or who
+     * in an org has pulled it.
+     *
+     * @return array{state: string, text: string}
+     */
+    private function statusOf(Message $message): array
+    {
+        if ($message->isPending()) {
+            return ['state' => $message->status, 'text' => $message->status];
+        }
+
+        if ($this->isOrg()) {
+            $pulled = array_values(array_filter($this->thread->members ?? [], fn (array $member): bool => $member['user']->id !== $message->userId && $member['read_through_id'] >= $message->id));
+
+            return $pulled === []
+                ? ['state' => 'pushed', 'text' => $message->time().' · pushed']
+                : ['state' => 'pulled', 'text' => $message->time().' · pulled by '.implode(', ', array_map(fn (array $member): string => $member['user']->handle(), array_slice($pulled, 0, 5))).(count($pulled) > 5 ? ' +'.(count($pulled) - 5) : '')];
+        }
+
+        $pulledAt = $this->thread?->partnerReadAt;
+
+        return ($this->thread->partnerReadThroughId ?? 0) >= $message->id
+            ? ['state' => 'pulled', 'text' => 'pulled'.($pulledAt === null ? '' : ' '.Display::clock($pulledAt))]
+            : ['state' => 'pushed', 'text' => 'pushed'];
+    }
+
+    private function authorOf(string $userId): ?User
+    {
+        if ($this->thread?->partner?->id === $userId) {
+            return $this->thread->partner;
+        }
+
+        foreach ($this->thread->members ?? [] as $member) {
+            if ($member['user']->id === $userId) {
+                return $member['user'];
+            }
+        }
+
+        return $userId === $this->me()?->id ? $this->me() : null;
+    }
+}

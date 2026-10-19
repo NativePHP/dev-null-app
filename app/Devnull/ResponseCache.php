@@ -12,10 +12,11 @@ use Illuminate\Support\Facades\Cache;
  * it showed last time straight away and refresh behind it.
  *
  * Only first pages are kept, per signed-in user, as the decoded JSON devnull
- * sent: never a cursor page, never the answer to a write, and nothing secret.
- * An answer shows for up to seven days after it was fetched, and anything older
- * counts as missing. The app's own writes patch every copy they change, so going
- * back to a screen shows them at once. Signing out empties the lot (see Account).
+ * sent: never a cursor page or a Remotes thread's poll, never the answer to a
+ * write, and nothing secret. An answer shows for up to seven days after it was
+ * fetched, and anything older counts as missing. The app's own writes patch
+ * every copy they change, so going back to a screen shows them at once.
+ * Signing out empties the lot (see Account).
  *
  * The store lives under storage/app, which survives launches and app updates.
  */
@@ -46,6 +47,9 @@ final class ResponseCache
         '#^users/[^/]+/commits$#',
         '#^saved$#',
         '#^users/[^/]+/(followers|following)$#',
+        '#^remotes$#',
+        '#^remotes/@[^/]+/messages$#',
+        '#^remotes/orgs/[^/]+/messages$#',
     ];
 
     /**
@@ -101,7 +105,8 @@ final class ResponseCache
      */
     public static function caches(string $path, array $query = []): bool
     {
-        if (array_key_exists('cursor', self::normalise($query))) {
+        // A cursor's page, and a Remotes thread's messages before or after one, aren't the first page.
+        if (array_intersect_key(self::normalise($query), array_flip(['cursor', 'before', 'after'])) !== []) {
             return false;
         }
 
