@@ -183,6 +183,23 @@ trait ShowsCommits
     }
 
     /**
+     * Opens a link in a commit's body, by its place among the body's links: a
+     * commit on dev/null here in the app, anything else in the browser.
+     */
+    public function openLink(string $id, int $index): void
+    {
+        $link = $this->shownCommit($id)?->links()[$index] ?? null;
+
+        if ($link?->commit !== null) {
+            $this->openCommit($link->commit);
+
+            return;
+        }
+
+        $this->openInBrowser($link?->href);
+    }
+
+    /**
      * Share link: the web's copy-link button. The share sheet has Copy, and AirDrop and Messages besides.
      */
     public function shareCommit(string $id): void

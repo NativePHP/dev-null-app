@@ -618,9 +618,10 @@ function pageJson(array $items, ?string $nextCursor = null, string $path = 'http
 
 /**
  * The runs of the first paragraph whose text contains $text, as [text, style]:
- * 'mention' for a pressable run, 'code' for one on a wash, 'wordmark' for one
- * drawn from runs of its own (read without its invisible line-break hints), or
- * nothing for prose.
+ * 'mention' for a pressable @handle, 'link' for any other pressable run,
+ * 'code' for one on a wash, 'wordmark' for one drawn from runs of its own, or
+ * nothing for prose. A run drawn from runs of its own reads as their text,
+ * without the invisible line-break hints they hold.
  *
  * @return list<array{0: string, 1?: string}>
  */
@@ -645,11 +646,15 @@ function paragraphRuns(TestableComponent $screen, string $text): array
 
     expect($paragraph)->not->toBeNull("No paragraph with [{$text}] was rendered.");
 
-    return array_map(fn (array $run): array => match (true) {
-        isset($run['on_press']) => [$run['props']['text'], 'mention'],
-        isset($run['style']['bg_color']) => [$run['props']['text'], 'code'],
-        isset($run['children']) => [str_replace(["\u{200B}", "\u{2060}"], '', implode('', array_map(fn (array $part): string => $part['props']['text'], $run['children']))), 'wordmark'],
-        default => [$run['props']['text']],
+    return array_map(function (array $run): array {
+        $text = $run['props']['text'] ?? str_replace(["\u{200B}", "\u{2060}"], '', implode('', array_map(fn (array $part): string => $part['props']['text'], $run['children'] ?? [])));
+
+        return match (true) {
+            isset($run['on_press']) => [$text, str_starts_with($text, '@') ? 'mention' : 'link'],
+            isset($run['style']['bg_color']) => [$text, 'code'],
+            isset($run['children']) => [$text, 'wordmark'],
+            default => [$text],
+        };
     }, $paragraph['children']);
 }
 

@@ -227,6 +227,27 @@ final readonly class Commit
         ));
     }
 
+    /**
+     * The links in the body, in the order it draws them. A long commit's
+     * preview is cut at a space, so its links are the first of these.
+     *
+     * @return list<BodyLink>
+     */
+    public function links(): array
+    {
+        $links = [];
+
+        foreach ($this->content as $block) {
+            foreach ($block->runs as $run) {
+                if ($run->link !== null) {
+                    $links[] = $run->link;
+                }
+            }
+        }
+
+        return $links;
+    }
+
     public function isDeleted(): bool
     {
         return $this->deletedAt !== null;

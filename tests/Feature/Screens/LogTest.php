@@ -223,6 +223,39 @@ it('draws a standalone /dev/null as the wordmark: semibold, tight, its middle sl
         ->and(strtolower($slash['dark_color']))->toBe(strtolower(config('native-ui.theme.dark.lane-0')));
 });
 
+it('links URLs in Commit Blue, opening a dev/null commit here and anything else in the browser', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
+        'id' => 'c1',
+        'body' => 'Read https://www.example.com/a-long-path-to-the-release-notes, then https://dev-null.sh/@Hacksore/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8 and github.com/laravel/framework/pull/42',
+    ])]))]);
+
+    $screen = Native::visit('/log');
+    $primary = strtolower(config('native-ui.theme.light.primary'));
+    $link = findNode($screen->tree(), fn (array $node): bool => ($node['props']['text'] ?? null) === 'example.com/a-long-path-to-the…');
+    $repository = findNode($screen->tree(), fn (array $node): bool => ($node['children'][0]['props']['text'] ?? null) === 'laravel/');
+
+    expect(paragraphRuns($screen, 'Read'))->toBe([
+        ['Read '],
+        ['example.com/a-long-path-to-the…', 'link'],
+        [', then '],
+        ['Hacksore/5149ca8', 'link'],
+        [' and '],
+        ['laravel/framework#42', 'link'],
+    ])
+        ->and(strtolower($link['props']['color']))->toBe($primary)
+        ->and($repository['props']['font_name'])->toBe('mono')
+        ->and(strtolower($repository['props']['color']))->toBe($primary)
+        ->and(strtolower($repository['children'][0]['props']['color']))->toBe(strtolower(config('native-ui.theme.light.ink-muted')));
+
+    $screen->press("openLink('c1', 0)")
+        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://www.example.com/a-long-path-to-the-release-notes')
+        ->press("openLink('c1', 2)")
+        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://github.com/laravel/framework/pull/42')
+        ->assertNoNavigation()
+        ->press("openLink('c1', 1)")
+        ->assertNavigatedTo('/log/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8');
+});
+
 it('shows a link preview as a compact row and opens it in the browser', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
         'id' => 'c1',

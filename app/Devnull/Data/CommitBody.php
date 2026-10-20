@@ -4,8 +4,8 @@ namespace App\Devnull\Data;
 
 /**
  * Turns a commit's `body_segments` into blocks to draw, the way the web's
- * CommitBody does: prose (with mentions linked, and `/dev/null` as the
- * wordmark) and inline code flow together in paragraphs, and fenced code
+ * CommitBody does: prose (with URLs and mentions linked, and `/dev/null` as
+ * the wordmark) and inline code flow together in paragraphs, and fenced code
  * blocks stand on their own.
  *
  * Mention offsets count code points into the whole body, but segments aren't
@@ -60,12 +60,12 @@ final class CommitBody
                     $start = $text === '' ? false : mb_strpos($body, $text, $cursor);
 
                     if ($start === false) {
-                        array_push($runs, ...self::withWordmarks($text.($cut ? self::Ellipsis : '')));
+                        array_push($runs, ...self::withLinks($text.($cut ? self::Ellipsis : ''), null, []));
 
                         break;
                     }
 
-                    array_push($runs, ...self::withMentions($text, $start, $mentions));
+                    array_push($runs, ...self::withLinks($text, $start, $mentions));
                     $cursor = $start + mb_strlen($text);
 
                     if ($cut) {
@@ -104,6 +104,38 @@ final class CommitBody
         }
 
         return $blocks;
+    }
+
+    /**
+     * Splits prose that starts at $start in the body around the links inside
+     * it, then the prose between them around its mentions, as the web does.
+     * Prose that wasn't found in the body has no start, so no mentions.
+     *
+     * @param  list<Mention>  $mentions
+     * @return list<BodyRun>
+     */
+    private static function withLinks(string $text, ?int $start, array $mentions): array
+    {
+        $runs = [];
+        $position = 0;
+        $prose = fn (string $part, int $at): array => $start === null
+            ? self::withWordmarks($part)
+            : self::withMentions($part, $start + $at, $mentions);
+
+        foreach (BodyLink::in($text) as [$offset, $length, $link]) {
+            if ($offset > $position) {
+                array_push($runs, ...$prose(mb_substr($text, $position, $offset - $position), $position));
+            }
+
+            $runs[] = new BodyRun(mb_substr($text, $offset, $length), link: $link);
+            $position = $offset + $length;
+        }
+
+        if ($position < mb_strlen($text)) {
+            array_push($runs, ...$prose(mb_substr($text, $position), $position));
+        }
+
+        return $runs;
     }
 
     /**

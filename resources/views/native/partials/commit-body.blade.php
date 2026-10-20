@@ -11,6 +11,11 @@
     slash, even after a space, so a zero-width space (U+200B) after a space lets the line break there as a browser
     would; without it, a few wordmarks in a row can't wrap at all. VoiceOver skips both and still reads "/dev/null".
 
+    A link is Commit Blue and opens on a tap, numbered by its place among the body's links. Like the web, a URL shows
+    shortened, and a dev/null commit or a GitHub repository, issue or pull request shows as a mono name with the owner
+    muted, held on one line by a word joiner after its slash. The web's dev/null and GitHub marks before those are icons,
+    which text runs can't hold, so they're left out.
+
     A body too long to show whole in a list shows its start, as devnull cut it, and "Show more" in Commit Blue, which
     opens the rest where it is. The commit a page is about ($focused) is always whole. $muted sets it in muted ink, for
     the commits around the one a page is about.
@@ -18,6 +23,7 @@
 @php($size ??= 'text-[15px]')
 @php($ink = ($muted ?? false) ? 'text-theme-ink-muted' : 'text-theme-ink')
 @php($folded = ! ($focused ?? false) && $commit->isFolded() && ! in_array($commit->id, $unfolded ?? [], true))
+@php($linkIndex = 0)
 @foreach ($folded ? $commit->previewContent : $commit->content as $block)
     @if ($block->isCode())
         <native:column class="w-full mt-1 mb-1 rounded-md border border-theme-hairline bg-theme-wash">
@@ -32,6 +38,10 @@
 <native:text :text="$run->text" font="semibold" class="font-semibold text-theme-primary" @press="openProfile('{{ $run->username }}')" />
 @elseif ($run->isCode)
 <native:text :text="$run->text" font="mono" class="text-[13px] bg-theme-wash" />
+@elseif ($run->link?->isNamed())
+<native:text font="mono" class="text-[13px] text-theme-primary" @press="openLink('{{ $commit->id }}', {{ $linkIndex++ }})"><native:text :text="$run->link->prefix" class="text-theme-ink-muted" />&#x2060;<native:text :text="$run->link->shown" /></native:text>
+@elseif ($run->link)
+<native:text :text="$run->link->shown" class="text-theme-primary" @press="openLink('{{ $commit->id }}', {{ $linkIndex++ }})" />
 @elseif ($run->isWordmark)
 @php($afterSpace = $loop->index > 0 && ctype_space(substr($block->runs[$loop->index - 1]->text, -1)))
 <native:text font="semibold" class="font-semibold tracking-tight">@if ($afterSpace)&#x200B;@endif/&#x2060;dev<native:text text="/" font="default" class="font-normal text-theme-lane-0" />&#x2060;null</native:text>
