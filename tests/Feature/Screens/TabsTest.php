@@ -65,7 +65,7 @@ it('pushes commits and profiles onto the tab they were opened from, so they slid
     Native::visit('/notifications/commits/c1')->call('openCommit', 'c0')->assertNavigatedTo('/notifications/commits/c0');
     Native::visit('/remotes/commits/c1')->call('openProfile', 'ada')->assertNavigatedTo('/remotes/users/ada');
     Native::visit('/remotes/users/ada')->call('openCommit', 'c0')->assertNavigatedTo('/remotes/commits/c0');
-    Native::visit('/profile/saved')->call('openCommit', 'c0')->assertNavigatedTo('/profile/commits/c0');
+    Native::visit('/profile/starred')->call('openCommit', 'c0')->assertNavigatedTo('/profile/commits/c0');
 });
 
 it('stays put when a tap leads to the commit already showing', function () {

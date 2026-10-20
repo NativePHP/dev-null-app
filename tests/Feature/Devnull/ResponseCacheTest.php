@@ -27,8 +27,8 @@ it('keeps first pages of the GETs the screens show, and nothing else', function 
         ->and(ResponseCache::caches('commits/c1/replies'))->toBeTrue()
         ->and(ResponseCache::caches('users/ada'))->toBeTrue()
         ->and(ResponseCache::caches('users/ada/commits', ['replies' => '1']))->toBeTrue()
-        ->and(ResponseCache::caches('saved'))->toBeTrue()
-        ->and(ResponseCache::caches('saved', ['cursor' => 'page2']))->toBeFalse()
+        ->and(ResponseCache::caches('starred'))->toBeTrue()
+        ->and(ResponseCache::caches('starred', ['cursor' => 'page2']))->toBeFalse()
         ->and(ResponseCache::caches('users/ada/followers'))->toBeTrue()
         ->and(ResponseCache::caches('users/ada/following'))->toBeTrue()
         ->and(ResponseCache::caches('users/ada/followers', ['cursor' => 'page2']))->toBeFalse()
@@ -133,11 +133,11 @@ it('takes a new star into every copy of the commit, wherever it sits', function 
     $this->cache->put('users/local_dev', [], ['data' => userWithCountsJson(), 'pinned_commit' => $commit]);
     $this->cache->put('commits/c3', [], commitPageJson(commitJson(['id' => 'c3'])));
 
-    $this->cache->commitReacted([...$commit, 'starred' => true, 'stars_count' => 2, 'is_saved' => true, 'body' => 'Ignored']);
+    $this->cache->commitReacted([...$commit, 'starred' => true, 'stars_count' => 2, 'body' => 'Ignored']);
 
     $log = $this->cache->get('log/following')['data'];
 
-    expect($log[1])->toMatchArray(['starred' => true, 'stars_count' => 2, 'is_saved' => true, 'body' => 'Shipped the mobile app.'])
+    expect($log[1])->toMatchArray(['starred' => true, 'stars_count' => 2, 'body' => 'Shipped the mobile app.'])
         ->and($log[0]['parent'])->toMatchArray(['starred' => true, 'stars_count' => 2])
         ->and($log[0]['starred'])->toBeFalse()
         ->and($this->cache->get('users/local_dev')['pinned_commit']['stars_count'])->toBe(2)
@@ -227,37 +227,37 @@ it('remembers the commits deleted on this phone, newest first and only the last 
     expect($this->cache->deletedIds())->toBe([]);
 });
 
-it('puts a commit you saved on top of your saved commits, and takes one you unsaved out', function () {
-    $this->cache->put('saved', [], pageJson([commitJson(['id' => 'c2', 'is_saved' => true]), commitJson(['id' => 'c1', 'is_saved' => true])], 'page2'));
+it('puts a commit you starred on top and takes one you unstarred out', function () {
+    $this->cache->put('starred', [], pageJson([commitJson(['id' => 'c2', 'starred' => true]), commitJson(['id' => 'c1', 'starred' => true])], 'page2'));
 
-    $this->cache->commitSaved(commitJson(['id' => 'c3', 'body' => 'Worth keeping', 'is_saved' => true]));
-    $this->cache->commitSaved(commitJson(['id' => 'c1', 'is_saved' => true]));
+    $this->cache->commitStarred(commitJson(['id' => 'c3', 'body' => 'Worth keeping', 'starred' => true]));
+    $this->cache->commitStarred(commitJson(['id' => 'c1', 'starred' => true]));
 
-    expect(array_column($this->cache->get('saved')['data'], 'id'))->toBe(['c1', 'c3', 'c2'])
-        ->and($this->cache->get('saved')['data'][1]['body'])->toBe('Worth keeping')
-        ->and($this->cache->get('saved')['meta']['next_cursor'])->toBe('page2');
+    expect(array_column($this->cache->get('starred')['data'], 'id'))->toBe(['c1', 'c3', 'c2'])
+        ->and($this->cache->get('starred')['data'][1]['body'])->toBe('Worth keeping')
+        ->and($this->cache->get('starred')['meta']['next_cursor'])->toBe('page2');
 
-    $this->cache->commitSaved(commitJson(['id' => 'c3', 'is_saved' => false]));
-    $this->cache->commitSaved(['id' => 'c2']);
+    $this->cache->commitStarred(commitJson(['id' => 'c3', 'starred' => false]));
+    $this->cache->commitStarred(['id' => 'c2']);
 
-    expect(array_column($this->cache->get('saved')['data'], 'id'))->toBe(['c1', 'c2']);
+    expect(array_column($this->cache->get('starred')['data'], 'id'))->toBe(['c1', 'c2']);
 });
 
-it('remembers the commits unsaved on this phone until they are saved again, newest first and only the last fifty', function () {
+it('remembers unstarred commits until starred again newest first and only the last fifty', function () {
     foreach (range(1, 52) as $n) {
-        $this->cache->commitSaved(commitJson(['id' => "c{$n}", 'is_saved' => false]));
+        $this->cache->commitStarred(commitJson(['id' => "c{$n}", 'starred' => false]));
     }
 
-    $this->cache->commitSaved(commitJson(['id' => 'c51', 'is_saved' => true]));
+    $this->cache->commitStarred(commitJson(['id' => 'c51', 'starred' => true]));
 
-    expect($this->cache->unsavedIds())->toHaveCount(49)
-        ->and($this->cache->unsavedIds()[0])->toBe('c52')
-        ->and($this->cache->unsavedIds())->not->toContain('c51')
-        ->and($this->cache->unsavedIds())->not->toContain('c2');
+    expect($this->cache->unstarredIds())->toHaveCount(49)
+        ->and($this->cache->unstarredIds()[0])->toBe('c52')
+        ->and($this->cache->unstarredIds())->not->toContain('c51')
+        ->and($this->cache->unstarredIds())->not->toContain('c2');
 
     $this->cache->flush();
 
-    expect($this->cache->unsavedIds())->toBe([]);
+    expect($this->cache->unstarredIds())->toBe([]);
 });
 
 it('keeps a log the same whatever it was asked since, without what only ?since= answers', function () {

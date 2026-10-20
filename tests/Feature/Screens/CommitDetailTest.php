@@ -435,14 +435,14 @@ it('focuses the reply composer when opened from a Reply action', function () {
 it('stars the focused commit and its replies in place', function () {
     fakeThread(['author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace'])], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2'])], extra: [
         'POST /api/v1/commits/c2/star' => [['data' => commitJson(['id' => 'c2', 'stars_count' => 1, 'starred' => true])]],
-        'PUT /api/v1/commits/r1/bookmark' => [['data' => commitJson(['id' => 'r1', 'is_saved' => true])]],
+        'POST /api/v1/commits/r1/star' => [['data' => commitJson(['id' => 'r1', 'starred' => true])]],
     ]);
 
-    $screen = Native::visit('/log/commits/c2')->tap('star-c2')->tap('replies-c2')->tap('save-r1');
+    $screen = Native::visit('/log/commits/c2')->tap('star-c2')->tap('replies-c2')->tap('star-r1');
 
     expect($screen->instance()->commit->starred)->toBeTrue()
         ->and($screen->instance()->commit->body)->toBe('The focused commit')
-        ->and($screen->instance()->replies[0]->isSaved)->toBeTrue();
+        ->and($screen->instance()->replies[0]->starred)->toBeTrue();
 });
 
 it('lets a drag that starts on an ancestor or a reply scroll the thread', function () {

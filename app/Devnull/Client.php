@@ -226,26 +226,13 @@ final readonly class Client
     }
 
     /**
-     * Saves a commit privately, as the web's bookmark button does.
-     */
-    public function bookmark(string $id): Commit
-    {
-        return $this->react('PUT', 'commits/'.rawurlencode($id).'/bookmark', saving: true);
-    }
-
-    public function unbookmark(string $id): Commit
-    {
-        return $this->react('DELETE', 'commits/'.rawurlencode($id).'/bookmark', saving: true);
-    }
-
-    /**
-     * The commits you saved, last saved first, as the web's Saved page lists them.
+     * The commits you starred, newest first, as the web's Starred page lists them.
      *
      * @return Page<Commit>
      */
-    public function saved(?string $cursor = null): Page
+    public function starred(?string $cursor = null): Page
     {
-        return Page::fromArray($this->get('saved', ['cursor' => $cursor]), Commit::fromArray(...));
+        return Page::fromArray($this->get('starred', ['cursor' => $cursor]), Commit::fromArray(...));
     }
 
     /**
@@ -507,17 +494,15 @@ final readonly class Client
     }
 
     /**
-     * Stars, unstars, saves or unsaves, and gives every kept copy of the commit the new counts.
-     * Saving or unsaving puts it on top of your kept saved commits, or takes it out.
+     * Stars or unstars, and gives every kept copy of the commit the new counts.
+     * Starring or unstarring updates your kept starred commits too.
      */
-    private function react(string $method, string $path, bool $saving = false): Commit
+    private function react(string $method, string $path): Commit
     {
         $commit = $this->data($this->send($method, $path));
         $this->cache->commitReacted($commit);
 
-        if ($saving) {
-            $this->cache->commitSaved($commit);
-        }
+        $this->cache->commitStarred($commit);
 
         return Commit::fromArray($commit);
     }

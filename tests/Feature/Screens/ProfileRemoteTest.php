@@ -65,7 +65,7 @@ it('offers Remote to anyone while devnull takes requests', function () {
     expect(nodeByRef(finishRefreshes(Native::visit('/log/users/ada')), 'remote'))->not->toBeEmpty();
 });
 
-it('opens Saved from your own profile, and the account beside it', function () {
+it('opens Starred from your own profile, and the account beside it', function () {
     fakeApi([
         'GET /api/v1/users/local_dev' => [['data' => userWithCountsJson(), 'is_following' => false, 'activity' => ['scale' => 'week', 'buckets' => []], 'streaks' => ['longest' => 0, 'current' => 0], 'pinned_commit' => null]],
         'GET /api/v1/users/local_dev/commits' => [pageJson([])],
@@ -75,5 +75,5 @@ it('opens Saved from your own profile, and the account beside it', function () {
 
     expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'remote'))->toBeNull();
 
-    $screen->press('openSaved')->assertNavigatedTo('/profile/saved');
+    $screen->press('openStarred')->assertNavigatedTo('/profile/starred');
 });

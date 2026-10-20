@@ -90,7 +90,7 @@ it('fills the whole option at 100%, with no spacer for EDGE to grow', function (
 });
 
 it('gives every action under a commit a target big enough to tap, without growing the row', function () {
-    $screen = logOf([['id' => 'c1', 'stars_count' => 6, 'replies_count' => 3, 'is_saved' => false]]);
+    $screen = logOf([['id' => 'c1', 'stars_count' => 6, 'replies_count' => 3]]);
     // A pressable's box is its content; More's menu items ride along as children too.
     $target = fn (string $ref): array => ($node = nodeByRef($screen, $ref))['type'] === 'pressable'
         ? array_values(array_filter($node['children'], fn (array $child): bool => $child['type'] !== 'top_bar_action'))[0]['layout']
@@ -146,7 +146,7 @@ it('embeds the commit a commit quotes as the web card, which opens it', function
             'author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace']),
             'created_at' => now()->subHours(2)->toIso8601ZuluString(),
             'poll' => votedPollJson(),
-        ]), array_flip(['stars_count', 'replies_count', 'starred', 'is_saved'])),
+        ]), array_flip(['stars_count', 'replies_count', 'starred'])),
     ])])
         ->assertSee('Quoting this.')
         ->assertSee('The original take')
