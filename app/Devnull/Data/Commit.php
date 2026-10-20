@@ -156,6 +156,11 @@ final readonly class Commit
         return new self(...[...get_object_vars($this), 'isSaved' => $isSaved]);
     }
 
+    public function withPinned(bool $isPinned): self
+    {
+        return new self(...[...get_object_vars($this), 'isPinned' => $isPinned]);
+    }
+
     /**
      * This commit with the star, save and pastéis state of a fresher copy of
      * it, keeping everything else, such as the parent a list loaded with it.

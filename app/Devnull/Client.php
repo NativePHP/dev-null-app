@@ -239,6 +239,20 @@ final readonly class Client
     }
 
     /**
+     * Pins your commit to the top of your profile, as the web's Pin does,
+     * taking the place of any commit pinned before.
+     */
+    public function pin(string $id): Commit
+    {
+        return $this->react('PUT', 'commits/'.rawurlencode($id).'/pin');
+    }
+
+    public function unpin(string $id): Commit
+    {
+        return $this->react('DELETE', 'commits/'.rawurlencode($id).'/pin');
+    }
+
+    /**
      * The commits you saved, last saved first, as the web's Saved page lists them.
      *
      * @return Page<Commit>
@@ -507,7 +521,7 @@ final readonly class Client
     }
 
     /**
-     * Stars, unstars, saves or unsaves, and gives every kept copy of the commit the new counts.
+     * Stars, unstars, saves, unsaves, pins or unpins, and gives every kept copy of the commit the new counts.
      * Saving or unsaving puts it on top of your kept saved commits, or takes it out.
      */
     private function react(string $method, string $path, bool $saving = false): Commit

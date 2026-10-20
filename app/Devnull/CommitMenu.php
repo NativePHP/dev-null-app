@@ -12,10 +12,11 @@ use Native\Mobile\Edge\Layouts\Builders\NavAction;
  * What More holds, on the right of a commit's action row (see
  * partials/commit-actions): the web's bookmark, copy link and Report, which
  * don't fit a phone's row side by side. Save commit or Unsave commit, as the
- * web's bookmark allows; Share link on every commit; then, after a divider,
- * Report commit on someone else's published commit, or Delete commit on your
- * own. Each item names the commit, so a tap never rebuilds anything from an
- * attribute (see ShowsCommits).
+ * web's bookmark allows; Share link on every commit; Pin to profile or Unpin
+ * from profile on your own published commit, not a reply; then, after a
+ * divider, Report commit on someone else's published commit, or Delete commit
+ * on your own. Each item names the commit, so a tap never rebuilds anything
+ * from an attribute (see ShowsCommits).
  */
 final class CommitMenu
 {
@@ -32,6 +33,10 @@ final class CommitMenu
         }
 
         $items[] = self::item($commit, 'share', 'Share link', Lucide::Link, 'shareCommit');
+
+        if ($isOwn && $commit->isApproved() && $commit->parentId === null) {
+            $items[] = self::item($commit, 'pin', $commit->isPinned ? 'Unpin from profile' : 'Pin to profile', Lucide::Pin, 'togglePin');
+        }
 
         if ($viewer !== null && ! $isOwn && $commit->isApproved()) {
             $items[] = NavAction::divider();
