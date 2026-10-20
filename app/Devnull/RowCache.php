@@ -3,6 +3,7 @@
 namespace App\Devnull;
 
 use Native\Mobile\Edge\NativeElementCollector;
+use WeakMap;
 
 /**
  * The rows a list drew last frame, kept so the next frame only builds the rows
@@ -16,7 +17,9 @@ use Native\Mobile\Edge\NativeElementCollector;
  * partial reads from the screen or works out from the time or the device. A row
  * the frame doesn't draw is let go at the start of the next one.
  *
- * Only for partials that draw exactly one root element.
+ * Only for partials that draw exactly one root element. Objects in a partial's
+ * data have to be readonly, like App\Devnull\Data's: each is hashed once and
+ * the hash kept for as long as the object lives.
  */
 final class RowCache
 {
@@ -29,6 +32,16 @@ final class RowCache
      * @var array<string, true>
      */
     private array $drawn = [];
+
+    /**
+     * @var WeakMap<object, string>
+     */
+    private WeakMap $fingerprints;
+
+    public function __construct()
+    {
+        $this->fingerprints = new WeakMap;
+    }
 
     /**
      * Starts a frame, letting go of the rows the last one didn't draw.
@@ -58,7 +71,7 @@ final class RowCache
         }
 
         $this->drawn[$key] = true;
-        $hash = hash('xxh3', serialize([$view, $data, $inputs]));
+        $hash = hash('xxh3', serialize([$view, array_map($this->fingerprint(...), $data), $inputs]));
         [$keptHash, $row] = $this->rows[$key] ?? [null, null];
 
         if ($keptHash !== $hash || $row === null) {
@@ -67,5 +80,18 @@ final class RowCache
         }
 
         NativeElementCollector::attachElement($row);
+    }
+
+    /**
+     * A data object's hash in its place, worked out once per object, since
+     * serializing each commit every frame was most of what a kept row cost.
+     */
+    private function fingerprint(mixed $value): mixed
+    {
+        if (! is_object($value)) {
+            return $value;
+        }
+
+        return $this->fingerprints[$value] ??= hash('xxh3', serialize($value));
     }
 }
