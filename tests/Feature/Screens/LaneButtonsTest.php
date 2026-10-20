@@ -61,16 +61,6 @@ dataset('main buttons', [
 
         return Native::visit('/log');
     }, 'follow-ada'],
-    'Follow, back from a follow' => [function (): TestableComponent {
-        $follow = notificationJson('followed', ['actor' => userJson(['id' => 'u-linus', 'username' => 'linus', 'name' => 'Linus', 'is_followed' => false])]);
-        serveApi(['GET /api/v1/notifications' => [[
-            ...pageJson([$follow], path: 'http://devnull.test/api/v1/notifications'),
-            'filters' => ['type' => 'all'],
-            'read_at' => now()->toIso8601ZuluString(),
-        ]]]);
-
-        return Native::visit('/notifications');
-    }, 'follow-back-linus'],
     'Follow, on a profile' => [function (): TestableComponent {
         serveApi([
             'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']), 'is_following' => false]],

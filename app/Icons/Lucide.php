@@ -46,6 +46,7 @@ enum Lucide
     case Check;
     case X;
     case UserPlus;
+    case UserCheck;
     case AtSign;
     case FoldVertical;
     case Award;
@@ -137,6 +138,7 @@ enum Lucide
             self::Check => 'check',
             self::X => 'x',
             self::UserPlus => 'user-plus',
+            self::UserCheck => 'user-check',
             self::AtSign => 'at-sign',
             self::FoldVertical => 'fold-vertical',
             self::Award => 'award',

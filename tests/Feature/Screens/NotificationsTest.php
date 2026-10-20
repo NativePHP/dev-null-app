@@ -419,16 +419,23 @@ it('follows back from a follow, as the web does, and puts it back if devnull say
         'DELETE /api/v1/users/linus/follow' => [['message' => 'Too Many Attempts.', 'code' => 'rate_limited'], 429],
     ]);
 
-    $label = fn (string $label): Closure => fn (array $node): bool => ($node['ref'] ?? null) === 'follow-back-linus' && $node['props']['label'] === $label;
+    // The web's icon: a muted user-plus to follow back, a user-check in Commit Blue once you do.
+    $followBack = fn (TestableComponent $screen): array => [
+        nodeByRef($screen, 'follow-back-linus')['props']['a11y_label'],
+        findNode(nodeByRef($screen, 'follow-back-linus'), fn (array $node): bool => ($node['type'] ?? null) === 'icon')['props']['name'],
+    ];
 
-    $screen = Native::visit('/notifications')
-        ->assertElement('button', $label('Follow'))
-        ->tap('follow-back-linus')
-        ->assertElement('button', $label('Following'));
+    $screen = Native::visit('/notifications', platform: 'ios');
 
-    $screen->tap('follow-back-linus')
-        ->assertElement('button', $label('Following'))
-        ->assertSee('Too Many Attempts.');
+    expect($followBack($screen))->toBe(['Follow @linus', 'custom:user-plus']);
+
+    $screen->tap('follow-back-linus');
+
+    expect($followBack($screen))->toBe(['Unfollow @linus', 'custom:user-check']);
+
+    $screen->tap('follow-back-linus')->assertSee('Too Many Attempts.');
+
+    expect($followBack($screen))->toBe(['Unfollow @linus', 'custom:user-check']);
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && $request->url() === 'http://devnull.test/api/v1/users/linus/follow');
 });
@@ -465,4 +472,35 @@ it('opens on skeleton rows, and fills in what it kept straight after, so a tab t
     expect(showsLoading(showingNotifications($screen)))->toBeTrue();
 
     finishRefreshes($screen)->assertSet('skeletonFrame', false)->assertSee('followed you');
+});
+
+it('lists a group of followers when it is tapped, each with the same small follow back, and none for the group', function () {
+    serveApi(function (Request $request) {
+        return str_contains($request->url(), '/group')
+            ? Http::response(pageJson([
+                notificationJson('followed', ['id' => 'n-follow-1', 'actor' => personJson('linus', 'Linus', overrides: ['is_followed' => false])]),
+                notificationJson('followed', ['id' => 'n-follow-2', 'actor' => personJson('grace', 'Grace Brewster Murray Hopper', overrides: ['is_followed' => true])]),
+            ]))
+            : Http::response(inboxJson([notificationJson('followed', ['event_count' => 2, 'actors_count' => 2, 'actor' => personJson('linus', 'Linus', overrides: ['is_followed' => false])])]));
+    });
+
+    $screen = Native::visit('/notifications', platform: 'ios');
+
+    // The group could only follow one of them back, so it leaves it to the list, as the web does.
+    $screen->assertMissingElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'follow-back-linus');
+
+    // A tap on the group lists them rather than opening the latest follower.
+    $screen->tap('notification-n-followed')->assertNoNavigation()->assertSee('Grace Brewster Murray Hopper');
+
+    foreach (['linus' => 'custom:user-plus', 'grace' => 'custom:user-check'] as $username => $icon) {
+        $row = nodeByRef($screen, 'group-item-n-follow-'.($username === 'linus' ? 1 : 2));
+        $box = nodeByRef($screen, 'follow-back-icon-'.$username);
+
+        expect([(float) $box['layout']['width'], (float) $box['layout']['height']])->toBe([32.0, 32.0])
+            // The follow back is the row's only icon: a follower's row has no type icon, as on the web.
+            ->and(array_map(fn (array $node): string => $node['props']['name'], findNodes($row, fn (array $node): bool => ($node['type'] ?? null) === 'icon')))->toBe([$icon]);
+    }
+
+    // A second tap folds it away.
+    $screen->tap('notification-n-followed')->assertDontSee('Grace Brewster Murray Hopper');
 });

@@ -238,11 +238,22 @@ class Notifications extends NativeComponent
         }
     }
 
+    /**
+     * A tap on a notification opens its commit, or the profile of whoever
+     * followed you. A tap on a group of followers lists them in place instead,
+     * as its toggle does, rather than opening only the latest of them.
+     */
     public function open(string $id): void
     {
         $notification = $this->find($id);
 
         if ($notification === null) {
+            return;
+        }
+
+        if ($notification->isFollow() && $notification->isGrouped()) {
+            $this->toggleGroup($id);
+
             return;
         }
 
