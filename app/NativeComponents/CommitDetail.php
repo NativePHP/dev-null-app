@@ -230,7 +230,10 @@ class CommitDetail extends NativeComponent
         $page = $this->attempt(fn ($devnull) => $devnull->replies($this->id, $this->repliesCursor));
 
         if ($page !== null) {
-            $this->replies = [...$this->replies, ...$page->items];
+            // A reply you posted is shown at the end before its page loads, so it moves to where the page has it.
+            $loaded = array_flip(array_map(fn (Commit $reply): string => $reply->id, $page->items));
+
+            $this->replies = [...array_values(array_filter($this->replies, fn (Commit $reply): bool => ! isset($loaded[$reply->id]))), ...$page->items];
             $this->repliesCursor = $page->nextCursor;
         }
     }
