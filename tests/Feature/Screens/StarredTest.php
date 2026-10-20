@@ -225,12 +225,15 @@ it('deletes your own starred commit from its menu and lets its row go', function
         ->and(array_column(kept('starred')['data'], 'id'))->toBe(['s1']);
 });
 
-it('quotes and reports from Starred with your lane colour on the sheet', function (string $item, string $button) {
+it('quotes and reports from Starred with your lane colour on the sheet', function () {
     signIn(['lane' => 4]);
     fakeApi(['GET /api/v1/starred' => [starredPage([starredCommit('s1')])]]);
-    $screen = finishRefreshes(Native::visit('/profile/starred', platform: 'ios'))->tap("{$item}-s1");
-    expect(nodeByRef($screen, $button)['props']['variant'] ?? null)->toBe('lane-4');
-})->with(['Quote' => ['quote', 'sheet-commit'], 'Report commit' => ['report', 'send-report']]);
+    $quote = finishRefreshes(Native::visit('/profile/starred', platform: 'ios'))->tap('quote-s1')->input('sheet-body', 'Worth a read');
+    $report = finishRefreshes(Native::visit('/profile/starred', platform: 'ios'))->tap('report-s1');
+
+    expect(strtolower(sheetButtonCircle($quote, 'sheet-commit')['style']['bg_color']))->toBe(strtolower(config('native-ui.theme.light.lane-4')))
+        ->and(nodeByRef($report, 'send-report')['props']['variant'] ?? null)->toBe('lane-4');
+});
 
 it('opens commits and profiles under your profile where Starred opens', function () {
     fakeApi(['GET /api/v1/starred' => [starredPage([starredCommit('s1')])]]);

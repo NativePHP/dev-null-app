@@ -1,8 +1,9 @@
 {{--
     The sheet under a commit (see OpensCommitSheet). Quote opens it as a composer: a bar of Cancel, the title and
     Commit, which waits for a body long enough to make, over the field, focused, with the commit being quoted under it
-    as a static card, then the counter. On iOS Cancel is a Liquid Glass button and Commit a prominent one in your
-    colour; on Android they're text buttons, as in Material 3's full-screen dialog header. The title is centred.
+    as a static card, then the counter. Cancel and Commit are a cross and a check in circles, as Apple draws a sheet's
+    bar, the same on both platforms (see sheet-bar-button), 16pt in from the sheet's top and sides. Android draws its
+    handle over the sheet, as iOS does, so the bar starts at the top there too. The title is centred.
     Cancel closes it as a swipe does, keeping the draft. If devnull says no, why shows here and the draft stays. The
     Log's compose button opens the same composer for a new commit, without the card. A draft stashed last time comes
     back in it, with the web's stash@{0} and drop on the left of the counter's row.
@@ -13,26 +14,26 @@
     here and the form keeps what you wrote.
 
     A new commit can become a `/feature` or `/bug` issue, as on the web (see DraftsIssues): the command's badge over the
-    field, its placeholder in it, and Open issue in Commit's place in the bar. Opened, the sheet says so, with View
-    issue and Done.
+    field, its placeholder in it, and Open issue (the same check) in Commit's place in the bar. Opened, the sheet says
+    so, with View issue and Done.
 
     It's full height for the forms, and short for the receipts. It's always on the screen, shown or not, so iOS can
     slide it away and say when it's gone.
 --}}
-<native:bottom-sheet ref="sheet" :visible="$sheetOpen" :detents="in_array($sheetView, ['reported', 'issued'], true) ? '0.3' : 'large'" @dismiss="commitSheetClosed">
+<native:bottom-sheet ref="sheet" handle-over-content :visible="$sheetOpen" :detents="in_array($sheetView, ['reported', 'issued'], true) ? '0.3' : 'large'" @dismiss="commitSheetClosed">
     @if ($sheetCommit || in_array($sheetView, ['compose', 'issued'], true))
         @if (in_array($sheetView, ['quote', 'compose'], true))
             @php($quoting = $sheetView === 'quote')
             @php($issueCommand = $sheetIssue === null ? null : \App\Devnull\IssueCommand::from($sheetIssue))
             <native:column class="w-full flex-1">
-                <native:row class="w-full px-3 ios:mt-4 min-h-[56] items-center gap-2">
-                    <native:button ref="sheet-cancel" variant="ghost" class="min-w-[96] ios:glass" a11y-hint="Keeps your draft for next time" @press="hideCommitSheet">Cancel</native:button>
+                @php($fits = \App\Devnull\Data\Commit::fits($sheetBody))
+                <native:row class="w-full p-4 items-center gap-3">
+                    @include('native.partials.sheet-bar-button', ['ref' => 'sheet-cancel', 'icon' => \App\Icons\Lucide::X, 'label' => 'Cancel', 'hint' => 'Keeps your draft for next time', 'press' => 'hideCommitSheet'])
                     <native:text font="semibold" class="flex-1 text-center text-base android:text-lg text-theme-ink" :max-lines="1">{{ $quoting ? 'Quote '.$sheetCommit->author->handle() : 'New commit' }}</native:text>
                     @if ($issueCommand)
-                        {{-- The label stays put while it spins, so the button keeps its size. --}}
-                        <native:button ref="sheet-open-issue" :variant="\Native\Mobile\Platform::isIos() ? $myColour : 'ghost'" class="min-w-[96] ios:glass:prominent" :loading="$openingIssue" :disabled="$openingIssue || ! \App\Devnull\IssueCommand::fits($sheetBody)" @press="openIssueFromSheet">Open issue</native:button>
+                        @include('native.partials.sheet-bar-button', ['ref' => 'sheet-open-issue', 'icon' => \App\Icons\Lucide::Check, 'label' => 'Open issue', 'main' => true, 'loading' => $openingIssue, 'press' => $openingIssue || ! \App\Devnull\IssueCommand::fits($sheetBody) ? null : 'openIssueFromSheet'])
                     @else
-                        <native:button ref="sheet-commit" :variant="\Native\Mobile\Platform::isIos() ? $myColour : 'ghost'" class="min-w-[96] ios:glass:prominent" :loading="$sheetPosting" :disabled="$sheetPosting || ! \App\Devnull\Data\Commit::fits($sheetBody)" @press="commitFromSheet">Commit</native:button>
+                        @include('native.partials.sheet-bar-button', ['ref' => 'sheet-commit', 'icon' => \App\Icons\Lucide::Check, 'label' => 'Commit', 'main' => true, 'loading' => $sheetPosting, 'press' => $sheetPosting || ! $fits ? null : 'commitFromSheet'])
                     @endif
                 </native:row>
                 <native:column class="w-full h-[1] bg-theme-hairline" />

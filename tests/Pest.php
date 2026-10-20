@@ -712,6 +712,26 @@ function nodeByRef(TestableComponent $screen, string $ref): array
 }
 
 /**
+ * Whether a round button in a sheet's bar can be tapped. A disabled one is drawn as a plain circle, not a pressable.
+ */
+function sheetButtonEnabled(TestableComponent $screen, string $ref): bool
+{
+    return nodeByRef($screen, $ref)['type'] === 'pressable';
+}
+
+/**
+ * The circle of a round button in a sheet's bar, whether it can be tapped or not.
+ *
+ * @return array<string, mixed>
+ */
+function sheetButtonCircle(TestableComponent $screen, string $ref): array
+{
+    $button = nodeByRef($screen, $ref);
+
+    return $button['type'] === 'pressable' ? $button['children'][0] : $button;
+}
+
+/**
  * Every piece of text a screen shows, top to bottom. Button labels are props, not text.
  *
  * @return list<string>

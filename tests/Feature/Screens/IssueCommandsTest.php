@@ -152,13 +152,13 @@ it('only turns a new commit into an issue, never a quote', function () {
 it('keeps Open issue disabled until the issue is long enough, and short enough', function () {
     $screen = issueSheetOnLog()->input('sheet-body', '/bug ab');
 
-    expect(nodeByRef($screen, 'sheet-open-issue')['props']['disabled'])->toBeTrue();
+    expect(sheetButtonEnabled($screen, 'sheet-open-issue'))->toBeFalse();
 
     $screen->input('sheet-body', 'abc');
-    expect(nodeByRef($screen, 'sheet-open-issue')['props']['disabled'] ?? false)->toBeFalse();
+    expect(sheetButtonEnabled($screen, 'sheet-open-issue'))->toBeTrue();
 
     $screen->input('sheet-body', str_repeat('a', 4001));
-    expect(nodeByRef($screen, 'sheet-open-issue')['props']['disabled'])->toBeTrue();
+    expect(sheetButtonEnabled($screen, 'sheet-open-issue'))->toBeFalse();
 
     // Pressing it anyway, or Commit, sends nothing.
     $screen->call('openIssueFromSheet')->call('commitFromSheet');
@@ -170,9 +170,12 @@ it('opens the issue while the button spins, then says so with View issue, as the
     $screen = issueSheetOnLog()->input('sheet-body', "/bug Search loses its filters\n\nSteps: select PHP.");
     $list = nodeByRef($screen, 'log')['id'];
 
-    $screen->tap('sheet-open-issue')->tap('sheet-open-issue');
+    // A spinner in the check's circle, which can't be tapped again. Asking again anyway sends nothing more.
+    $screen->tap('sheet-open-issue')->call('openIssueFromSheet');
 
-    expect(nodeByRef($screen, 'sheet-open-issue')['props'])->toMatchArray(['label' => 'Open issue', 'loading' => true, 'disabled' => true])
+    expect(sheetButtonEnabled($screen, 'sheet-open-issue'))->toBeFalse()
+        ->and(findNode(nodeByRef($screen, 'sheet-open-issue'), fn (array $node): bool => $node['type'] === 'activity_indicator'))->not->toBeNull()
+        ->and(nodeByRef($screen, 'sheet-open-issue')['props']['a11y_label'])->toBe('Open issue')
         ->and(issueRequestsSent())->toBe(0);
 
     finishRefreshes($screen)->assertNoNavigation()->assertSee('Opened issue #123.');
@@ -218,7 +221,7 @@ it('keeps the issue draft with why when devnull or GitHub says no', function (ar
     expect(nodeByRef($screen, 'sheet-error')['props']['text'])->toBe($message)
         ->and($screen->instance()->sheetIssue)->toBe('bug')
         ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('Broken.')
-        ->and(nodeByRef($screen, 'sheet-open-issue')['props']['disabled'] ?? false)->toBeFalse()
+        ->and(sheetButtonEnabled($screen, 'sheet-open-issue'))->toBeTrue()
         ->and(app(Stash::class)->get($this->userId, 'commit'))->toBe('Broken.');
 })->with([
     'over the limit' => [[['message' => 'Issue limit reached. Try again in an hour.', 'code' => 'rate_limited'], 429], 'Issue limit reached. Try again in an hour.'],
