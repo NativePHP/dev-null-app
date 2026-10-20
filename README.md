@@ -59,9 +59,25 @@ These can be set in `.env`:
 
 - `DEVNULL_URL` is the devnull instance to talk to. It defaults to production.
 - `NATIVEPHP_DEEPLINK_SCHEME` must be `devnull`, as in `.env.example`. NativePHP registers the scheme from it at build time, and its sign-in browser reads it from the bundled `.env` to know when dev-null.sh has sent the browser back.
+- `NATIVEPHP_DEEPLINK_HOST` and `NATIVEPHP_DEEPLINK_PATHS` make links to dev-null.sh open in the app. See below.
 - `GOOGLE_SERVER_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID` and `GOOGLE_IOS_REVERSED_CLIENT_ID` belong to the social-auth plugin's Google Sign-In, which the app doesn't use. NativePHP won't build without the first, so keep the placeholders from `.env.example`.
 
 A production build for a real iPhone needs an explicit App ID (`com.nativephp.devnull`) with the Sign in with Apple capability, since the plugin adds its entitlement. A wildcard provisioning profile can't carry it.
+
+### Links to dev-null.sh
+
+With the app installed, a link to a profile, its followers, a commit or a remote opens in the app instead of the browser. The app gets the web's path, like `/@nunomaduro/commits/{id}`, and `WebLink` opens the app's own screen for it in the tab you're in.
+
+Both platforms check with dev-null.sh before they hand a link to an app:
+
+- iOS fetches `https://dev-null.sh/.well-known/apple-app-site-association`, which has to list the app's ID (team and bundle ID, like `J68WFCX458.com.simonhamp.devnull`) and the paths it opens. The App ID needs the Associated Domains capability too.
+- Android fetches `https://dev-null.sh/.well-known/assetlinks.json`, which has to list the package name and the SHA-256 fingerprint of the key the app was signed with. That file can't scope paths, so `NATIVEPHP_DEEPLINK_PATHS` does it in the app's manifest.
+
+Until dev-null.sh lists a build, the links stay in the browser. To try one on an Android phone anyway, approve the link for the app yourself:
+
+```sh
+adb shell pm set-app-links-user-selection --user cur --package com.simonhamp.devnull true dev-null.sh
+```
 
 ## Running it
 

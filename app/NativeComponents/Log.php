@@ -155,7 +155,7 @@ class Log extends NativeComponent
     {
         $this->log = app(ShownTabs::class)->get($this->me()?->id, 'log', self::Logs, 'following');
         $this->lastVisitAt = $this->lastVisitSeenAt();
-        $this->fillInAfterFirstFrame('open');
+        $this->fillInAfterFirstFrame('openWithLink');
     }
 
     /**
@@ -359,6 +359,19 @@ class Log extends NativeComponent
     private function open(): void
     {
         $this->isRanked() ? $this->rank() : $this->revalidate();
+    }
+
+    /**
+     * The first open, which also opens a dev-null.sh link that started the app (see WebLink). It waits for the log
+     * to draw, so back comes to it.
+     */
+    private function openWithLink(): void
+    {
+        $this->open();
+
+        if (is_string($link = $this->data('link'))) {
+            $this->navigate($link);
+        }
     }
 
     /**

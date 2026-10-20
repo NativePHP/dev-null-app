@@ -69,6 +69,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Deeplink Paths
+    |--------------------------------------------------------------------------
+    |
+    | The paths on the deeplink host that open the app on Android. A path
+    | ending in `*` claims every path that starts with what comes before it.
+    | iOS reads them from the host's apple-app-site-association file instead.
+    |
+    */
+
+    'deeplink_paths' => array_values(array_filter(
+        array_map('trim', explode(',', (string) env('NATIVEPHP_DEEPLINK_PATHS', ''))),
+        fn ($path) => $path !== '',
+    )),
+
+    /*
+    |--------------------------------------------------------------------------
     | Start URL
     |--------------------------------------------------------------------------
     |
