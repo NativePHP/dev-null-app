@@ -91,8 +91,8 @@ it('fills the whole option at 100%, with no spacer for EDGE to grow', function (
 
 it('gives every action under a commit a target big enough to tap, without growing the row', function () {
     $screen = logOf([['id' => 'c1', 'stars_count' => 6, 'replies_count' => 3]]);
-    // A pressable's box is its content; More's menu items ride along as children too.
-    $target = fn (string $ref): array => ($node = nodeByRef($screen, $ref))['type'] === 'pressable'
+    // A button is its own box. More's box is the column inside it, beside the menu items that ride along as children.
+    $target = fn (string $ref): array => (($node = nodeByRef($screen, $ref))['props']['has_menu'] ?? false)
         ? array_values(array_filter($node['children'], fn (array $child): bool => $child['type'] !== 'top_bar_action'))[0]['layout']
         : $node['layout'];
 

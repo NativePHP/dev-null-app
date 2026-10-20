@@ -57,13 +57,11 @@
 @php($starLabel = ($commit->starred ? 'Unstar commit' : 'Star commit').($commit->starsCount > 0 ? ', '.\App\Devnull\Display::count($commit->starsCount, 'star', 'stars') : ''))
 <native:row ref="actions-{{ $commit->id }}" class="w-full -ml-2 -my-[6] items-center">
     @if ($canReact && $viewer !== null && ! $commit->isDeleted())
-        <native:pressable ref="star-{{ $commit->id }}" @press="toggleStar('{{ $commit->id }}')" a11y-label="{{ $starLabel }}">
-            <native:row class="min-w-[44] h-[36] px-2 gap-1 items-center">
-                <native:icon :ios="\App\Icons\Lucide::Star->ios($commit->starred)" :android="\App\Icons\Lucide::Star->android($commit->starred)" :size="$iconSize" class="{{ $commit->starred ? 'text-theme-primary' : 'text-theme-ink-muted' }}" />
-                @if ($commit->starsCount > 0)
-                    <native:text font="mono" class="{{ $labelSize }} {{ $commit->starred ? 'text-theme-primary' : 'text-theme-ink-muted' }}">{{ $commit->starsCount }}</native:text>
-                @endif
-            </native:row>
+        <native:pressable ref="star-{{ $commit->id }}" @press="toggleStar('{{ $commit->id }}')" class="flex-row min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="{{ $starLabel }}">
+            <native:icon :ios="\App\Icons\Lucide::Star->ios($commit->starred)" :android="\App\Icons\Lucide::Star->android($commit->starred)" :size="$iconSize" class="{{ $commit->starred ? 'text-theme-primary' : 'text-theme-ink-muted' }}" />
+            @if ($commit->starsCount > 0)
+                <native:text font="mono" class="{{ $labelSize }} {{ $commit->starred ? 'text-theme-primary' : 'text-theme-ink-muted' }}">{{ $commit->starsCount }}</native:text>
+            @endif
         </native:pressable>
     @endif
 
