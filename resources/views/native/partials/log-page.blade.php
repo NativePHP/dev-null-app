@@ -38,7 +38,7 @@
             @endif
         @endif
 
-        @include('native.partials.feed', ['rows' => $page['rows'], 'threads' => $page['threads']])
+        @include('native.partials.feed', ['rows' => $page['rows'], 'threads' => $page['threads'], 'rowCache' => $page['rowCache']])
 
         @if ($page['lastCommit'])
             @if ($page['nextCursor'] !== null)
