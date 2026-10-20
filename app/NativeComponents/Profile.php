@@ -9,6 +9,7 @@ use App\Devnull\Data\Profile as ProfileData;
 use App\Devnull\Data\User;
 use App\Devnull\ErrorCode;
 use App\Devnull\Exceptions\ApiException;
+use App\Devnull\RowCache;
 use App\Devnull\ShownTabs;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
@@ -88,9 +89,10 @@ class Profile extends NativeComponent
     public const array Labels = ['commits' => 'Commits', 'replies' => 'Replies'];
 
     /**
-     * How many kept commits the tab you're not on shows, enough to fill the screen while you swipe to it.
+     * How many kept commits the tab you're not on shows, enough for the top of the screen while you swipe to it, as
+     * Log::PreviewCommits: every row sent is one the phone builds.
      */
-    public const int PreviewCommits = 5;
+    public const int PreviewCommits = 3;
 
     /**
      * The alerts the safety menu confirms with, as the web words them. Each one's id names the profile too, so an
@@ -120,6 +122,13 @@ class Profile extends NativeComponent
      * @var array<string, int>
      */
     public array $listKeys = [];
+
+    /**
+     * Each tab's rows from the last frame, so a render only builds the rows that changed, as on the Log.
+     *
+     * @var array<string, RowCache>
+     */
+    private array $rowCaches = [];
 
     /**
      * Whether the tab has had commits to show, kept or fresh. Until then it shows skeleton rows.
@@ -749,6 +758,10 @@ class Profile extends NativeComponent
 
     public function render(): View
     {
+        foreach (self::Tabs as $tab) {
+            $this->rowCache($tab)->startFrame();
+        }
+
         $pages = array_map(fn (string $tab): array => $tab === $this->tab
             ? $this->page($tab, $this->commits, $this->nextCursor, $this->commitsLoaded, $this->listKey)
             : $this->previewPage($tab), self::Tabs);
@@ -798,6 +811,7 @@ class Profile extends NativeComponent
 
         return [
             'tab' => $tab,
+            'rowCache' => $this->rowCache($tab),
             'showing' => $showing,
             'listKey' => $listKey,
             'loaded' => $loaded,
@@ -809,5 +823,10 @@ class Profile extends NativeComponent
             // Replies the tab you're on has opened, under their commits.
             'threads' => $showing ? $this->threads : [],
         ];
+    }
+
+    private function rowCache(string $tab): RowCache
+    {
+        return $this->rowCaches[$tab] ??= new RowCache;
     }
 }
