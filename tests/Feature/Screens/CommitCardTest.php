@@ -112,12 +112,12 @@ it('builds a row from as few views as it can, as a list builds and measures each
     $content = $row['children'][0];
 
     // One column beside the rail, its gutter a margin and the hairline under it a border, and buttons that are their
-    // own rows. Wrapped the old way, this row took 48 views in eight levels.
+    // own rows. Wrapped the old way, this row took 47 views in eight levels.
     expect($row['layout']['flex_direction'])->toBe(1)
         ->and($content['layout']['margin'])->toBe([0.0, 0.0, 0.0, 64.0])
         ->and($content['props']['border_b'])->toBe(1.0)
         ->and(array_column(nodeByRef($screen, 'star-c1')['children'], 'type'))->toBe(['icon', 'text'])
-        ->and(count(findNodes($row, fn (): bool => true)))->toBeLessThanOrEqual(36);
+        ->and(count(findNodes($row, fn (): bool => true)))->toBeLessThanOrEqual(35);
 });
 
 it("draws a poll you haven't voted on as plain options, with nothing to tap, since the app can't vote yet", function () {
