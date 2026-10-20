@@ -356,7 +356,7 @@ it('puts the web action row under each commit: the star, Quote, Reply and replie
     $ada = userJson(['id' => 'u2', 'username' => 'ada']);
 
     Http::fake(['devnull.test/*' => Http::response(pageJson([
-        commitJson(['id' => 'c2', 'stars_count' => 3, 'starred' => true, 'is_saved' => true, 'replies_count' => 1, 'author' => $ada]),
+        commitJson(['id' => 'c2', 'stars_count' => 3, 'starred' => true, 'replies_count' => 1, 'author' => $ada]),
         commitJson(['id' => 'c1', 'stars_count' => 1, 'starred' => false, 'author' => $ada]),
         commitJson(['id' => 'c0', 'status' => 'pending', 'author' => $ada]),
     ]))]);
@@ -373,9 +373,9 @@ it('puts the web action row under each commit: the star, Quote, Reply and replie
         // Someone else's pending commit can't be starred or quoted, so the web leaves them off.
         ->assertMissingElement('pressable', fn (array $node): bool => in_array($node['ref'] ?? null, ['star-c0', 'quote-c0'], true));
 
-    // The web's order: star, Quote, Reply and replies on the left, then More, standing in for the bookmark, copy link and Report, on the right.
+    // The web's order: star, Quote, Reply and replies on the left, then More for Share link and Report.
     expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'more-c2'])
-        // Nor can it be saved or reported, so all its menu has is the link.
+        // Nor can it be reported, so all its menu has is the link.
         ->and(menuItems($screen, 'more-c0'))->toBe([['share-c0', 'Share link', 'custom:link']]);
 
     $icon = fn (string $ref): ?array => findNode(nodeByRef($screen, $ref), fn (array $node): bool => ($node['type'] ?? null) === 'icon');
@@ -413,20 +413,24 @@ it('makes Quote a button, which opens the quote sheet', function () {
     $screen->tap('quote-c1')->assertSee('Quote @ada');
 });
 
-it("shows only the count on your own commit's star, which devnull won't let you press", function () {
-    Http::fake(['devnull.test/*' => Http::response(pageJson([
-        commitJson(['id' => 'c2', 'stars_count' => 2]),
-        commitJson(['id' => 'c1', 'stars_count' => 0]),
-    ]))]);
+it('lets you star your own commits including those waiting for approval', function (string $status, string $platform) {
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([
+            commitJson(['id' => 'c2', 'status' => $status, 'stars_count' => 2]),
+            commitJson(['id' => 'c1', 'status' => $status, 'stars_count' => 0]),
+        ])],
+        'POST /api/v1/commits/c2/star' => [['data' => commitJson(['id' => 'c2', 'status' => $status, 'stars_count' => 3, 'starred' => true])]],
+    ]);
 
-    $screen = Native::visit('/log', platform: 'ios')
-        ->assertMissingElement('pressable', fn (array $node): bool => in_array($node['ref'] ?? null, ['star-c2', 'star-c1'], true))
-        ->assertElement('row', fn (array $node): bool => ($node['ref'] ?? null) === 'star-count-c2' && ($node['props']['a11y_label'] ?? null) === '2 stars')
-        ->assertElement('row', fn (array $node): bool => ($node['ref'] ?? null) === 'star-count-c1' && ($node['props']['a11y_label'] ?? null) === 'No stars yet')
-        ->call('toggleStar', 'c2');
+    $screen = Native::visit('/log', platform: $platform)
+        ->assertElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'star-c2' && ($node['props']['a11y_label'] ?? null) === 'Star commit, 2 stars')
+        ->assertElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'star-c1' && ($node['props']['a11y_label'] ?? null) === 'Star commit')
+        ->tap('star-c2');
 
-    Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
-});
+    expect($screen->instance()->commits[0]->starred)->toBeTrue()
+        ->and($screen->instance()->commits[0]->starsCount)->toBe(3);
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && str_ends_with($request->url(), '/c2/star'));
+})->with(['approved', 'pending'])->with(['ios', 'android']);
 
 it('stars and unstars from the row, taking the count devnull sends back', function () {
     $ada = userJson(['id' => 'u2', 'username' => 'ada']);
@@ -464,30 +468,24 @@ it('puts the star back when devnull says no', function () {
         ->and($screen->instance()->commits[0]->starsCount)->toBe(1);
 });
 
-it('saves and unsaves from More', function () {
-    fakeApi([
-        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'is_saved' => false])])],
-        'PUT /api/v1/commits/c1/bookmark' => [['data' => commitJson(['id' => 'c1', 'is_saved' => true])]],
-        'DELETE /api/v1/commits/c1/bookmark' => [['data' => commitJson(['id' => 'c1', 'is_saved' => false])]],
-    ]);
+it('leaves bookmarks out of More even when an old cached commit has bookmark state', function () {
+    fakeApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'is_saved' => true])])]]);
 
     $screen = Native::visit('/log', platform: 'ios');
-    expect(menuItems($screen, 'more-c1')[0])->toBe(['save-c1', 'Save commit', 'custom:bookmark']);
+    expect(menuItems($screen, 'more-c1'))->toBe([
+        ['share-c1', 'Share link', 'custom:link'],
+        'divider',
+        ['delete-c1', 'Delete commit', 'custom:trash-2'],
+    ])
+        ->and(method_exists($screen->instance(), 'toggleBookmark'))->toBeFalse();
 
-    $screen->tap('save-c1');
-    expect($screen->instance()->commits[0]->isSaved)->toBeTrue()
-        ->and(menuItems($screen, 'more-c1')[0])->toBe(['save-c1', 'Unsave commit', 'custom:bookmark-filled']);
-
-    $screen->tap('save-c1');
-    expect($screen->instance()->commits[0]->isSaved)->toBeFalse();
-
-    Http::assertSent(fn (Request $request): bool => $request->method() === 'PUT' && $request->url() === 'http://devnull.test/api/v1/commits/c1/bookmark');
+    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/bookmark'));
 });
 
-it("leaves the star and bookmark alone on someone else's pending commit", function () {
+it("leaves the star alone on someone else's pending commit", function () {
     fakeApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'status' => 'pending', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])]]);
 
-    Native::visit('/log')->call('toggleStar', 'c1')->call('toggleBookmark', 'c1');
+    Native::visit('/log')->call('toggleStar', 'c1');
 
     Http::assertNotSent(fn (Request $request): bool => $request->method() !== 'GET');
 });

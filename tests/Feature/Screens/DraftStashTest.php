@@ -247,12 +247,12 @@ it('marks Reply on a commit with a stashed reply', function () {
         ->and(nodeByRef($screen, 'reply-to-c1')['props']['a11y_label'])->toBe('Reply');
 });
 
-it('marks Quote and Reply on a saved commit with a stashed draft', function () {
-    fakeApi(['GET /api/v1/saved' => [pageJson([commitJson(['id' => 'c1', 'is_saved' => true, 'author' => stashAda()])], path: 'http://devnull.test/api/v1/saved')]]);
+it('marks Quote and Reply on a starred commit with a stashed draft', function () {
+    fakeApi(['GET /api/v1/starred' => [pageJson([commitJson(['id' => 'c1', 'starred' => true, 'author' => stashAda()])], path: 'http://devnull.test/api/v1/starred')]]);
     stash('quote-c1', 'This, all of it.');
     stash('reply-c1', 'A reply in progress');
 
-    $screen = finishRefreshes(Native::visit('/profile/saved', platform: 'ios'));
+    $screen = finishRefreshes(Native::visit('/profile/starred', platform: 'ios'));
 
     expect(showsRef($screen, 'quote-stash-c1'))->toBeTrue()
         ->and(showsRef($screen, 'reply-stash-c1'))->toBeTrue();

@@ -164,10 +164,10 @@ class Profile extends NativeComponent
         if ($this->isMe()) {
             return NavBarOptions::make()
                 ->action(
-                    NavAction::make('saved')
-                        ->icon(ios: Lucide::Bookmark->ios(), android: Lucide::Bookmark->android())
-                        ->a11yLabel('Saved')
-                        ->press('openSaved'),
+                    NavAction::make('starred')
+                        ->icon(ios: Lucide::Star->ios(), android: Lucide::Star->android())
+                        ->a11yLabel('Starred')
+                        ->press('openStarred'),
                 )
                 ->action(
                     NavAction::make('account')
@@ -487,11 +487,11 @@ class Profile extends NativeComponent
     }
 
     /**
-     * The commits you saved, which the web's phone keeps in its account menu.
+     * The commits you starred, which the web's phone keeps in its account menu.
      */
-    public function openSaved(): void
+    public function openStarred(): void
     {
-        $this->navigate('/profile/saved');
+        $this->navigate('/profile/starred');
     }
 
     /**

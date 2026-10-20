@@ -8,6 +8,7 @@ use App\Devnull\Data\Page;
 use App\Devnull\Data\User;
 use App\Devnull\LastVisit;
 use App\Devnull\ResponseCache;
+use App\Devnull\RowCache;
 use App\Devnull\ShownTabs;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
@@ -142,6 +143,13 @@ class Log extends NativeComponent
      * The last-visit marker stays put against it while the screen is open, as on the web.
      */
     public ?string $lastVisitAt = null;
+
+    /**
+     * Each log's rows from the last frame, so a render only builds the rows that changed.
+     *
+     * @var array<string, RowCache>
+     */
+    private array $rowCaches = [];
 
     public function mount(): void
     {
@@ -631,6 +639,10 @@ class Log extends NativeComponent
     {
         $viewer = $this->me();
 
+        foreach (self::Logs as $log) {
+            $this->rowCache($log)->startFrame();
+        }
+
         $pages = array_map(fn (string $log): array => $log === $this->log
             ? $this->page($log, [
                 'commits' => $this->commits,
@@ -677,6 +689,7 @@ class Log extends NativeComponent
             'log' => $log,
             'showing' => $log === $this->log,
             'listKey' => $listKey,
+            'rowCache' => $this->rowCache($log),
             'loaded' => $state['loaded'],
             'error' => $state['error'],
             'threads' => $state['threads'],
@@ -695,5 +708,10 @@ class Log extends NativeComponent
                     firstSeenId: LastVisit::firstSeenId($commits, $state['lastVisitAt'], $viewer?->id),
                 ),
         ];
+    }
+
+    private function rowCache(string $log): RowCache
+    {
+        return $this->rowCaches[$log] ??= new RowCache;
     }
 }

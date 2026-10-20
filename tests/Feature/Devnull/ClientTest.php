@@ -353,7 +353,7 @@ it('tolerates missing optional fields', function () {
         ->and($commit->isDeleted())->toBeFalse()
         ->and($commit->starsCount)->toBe(0)
         ->and($commit->starred)->toBeFalse()
-        ->and($commit->isSaved)->toBeNull()
+        ->and(property_exists($commit, 'isSaved'))->toBeFalse()
         ->and($commit->isPinned)->toBeFalse()
         ->and($commit->mentions)->toBe([])
         ->and($commit->linkPreview)->toBeNull()
@@ -378,7 +378,6 @@ it('reads what the web shows on a commit', function () {
     $commit = Commit::fromArray(commitJson([
         'stars_count' => 2,
         'starred' => true,
-        'is_saved' => true,
         'is_pinned' => true,
         'link_preview' => ['url' => 'https://www.laravel.com/docs', 'title' => 'Docs', 'description' => '', 'image_url' => null, 'site_name' => null],
         'images' => [['id' => 'i1', 'url' => 'https://img.test/1', 'width' => 1080, 'height' => 2400], ['url' => null]],
@@ -387,7 +386,6 @@ it('reads what the web shows on a commit', function () {
 
     expect($commit->starsCount)->toBe(2)
         ->and($commit->starred)->toBeTrue()
-        ->and($commit->isSaved)->toBeTrue()
         ->and($commit->isPinned)->toBeTrue()
         ->and($commit->linkPreview?->site())->toBe('laravel.com')
         ->and($commit->linkPreview?->description)->toBeNull()

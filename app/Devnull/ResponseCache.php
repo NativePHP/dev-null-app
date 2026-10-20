@@ -45,7 +45,7 @@ final class ResponseCache
         '#^commits/[^/]+/replies$#',
         '#^users/[^/]+$#',
         '#^users/[^/]+/commits$#',
-        '#^saved$#',
+        '#^starred$#',
         '#^users/[^/]+/(followers|following)$#',
         '#^remotes$#',
         '#^remotes/@[^/]+/messages$#',
@@ -83,9 +83,9 @@ final class ResponseCache
     private const int RememberedDeletions = 50;
 
     /**
-     * How many of the commits unsaved on this phone it remembers.
+     * How many of the commits unstarred on this phone it remembers.
      */
-    private const int RememberedUnsaves = 50;
+    private const int RememberedUnstars = 50;
 
     /**
      * How many of the people muted or blocked on this phone it remembers, until a log has taken their commits out.
@@ -236,14 +236,14 @@ final class ResponseCache
     // ── The app's own writes ──────────────────────
 
     /**
-     * Your star, bookmark or pastel changed: every copy of the commit takes the counts devnull sent back.
+     * Your star or pastel changed: every copy of the commit takes the counts devnull sent back.
      *
      * @param  array<string, mixed>  $commit
      */
     public function commitReacted(array $commit): void
     {
         $id = (string) ($commit['id'] ?? '');
-        $reactions = array_intersect_key($commit, array_flip(['starred', 'stars_count', 'is_saved', 'pasteis_count']));
+        $reactions = array_intersect_key($commit, array_flip(['starred', 'stars_count', 'pasteis_count']));
 
         if ($id === '' || $reactions === []) {
             return;
@@ -253,39 +253,39 @@ final class ResponseCache
     }
 
     /**
-     * You saved or unsaved a commit. A commit you saved is the last you saved,
-     * so it goes on top of your saved commits; one you unsaved leaves them,
+     * You starred or unstarred a commit. A commit you starred is the newest,
+     * so it goes on top of your starred commits; one you unstarred leaves them,
      * and is remembered for the pages of them loaded past the first.
      *
      * @param  array<string, mixed>  $commit
      */
-    public function commitSaved(array $commit): void
+    public function commitStarred(array $commit): void
     {
         $id = (string) ($commit['id'] ?? '');
         $userId = $this->userId();
 
-        if ($id === '' || $userId === null || ! is_bool($commit['is_saved'] ?? null)) {
+        if ($id === '' || $userId === null || ! is_bool($commit['starred'] ?? null)) {
             return;
         }
 
-        $this->patch('saved', [], fn (array $json): array => $commit['is_saved']
+        $this->patch('starred', [], fn (array $json): array => $commit['starred']
             ? self::prepend($json, $commit)
             : [...$json, 'data' => self::without($json['data'] ?? [], $id)]);
 
-        $unsaved = array_diff($this->unsavedIds(), [$id]);
-        $this->store()->forever("{$userId} unsaved", array_slice($commit['is_saved'] ? $unsaved : [$id, ...$unsaved], 0, self::RememberedUnsaves));
+        $unstarred = array_diff($this->unstarredIds(), [$id]);
+        $this->store()->forever("{$userId} unstarred", array_slice($commit['starred'] ? $unstarred : [$id, ...$unstarred], 0, self::RememberedUnstars));
     }
 
     /**
-     * Commits unsaved on this phone lately, and not saved again since, for a
-     * screen showing more of your saved commits than the first page kept.
+     * Commits unstarred on this phone lately, and not starred again since, for a
+     * screen showing more of your starred commits than the first page kept.
      *
      * @return list<string>
      */
-    public function unsavedIds(): array
+    public function unstarredIds(): array
     {
         $userId = $this->userId();
-        $ids = $userId === null ? null : $this->store()->get("{$userId} unsaved");
+        $ids = $userId === null ? null : $this->store()->get("{$userId} unstarred");
 
         return is_array($ids) ? array_values(array_filter($ids, is_string(...))) : [];
     }

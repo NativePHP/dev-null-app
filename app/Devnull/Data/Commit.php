@@ -54,7 +54,6 @@ final readonly class Commit
         public ?CarbonImmutable $deletedAt = null,
         public int $starsCount = 0,
         public bool $starred = false,
-        public ?bool $isSaved = null,
         public bool $isPinned = false,
         public array $mentions = [],
         public ?LinkPreview $linkPreview = null,
@@ -113,7 +112,6 @@ final readonly class Commit
             htmlUrl: is_string($data['html_url'] ?? null) ? $data['html_url'] : null,
             starsCount: max(0, (int) ($data['stars_count'] ?? 0)),
             starred: ($data['starred'] ?? false) === true,
-            isSaved: is_bool($data['is_saved'] ?? null) ? $data['is_saved'] : null,
             isPinned: ($data['is_pinned'] ?? false) === true,
             mentions: $mentions,
             linkPreview: is_array($data['link_preview'] ?? null) ? LinkPreview::fromArray($data['link_preview']) : null,
@@ -151,13 +149,8 @@ final readonly class Commit
         return new self(...[...get_object_vars($this), 'pasteisCount' => max(0, $this->pasteisCount + $change)]);
     }
 
-    public function withSaved(bool $isSaved): self
-    {
-        return new self(...[...get_object_vars($this), 'isSaved' => $isSaved]);
-    }
-
     /**
-     * This commit with the star, save and pastéis state of a fresher copy of
+     * This commit with the star and pastéis state of a fresher copy of
      * it, keeping everything else, such as the parent a list loaded with it.
      */
     public function withReactionsFrom(self $fresh): self
@@ -166,7 +159,6 @@ final readonly class Commit
             ...get_object_vars($this),
             'starred' => $fresh->starred,
             'starsCount' => $fresh->starsCount,
-            'isSaved' => $fresh->isSaved ?? $this->isSaved,
             'pasteisCount' => $fresh->pasteisCount,
         ]);
     }

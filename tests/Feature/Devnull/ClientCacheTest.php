@@ -109,14 +109,12 @@ it('answers status 0 from the background when devnull cannot be reached', functi
     expect((new FetchInBackground)->handle($request->url, $request->headers))->toBe(['status' => 0, 'json' => null, 'retry_after' => '']);
 });
 
-it('keeps stars and bookmarks on every kept copy', function () {
+it('keeps stars on every kept copy', function () {
     keep('log/following', pageJson([commitJson(['id' => 'c1', 'stars_count' => 1])]));
     keep('users/local_dev/commits', pageJson([commitJson(['id' => 'c1', 'stars_count' => 1])]));
     serveApi([
         'POST /api/v1/commits/c1/star' => [['data' => commitJson(['id' => 'c1', 'starred' => true, 'stars_count' => 2])]],
         'DELETE /api/v1/commits/c1/star' => [['data' => commitJson(['id' => 'c1', 'starred' => false, 'stars_count' => 1])]],
-        'PUT /api/v1/commits/c1/bookmark' => [['data' => commitJson(['id' => 'c1', 'starred' => true, 'stars_count' => 2, 'is_saved' => true])]],
-        'DELETE /api/v1/commits/c1/bookmark' => [['data' => commitJson(['id' => 'c1', 'starred' => true, 'stars_count' => 2, 'is_saved' => false])]],
     ]);
 
     $this->devnull->star('c1');
@@ -124,43 +122,36 @@ it('keeps stars and bookmarks on every kept copy', function () {
     expect(kept('log/following')['data'][0])->toMatchArray(['starred' => true, 'stars_count' => 2])
         ->and(kept('users/local_dev/commits')['data'][0])->toMatchArray(['starred' => true, 'stars_count' => 2]);
 
-    $this->devnull->bookmark('c1');
-    expect(kept('log/following')['data'][0]['is_saved'])->toBeTrue();
-
-    $this->devnull->unbookmark('c1');
-    expect(kept('log/following')['data'][0]['is_saved'])->toBeFalse();
-
     $this->devnull->unstar('c1');
     expect(kept('log/following')['data'][0])->toMatchArray(['starred' => false, 'stars_count' => 1]);
 });
 
-it('keeps the kept saved commits up to date as you save and unsave, but not as you star', function () {
-    keep('saved', pageJson([commitJson(['id' => 'c2', 'is_saved' => true])], 'page2'));
+it('keeps starred commits in newest-star order as you star and unstar', function () {
+    keep('starred', pageJson([commitJson(['id' => 'c2', 'starred' => true])], 'page2'));
     serveApi([
-        'POST /api/v1/commits/c9/star' => [['data' => commitJson(['id' => 'c9', 'starred' => true, 'stars_count' => 1, 'is_saved' => true])]],
-        'PUT /api/v1/commits/c1/bookmark' => [['data' => commitJson(['id' => 'c1', 'is_saved' => true])]],
-        'DELETE /api/v1/commits/c2/bookmark' => [['data' => commitJson(['id' => 'c2', 'is_saved' => false])]],
+        'POST /api/v1/commits/c9/star' => [['data' => commitJson(['id' => 'c9', 'starred' => true, 'stars_count' => 1])]],
+        'POST /api/v1/commits/c1/star' => [['data' => commitJson(['id' => 'c1', 'starred' => true])]],
+        'DELETE /api/v1/commits/c2/star' => [['data' => commitJson(['id' => 'c2', 'starred' => false])]],
     ]);
 
-    // c9 was saved long ago, past the kept page: a star doesn't make it the last saved.
     $this->devnull->star('c9');
-    expect(array_column(kept('saved')['data'], 'id'))->toBe(['c2']);
+    expect(array_column(kept('starred')['data'], 'id'))->toBe(['c9', 'c2']);
 
-    $this->devnull->bookmark('c1');
-    expect(array_column(kept('saved')['data'], 'id'))->toBe(['c1', 'c2']);
+    $this->devnull->star('c1');
+    expect(array_column(kept('starred')['data'], 'id'))->toBe(['c1', 'c9', 'c2']);
 
-    $this->devnull->unbookmark('c2');
-    expect(array_column(kept('saved')['data'], 'id'))->toBe(['c1'])
-        ->and(app(ResponseCache::class)->unsavedIds())->toBe(['c2']);
+    $this->devnull->unstar('c2');
+    expect(array_column(kept('starred')['data'], 'id'))->toBe(['c1', 'c9'])
+        ->and(app(ResponseCache::class)->unstarredIds())->toBe(['c2']);
 });
 
-it('keeps the first page of your saved commits', function () {
-    serveApi(['GET /api/v1/saved' => [pageJson([commitJson(['id' => 'c1', 'is_saved' => true])], 'page2')]]);
+it('keeps the first page of your starred commits', function () {
+    serveApi(['GET /api/v1/starred' => [pageJson([commitJson(['id' => 'c1', 'starred' => true])], 'page2')]]);
 
-    expect($this->devnull->saved()->items[0]->id)->toBe('c1')
-        ->and($this->devnull->saved('page2')->nextCursor)->toBe('page2')
-        ->and(array_column(kept('saved')['data'], 'id'))->toBe(['c1'])
-        ->and(Http::recorded()[1][0]->url())->toBe('http://devnull.test/api/v1/saved?cursor=page2');
+    expect($this->devnull->starred()->items[0]->id)->toBe('c1')
+        ->and($this->devnull->starred('page2')->nextCursor)->toBe('page2')
+        ->and(array_column(kept('starred')['data'], 'id'))->toBe(['c1'])
+        ->and(Http::recorded()[1][0]->url())->toBe('http://devnull.test/api/v1/starred?cursor=page2');
 });
 
 it('keeps a new commit and a new reply where they belong', function () {
