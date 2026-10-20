@@ -70,13 +70,15 @@ With the app installed, a link to a profile, its followers, a commit or a remote
 
 Both platforms check with dev-null.sh before they hand a link to an app:
 
-- iOS fetches `https://dev-null.sh/.well-known/apple-app-site-association`, which has to list the app's ID (team and bundle ID, like `J68WFCX458.com.simonhamp.devnull`) and the paths it opens. The App ID needs the Associated Domains capability too.
-- Android fetches `https://dev-null.sh/.well-known/assetlinks.json`, which has to list the package name and the SHA-256 fingerprint of the key the app was signed with. That file can't scope paths, so `NATIVEPHP_DEEPLINK_PATHS` does it in the app's manifest.
+- iOS fetches `https://dev-null.sh/.well-known/apple-app-site-association`, which lists the production app, `J68WFCX458.com.nativephp.devnull`, and the paths it opens. The App ID needs the Associated Domains capability too.
+- Android fetches `https://dev-null.sh/.well-known/assetlinks.json`, which lists the package name, `com.nativephp.devnull`, and the SHA-256 fingerprint of the key the app was signed with. That file can't scope paths, so `NATIVEPHP_DEEPLINK_PATHS` does it in the app's manifest.
 
-Until dev-null.sh lists a build, the links stay in the browser. To try one on an Android phone anyway, approve the link for the app yourself:
+So links only open in a build whose `NATIVEPHP_APP_ID` is `com.nativephp.devnull`. On iOS, a build with any other ID, like the one in `.env.example`, leaves them in the browser, and there's no way around that.
+
+Android doesn't have that limit. To try links in a build that dev-null.sh doesn't list, approve them for the app yourself, using the build's `NATIVEPHP_APP_ID` as the package:
 
 ```sh
-adb shell pm set-app-links-user-selection --user cur --package com.simonhamp.devnull true dev-null.sh
+adb shell pm set-app-links-user-selection --user cur --package com.nativephp.devnull true dev-null.sh
 ```
 
 ## Running it
