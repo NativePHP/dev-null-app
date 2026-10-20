@@ -3,13 +3,9 @@
     are unlocked, a bar of the way to the next rank in the owner's lane, and the badges. An unlocked badge is a hairline
     chip in ink; a locked one is muted, with its progress when it takes more than one step.
 
-    The web wraps the badges onto as many lines as they need. EDGE parses flex-wrap but its iOS FlexContainer never
-    wraps, so here they scroll sideways in one row. The web's locked chips are dashed, which EDGE can't draw round a
-    pill, so they're a faint solid line. Tapping the rank, the count or a badge opens the web's dialog, as a sheet
-    (see achievements-sheet); a badge opens it marked.
-
-    The badges' row runs the full width of the screen and carries the shelf's 16pt inset inside it, so the first chip
-    lines up with the text above, and chips scroll out to the edge of the screen rather than stopping short of it.
+    Like the web's compact shelf, only earned badges show here. Native rows don't wrap on iOS, so two fit beside
+    the count of the rest; every badge, locked or earned, is in the sheet (see achievements-sheet). Tapping an earned
+    badge opens it marked. The empty shelf offers View achievements.
 --}}
 <native:column ref="achievements" class="w-full py-3 gap-[10] bg-theme-surface" a11y-label="Developer achievements">
     <native:pressable ref="achievements-open" @press="openAchievements" class="w-full" a11y-label="{{ $achievements->label() }}, {{ $achievements->xp }} XP, {{ $achievements->unlockedCount() }} of {{ count($achievements->badges) }} badges unlocked" a11y-hint="Shows the achievements">
@@ -37,21 +33,22 @@
         </native:column>
     </native:pressable>
 
-    <native:scroll-view ref="badges" horizontal :shows-indicators="false" class="w-full">
-        <native:row class="px-4 gap-2">
-            @foreach ($achievements->badges as $badge)
-                @php($icon = \App\Icons\Lucide::forBadge($badge->icon))
-                <native:pressable ref="badge-{{ $badge->id }}" @press="openAchievements('{{ $badge->id }}')" a11y-label="{{ $badge->name }}, {{ $badge->statusLabel() }}. {{ $badge->description }}">
-                    <native:row class="px-[10] py-1 gap-[6] items-center rounded-full border {{ $badge->unlocked ? 'border-theme-hairline bg-theme-surface' : 'border-theme-ink-muted/30 bg-theme-wash/20' }}">
-                        <native:icon :ios="$icon->ios()" :android="$icon->android()" :size="14" class="{{ $badge->unlocked ? 'text-theme-ink' : 'text-theme-ink-muted/50' }}" />
-                        <native:text font="mono" class="text-xs {{ $badge->unlocked ? 'text-theme-ink' : 'text-theme-ink-muted/60' }}">{{ $badge->name }}</native:text>
-                        @if ($badge->showsProgress())
-                            <native:text font="mono" class="text-[10px] text-theme-ink-muted/60">({{ $badge->progress }}/{{ $badge->target }})</native:text>
-                        @endif
-                    </native:row>
-                </native:pressable>
-            @endforeach
-        </native:row>
-    </native:scroll-view>
+    @php($earned = $achievements->unlockedBadges())
+    <native:row ref="badges" class="w-full px-4 gap-2 items-center">
+        @foreach (array_slice($earned, 0, 2) as $badge)
+            @php($icon = \App\Icons\Lucide::forBadge($badge->icon))
+            <native:pressable ref="badge-{{ $badge->id }}" class="flex-shrink" @press="openAchievements('{{ $badge->id }}')" a11y-label="{{ $badge->name }}, {{ $badge->statusLabel() }}. {{ $badge->description }}">
+                <native:row class="px-[10] py-1 gap-[6] items-center rounded-full border border-theme-hairline bg-theme-surface">
+                    <native:icon :ios="$icon->ios()" :android="$icon->android()" :size="14" class="text-theme-ink" />
+                    <native:text font="mono" class="text-xs text-theme-ink flex-shrink" :max-lines="1">{{ $badge->name }}</native:text>
+                </native:row>
+            </native:pressable>
+        @endforeach
+        @if (count($earned) > 2 || $earned === [])
+            <native:pressable ref="badges-more" @press="openAchievements" a11y-label="Show all achievements">
+                <native:text font="mono" class="text-xs text-theme-ink-muted">{{ $earned === [] ? 'View achievements' : '+'.(count($earned) - 2).' more' }}</native:text>
+            </native:pressable>
+        @endif
+    </native:row>
 </native:column>
 <native:column class="w-full h-[1] bg-theme-hairline" />

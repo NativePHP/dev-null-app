@@ -3,6 +3,18 @@
 use App\Devnull\Display;
 use Carbon\CarbonImmutable;
 
+it('keeps the last reply clear of the link validation message', function () {
+    $url = 'https://example.com/'.str_repeat('x', 2030);
+    expect(Display::replyBarClearance($url))->toBe(Display::replyBarClearance(str_repeat('a', mb_strlen($url))) + 3 * Display::ReplyBarLineHeight);
+});
+
+it('prints compact counts from a thousand as the web does', function (int $count, string $expected) {
+    expect(Display::compactCount($count))->toBe($expected);
+})->with([
+    [0, '0'], [999, '999'], [1000, '1k'], [1050, '1.1k'], [12500, '12.5k'],
+    [999949, '999.9k'], [999950, '1m'], [1000000, '1m'], [1500000000, '1.5b'],
+]);
+
 it('prints relative times the way the web does', function (string $date, string $expected) {
     $now = CarbonImmutable::parse('2026-10-15T12:00:00Z');
 

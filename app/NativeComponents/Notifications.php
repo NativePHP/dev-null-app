@@ -253,6 +253,26 @@ class Notifications extends NativeComponent
     }
 
     /**
+     * Names and avatars open their profile independently of the notification's commit.
+     */
+    public function openActor(string $username): void
+    {
+        foreach ([...$this->notifications, ...array_merge([], ...array_values($this->expanded))] as $notification) {
+            if ($notification->isModeration()) {
+                continue;
+            }
+
+            foreach ([$notification->actor, ...$notification->actors] as $actor) {
+                if ($username !== '' && $actor->username === $username) {
+                    $this->openInTab('/users/'.$actor->username, ['user' => $actor]);
+
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
      * The group's toggle: "5 stars" lists them in place, "Hide stars" folds them away.
      */
     public function toggleGroup(string $id): void

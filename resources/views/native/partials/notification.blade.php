@@ -40,10 +40,10 @@
                 @if ($notification->isModeration())
                     <native:text class="w-full text-[15px] text-theme-ink">{{ $notification->sentence() }}.</native:text>
                 @else
-<native:text class="w-full text-[15px] text-theme-ink whitespace-pre-wrap"><native:text :text="$notification->actor->name" font="semibold" class="font-semibold" />
+<native:text class="w-full text-[15px] text-theme-ink whitespace-pre-wrap"><native:text ref="actor-name-{{ $notification->id }}" :text="$notification->actor->name" font="semibold" class="font-semibold" @press="openActor('{{ $notification->actor->username }}')" a11y-label="{{ $notification->actor->handle() }}'s profile" />
 <native:text text=" " />
 @if ($notification->others() === '')
-<native:text :text="$notification->actor->handle()" font="mono" class="text-[13px] text-theme-ink-muted" />
+<native:text :text="$notification->actor->handle()" font="mono" class="text-[13px] text-theme-ink-muted" @press="openActor('{{ $notification->actor->username }}')" />
 <native:text :text="' '.$notification->sentence()" />
 @else
 <native:text :text="$notification->others().' '.$notification->sentence()" />

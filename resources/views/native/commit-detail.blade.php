@@ -1,6 +1,3 @@
-@php($remaining = \App\Devnull\Data\Commit::MaxLength - mb_strlen($reply))
-@php($replyLength = mb_strlen(trim($reply)))
-
 <native:column class="w-full h-full bg-theme-background">
     @include('native.partials.error')
     @include('native.partials.refresh-failed')
@@ -120,12 +117,15 @@
                             :autofocus="$focusReply"
                             multiline
                             :max-lines="5"
-                            :max-length="\App\Devnull\Data\Commit::MaxLength"
+                            :max-length="\App\Devnull\Data\Commit::MaxRawLength"
                         />
                     </native:column>
                     @include('native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget'])
-                    <native:button ref="send-reply" :variant="$myColour" size="sm" :disabled="$replyLength < 3 || $remaining < 0" @press="sendReply">Reply</native:button>
+                    <native:button ref="send-reply" :variant="$myColour" size="sm" :loading="$sendingReply" :disabled="$sendingReply || ! \App\Devnull\Data\Commit::fits($reply)" @press="sendReply">Reply</native:button>
                 </native:row>
+                @if (\App\Devnull\Data\CommitBody::hasOversizedUrl($reply))
+                    <native:text ref="reply-link-error" class="w-full px-4 pb-2 text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
+                @endif
                 {{-- A reply stashed when you left the commit comes back with the web's stash@{0} and drop under it. --}}
                 @if ($replyRestored)
                     <native:row class="w-full px-4 -mt-2">

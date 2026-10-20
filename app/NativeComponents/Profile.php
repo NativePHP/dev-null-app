@@ -4,6 +4,7 @@ namespace App\NativeComponents;
 
 use App\Devnull\Account;
 use App\Devnull\Data\Commit;
+use App\Devnull\Data\Mention;
 use App\Devnull\Data\Page;
 use App\Devnull\Data\Profile as ProfileData;
 use App\Devnull\Data\User;
@@ -538,6 +539,19 @@ class Profile extends NativeComponent
     public function openSafety(): void
     {
         $this->openInTab('/safety');
+    }
+
+    public function openGitHubMention(string $username): void
+    {
+        $user = $this->profile?->user;
+
+        foreach (Mention::inText(($user?->bio ?? '')."\n".($user?->company ?? '')) as $mention) {
+            if ($mention->username === $username) {
+                Browser::inApp('https://github.com/'.rawurlencode($username));
+
+                return;
+            }
+        }
     }
 
     public function openGitHubProfile(): void

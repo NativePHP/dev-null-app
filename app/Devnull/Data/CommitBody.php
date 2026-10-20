@@ -24,6 +24,11 @@ final class CommitBody
      */
     private const string Ellipsis = '…';
 
+    /**
+     * The web's CodeSpans rule, retaining delimiters so code counts literally.
+     */
+    private const string CodeSpans = '/((?<![^\n])`{3,}[^`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?`{3,}[ \t]*(?![^\r\n])|`[^`\r\n]+`)/';
+
     private const string FencedBlock = '/\G`{3,}[^`\r\n]*\r?\n(?:([\s\S]*?)\r?\n)?`{3,}[ \t]*(?![^\r\n])/u';
 
     /**
@@ -31,6 +36,62 @@ final class CommitBody
      * or a name. The web's rule, from withWordmarks() in linkified-text.tsx.
      */
     private const string Wordmark = '/(?<![\p{L}\p{M}\p{N}_.\/-])(\/dev\/null)(?![\p{L}\p{M}\p{N}_\/-])/u';
+
+    /**
+     * The body as the web saves it: line endings normalized, with runs of blank lines collapsed in prose only.
+     */
+    public static function normalize(string $body): string
+    {
+        $parts = self::parts(str_replace(["\r\n", "\r"], "\n", trim($body)));
+
+        foreach ($parts as $index => $part) {
+            if ($index % 2 === 0) {
+                $parts[$index] = (string) preg_replace('/(?:[ \t]*\n){3,}/', "\n\n", $part);
+            }
+        }
+
+        return implode('', $parts);
+    }
+
+    /**
+     * Each prose URL counts as at most 23 code points. Code and invalid URLs count literally.
+     */
+    public static function characterCount(string $body): int
+    {
+        $body = self::normalize($body);
+        $length = mb_strlen($body);
+
+        foreach (self::parts($body) as $index => $part) {
+            if ($index % 2 === 0) {
+                foreach (BodyLink::in($part) as [, $writtenLength]) {
+                    $length -= max(0, $writtenLength - 23);
+                }
+            }
+        }
+
+        return $length;
+    }
+
+    public static function hasOversizedUrl(string $body): bool
+    {
+        foreach (self::parts(self::normalize($body)) as $index => $part) {
+            if ($index % 2 === 0 && BodyLink::hasOversizedUrl($part)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Alternating prose and code, including the code's delimiters.
+     *
+     * @return list<string>
+     */
+    private static function parts(string $body): array
+    {
+        return preg_split(self::CodeSpans, $body, flags: PREG_SPLIT_DELIM_CAPTURE) ?: [$body];
+    }
 
     /**
      * @param  list<array<string, mixed>>|null  $segments  The `body_segments`, or null when the API sent none.

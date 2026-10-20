@@ -59,6 +59,36 @@ function ringColour(TestableComponent $screen, string $id): ?string
     return $node['style']['border_color'] ?? $node['style']['borderColor'] ?? null;
 }
 
+it('opens notification actors independently of the commit the row opens', function (string $ref, string $username) {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('starred', [
+        'actor' => personJson('grace', 'Grace'),
+        'actors' => [personJson('grace', 'Grace'), personJson('ada', 'Ada')],
+        'actors_count' => 2,
+        'event_count' => 2,
+    ])])]]);
+
+    $screen = Native::visit('/notifications')->tap($ref)->assertNavigatedTo('/notifications/users/'.$username);
+    expect($screen->navigationIntent()->data['user']->username)->toBe($username);
+})->with([
+    'name' => ['actor-name-n-starred', 'grace'],
+    'primary avatar' => ['actor-avatar-n-starred-grace', 'grace'],
+    'other stacked actor' => ['actor-avatar-n-starred-ada', 'ada'],
+]);
+
+it('opens an expanded notification actor from their own profile link', function () {
+    fakeApi([
+        'GET /api/v1/notifications' => [inboxJson([notificationJson('starred', ['event_count' => 2])])],
+        'GET /api/v1/notifications/n-starred/group' => [pageJson([notificationJson('starred', ['id' => 'older', 'actor' => personJson('linus', 'Linus'), 'actors' => [personJson('linus', 'Linus')]])])],
+    ]);
+
+    Native::visit('/notifications')->tap('group-n-starred')->tap('group-actor-older')->assertNavigatedTo('/notifications/users/linus');
+});
+
+it('does not navigate to an actor absent from the displayed notifications', function () {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([])]]);
+    Native::visit('/notifications')->call('openActor', 'nobody')->assertNoNavigation();
+});
+
 it('reads a group with its people, how many events there are and how many are unread', function () {
     Http::fake(['devnull.test/*' => Http::response(inboxJson([
         notificationJson('starred', [
@@ -103,10 +133,10 @@ it('words each kind like the web: the name, then the handle when they act alone,
         ->assertSee('Ask @local_dev about it')
         ->assertSee('2d');
 
-    expect(paragraphRuns($screen, 'replied to your commit'))->toBe([['Ada'], [' '], ['@ada'], [' replied to your commit']])
-        ->and(paragraphRuns($screen, 'quoted your commit'))->toBe([['Ada'], [' '], ['@ada'], [' quoted your commit']])
-        ->and(paragraphRuns($screen, 'mentioned you'))->toBe([['Grace'], [' '], ['@grace'], [' mentioned you']])
-        ->and(paragraphRuns($screen, 'followed you'))->toBe([['Linus'], [' '], ['@linus'], [' followed you']])
+    expect(paragraphRuns($screen, 'replied to your commit'))->toBe([['Ada', 'link'], [' '], ['@ada', 'mention'], [' replied to your commit']])
+        ->and(paragraphRuns($screen, 'quoted your commit'))->toBe([['Ada', 'link'], [' '], ['@ada', 'mention'], [' quoted your commit']])
+        ->and(paragraphRuns($screen, 'mentioned you'))->toBe([['Grace', 'link'], [' '], ['@grace', 'mention'], [' mentioned you']])
+        ->and(paragraphRuns($screen, 'followed you'))->toBe([['Linus', 'link'], [' '], ['@linus', 'mention'], [' followed you']])
         ->and(stackedAvatars($screen, 'n-followed'))->toBe(['https://avatars.test/linus']);
 });
 
@@ -124,7 +154,7 @@ it('stacks the newest three people on a group of stars, with a +N for the rest, 
         ->assertSee('+2')
         ->assertElement('icon', fn (array $node): bool => ($node['props']['name'] ?? null) === 'custom:star-filled' && ($node['props']['color'] ?? null) === config('native-ui.theme.light.lane-5'));
 
-    expect(paragraphRuns($screen, 'starred your commit'))->toBe([['Grace'], [' '], ['and 4 others starred your commit']])
+    expect(paragraphRuns($screen, 'starred your commit'))->toBe([['Grace', 'link'], [' '], ['and 4 others starred your commit']])
         ->and(stackedAvatars($screen, 'n-starred'))->toBe(['https://avatars.test/linus', 'https://avatars.test/ada', 'https://avatars.test/grace'])
         ->and(nodeByRef($screen, 'actors-n-starred')['layout']['width'] ?? null)->toEqual(108)
         // Your own commit sits in a muted hairline box, clamped to three lines.

@@ -30,9 +30,9 @@
                     <native:text font="semibold" class="flex-1 text-center text-base android:text-lg text-theme-ink" :max-lines="1">{{ $quoting ? 'Quote '.$sheetCommit->author->handle() : 'New commit' }}</native:text>
                     @if ($issueCommand)
                         {{-- The label stays put while it spins, so the button keeps its size. --}}
-                        <native:button ref="sheet-open-issue" :variant="\Native\Mobile\Platform::isIos() ? $myColour : 'ghost'" class="min-w-[96] ios:glass:prominent" :loading="$openingIssue" :disabled="$openingIssue || ! \App\Devnull\Data\Commit::fits($sheetBody)" @press="openIssueFromSheet">Open issue</native:button>
+                        <native:button ref="sheet-open-issue" :variant="\Native\Mobile\Platform::isIos() ? $myColour : 'ghost'" class="min-w-[96] ios:glass:prominent" :loading="$openingIssue" :disabled="$openingIssue || ! \App\Devnull\IssueCommand::fits($sheetBody)" @press="openIssueFromSheet">Open issue</native:button>
                     @else
-                        <native:button ref="sheet-commit" :variant="\Native\Mobile\Platform::isIos() ? $myColour : 'ghost'" class="min-w-[96] ios:glass:prominent" :disabled="! \App\Devnull\Data\Commit::fits($sheetBody)" @press="commitFromSheet">Commit</native:button>
+                        <native:button ref="sheet-commit" :variant="\Native\Mobile\Platform::isIos() ? $myColour : 'ghost'" class="min-w-[96] ios:glass:prominent" :loading="$sheetPosting" :disabled="$sheetPosting || ! \App\Devnull\Data\Commit::fits($sheetBody)" @press="commitFromSheet">Commit</native:button>
                     @endif
                 </native:row>
                 <native:column class="w-full h-[1] bg-theme-hairline" />
@@ -54,10 +54,14 @@
                             autofocus
                             multiline
                             :max-lines="8"
-                            :max-length="\App\Devnull\Data\Commit::MaxLength"
+                            :max-length="$issueCommand ? \App\Devnull\Data\Commit::MaxLength : \App\Devnull\Data\Commit::MaxRawLength"
                             size="lg"
                             a11y-label="Your commit"
                         />
+
+                        @if (! $issueCommand && \App\Devnull\Data\CommitBody::hasOversizedUrl($sheetBody))
+                            <native:text ref="sheet-link-error" class="w-full text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
+                        @endif
 
                         @if ($quoting)
                             @include('native.partials.quoted-commit', ['quoted' => $sheetCommit, 'static' => true])
@@ -73,7 +77,7 @@
                                 @include('native.partials.stash-label', ['ref' => 'sheet-stash', 'drop' => 'dropSheetStash'])
                                 <native:spacer />
                             @endif
-                            @include('native.partials.body-counter', ['body' => $sheetBody, 'ref' => 'sheet-budget'])
+                            @include('native.partials.body-counter', ['body' => $sheetBody, 'ref' => 'sheet-budget', 'literal' => $issueCommand !== null])
                         </native:row>
                     </native:column>
                 </native:scroll-view>

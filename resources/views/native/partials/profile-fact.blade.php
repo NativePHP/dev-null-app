@@ -14,6 +14,10 @@
         <native:column :width="16" class="items-center">
             <native:icon :ios="$icon->ios()" :android="$icon->android()" :size="14" class="text-theme-ink-muted" />
         </native:column>
-        <native:text class="flex-1 text-sm text-theme-ink-muted" :max-lines="1">{{ $label }}</native:text>
+        @if ($gitHubMentions ?? false)
+            @include('native.partials.github-text', ['text' => $label, 'ref' => 'profile-'.$key.'-text', 'classes' => 'flex-1 text-sm text-theme-ink-muted', 'maxLines' => 1])
+        @else
+            <native:text class="flex-1 text-sm text-theme-ink-muted" :max-lines="1">{{ $label }}</native:text>
+        @endif
     </native:row>
 @endif

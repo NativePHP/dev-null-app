@@ -46,6 +46,11 @@ function logOf(array $commits): TestableComponent
     return Native::visit('/log', platform: 'ios');
 }
 
+it('shortens visible star counts without shortening their accessibility label', function () {
+    $screen = logOf([['id' => 'c1', 'stars_count' => 12500]])->assertSee('12.5k');
+    expect(nodeByRef($screen, 'star-c1')['props']['a11y_label'])->toBe('Star commit, 12500 stars');
+});
+
 it('draws a poll you voted on like the web: bars, percentages, your vote checked, the votes and time left', function () {
     $screen = logOf([commitJson(['id' => 'c1', 'body' => 'Tabs or spaces?', 'poll' => votedPollJson()])])
         ->assertSee('Tabs')

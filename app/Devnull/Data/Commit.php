@@ -20,9 +20,11 @@ use Throwable;
  */
 final readonly class Commit
 {
-    public const int MinLength = 3;
+    public const int MinLength = 1;
 
     public const int MaxLength = 4000;
+
+    public const int MaxRawLength = 40000;
 
     /**
      * The web's composer only counts down once this few characters are left.
@@ -168,9 +170,13 @@ final readonly class Commit
      */
     public static function fits(string $body): bool
     {
-        $length = mb_strlen(trim($body));
+        $body = CommitBody::normalize($body);
+        $length = CommitBody::characterCount($body);
 
-        return $length >= self::MinLength && $length <= self::MaxLength;
+        return mb_strlen($body) <= self::MaxRawLength
+            && $length >= self::MinLength
+            && $length <= self::MaxLength
+            && ! CommitBody::hasOversizedUrl($body);
     }
 
     /**
@@ -180,7 +186,7 @@ final readonly class Commit
      */
     public static function isFoldedInLists(string $body): bool
     {
-        $normalized = trim((string) preg_replace('/(?:[ \t]*\n){3,}/', "\n\n", str_replace("\r\n", "\n", $body)));
+        $normalized = CommitBody::normalize($body);
 
         return mb_strlen($normalized) > self::PreviewLength || count(explode("\n", $normalized)) > self::PreviewLines;
     }

@@ -191,17 +191,43 @@ it('shows validation messages from the server', function () {
         ->assertSet('reply', 'Long enough');
 });
 
-it('turns the budget red at zero and holds back a short reply', function () {
+it('turns the budget red at zero and holds back a blank reply', function () {
     fakeThread();
 
     Native::visit('/log/commits/c2')
-        ->input('reply-input', 'hi')
+        ->input('reply-input', '  ')
         ->tap('send-reply')
         ->input('reply-input', str_repeat('a', 4000))
         ->assertElement('text', fn (array $node): bool => ($node['ref'] ?? null) === 'reply-budget'
             && ($node['text'] ?? $node['props']['text'] ?? null) === '0'
             && ($node['props']['color'] ?? null) === config('native-ui.theme.light.destructive'));
 
+    Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
+});
+
+it('accepts one-character replies and URL-aware reply budgets', function (string $body) {
+    fakeThread(extra: ['POST /api/v1/commits' => [['data' => replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => $body])], 201]]);
+
+    $screen = Native::visit('/log/commits/c2')->input('reply-input', $body);
+    expect(nodeByRef($screen, 'send-reply')['props']['disabled'] ?? false)->toBeFalse()
+        ->and(nodeByRef($screen, 'reply-input')['props']['max_length'])->toBe(40000);
+
+    $screen->tap('send-reply')->assertSet('reply', '')->assertSet('sendingReply', false);
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && $request['body'] === $body);
+})->with(['a', str_repeat('a', 3976).' https://example.com/'.str_repeat('x', 100)]);
+
+it('explains an oversized reply URL before it is submitted', function () {
+    fakeThread();
+    $screen = Native::visit('/log/commits/c2')->input('reply-input', 'https://example.com/'.str_repeat('x', 2030))
+        ->assertSee('Each link must not be greater than 2048 characters.');
+    expect(nodeByRef($screen, 'send-reply')['props']['disabled'])->toBeTrue();
+    $screen->call('sendReply');
+    Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
+});
+
+it('does not send a second reply while one is being submitted', function () {
+    fakeThread();
+    Native::visit('/log/commits/c2')->input('reply-input', 'a')->set('sendingReply', true)->call('sendReply');
     Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
 });
 

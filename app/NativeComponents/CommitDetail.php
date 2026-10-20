@@ -76,6 +76,8 @@ class CommitDetail extends NativeComponent
 
     public string $reply = '';
 
+    public bool $sendingReply = false;
+
     /**
      * Whether the reply was stashed when the page opened, which the bar marks until you empty it or drop it.
      */
@@ -239,11 +241,17 @@ class CommitDetail extends NativeComponent
     {
         $body = trim($this->reply);
 
-        if (mb_strlen($body) < Commit::MinLength || mb_strlen($body) > Commit::MaxLength) {
+        if ($this->sendingReply || ! Commit::fits($body)) {
             return;
         }
 
-        $reply = $this->attempt(fn ($devnull) => $devnull->createCommit($body, $this->id));
+        $this->sendingReply = true;
+
+        try {
+            $reply = $this->attempt(fn ($devnull) => $devnull->createCommit($body, $this->id));
+        } finally {
+            $this->sendingReply = false;
+        }
 
         if ($reply === null) {
             return;

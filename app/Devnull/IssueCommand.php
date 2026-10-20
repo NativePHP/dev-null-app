@@ -2,6 +2,8 @@
 
 namespace App\Devnull;
 
+use App\Devnull\Data\Commit;
+use App\Devnull\Data\CommitBody;
 use App\Icons\Lucide;
 
 /**
@@ -19,6 +21,16 @@ enum IssueCommand: string
      * Where the issue goes, as the web says it under the command.
      */
     public const string Repository = 'nunomaduro/dev-null.sh';
+
+    /**
+     * Issues still need three literal characters and do not discount URLs.
+     */
+    public static function fits(string $body): bool
+    {
+        $length = mb_strlen(CommitBody::normalize($body));
+
+        return $length >= 3 && $length <= Commit::MaxLength;
+    }
 
     /**
      * What you type, and what devnull takes.

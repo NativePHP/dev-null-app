@@ -62,6 +62,8 @@ trait OpensCommitSheet
      */
     public string $sheetBody = '';
 
+    public bool $sheetPosting = false;
+
     /**
      * Whether the sheet opened on a stashed draft, which it marks until you empty it or drop it.
      */
@@ -180,11 +182,17 @@ trait OpensCommitSheet
         $stashName = $this->sheetStashName();
         $body = trim($this->sheetBody);
 
-        if ($stashName === null || $this->sheetIssue !== null || ! Commit::fits($body)) {
+        if (! $this->sheetOpen || $this->sheetPosting || $stashName === null || $this->sheetIssue !== null || ! Commit::fits($body)) {
             return;
         }
 
-        $commit = $this->attemptInSheet(fn (Client $devnull): Commit => $devnull->createCommit($body, quotedCommitId: $quoted?->id));
+        $this->sheetPosting = true;
+
+        try {
+            $commit = $this->attemptInSheet(fn (Client $devnull): Commit => $devnull->createCommit($body, quotedCommitId: $quoted?->id));
+        } finally {
+            $this->sheetPosting = false;
+        }
 
         if ($commit === null) {
             return;
