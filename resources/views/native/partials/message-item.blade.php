@@ -1,6 +1,6 @@
 {{--
     One message in a thread, as the web draws it: yours on the right in your lane, everyone else's on the left on
-    the wash. In an org, a run of someone else's messages starts with their avatar and name. Above the bubble, the
+    the wash. In an org, a run of someone else's messages starts with their avatar and name, a tap on which opens their profile. Above the bubble, the
     ghost of the message it replies to; beside it its images and link card; under it its reactions, one chip per
     emoji, yours outlined in your lane and a tap to take it back or add yours. A run ends in the time, or for the
     message the web gives a status, in that status.
@@ -23,10 +23,12 @@
     {{-- A set width, not a max: a column that only hugs its bubble measures the text on one line and clips it. --}}
     <native:column class="{{ $replyable ? 'w-full' : 'flex-1' }} gap-1 {{ $mine ? 'items-end' : 'items-start' }}">
         @if ($isOrg && ! $mine && $startsRun && $author)
-            <native:row ref="author-{{ $key }}" class="gap-[6] items-center px-1">
-                @include('native.partials.avatar', ['user' => $author, 'size' => 16])
-                <native:text font="medium" class="text-xs text-theme-{{ $laneToken }}" :max-lines="1">{{ $author->name }}</native:text>
-            </native:row>
+            <native:pressable ref="author-{{ $key }}" @press="openProfile('{{ $author->username }}')" a11y-label="{{ $author->name }}'s profile">
+                <native:row class="gap-[6] items-center px-1">
+                    @include('native.partials.avatar', ['user' => $author, 'size' => 16])
+                    <native:text font="medium" class="text-xs text-theme-{{ $laneToken }}" :max-lines="1">{{ $author->name }}</native:text>
+                </native:row>
+            </native:pressable>
         @endif
 
         @if ($message->replyTo !== null)
