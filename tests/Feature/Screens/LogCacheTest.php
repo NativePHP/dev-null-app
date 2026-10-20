@@ -340,31 +340,25 @@ it('drops a commit deleted on its page as soon as you come back to the log', fun
     $commit->goBack()->assertDontSee('Delete me')->assertSee('Keep me');
 });
 
-it('puts the pill at the top of the list, above the commits, in a header that pins, there before it shows', function () {
+it('floats the pill over the commits, hung under the tabs in the pager, there before it shows', function () {
     holdRefreshes();
     keep('log/following', pageJson([commitJson(['id' => 'c1'])]));
     fakeFreshLog([commitJson(['id' => 'c2', 'body' => 'Newer']), commitJson(['id' => 'c1'])]);
 
     $screen = Native::visit('/log', platform: 'ios');
-    $besideTheList = function () use ($screen): array {
-        $parent = findNode($screen->tree(), fn (array $node): bool => in_array('log', array_column($node['children'] ?? [], 'ref'), true));
+    $overlay = fn (): array => findNode(nodeByRef($screen, 'log-pager'), fn (array $node): bool => ($node['type'] ?? null) === 'pager_overlay');
+    $firstInTheList = fn (): ?string => array_values(array_filter(childRefs($screen, 'log'), fn (?string $ref): bool => $ref !== null && ! str_starts_with($ref, 'day-')))[0] ?? null;
 
-        return array_map(fn (array $node): string => $node['ref'] ?? $node['type'], $parent['children']);
-    };
-
-    $inTheList = fn (): array => array_slice(array_values(array_filter(childRefs($screen, 'log'), fn (?string $ref): bool => $ref !== null && ! str_starts_with($ref, 'day-'))), 0, 2);
-
-    // Hidden and empty until there are new commits, but already in its place, so showing it never changes the list's shape.
-    expect($besideTheList())->toBe(['log'])
-        ->and($inTheList())->toBe(['new-commits-slot', 'commit-c1'])
-        ->and(nodeByRef($screen, 'new-commits-slot')['type'])->toBe('sticky_header')
+    // Hidden and empty until there are new commits, but already in its place, outside the lists.
+    expect(findNode($overlay(), fn (array $node): bool => ($node['ref'] ?? null) === 'new-commits-slot'))->not->toBeNull()
         ->and(nodeByRef($screen, 'new-commits-slot')['layout']['display'] ?? null)->toBe(1)
-        ->and(nodeByRef($screen, 'new-commits-slot')['children'] ?? [])->toBe([]);
+        ->and(nodeByRef($screen, 'new-commits-slot')['children'] ?? [])->toBe([])
+        ->and($firstInTheList())->toBe('commit-c1');
 
     finishRefreshes($screen)->assertSee('1 new commit');
 
-    expect($besideTheList())->toBe(['log'])
-        ->and($inTheList())->toBe(['new-commits-slot', 'commit-c1'])
-        ->and(nodeByRef($screen, 'new-commits-slot')['layout']['display'] ?? null)->toBeNull()
-        ->and(findNode(nodeByRef($screen, 'new-commits-slot'), fn (array $node): bool => ($node['ref'] ?? null) === 'new-commits'))->not->toBeNull();
+    // Over the commits, not a row above them.
+    expect(nodeByRef($screen, 'new-commits-slot')['layout']['display'] ?? null)->toBeNull()
+        ->and(findNode($overlay(), fn (array $node): bool => ($node['ref'] ?? null) === 'new-commits'))->not->toBeNull()
+        ->and($firstInTheList())->toBe('commit-c1');
 });

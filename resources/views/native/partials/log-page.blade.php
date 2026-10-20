@@ -19,8 +19,6 @@
         :on-end-reached="$page['showing'] ? 'loadMore' : null"
         :end-reached-buffer="5"
     >
-        @include('native.partials.new-commits-pill', ['label' => $newCommitsLabel, 'press' => 'showNewCommits', 'shown' => $page['showing'] && $newCommits !== []])
-
         @if (! $page['loaded'] && $page['error'] === null)
             @foreach (range(1, 3) as $skeleton)
                 @include('native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits', 'pulse' => $page['showing']])
