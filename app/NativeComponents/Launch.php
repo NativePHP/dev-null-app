@@ -15,6 +15,9 @@ use Native\Mobile\Edge\NativeComponent;
  * backup, or when the build's signing team changed and the Keychain with it,
  * is signed out and told why. The log would otherwise make a new key quietly
  * on its first request and land on onboarding with only a 401 to explain it.
+ *
+ * A dev-null.sh link that started the app comes here first (see WebLink), and
+ * goes on to the log to open. A phone that isn't signed in drops it.
  */
 class Launch extends NativeComponent
 {
@@ -35,7 +38,7 @@ class Launch extends NativeComponent
             return;
         }
 
-        $this->replace('/log');
+        $this->replace('/log', array_filter(['link' => $this->data('link')]));
     }
 
     public function render(): View

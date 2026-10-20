@@ -16,11 +16,17 @@ use App\NativeComponents\Remotes;
 use App\NativeComponents\Safety;
 use App\NativeComponents\Starred;
 use App\NativeComponents\ThisDevice;
+use App\NativeComponents\WebLink;
 use Illuminate\Support\Facades\Route;
 
 Route::native('/', Launch::class);
 Route::native('/onboarding', Onboarding::class);
 Route::native('/auth/callback', AuthCallback::class);
+
+// dev-null.sh links the phone opens in the app, which WebLink sends on to the app's own screens.
+Route::native('/@{username}', WebLink::class);
+Route::native('/@{username}/{rest}', WebLink::class)->where('rest', '.*');
+Route::native('/remotes/@{username}', WebLink::class);
 
 Route::nativeGroup(TabsLayout::class, function (): void {
     Route::native('/log', Log::class);
