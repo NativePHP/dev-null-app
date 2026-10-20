@@ -91,8 +91,8 @@ it('fills the whole option at 100%, with no spacer for EDGE to grow', function (
 
 it('gives every action under a commit a target big enough to tap, without growing the row', function () {
     $screen = logOf([['id' => 'c1', 'stars_count' => 6, 'replies_count' => 3, 'is_saved' => false]]);
-    // A pressable's box is its content; More's menu items ride along as children too.
-    $target = fn (string $ref): array => ($node = nodeByRef($screen, $ref))['type'] === 'pressable'
+    // A button is its own box. More's box is the column inside it, beside the menu items that ride along as children.
+    $target = fn (string $ref): array => (($node = nodeByRef($screen, $ref))['props']['has_menu'] ?? false)
         ? array_values(array_filter($node['children'], fn (array $child): bool => $child['type'] !== 'top_bar_action'))[0]['layout']
         : $node['layout'];
 
@@ -104,6 +104,20 @@ it('gives every action under a commit a target big enough to tap, without growin
         ->and($target('replies-c1')['height'])->toBe(36.0)
         // 6pt more above and below than the 24pt the row used to be, so it's pulled in by that much.
         ->and(array_slice(nodeByRef($screen, 'actions-c1')['layout']['margin'], 0, 3))->toBe([-6.0, 0.0, -6.0]);
+});
+
+it('builds a row from as few views as it can, as a list builds and measures each of them while it scrolls', function () {
+    $screen = logOf([['id' => 'c1', 'stars_count' => 6, 'replies_count' => 3]]);
+    $row = nodeByRef($screen, 'commit-c1');
+    $content = $row['children'][0];
+
+    // One column beside the rail, its gutter a margin and the hairline under it a border, and buttons that are their
+    // own rows. Wrapped the old way, this row took 48 views in eight levels.
+    expect($row['layout']['flex_direction'])->toBe(1)
+        ->and($content['layout']['margin'])->toBe([0.0, 0.0, 0.0, 64.0])
+        ->and($content['props']['border_b'])->toBe(1.0)
+        ->and(array_column(nodeByRef($screen, 'star-c1')['children'], 'type'))->toBe(['icon', 'text'])
+        ->and(count(findNodes($row, fn (): bool => true)))->toBeLessThanOrEqual(36);
 });
 
 it("draws a poll you haven't voted on as plain options, with nothing to tap, since the app can't vote yet", function () {
