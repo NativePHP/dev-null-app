@@ -31,6 +31,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->bind(KeyStore::class, fn (Application $app): KeyStore => $app->make(KeyStoreChoice::here()->store()));
 
+        $this->app->singleton(DeviceKey::class);
         $this->app->singleton(SignIn::class);
         $this->app->singleton(AppleSignIn::class);
     }

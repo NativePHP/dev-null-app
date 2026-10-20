@@ -9,6 +9,7 @@ use App\Devnull\Exceptions\ApiException;
 use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Exceptions\Unauthenticated;
 use App\Devnull\ShownTabs;
+use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -38,6 +39,7 @@ use Native\Mobile\Edge\NativeComponent;
  */
 class Notifications extends NativeComponent
 {
+    use DrawsSkeletonFirst;
     use OpensInTab;
     use RefreshesInBackground;
     use TalksToDevnull;
@@ -116,8 +118,7 @@ class Notifications extends NativeComponent
     public function mount(): void
     {
         $this->type = app(ShownTabs::class)->get($this->me()?->id, 'notifications', array_keys(self::Types), 'all');
-        $this->showKept();
-        $this->revalidate();
+        $this->fillInAfterFirstFrame('revalidate');
     }
 
     public function onResume(): void
@@ -499,7 +500,7 @@ class Notifications extends NativeComponent
      */
     private function preview(string $type, ?CarbonImmutable $readAt): array
     {
-        $json = $this->cached('notifications', Client::notificationsQuery($type));
+        $json = $this->skeletonFrame ? null : $this->cached('notifications', Client::notificationsQuery($type));
         $kept = is_array($json['data'] ?? null) ? $json['data'] : [];
         $page = $json === null ? null : Page::fromArray(['data' => array_slice($kept, 0, self::PreviewGroups)] + $json, Notification::fromArray(...));
 

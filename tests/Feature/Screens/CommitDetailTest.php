@@ -171,6 +171,29 @@ it('posts a reply, with no countdown while there is room', function () {
         && $request->body() === '{"body":"A fresh reply","parent_id":"c2"}');
 });
 
+it('shows a reply you posted once when the next page of replies has it too', function () {
+    Http::fake(function (Request $request) {
+        $path = parse_url($request->url(), PHP_URL_PATH);
+
+        return match (true) {
+            $request->method() === 'POST' => Http::response(['data' => commitJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'A fresh reply'])], 201),
+            $path === '/api/v1/commits/c2/replies' => Http::response(str_contains($request->url(), 'cursor=page2')
+                ? pageJson([replyJson(['id' => 'r2', 'parent_id' => 'c2', 'body' => 'Second reply']), replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'A fresh reply'])])
+                : pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply'])], 'page2', 'http://devnull.test/api/v1/commits/c2/replies')),
+            default => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'replies_count' => 3]))),
+        };
+    });
+
+    $screen = Native::visit('/log/commits/c2')
+        ->tap('replies-c2')
+        ->input('reply-input', 'A fresh reply')
+        ->tap('send-reply')
+        ->call('loadMoreReplies')
+        ->assertSet('repliesCursor', null);
+
+    expect(childRefs($screen, 'thread-page'))->toBe(['focused-commit', 'thread-reply-r1', 'thread-reply-r2', 'thread-reply-r9', 'reply-bar-clearance']);
+});
+
 it('marks a reply waiting for approval as pending on its row', function () {
     fakeThread(extra: ['POST /api/v1/commits' => [['data' => commitJson(['id' => 'r9', 'status' => 'pending', 'body' => 'Hold on'])], 201]]);
 

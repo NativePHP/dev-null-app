@@ -24,6 +24,7 @@
         <env name="DEVNULL_KEY_STORE" value="keychain"/>
         <env name="DEVNULL_APPLE_SIGN_IN" value="true"/>
         <env name="DEVNULL_IMAGE_CACHE_HOURS" value="0"/>
+        <env name="DEVNULL_SKELETON_FIRST" value="false"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>

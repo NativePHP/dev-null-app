@@ -82,15 +82,15 @@ it('frames a reply avatar in its own lane without shifting the thread', function
 
     $screen = Native::visit('/log', platform: $platform);
     $reply = nodeByRef($screen, 'thread-reply-r9');
-    $ring = findNode($reply, fn (array $node): bool => ($node['style']['bg_color'] ?? null) === config('native-ui.theme.light.lane-4')
+    $ring = findNode($reply, fn (array $node): bool => ($node['style']['border_color'] ?? null) === config('native-ui.theme.light.lane-4')
         && ($node['layout']['width'] ?? null) === 24.0
         && ($node['layout']['height'] ?? null) === 24.0);
 
     expect($ring)->not->toBeNull()
         ->and($ring['style']['border_radius'])->toBeGreaterThanOrEqual(12.0)
-        ->and($ring['children'][0]['layout'])->toMatchArray(['width' => 22.0, 'height' => 22.0])
-        ->and($ring['children'][0]['style']['bg_color'])->toBe(config('native-ui.theme.light.surface'))
-        ->and($ring['children'][0]['children'][0]['layout'])->toMatchArray(['width' => 20.0, 'height' => 20.0]);
+        ->and($ring['style'])->toMatchArray(['border_width' => 1.0, 'bg_color' => config('native-ui.theme.light.surface')])
+        ->and($ring['children'])->toHaveCount(1)
+        ->and($ring['children'][0]['layout'])->toMatchArray(['width' => 20.0, 'height' => 20.0]);
 })->with(['ios', 'android']);
 
 it('opens the rest of the thread in place, newest first, from Show more', function () {

@@ -265,6 +265,25 @@ it('makes the device key on first use and keeps it in the Keychain', function ()
         && base64_decode($params['value']) === $key->seed());
 });
 
+it('reads the device key from the Keychain once, however many requests it signs', function () {
+    $bridge = fakeKeychain(testSeed());
+    Http::fake(['devnull.test/*' => Http::response(['data' => userJson()])]);
+
+    app(Client::class)->me();
+    app(Client::class)->me();
+    app(Client::class)->profile('ada');
+
+    // Android's Keystore takes about 150ms a read, so a screen's requests share one.
+    $bridge->assertCalledTimes('SecureStorage.Get', 1);
+
+    // Forgetting the key drops it too, so the next request makes and keeps a new one.
+    app(DeviceKey::class)->forget();
+    $fresh = app(DeviceKey::class)->current();
+
+    expect($fresh->openSsh())->not->toBe(testKey()->openSsh());
+    $bridge->assertCalledTimes('SecureStorage.Get', 2)->assertCalledTimes('SecureStorage.Set', 1);
+});
+
 it('never replaces a key it cannot read', function () {
     $bridge = Native::fakeBridge()->respondTo('SecureStorage.Get', ['status' => 'unavailable', 'code' => 'UNAVAILABLE', 'message' => 'Device is locked.']);
 

@@ -23,7 +23,7 @@
 
         @if (! $page['loaded'] && $page['error'] === null)
             @foreach (range(1, 3) as $skeleton)
-                @include('native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits'])
+                @include('native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits', 'pulse' => $page['showing']])
             @endforeach
         @endif
 
@@ -38,11 +38,11 @@
             @endif
         @endif
 
-        @include('native.partials.feed', ['rows' => $page['rows'], 'threads' => $page['threads']])
+        @include('native.partials.feed', ['rows' => $page['rows'], 'threads' => $page['threads'], 'rowCache' => $page['rowCache']])
 
         @if ($page['lastCommit'])
             @if ($page['nextCursor'] !== null)
-                @include('native.partials.rail-loading')
+                @include('native.partials.rail-loading', ['pulse' => $page['showing']])
             @else
                 @include('native.partials.rail-end', ['lane' => $page['lastCommit']->lane(), 'message' => "That's the root commit. There's nothing before it."])
             @endif

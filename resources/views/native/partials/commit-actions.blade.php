@@ -24,6 +24,10 @@
     the commit keeps its rhythm. EDGE makes a pressable's whole box tappable, so the box is the target. Off the log,
     "› N replies" sits beside Reply, and both won't fit on a phone with their labels, so Reply is just its icon there.
 
+    A button is the pressable itself, laid out as a row, with no row inside it, since a list builds and measures every
+    node of a row as it scrolls in. More keeps its column: a pressable with a menu draws its content as the menu's
+    label, at the label's own size in the corner of the pressable's box, so the column is what centres the icon.
+
     A commit page opens its replies under its commit in place: it passes what the toggle presses ($repliesToggle),
     whether they're open ($repliesOpen) and how many there are ($repliesCount). $compact draws the row smaller, for
     the commits around the one a page is about.
@@ -53,22 +57,18 @@
 @php($starLabel = ($commit->starred ? 'Unstar commit' : 'Star commit').($commit->starsCount > 0 ? ', '.\App\Devnull\Display::count($commit->starsCount, 'star', 'stars') : ''))
 <native:row ref="actions-{{ $commit->id }}" class="w-full -ml-2 -my-[6] items-center">
     @if ($canReact && $viewer !== null && ! $commit->isDeleted())
-        <native:pressable ref="star-{{ $commit->id }}" @press="toggleStar('{{ $commit->id }}')" a11y-label="{{ $starLabel }}">
-            <native:row class="min-w-[44] h-[36] px-2 gap-1 items-center">
-                <native:icon :ios="\App\Icons\Lucide::Star->ios($commit->starred)" :android="\App\Icons\Lucide::Star->android($commit->starred)" :size="$iconSize" class="{{ $commit->starred ? 'text-theme-primary' : 'text-theme-ink-muted' }}" />
-                @if ($commit->starsCount > 0)
-                    <native:text font="mono" class="{{ $labelSize }} {{ $commit->starred ? 'text-theme-primary' : 'text-theme-ink-muted' }}">{{ \App\Devnull\Display::compactCount($commit->starsCount) }}</native:text>
-                @endif
-            </native:row>
+        <native:pressable ref="star-{{ $commit->id }}" @press="toggleStar('{{ $commit->id }}')" class="flex-row min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="{{ $starLabel }}">
+            <native:icon :ios="\App\Icons\Lucide::Star->ios($commit->starred)" :android="\App\Icons\Lucide::Star->android($commit->starred)" :size="$iconSize" class="{{ $commit->starred ? 'text-theme-primary' : 'text-theme-ink-muted' }}" />
+            @if ($commit->starsCount > 0)
+                <native:text font="mono" class="{{ $labelSize }} {{ $commit->starred ? 'text-theme-primary' : 'text-theme-ink-muted' }}">{{ \App\Devnull\Display::compactCount($commit->starsCount) }}</native:text>
+            @endif
         </native:pressable>
     @endif
 
     @if ($canGivePastel)
-        <native:pressable ref="pastel-{{ $commit->id }}" @press="givePastel('{{ $commit->id }}')" a11y-label="Give a pastel, {{ $pastelLabel }}, {{ $pasteis->left() }} left today">
-            <native:row class="min-w-[44] h-[36] px-2 gap-1 items-center">
-                <native:image :src="\App\Devnull\Data\Pasteis::Image" :width="$pastelSize" :height="$pastelSize" :fit="1" />
-                <native:text font="mono" class="{{ $labelSize }} text-theme-ink-muted">{{ \App\Devnull\Display::compactCount($commit->pasteisCount) }}</native:text>
-            </native:row>
+        <native:pressable ref="pastel-{{ $commit->id }}" @press="givePastel('{{ $commit->id }}')" class="flex-row min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="Give a pastel, {{ $pastelLabel }}, {{ $pasteis->left() }} left today">
+            <native:image :src="\App\Devnull\Data\Pasteis::Image" :width="$pastelSize" :height="$pastelSize" :fit="1" />
+            <native:text font="mono" class="{{ $labelSize }} text-theme-ink-muted">{{ \App\Devnull\Display::compactCount($commit->pasteisCount) }}</native:text>
         </native:pressable>
     @elseif ($pasteis !== null)
         <native:row ref="pastel-count-{{ $commit->id }}" class="min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="{{ $pastelLabel }}">
@@ -78,41 +78,35 @@
     @endif
 
     @if ($withQuote && $canReact)
-        <native:pressable ref="quote-{{ $commit->id }}" @press="quoteCommit('{{ $commit->id }}')" a11y-label="{{ $hasQuoteStash ? 'Quote, you have an unsent quote here' : 'Quote' }}">
-            <native:row class="min-w-[44] h-[36] px-2 gap-[3] items-center justify-center">
-                <native:icon :ios="\App\Icons\Lucide::Quote->ios()" :android="\App\Icons\Lucide::Quote->android()" :size="$iconSize" class="text-theme-ink-muted" />
-                @if ($hasQuoteStash)
-                    <native:column ref="quote-stash-{{ $commit->id }}" class="w-[5] h-[5] rounded-full bg-theme-ink-muted" />
-                @endif
-            </native:row>
+        <native:pressable ref="quote-{{ $commit->id }}" @press="quoteCommit('{{ $commit->id }}')" class="flex-row min-w-[44] h-[36] px-2 gap-[3] items-center justify-center" a11y-label="{{ $hasQuoteStash ? 'Quote, you have an unsent quote here' : 'Quote' }}">
+            <native:icon :ios="\App\Icons\Lucide::Quote->ios()" :android="\App\Icons\Lucide::Quote->android()" :size="$iconSize" class="text-theme-ink-muted" />
+            @if ($hasQuoteStash)
+                <native:column ref="quote-stash-{{ $commit->id }}" class="w-[5] h-[5] rounded-full bg-theme-ink-muted" />
+            @endif
         </native:pressable>
     @endif
 
     @if ($withReply)
-        <native:pressable ref="reply-to-{{ $commit->id }}" @press="replyTo('{{ $commit->id }}')" a11y-label="{{ $hasReplyStash ? 'Reply, you have an unsent reply here' : 'Reply' }}">
-            <native:row class="min-w-[44] h-[36] px-2 gap-[6] items-center {{ $showsReplies ? 'justify-center' : '' }}">
-                <native:icon :ios="\App\Icons\Lucide::MessageSquareReply->ios()" :android="\App\Icons\Lucide::MessageSquareReply->android()" :size="$iconSize" class="text-theme-ink-muted" />
-                @unless ($showsReplies)
-                    <native:text class="{{ $labelSize }} text-theme-ink-muted">Reply</native:text>
-                @endunless
-                @if ($hasReplyStash)
-                    <native:column ref="reply-stash-{{ $commit->id }}" class="w-[5] h-[5] -ml-[3] rounded-full bg-theme-ink-muted" />
-                @endif
-            </native:row>
+        <native:pressable ref="reply-to-{{ $commit->id }}" @press="replyTo('{{ $commit->id }}')" class="flex-row min-w-[44] h-[36] px-2 gap-[6] items-center {{ $showsReplies ? 'justify-center' : '' }}" a11y-label="{{ $hasReplyStash ? 'Reply, you have an unsent reply here' : 'Reply' }}">
+            <native:icon :ios="\App\Icons\Lucide::MessageSquareReply->ios()" :android="\App\Icons\Lucide::MessageSquareReply->android()" :size="$iconSize" class="text-theme-ink-muted" />
+            @unless ($showsReplies)
+                <native:text class="{{ $labelSize }} text-theme-ink-muted">Reply</native:text>
+            @endunless
+            @if ($hasReplyStash)
+                <native:column ref="reply-stash-{{ $commit->id }}" class="w-[5] h-[5] -ml-[3] rounded-full bg-theme-ink-muted" />
+            @endif
         </native:pressable>
     @endif
 
     @if ($showsReplies)
-        <native:pressable ref="replies-{{ $commit->id }}" @press="{{ $repliesPress }}" a11y-label="{{ $isOpen ? 'Hide replies' : \App\Devnull\Display::count($repliesCount, 'reply', 'replies') }}">
-            <native:row class="h-[36] px-2 gap-1 items-center">
-                @if ($isOpen)
-                    <native:icon :ios="\App\Icons\Lucide::ChevronDown->ios()" :android="\App\Icons\Lucide::ChevronDown->android()" :size="14" class="text-theme-primary" />
-                    <native:text class="{{ $labelSize }} text-theme-primary">Hide replies</native:text>
-                @else
-                    <native:icon :ios="\App\Icons\Lucide::ChevronRight->ios()" :android="\App\Icons\Lucide::ChevronRight->android()" :size="14" class="text-theme-primary" />
-                    <native:text class="{{ $labelSize }} text-theme-primary">{{ \App\Devnull\Display::count($repliesCount, 'reply', 'replies') }}</native:text>
-                @endif
-            </native:row>
+        <native:pressable ref="replies-{{ $commit->id }}" @press="{{ $repliesPress }}" class="flex-row h-[36] px-2 gap-1 items-center" a11y-label="{{ $isOpen ? 'Hide replies' : \App\Devnull\Display::count($repliesCount, 'reply', 'replies') }}">
+            @if ($isOpen)
+                <native:icon :ios="\App\Icons\Lucide::ChevronDown->ios()" :android="\App\Icons\Lucide::ChevronDown->android()" :size="14" class="text-theme-primary" />
+                <native:text class="{{ $labelSize }} text-theme-primary">Hide replies</native:text>
+            @else
+                <native:icon :ios="\App\Icons\Lucide::ChevronRight->ios()" :android="\App\Icons\Lucide::ChevronRight->android()" :size="14" class="text-theme-primary" />
+                <native:text class="{{ $labelSize }} text-theme-primary">{{ \App\Devnull\Display::count($repliesCount, 'reply', 'replies') }}</native:text>
+            @endif
         </native:pressable>
     @endif
 

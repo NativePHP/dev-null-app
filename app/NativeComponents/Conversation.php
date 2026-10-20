@@ -115,6 +115,12 @@ class Conversation extends NativeComponent
 
     public int $readThroughId = 0;
 
+    /**
+     * The latest message a load or a poll brought, which the next poll asks for what came after. One you pushed
+     * doesn't count: someone else's can land just before it, and a poll after yours would never bring it.
+     */
+    public int $polledThroughId = 0;
+
     public bool $loaded = false;
 
     public string $draft = '';
@@ -244,7 +250,7 @@ class Conversation extends NativeComponent
         $this->lastPolledAt = $now;
 
         $this->refresh($this->messagesPath(), [
-            'after' => (string) $this->lastId(),
+            'after' => (string) $this->polledThroughId,
             'reactions_after' => (string) $this->reactionsVersion,
         ], fn (array $json) => $this->takePoll($json), quiet: true);
     }
@@ -553,6 +559,7 @@ class Conversation extends NativeComponent
         $this->hasOlder = $older === [] ? $thread->hasOlder : $this->hasOlder;
         $this->reactionsVersion = max($this->reactionsVersion, $thread->reactionsVersion);
         $this->readThroughId = max($this->readThroughId, $thread->readThroughId);
+        $this->polledThroughId = max($this->polledThroughId, $thread->messages[array_key_last($thread->messages) ?? -1]->id ?? 0);
         $this->dropPushed();
 
         $this->loaded = true;
@@ -578,8 +585,8 @@ class Conversation extends NativeComponent
     private function takePoll(array $json): void
     {
         $poll = Thread::fromArray($json);
-        $last = $this->lastId();
-        $new = array_values(array_filter($poll->messages, fn (Message $message): bool => $message->id > $last));
+        $shown = array_flip(array_map(fn (Message $message): int => $message->id, $this->messages));
+        $new = array_values(array_filter($poll->messages, fn (Message $message): bool => ! isset($shown[$message->id])));
 
         foreach ($poll->reactionChanges as $id => $reactions) {
             if (! isset($this->reacting[$id]) && ($message = $this->findMessage($id)) !== null) {
@@ -590,6 +597,7 @@ class Conversation extends NativeComponent
         $this->thread = new Thread(...[...get_object_vars($poll), 'messages' => [], 'reactionChanges' => [], 'hasOlder' => $this->hasOlder]);
         $this->messages = self::merged($this->messages, $new);
         $this->reactionsVersion = max($this->reactionsVersion, $poll->reactionsVersion);
+        $this->polledThroughId = max($this->polledThroughId, $poll->messages[array_key_last($poll->messages) ?? -1]->id ?? 0);
         $this->dropPushed();
 
         if ($new !== [] || $poll->typing !== []) {

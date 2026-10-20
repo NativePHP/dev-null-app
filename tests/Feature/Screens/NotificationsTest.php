@@ -483,3 +483,16 @@ it('lets a drag that starts on a row scroll the list, with the list filling the 
     expect($list['layout'])->toBe(['width' => 'fill', 'flex_grow' => 1.0, 'flex_shrink' => 1.0])
         ->and(pressFeedbackInScroller($screen))->toBe([]);
 });
+
+it('opens on skeleton rows, and fills in what it kept straight after, so a tab tap shows at once', function () {
+    config(['devnull.skeleton_first' => true]);
+    holdRefreshes();
+    keep('notifications', inboxJson([notificationJson('followed')]), ['type' => null]);
+    serveApi(fn () => Http::response(inboxJson([notificationJson('followed')])));
+
+    $screen = Native::visit('/notifications')->assertSet('skeletonFrame', true)->assertDontSee('followed you');
+
+    expect(showsLoading(showingNotifications($screen)))->toBeTrue();
+
+    finishRefreshes($screen)->assertSet('skeletonFrame', false)->assertSee('followed you');
+});
