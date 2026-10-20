@@ -77,6 +77,24 @@ it('shows skeleton rows the first time only, until the log lands', function () {
     $again->assertSee('Fresh commit');
 });
 
+it('pulses skeleton rows only on the log you are on', function () {
+    holdRefreshes();
+    fakeFreshLog([commitJson(['id' => 'c1', 'body' => 'Fresh commit'])]);
+
+    $pulses = fn (array $list): bool => findNode($list, fn (array $node): bool => ($node['props']['animate-loop'] ?? false) === true) !== null;
+
+    $screen = Native::visit('/log');
+
+    expect($pulses(showingLog($screen)))->toBeTrue()
+        ->and(showsLoading(nodeByRef($screen, 'log-latest')))->toBeTrue()
+        ->and($pulses(nodeByRef($screen, 'log-latest')))->toBeFalse();
+
+    $screen->call('showPage', 1);
+
+    expect($pulses(showingLog($screen)))->toBeTrue()
+        ->and($pulses(nodeByRef($screen, 'log-following')))->toBeFalse();
+});
+
 it('holds new commits in a pill with the right count, and puts them on top without a request', function () {
     holdRefreshes();
     keep('log/following', pageJson([commitJson(['id' => 'c1', 'body' => 'Seen before'])]));
