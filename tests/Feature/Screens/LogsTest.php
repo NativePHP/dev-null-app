@@ -490,7 +490,8 @@ it('never re-ranks Trending under you: later answers only change rows in place, 
         ->and(dayMarkers($screen))->toBe([Timeline::JustNow, Timeline::TopCommits])
         ->and(count(Http::recorded()))->toBe($requests)
         ->and($screen->get('rankedSince'))->toBe('n2')
-        ->and($screen->get('listKey'))->toBe($listKey + 1);
+        // The same list, so it keeps your place under them.
+        ->and($screen->get('listKey'))->toBe($listKey);
 
     finishRefreshes($screen->call('checkForNewCommits'));
 

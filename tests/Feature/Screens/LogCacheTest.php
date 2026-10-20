@@ -112,6 +112,7 @@ it('holds new commits in a pill with the right count, and puts them on top witho
 
     $requests = count(Http::recorded());
     $listKey = $screen->get('listKey');
+    $rowShowing = nodeByRef($screen, 'commit-c1')['id'];
 
     $screen->tap('new-commits')
         ->assertSee('Newest')
@@ -121,8 +122,9 @@ it('holds new commits in a pill with the right count, and puts them on top witho
     expect(shownCommitIds($screen))->toBe(['c3', 'c2', 'c1'])
         ->and(count(Http::recorded()))->toBe($requests)
         ->and(refreshesSent($screen))->toBe(2)
-        // A new list key is how the log gets back to the top.
-        ->and($screen->get('listKey'))->toBe($listKey + 1);
+        // The same list, so it keeps your place: the row you were on is the same node, with the new ones above it.
+        ->and($screen->get('listKey'))->toBe($listKey)
+        ->and(nodeByRef($screen, 'commit-c1')['id'])->toBe($rowShowing);
 });
 
 it('says one new commit, and puts the last-visit marker under it once shown', function () {
@@ -149,11 +151,14 @@ it('says when more came in than a page holds', function () {
     fakeFreshLog([commitJson(['id' => 'c9', 'body' => 'All new']), commitJson(['id' => 'c8'])], cursor: 'page2');
 
     $screen = finishRefreshes(Native::visit('/log'))->assertSee('2+ new commits');
+    $listKey = $screen->get('listKey');
 
     $screen->tap('new-commits')->assertSee('All new')->assertDontSee('Long ago');
 
+    // They replace the list, so a new one starts at the top.
     expect(shownCommitIds($screen))->toBe(['c9', 'c8'])
-        ->and($screen->get('nextCursor'))->toBe('page2');
+        ->and($screen->get('nextCursor'))->toBe('page2')
+        ->and($screen->get('listKey'))->toBe($listKey + 1);
 });
 
 it('changes counts and stars on rows already showing in place, with no pill', function () {

@@ -56,7 +56,10 @@ trait HoldsNewCommits
     public array $madeHere = [];
 
     /**
-     * The pill: puts the new commits on top and goes back to the top.
+     * The pill: puts the new commits on top and leaves you where you are. The
+     * rows you're reading keep their keys, so the list keeps them in place
+     * and the new ones are there when you scroll up. When more came in than a
+     * page holds they replace the list, so a new list starts at the top.
      */
     public function showNewCommits(): void
     {
@@ -64,8 +67,12 @@ trait HoldsNewCommits
             return;
         }
 
+        $replacing = $this->newCommitsReplaceList;
         $this->putNewCommitsOnTop();
-        $this->listKey++;
+
+        if ($replacing) {
+            $this->listKey++;
+        }
     }
 
     /**

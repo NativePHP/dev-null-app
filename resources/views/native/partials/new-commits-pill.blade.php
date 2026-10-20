@@ -1,6 +1,6 @@
 {{--
     DESIGN.md's new commits pill: Commit Blue, "↑ 3 new commits". The commits are already fetched, so a tap puts them on
-    top with nothing to wait for.
+    top with nothing to wait for, and leaves you where you are (see HoldsNewCommits::showNewCommits()).
 
     It floats over the commits, hung just under the pager's tabs, in the pager's overlay. There it stays put while the
     list scrolls under it, and under a profile's header it follows the tabs wherever the header has scrolled them. The

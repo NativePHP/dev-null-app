@@ -319,13 +319,17 @@ class Log extends NativeComponent
     }
 
     /**
-     * The pill: the new commits go on top, and they're the newest you've seen now.
+     * The pill: the new commits go on top, and they're the newest you've seen
+     * now. It leaves you where you are, as HoldsNewCommits says, unless they
+     * replace the list. Trending's ranking stays under them, so it never does.
      */
     public function showNewCommits(): void
     {
         if ($this->newCommits === []) {
             return;
         }
+
+        $replacing = ! $this->isRanked() && $this->newCommitsReplaceList;
 
         if ($this->isRanked()) {
             $this->putLatestAboveRanking();
@@ -334,7 +338,9 @@ class Log extends NativeComponent
             $this->rememberLastVisit();
         }
 
-        $this->listKey++;
+        if ($replacing) {
+            $this->listKey++;
+        }
     }
 
     /**
