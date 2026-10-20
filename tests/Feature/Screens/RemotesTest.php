@@ -175,6 +175,27 @@ it('lists the stashed conversations and the fetched requests on their tabs, with
         ->toContain('tab=stashed', 'tab=fetched');
 });
 
+it('leaves out an answer for a tab you have left', function () {
+    holdRefreshes();
+    app(Account::class)->rememberRemotes(new Remotes(requests: false));
+    serveApi(function (Request $request) {
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        return Http::response(remotesInboxJson(($query['tab'] ?? 'open') === 'stashed'
+            ? [conversationJson(['id' => 'conv-stashed', 'is_archived' => true])]
+            : [conversationJson(['id' => 'conv-open', 'partner' => userJson(['id' => 'u-grace', 'username' => 'grace', 'name' => 'Grace Hopper'])])]));
+    });
+
+    // A swipe to Stashed and back while Open is still on its way, so Stashed's answer lands on Open.
+    $screen = Native::visit('/remotes');
+    $screen->changeTab('showPage', 1)->assertSet('tab', 'stashed');
+    $screen->changeTab('showPage', 0)->assertSet('tab', 'open');
+
+    finishRefreshes($screen)->assertSee('Grace Hopper');
+
+    expect(childRefs($screen, 'remotes'))->toBe(['remote-conv-open']);
+});
+
 it('loads older conversations before the last one showing', function () {
     serveApi(function (Request $request) {
         $before = str_contains($request->url(), 'before=conv-1');

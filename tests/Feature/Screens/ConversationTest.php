@@ -137,6 +137,27 @@ it('pushes a message staged at once, and pushed once devnull has it', function (
         ->and($sent['client_id'])->toMatch('/^[0-9a-f-]{36}$/');
 });
 
+it('still brings a message that landed just before the one you pushed', function () {
+    serveRemoteThread(
+        threadJson([remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?'])], ['read_through_id' => 1]),
+        threadJson([
+            remoteMessageJson(['id' => 2, 'body' => 'it broke main']),
+            remoteMessageJson(['id' => 99, 'user_id' => RemotesViewerId, 'client_id' => '9f0f6f3e-0000-4000-8000-000000000099', 'body' => 'on it']),
+        ]),
+    );
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada')->set('draft', 'on it')->call('send'));
+
+    finishRefreshes($screen->call('poll'))
+        ->assertSee('it broke main')
+        ->assertSee('on it');
+
+    $polls = collect(Http::recorded())->map(fn (array $sent): string => (string) parse_url($sent[0]->url(), PHP_URL_QUERY))->filter(fn (string $query): bool => str_contains($query, 'after'));
+
+    expect($polls->values()->all())->toBe(['after=1&reactions_after=0'])
+        ->and(array_map(fn ($message): int => $message->id, $screen->instance()->messages))->toBe([1, 2, 99]);
+});
+
 it('says a message devnull refused was rejected, and retries it under the same client id', function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]), pushStatus: 403);
 

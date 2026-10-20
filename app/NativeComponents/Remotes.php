@@ -161,7 +161,8 @@ class Remotes extends NativeComponent
     #[Poll(15000)]
     public function pollInbox(): void
     {
-        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($json), quiet: true);
+        $tab = $this->tab;
+        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($tab, $json), quiet: true);
     }
 
     /**
@@ -169,13 +170,15 @@ class Remotes extends NativeComponent
      */
     public function load(): void
     {
-        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($json), again: true);
+        $tab = $this->tab;
+        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($tab, $json), again: true);
         $this->refreshUnreadNotifications();
     }
 
     protected function revalidate(): void
     {
-        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($json));
+        $tab = $this->tab;
+        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($tab, $json));
         $this->refreshUnreadNotifications();
     }
 
@@ -330,7 +333,7 @@ class Remotes extends NativeComponent
     private function showKept(): void
     {
         if (! $this->off && ($json = $this->cached(Client::RemotesPath, $this->query())) !== null) {
-            $this->takeFresh($json);
+            $this->takeFresh($this->tab, $json);
         }
     }
 
@@ -340,8 +343,13 @@ class Remotes extends NativeComponent
      *
      * @param  array<string, mixed>  $json
      */
-    private function takeFresh(array $json): void
+    private function takeFresh(string $tab, array $json): void
     {
+        // An answer for a tab you've left.
+        if ($tab !== $this->tab) {
+            return;
+        }
+
         $fresh = self::conversationsFrom($json);
         $freshIds = array_flip(array_map(fn (ConversationData $conversation): string => $conversation->id, $fresh));
         $oldest = $fresh[array_key_last($fresh) ?? -1]->lastMessageAt ?? null;
