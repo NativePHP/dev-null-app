@@ -2721,12 +2721,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-air.git",
-                "reference": "00a6bf1451b70fa51eabd0d2fefa62db30d1e847"
+                "reference": "5fa2cd2db61912ff0399ec80cdbaf580ea49db8c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/00a6bf1451b70fa51eabd0d2fefa62db30d1e847",
-                "reference": "00a6bf1451b70fa51eabd0d2fefa62db30d1e847",
+                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/5fa2cd2db61912ff0399ec80cdbaf580ea49db8c",
+                "reference": "5fa2cd2db61912ff0399ec80cdbaf580ea49db8c",
                 "shasum": ""
             },
             "require": {
@@ -2836,7 +2836,7 @@
                 "source": "https://github.com/NativePHP/mobile-air/tree/combined/dev-null-app",
                 "issues": "https://github.com/NativePHP/mobile-air/issues"
             },
-            "time": "2026-10-19T18:12:14+00:00"
+            "time": "2026-10-20T14:50:33+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
