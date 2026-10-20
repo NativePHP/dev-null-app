@@ -205,7 +205,7 @@ it('shows inline code on a wash and keeps mentions on both sides of it', functio
     ]);
 });
 
-it('draws a standalone /dev/null as the wordmark: semibold, tight, its middle slash regular in lane-0, held on one line', function () {
+it('draws a standalone /dev/null as the wordmark: semibold, tight, its middle slash a lane-0 outline, held on one line', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson(['body' => 'Piped to /dev/null, not /dev/nullable (/dev/null)'])]))]);
 
     $screen = Native::visit('/log');
@@ -218,7 +218,7 @@ it('draws a standalone /dev/null as the wordmark: semibold, tight, its middle sl
             ["/\u{2060}dev", '/', "\u{2060}null"],
         ])
         ->and($wordmarks[0]['props'])->toMatchArray(['font_name' => 'semibold', 'font_weight' => 5])
-        ->and($slash)->toMatchArray(['font_name' => 'default', 'font_weight' => 3])
+        ->and($slash)->toMatchArray(['text_outline' => 1.0])->not->toHaveKey('font_name')
         ->and(strtolower($slash['color']))->toBe(strtolower(config('native-ui.theme.light.lane-0')))
         ->and(strtolower($slash['dark_color']))->toBe(strtolower(config('native-ui.theme.dark.lane-0')));
 });
