@@ -44,16 +44,19 @@ trait WritesInBackground
             ->finished(function (mixed $result) use ($done, $failed): void {
                 $result = is_array($result) ? $result : [];
                 $status = (int) ($result['status'] ?? 0);
+                $successful = $status >= 200 && $status < 300;
 
-                if ($status >= 200 && $status < 300) {
+                if ($successful && ($result['from_devnull'] ?? false) === true) {
                     $done(is_array($result['json'] ?? null) ? $result['json'] : []);
 
                     return;
                 }
 
-                $exception = $status === 0
-                    ? ApiException::couldNotConnect((string) config('devnull.url'))
-                    : ApiException::fromParts($status, $result['json'] ?? null, (string) ($result['retry_after'] ?? ''));
+                $exception = match (true) {
+                    $status === 0 => ApiException::couldNotConnect((string) config('devnull.url')),
+                    $successful => ApiException::unexpectedAnswer((string) config('devnull.url'), $status),
+                    default => ApiException::fromParts($status, $result['json'] ?? null, (string) ($result['retry_after'] ?? '')),
+                };
 
                 if ($exception instanceof Unauthenticated) {
                     $this->signOut($exception);

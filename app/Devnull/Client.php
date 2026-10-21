@@ -552,7 +552,30 @@ final readonly class Client
             throw ApiException::fromResponse($response);
         }
 
+        if (! self::answeredByDevnull($response, $method)) {
+            throw ApiException::unexpectedAnswer($this->baseUrl, $response->status());
+        }
+
         return $response;
+    }
+
+    /**
+     * Whether a successful response is devnull's API answering, and not a page
+     * served in its place, such as the HTML that dev-null.sh answers every URL
+     * with, and a 200, while it's down for maintenance. devnull answers a GET
+     * with a JSON object, never an empty one, and a write with one or with no
+     * body at all. Anything else counts as a failed request, so it's never kept
+     * over what the app had.
+     */
+    public static function answeredByDevnull(Response $response, string $method): bool
+    {
+        $json = $response->json();
+
+        if (is_array($json) && ! array_is_list($json)) {
+            return true;
+        }
+
+        return $method !== 'GET' && $response->body() === '';
     }
 
     /**
