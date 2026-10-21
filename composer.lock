@@ -2721,12 +2721,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-air.git",
-                "reference": "2b9f227eeb9e11c90c061340d33919b77efd58de"
+                "reference": "a62aba9b7d400da7c4bde4db58011ea5ec4d54a7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/2b9f227eeb9e11c90c061340d33919b77efd58de",
-                "reference": "2b9f227eeb9e11c90c061340d33919b77efd58de",
+                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/a62aba9b7d400da7c4bde4db58011ea5ec4d54a7",
+                "reference": "a62aba9b7d400da7c4bde4db58011ea5ec4d54a7",
                 "shasum": ""
             },
             "require": {
@@ -2836,7 +2836,7 @@
                 "source": "https://github.com/NativePHP/mobile-air/tree/combined/dev-null-app",
                 "issues": "https://github.com/NativePHP/mobile-air/issues"
             },
-            "time": "2026-10-21T00:33:43+00:00"
+            "time": "2026-10-21T14:54:10+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
@@ -3073,12 +3073,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-ui.git",
-                "reference": "7ed49639633d8c23601471de127a7533cf57bf97"
+                "reference": "ebbc94b79f489175ab815a69e579c368cd295ff1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/7ed49639633d8c23601471de127a7533cf57bf97",
-                "reference": "7ed49639633d8c23601471de127a7533cf57bf97",
+                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/ebbc94b79f489175ab815a69e579c368cd295ff1",
+                "reference": "ebbc94b79f489175ab815a69e579c368cd295ff1",
                 "shasum": ""
             },
             "require": {
@@ -3137,7 +3137,7 @@
                     "url": "https://nativephp.com/sponsor"
                 }
             ],
-            "time": "2026-10-21T00:45:57+00:00"
+            "time": "2026-10-21T15:07:28+00:00"
         },
         {
             "name": "nesbot/carbon",

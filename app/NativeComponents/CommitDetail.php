@@ -7,6 +7,7 @@ use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitThread;
 use App\Devnull\Data\Page;
 use App\Devnull\Display;
+use App\Devnull\RowCache;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Lucide;
@@ -107,6 +108,11 @@ class CommitDetail extends NativeComponent
      * mounts it again at the top.
      */
     public int $scrollKey = 0;
+
+    /**
+     * The replies from the last frame, so a render only builds the replies that changed, as the Log does its rows.
+     */
+    private ?RowCache $replyRows = null;
 
     /**
      * Every frame goes in full, as on the Log (see Log::$forceFullFrames). A
@@ -427,8 +433,11 @@ class CommitDetail extends NativeComponent
     {
         $earlier = $this->earlierShown ? [] : $this->ancestors;
         $viewer = $this->me();
+        $this->replyRows ??= new RowCache;
+        $this->replyRows->startFrame();
 
         return view('native.commit-detail', [
+            'replyRows' => $this->replyRows,
             'myColour' => $this->myColour(),
             'viewer' => $viewer,
             'stashed' => app(Stash::class)->names($viewer?->id),

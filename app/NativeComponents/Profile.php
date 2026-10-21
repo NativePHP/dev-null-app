@@ -10,6 +10,7 @@ use App\Devnull\Data\Profile as ProfileData;
 use App\Devnull\Data\User;
 use App\Devnull\ErrorCode;
 use App\Devnull\Exceptions\ApiException;
+use App\Devnull\RowCache;
 use App\Devnull\ShownTabs;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
@@ -89,9 +90,10 @@ class Profile extends NativeComponent
     public const array Labels = ['commits' => 'Commits', 'replies' => 'Replies'];
 
     /**
-     * How many kept commits the tab you're not on shows, enough to fill the screen while you swipe to it.
+     * How many kept commits the tab you're not on shows, enough for the top of the screen while you swipe to it, as
+     * Log::PreviewCommits: every row sent is one the phone builds.
      */
-    public const int PreviewCommits = 5;
+    public const int PreviewCommits = 3;
 
     /**
      * The alerts the safety menu confirms with, as the web words them. Each one's id names the profile too, so an
@@ -121,6 +123,13 @@ class Profile extends NativeComponent
      * @var array<string, int>
      */
     public array $listKeys = [];
+
+    /**
+     * Each tab's rows from the last frame, so a render only builds the rows that changed, as on the Log.
+     *
+     * @var array<string, RowCache>
+     */
+    private array $rowCaches = [];
 
     /**
      * Whether the tab has had commits to show, kept or fresh. Until then it shows skeleton rows.
@@ -711,9 +720,20 @@ class Profile extends NativeComponent
         }
 
         $this->refresh('users/'.rawurlencode($this->username), [], function (array $json): void {
-            $this->profile = ProfileData::fromArray($json);
+            $profile = ProfileData::fromArray($json);
+
+            // An answer with nobody in it, like a maintenance page, leaves what's showing alone.
+            if ($profile->user->username === '') {
+                return;
+            }
+
+            $this->profile = $profile;
             $this->sketched = false;
             $this->unavailable = null;
+
+            if ($this->isMe()) {
+                app(Account::class)->rememberProfile($json);
+            }
         }, again: $showNewer);
         $this->refreshCommits($showNewer);
         $this->refreshThreads();
@@ -740,10 +760,10 @@ class Profile extends NativeComponent
             return;
         }
 
-        $profile = $this->cached('users/'.rawurlencode($this->username));
+        $profile = $this->keptProfile();
 
         if ($profile !== null) {
-            $this->profile = ProfileData::fromArray($profile);
+            $this->profile = $profile;
             $this->sketched = false;
         } elseif ($this->profile === null && ($author = $this->data('user')) instanceof User && $author->username === $this->username) {
             $this->profile = new ProfileData($author);
@@ -753,6 +773,24 @@ class Profile extends NativeComponent
         if (($commits = $this->cached($this->commitsPath(), $this->commitsQuery())) !== null) {
             $this->takeCommits($this->tab, $commits);
         }
+    }
+
+    /**
+     * The profile as it was kept. Your own falls back to the one the phone keeps
+     * from when you signed in (see Account::profile()), so it still shows when
+     * devnull can't be reached and nothing usable was kept. A kept answer with
+     * nobody in it is no profile at all.
+     */
+    private function keptProfile(): ?ProfileData
+    {
+        $json = $this->cached('users/'.rawurlencode($this->username));
+        $profile = $json === null ? null : ProfileData::fromArray($json);
+
+        if (($profile === null || $profile->user->username === '') && $this->isMe() && ($stored = app(Account::class)->profile()) !== null) {
+            return ProfileData::fromArray($stored);
+        }
+
+        return $profile?->user->username === '' ? null : $profile;
     }
 
     /**
@@ -784,6 +822,10 @@ class Profile extends NativeComponent
 
     public function render(): View
     {
+        foreach (self::Tabs as $tab) {
+            $this->rowCache($tab)->startFrame();
+        }
+
         $pages = array_map(fn (string $tab): array => $tab === $this->tab
             ? $this->page($tab, $this->commits, $this->nextCursor, $this->commitsLoaded, $this->listKey)
             : $this->previewPage($tab), self::Tabs);
@@ -833,6 +875,7 @@ class Profile extends NativeComponent
 
         return [
             'tab' => $tab,
+            'rowCache' => $this->rowCache($tab),
             'showing' => $showing,
             'listKey' => $listKey,
             'loaded' => $loaded,
@@ -844,5 +887,10 @@ class Profile extends NativeComponent
             // Replies the tab you're on has opened, under their commits.
             'threads' => $showing ? $this->threads : [],
         ];
+    }
+
+    private function rowCache(string $tab): RowCache
+    {
+        return $this->rowCaches[$tab] ??= new RowCache;
     }
 }

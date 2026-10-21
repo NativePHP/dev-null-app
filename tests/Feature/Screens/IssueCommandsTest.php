@@ -228,6 +228,7 @@ it('keeps the issue draft with why when devnull or GitHub says no', function (ar
     'GitHub said no' => [[['message' => 'GitHub did not create the issue. Your draft is safe.', 'code' => 'github_issue_failed'], 503], 'GitHub did not create the issue. Your draft is safe.'],
     'GitHub did not answer' => [[['message' => 'GitHub did not respond. Check the upstream issues before trying again. Your draft is safe.', 'code' => 'github_issue_failed'], 503], 'GitHub did not respond. Check the upstream issues before trying again. Your draft is safe.'],
     "a proxy's error page" => [['<html><title>502: Bad gateway</title></html>', 502], 'GitHub did not confirm the issue. Check upstream before retrying. Your draft is safe.'],
+    'a maintenance page with a 200' => [['<html><title>Maintenance - /dev/null</title></html>', 200], "fatal: unable to access 'http://devnull.test': unexpected answer (HTTP 200)"],
     'invalid' => [[['message' => 'The body field must not be greater than 4000 characters.', 'errors' => ['body' => ['The body field must not be greater than 4000 characters.']]], 422], 'The body field must not be greater than 4000 characters.'],
 ]);
 

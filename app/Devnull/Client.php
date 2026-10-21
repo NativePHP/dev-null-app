@@ -372,7 +372,17 @@ final readonly class Client
 
     public function profile(string $username): Profile
     {
-        return Profile::fromArray($this->get('users/'.rawurlencode($username)));
+        return Profile::fromArray($this->profileJson($username));
+    }
+
+    /**
+     * Someone's profile as devnull sent it, for keeping as it is (see Account::rememberProfile()).
+     *
+     * @return array<string, mixed>
+     */
+    public function profileJson(string $username): array
+    {
+        return $this->get('users/'.rawurlencode($username));
     }
 
     /**
@@ -606,6 +616,10 @@ final readonly class Client
             throw ApiException::fromResponse($response);
         }
 
+        if (! self::answeredByDevnull($response, $method)) {
+            throw ApiException::unexpectedAnswer($this->baseUrl, $response->status());
+        }
+
         return $response;
     }
 
@@ -625,6 +639,25 @@ final readonly class Client
             'image_descriptions' => $descriptions,
             'poll' => $poll,
         ], fn (mixed $value): bool => $value !== null && $value !== []);
+    }
+
+    /**
+     * Whether a successful response is devnull's API answering, and not a page
+     * served in its place, such as the HTML that dev-null.sh answers every URL
+     * with, and a 200, while it's down for maintenance. devnull answers a GET
+     * with a JSON object, never an empty one, and a write with one or with no
+     * body at all. Anything else counts as a failed request, so it's never kept
+     * over what the app had.
+     */
+    public static function answeredByDevnull(Response $response, string $method): bool
+    {
+        $json = $response->json();
+
+        if (is_array($json) && ! array_is_list($json)) {
+            return true;
+        }
+
+        return $method !== 'GET' && $response->body() === '';
     }
 
     /**

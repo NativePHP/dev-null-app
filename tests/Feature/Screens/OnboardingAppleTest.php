@@ -82,16 +82,21 @@ it("opens Apple's sheet with a fresh raw nonce, held in memory, and asks for no 
 
 it("signs in with Apple's token and the raw nonce, which approves this phone", function () {
     $bridge = appleBridge();
-    fakeApi(['POST /api/v1/devices' => [['data' => userWithCountsJson()]]]);
+    fakeApi([
+        'POST /api/v1/devices' => [['data' => userWithCountsJson()]],
+        'GET /api/v1/users/local_dev' => [['data' => userWithCountsJson()]],
+    ]);
     $screen = Native::visit('/onboarding', platform: 'ios')->tap('sign-in-apple');
     $nonce = heldAppleNonce();
 
     appleAnswers($screen, $nonce)->assertReplacedWith('/log');
 
+    // Your profile is kept as you sign in, so it shows when devnull can't be reached.
     expect(app(Account::class)->user()?->username)->toBe('local_dev')
+        ->and(app(Account::class)->profile()['data']['username'] ?? null)->toBe('local_dev')
         ->and(heldAppleNonce())->toBeNull();
 
-    Http::assertSentCount(1);
+    Http::assertSentCount(2);
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
         && $request->url() === 'http://devnull.test/api/v1/'.Client::SignInPath
         && $request->body() === json_encode(['apple_identity_token' => AppleIdentityToken, 'nonce' => $nonce, 'device_name' => 'devnull on iPhone'])

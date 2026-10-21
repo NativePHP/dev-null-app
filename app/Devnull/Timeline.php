@@ -38,10 +38,13 @@ final class Timeline
         $now ??= CarbonImmutable::now();
         $rows = [];
         $previous = null;
+        $previousDay = null;
 
         foreach ($commits as $commit) {
             $isFirstSeen = $firstSeenId !== null && $commit->id === $firstSeenId;
-            $startsDay = self::startsDay($previous, $commit, $now);
+            // Each commit's day is worked out once: a log scrolled a long way down has thousands of them.
+            $day = $commit->createdAt === null ? null : Display::dayKey($commit->createdAt, $now);
+            $startsDay = $previous === null || ($day !== null && $previousDay !== null && $day !== $previousDay);
 
             if ($isFirstSeen) {
                 $rows[] = TimelineRow::lastVisit(null);
@@ -53,6 +56,7 @@ final class Timeline
 
             $rows[] = self::run($commit, ! $startsDay && ! $isFirstSeen && self::continuesRun($previous, $commit));
             $previous = $commit;
+            $previousDay = $day;
         }
 
         return self::joinRuns($rows);
@@ -153,18 +157,5 @@ final class Timeline
             && ! $previous->isDeleted()
             && ! $commit->isDeleted()
             && $previous->author->id === $commit->author->id;
-    }
-
-    private static function startsDay(?Commit $previous, Commit $commit, CarbonInterface $now): bool
-    {
-        if ($previous === null) {
-            return true;
-        }
-
-        if ($previous->createdAt === null || $commit->createdAt === null) {
-            return false;
-        }
-
-        return Display::dayKey($previous->createdAt, $now) !== Display::dayKey($commit->createdAt, $now);
     }
 }

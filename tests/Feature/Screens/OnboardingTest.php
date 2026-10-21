@@ -189,16 +189,21 @@ it('makes a fresh verifier and state for every attempt', function () {
 
 it('follows the deep link back, redeems the code with the verifier and signs in', function () {
     $bridge = signInBridge(testSeed());
-    fakeApi(['POST /api/v1/devices' => [['data' => userWithCountsJson()]]]);
+    fakeApi([
+        'POST /api/v1/devices' => [['data' => userWithCountsJson()]],
+        'GET /api/v1/users/local_dev' => [['data' => userWithCountsJson()]],
+    ]);
     $screen = Native::visit('/onboarding');
     $state = tapSignIn($screen, $bridge);
     $verifier = pendingAttempt()->verifier();
 
     sendBack($screen, ['code' => 'the-code', 'state' => $state])->assertReplacedWith('/log');
 
-    expect(app(Account::class)->user()?->username)->toBe('local_dev');
+    // Your profile is kept as you sign in, so it shows when devnull can't be reached.
+    expect(app(Account::class)->user()?->username)->toBe('local_dev')
+        ->and(app(Account::class)->profile()['data']['username'] ?? null)->toBe('local_dev');
 
-    Http::assertSentCount(1);
+    Http::assertSentCount(2);
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
         && $request->url() === 'http://devnull.test/api/v1/'.Client::SignInPath
         && $request->body() === json_encode(['code' => 'the-code', 'code_verifier' => $verifier])
