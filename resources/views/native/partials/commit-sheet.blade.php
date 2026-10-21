@@ -5,7 +5,7 @@
     colour; on Android they're text buttons, as in Material 3's full-screen dialog header. The title is centred.
     Cancel closes it as a swipe does, keeping the draft. If devnull says no, why shows here and the draft stays. The
     Log's compose button opens the same composer for a new commit, without the card. A draft stashed last time comes
-    back in it, with the web's stash@{0} and drop on the left of the counter's row.
+    back in it, with the web's stash@{0} and drop beside the counter, in the toolbar at the bottom.
 
     Report commit, in someone else's published commit's More menu, opens it as the web's Report dialog: the private,
     not-hidden line, the commit's body clamped to three lines, the four reasons, optional details, and Send report,
@@ -19,10 +19,11 @@
     A commit's page opens its reply here too, as "Reply to @handle", with the commit being answered as a static card
     over the field, for the photos and the preview its reply bar has no room for. Commit says Reply there.
 
-    Under what's being written come its photos, then the poll editor, then a row of tools: photos, the camera, a poll
-    (not on a reply), and the preview, which shows the draft as the commit it would become in place of the field (see
-    AttachesToCommits). An issue draft has none of them, as on the web. With photos, Commit spins while they upload,
-    and no body at all will do.
+    Under what's being written come its photos and the poll editor. A toolbar is pinned to the bottom of the sheet, so
+    it stays just above the keyboard: the tools on the left, photos, the camera, a poll (not on a reply) and the
+    preview, which shows the draft as the commit it would become in place of the field (see AttachesToCommits), and
+    stash@{0} and the counter on the right. An issue draft has no tools, as on the web. With photos, Commit spins while
+    they upload, and no body at all will do.
 
     It's full height for the forms, and short for the receipts. It's always on the screen, shown or not, so iOS can
     slide it away and say when it's gone.
@@ -95,19 +96,20 @@
                             @endif
                         @endif
 
-                        @unless ($issueCommand)
-                            @include('native.partials.composer-tools')
-                        @endunless
-
-                        <native:row class="w-full gap-3 items-center justify-end">
-                            @if ($sheetRestored)
-                                @include('native.partials.stash-label', ['ref' => 'sheet-stash', 'drop' => 'dropSheetStash'])
-                                <native:spacer />
-                            @endif
-                            @include('native.partials.body-counter', ['body' => $sheetBody, 'ref' => 'sheet-budget', 'literal' => $issueCommand !== null])
-                        </native:row>
                     </native:column>
                 </native:scroll-view>
+                {{-- Pinned under the scroll view, so it rides just above the keyboard, and above the home indicator without it. --}}
+                <native:column class="w-full h-[1] bg-theme-hairline" />
+                <native:row ref="sheet-toolbar" class="w-full pl-3 pr-5 py-1 gap-3 items-center">
+                    @unless ($issueCommand)
+                        @include('native.partials.composer-tools')
+                    @endunless
+                    <native:spacer />
+                    @if ($sheetRestored)
+                        @include('native.partials.stash-label', ['ref' => 'sheet-stash', 'drop' => 'dropSheetStash'])
+                    @endif
+                    @include('native.partials.body-counter', ['body' => $sheetBody, 'ref' => 'sheet-budget', 'literal' => $issueCommand !== null])
+                </native:row>
             </native:column>
         @elseif ($sheetView === 'report')
             <native:scroll-view ref="report-form" class="w-full flex-1">

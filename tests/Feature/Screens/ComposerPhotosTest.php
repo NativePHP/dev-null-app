@@ -74,6 +74,15 @@ function isTool(TestableComponent $screen, string $ref): bool
     return nodeByRef($screen, $ref)['type'] === 'pressable';
 }
 
+it('pins the toolbar under the scroll view, so it stays just above the keyboard', function () {
+    $screen = composerOnLog();
+    $toolbar = nodeByRef($screen, 'sheet-toolbar');
+
+    expect(findNode(nodeByRef($screen, 'sheet-composer'), fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-toolbar'))->toBeNull()
+        ->and(findNode($toolbar, fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-tools'))->not->toBeNull()
+        ->and(findNode($toolbar, fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-preview'))->not->toBeNull();
+});
+
 it('opens the photo library for up to three photos, then for what\'s left', function () {
     $screen = composerOnLog()->tap('sheet-photos');
 

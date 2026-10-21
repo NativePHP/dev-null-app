@@ -1,10 +1,10 @@
 {{--
-    The composer's tools, on a row of their own under what's being written, as the web's composer wraps them on a
-    phone: photos from the library, a photo from the camera, a poll, and the preview. Up to three photos, or a poll,
+    The composer's tools, on the left of the toolbar pinned to the bottom of the sheet: photos from the library, a photo
+    from the camera, a poll, and the preview. Up to three photos, or a poll,
     not both, as on the web, so each greys out while the other is there; a reply has no poll at all.
 --}}
 @php($photosFull = count($sheetImages) >= \App\Devnull\DraftImages::MaxImages)
-<native:row ref="sheet-tools" class="w-full -ml-2 items-center">
+<native:row ref="sheet-tools" class="items-center">
     @include('native.partials.composer-tool', ['ref' => 'sheet-photos', 'icon' => \App\Icons\Lucide::ImagePlus, 'label' => 'Attach up to 3 photos', 'press' => 'pickPhotos', 'disabled' => $sheetPoll !== null || $photosFull || $sheetPosting])
     @include('native.partials.composer-tool', ['ref' => 'sheet-camera', 'icon' => \App\Icons\Lucide::Camera, 'label' => 'Take a photo', 'press' => 'takePhoto', 'disabled' => $sheetPoll !== null || $photosFull || $sheetPosting])
     @unless ($sheetView === 'reply')
