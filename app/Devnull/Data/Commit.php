@@ -20,9 +20,11 @@ use Throwable;
  */
 final readonly class Commit
 {
-    public const int MinLength = 3;
+    public const int MinLength = 1;
 
     public const int MaxLength = 4000;
+
+    public const int MaxRawLength = 40000;
 
     /**
      * The web's composer only counts down once this few characters are left.
@@ -54,7 +56,6 @@ final readonly class Commit
         public ?CarbonImmutable $deletedAt = null,
         public int $starsCount = 0,
         public bool $starred = false,
-        public ?bool $isSaved = null,
         public bool $isPinned = false,
         public array $mentions = [],
         public ?LinkPreview $linkPreview = null,
@@ -113,7 +114,6 @@ final readonly class Commit
             htmlUrl: is_string($data['html_url'] ?? null) ? $data['html_url'] : null,
             starsCount: max(0, (int) ($data['stars_count'] ?? 0)),
             starred: ($data['starred'] ?? false) === true,
-            isSaved: is_bool($data['is_saved'] ?? null) ? $data['is_saved'] : null,
             isPinned: ($data['is_pinned'] ?? false) === true,
             mentions: $mentions,
             linkPreview: is_array($data['link_preview'] ?? null) ? LinkPreview::fromArray($data['link_preview']) : null,
@@ -151,11 +151,6 @@ final readonly class Commit
         return new self(...[...get_object_vars($this), 'pasteisCount' => max(0, $this->pasteisCount + $change)]);
     }
 
-    public function withSaved(bool $isSaved): self
-    {
-        return new self(...[...get_object_vars($this), 'isSaved' => $isSaved]);
-    }
-
     /**
      * This commit with the poll a fresher copy of it has, as after you voted.
      */
@@ -165,7 +160,7 @@ final readonly class Commit
     }
 
     /**
-     * This commit with the star, save and pastéis state of a fresher copy of
+     * This commit with the star and pastéis state of a fresher copy of
      * it, keeping everything else, such as the parent a list loaded with it.
      */
     public function withReactionsFrom(self $fresh): self
@@ -174,9 +169,22 @@ final readonly class Commit
             ...get_object_vars($this),
             'starred' => $fresh->starred,
             'starsCount' => $fresh->starsCount,
-            'isSaved' => $fresh->isSaved ?? $this->isSaved,
             'pasteisCount' => $fresh->pasteisCount,
         ]);
+    }
+
+    /**
+     * Whether a body is long enough to commit and short enough for devnull, once trimmed.
+     */
+    public static function fits(string $body): bool
+    {
+        $body = CommitBody::normalize($body);
+        $length = CommitBody::characterCount($body);
+
+        return mb_strlen($body) <= self::MaxRawLength
+            && $length >= self::MinLength
+            && $length <= self::MaxLength
+            && ! CommitBody::hasOversizedUrl($body);
     }
 
     /**
@@ -186,7 +194,7 @@ final readonly class Commit
      */
     public static function isFoldedInLists(string $body): bool
     {
-        $normalized = trim((string) preg_replace('/(?:[ \t]*\n){3,}/', "\n\n", str_replace("\r\n", "\n", $body)));
+        $normalized = CommitBody::normalize($body);
 
         return mb_strlen($normalized) > self::PreviewLength || count(explode("\n", $normalized)) > self::PreviewLines;
     }
@@ -233,6 +241,27 @@ final readonly class Commit
                 : implode('', array_map(fn (BodyRun $run): string => $run->text, $block->runs)),
             $this->content,
         ));
+    }
+
+    /**
+     * The links in the body, in the order it draws them. A long commit's
+     * preview is cut at a space, so its links are the first of these.
+     *
+     * @return list<BodyLink>
+     */
+    public function links(): array
+    {
+        $links = [];
+
+        foreach ($this->content as $block) {
+            foreach ($block->runs as $run) {
+                if ($run->link !== null) {
+                    $links[] = $run->link;
+                }
+            }
+        }
+
+        return $links;
     }
 
     public function isDeleted(): bool

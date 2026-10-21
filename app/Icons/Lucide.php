@@ -22,6 +22,7 @@ enum Lucide
 {
     case GitCommitVertical;
     case Bell;
+    case MessagesSquare;
     case UserRound;
     case Settings2;
     case MessageSquareReply;
@@ -45,6 +46,7 @@ enum Lucide
     case Check;
     case X;
     case UserPlus;
+    case UserCheck;
     case AtSign;
     case FoldVertical;
     case Award;
@@ -55,6 +57,15 @@ enum Lucide
     case VolumeX;
     case Volume2;
     case Ban;
+    case Archive;
+    case ArchiveRestore;
+    case SquarePen;
+    case UsersRound;
+    case Search;
+    case Reply;
+    case SmilePlus;
+    case Lightbulb;
+    case Bug;
     case ImagePlus;
     case Camera;
     case ChartBar;
@@ -120,6 +131,7 @@ enum Lucide
         $name = match ($this) {
             self::GitCommitVertical => 'git-commit-vertical',
             self::Bell => 'bell',
+            self::MessagesSquare => 'messages-square',
             self::UserRound => 'user-round',
             self::Settings2 => 'settings-2',
             self::MessageSquareReply => 'message-square-reply',
@@ -132,6 +144,7 @@ enum Lucide
             self::Check => 'check',
             self::X => 'x',
             self::UserPlus => 'user-plus',
+            self::UserCheck => 'user-check',
             self::AtSign => 'at-sign',
             self::FoldVertical => 'fold-vertical',
             self::Award => 'award',
@@ -142,6 +155,15 @@ enum Lucide
             self::VolumeX => 'volume-x',
             self::Volume2 => 'volume-2',
             self::Ban => 'ban',
+            self::Archive => 'archive',
+            self::ArchiveRestore => 'archive-restore',
+            self::SquarePen => 'square-pen',
+            self::UsersRound => 'users-round',
+            self::Search => 'search',
+            self::Reply => 'reply',
+            self::SmilePlus => 'smile-plus',
+            self::Lightbulb => 'lightbulb',
+            self::Bug => 'bug',
             self::ImagePlus => 'image-plus',
             self::Camera => 'camera',
             self::ChartBar => 'chart-bar',

@@ -3,6 +3,18 @@
 use App\Devnull\Display;
 use Carbon\CarbonImmutable;
 
+it('keeps the last reply clear of the link validation message', function () {
+    $url = 'https://example.com/'.str_repeat('x', 2030);
+    expect(Display::replyBarClearance($url))->toBe(Display::replyBarClearance(str_repeat('a', mb_strlen($url))) + 3 * Display::ReplyBarLineHeight);
+});
+
+it('prints compact counts from a thousand as the web does', function (int $count, string $expected) {
+    expect(Display::compactCount($count))->toBe($expected);
+})->with([
+    [0, '0'], [999, '999'], [1000, '1k'], [1050, '1.1k'], [12500, '12.5k'],
+    [999949, '999.9k'], [999950, '1m'], [1000000, '1m'], [1500000000, '1.5b'],
+]);
+
 it('prints relative times the way the web does', function (string $date, string $expected) {
     $now = CarbonImmutable::parse('2026-10-15T12:00:00Z');
 
@@ -33,29 +45,6 @@ it('says how long ago in words, the way the web says when it last synced', funct
 
 it('shortens ids to the last seven characters without dashes', function () {
     expect(Display::shortHash('9b2f6c1e-1d3a-4e5f-8a7b-0c1d2e3f4a5b'))->toBe('e3f4a5b');
-});
-
-it("turns a thread elbow's dashes with its corner, one on the middle of the bend and the rest mirrored around it", function () {
-    $dashes = Display::elbowDashes(31.5, 64);
-    $bend = array_values(array_filter($dashes, fn (array $dash): bool => $dash['rotate'] < 0 && $dash['rotate'] > -90));
-
-    expect($dashes[0])->toBe(['x' => 32.0, 'y' => 5.42, 'rotate' => 0.0])
-        // Turned along the bend, down and to the right, and never against it.
-        ->and(array_column($bend, 'rotate'))->toBe([-11.58, -45.0, -78.42])
-        ->and($bend[1])->toBe(['x' => round(44 - 12 * cos(M_PI / 4), 2), 'y' => round(10 + 12 * sin(M_PI / 4), 2), 'rotate' => -45.0])
-        ->and(end($dashes))->toBe(['x' => 62.58, 'y' => 22.0, 'rotate' => -90.0]);
-
-    // A dash and a gap, 7pt, from the middle of one to the middle of the next on the straight runs.
-    $across = array_column(array_filter($dashes, fn (array $dash): bool => $dash['rotate'] === -90.0), 'x');
-
-    expect(array_map(fn (float $x, float $next): float => round($next - $x, 2), array_slice($across, 0, -1), array_slice($across, 1)))->toBe([7.0, 7.0]);
-});
-
-it("runs a nested reply's elbow from the spine above it to its avatar", function () {
-    $dashes = Display::elbowDashes(75.5, 96);
-
-    expect($dashes[0]['x'])->toBe(76.0)
-        ->and(end($dashes))->toBe(['x' => 92.58, 'y' => 22.0, 'rotate' => -90.0]);
 });
 
 it('prints full dates the way git log does', function () {

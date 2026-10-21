@@ -17,10 +17,18 @@
                 {{-- Follow waits for devnull to say whether you already do. --}}
             @elseif ($isMe)
                 <native:button ref="edit-on-github" variant="secondary" size="sm" :ios-icon-trailing="\App\Icons\Lucide::ArrowUpRight->ios()" :android-icon-trailing="\App\Icons\Lucide::ArrowUpRight->android()" @press="editOnGitHub">Edit on GitHub</native:button>
-            @elseif ($profile->isFollowing)
-                <native:button ref="follow" variant="secondary" size="sm" @press="toggleFollow" a11y-hint="Unfollows {{ $user->handle() }}">Unfollow</native:button>
             @else
-                <native:button ref="follow" :variant="$myColour" size="sm" @press="toggleFollow">Follow</native:button>
+                {{-- The web's Remote, beside Follow, when you can push to them. --}}
+                <native:row class="gap-2 items-center">
+                    @if ($canRemote)
+                        <native:button ref="remote" variant="secondary" size="sm" :ios-icon="\App\Icons\Lucide::MessagesSquare->ios()" :android-icon="\App\Icons\Lucide::MessagesSquare->android()" @press="openRemote" a11y-label="Remote {{ $user->handle() }}">Remote</native:button>
+                    @endif
+                    @if ($profile->isFollowing)
+                        <native:button ref="follow" variant="secondary" size="sm" @press="toggleFollow" a11y-hint="Unfollows {{ $user->handle() }}">Unfollow</native:button>
+                    @else
+                        <native:button ref="follow" :variant="$myColour" size="sm" @press="toggleFollow">Follow</native:button>
+                    @endif
+                </native:row>
             @endif
         </native:row>
 
@@ -52,7 +60,7 @@
         </native:column>
 
         @if ($user->bio)
-            <native:text class="w-full text-[15px] leading-relaxed text-theme-ink">{{ $user->bio }}</native:text>
+            @include('native.partials.github-text', ['text' => $user->bio, 'ref' => 'profile-bio', 'classes' => 'w-full text-[15px] leading-relaxed text-theme-ink', 'maxLines' => null])
         @endif
 
         {{--
@@ -61,7 +69,7 @@
         --}}
         <native:column ref="profile-facts" class="w-full gap-[6]">
             @if ($user->company)
-                @include('native.partials.profile-fact', ['key' => 'company', 'icon' => \App\Icons\Lucide::Building2, 'label' => $user->company])
+                @include('native.partials.profile-fact', ['key' => 'company', 'icon' => \App\Icons\Lucide::Building2, 'label' => $user->company, 'gitHubMentions' => true])
             @endif
             @if ($user->location)
                 @include('native.partials.profile-fact', ['key' => 'location', 'icon' => \App\Icons\Lucide::MapPin, 'label' => $user->location])
@@ -81,13 +89,13 @@
             @foreach ([[$profile->commitsCount, 'commit', 'commits', null], [$profile->followingCount, 'following', 'following', 'following'], [$profile->followersCount, 'follower', 'followers', 'followers']] as [$count, $singular, $plural, $list])
                 @if ($list === null)
                     <native:row class="gap-1 items-center">
-                        <native:text font="mono-medium" class="text-[13px] text-theme-ink">{{ $count }}</native:text>
+                        <native:text font="mono-medium" class="text-[13px] text-theme-ink">{{ \App\Devnull\Display::compactCount($count) }}</native:text>
                         <native:text class="text-sm text-theme-ink-muted">{{ $count === 1 ? $singular : $plural }}</native:text>
                     </native:row>
                 @else
                     <native:pressable ref="count-{{ $list }}" @press="openConnections('{{ $list }}')" a11y-label="{{ $count }} {{ $count === 1 ? $singular : $plural }}">
                         <native:row class="gap-1 items-center">
-                            <native:text font="mono-medium" class="text-[13px] text-theme-ink">{{ $count }}</native:text>
+                            <native:text font="mono-medium" class="text-[13px] text-theme-ink">{{ \App\Devnull\Display::compactCount($count) }}</native:text>
                             <native:text class="text-sm text-theme-ink-muted">{{ $count === 1 ? $singular : $plural }}</native:text>
                         </native:row>
                     </native:pressable>
@@ -100,7 +108,7 @@
         @if (! $sketched && ($pasteis ?? null) !== null && $profile->pasteisReceived !== null)
             <native:row ref="pasteis-received" class="w-full gap-[6] items-center" a11y-label="{{ $profile->pasteisReceived }} pastéis received">
                 <native:image :src="\App\Devnull\Data\Pasteis::Image" :width="20" :height="20" :fit="1" />
-                <native:text font="mono-medium" class="text-sm text-theme-ink">{{ $profile->pasteisReceived }}</native:text>
+                <native:text font="mono-medium" class="text-sm text-theme-ink">{{ \App\Devnull\Display::compactCount($profile->pasteisReceived) }}</native:text>
                 <native:text class="text-sm text-theme-ink-muted">pastéis received</native:text>
             </native:row>
         @endif

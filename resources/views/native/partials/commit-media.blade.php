@@ -2,13 +2,14 @@
     What hangs under a commit's body on the web: its images, its poll, the commit it quotes, then the link preview.
     A reply in a thread shows only its images and link preview ($withEmbeds false), as the web's thread does.
     Images hold their space at their aspect ratio on a wash, so one that fails to load leaves the row as it was. Each is
-    read out by the description its author gave it, as the web's alt text.
+    read out by the description its author gave it, as the web's alt text. Images come from the device once ImageCache has
+    them, so they don't load again each time they scroll into view.
 --}}
 @php($images = $commit->images)
 @if (count($images) === 1)
     <native:pressable ref="image-{{ $images[0]->id }}" @press="openImage('{{ $commit->id }}', 0)" class="w-full mt-2" a11y-label="{{ $images[0]->label() }}">
         <native:column class="w-full aspect-[{{ $images[0]->ratio() }}] rounded-lg border border-theme-hairline bg-theme-wash">
-            <native:image :src="$images[0]->url" :fit="2" alt="{{ $images[0]->label() }}" class="w-full h-full rounded-lg" />
+            <native:image :src="\App\Devnull\ImageCache::src($images[0]->url)" :fit="2" alt="{{ $images[0]->label() }}" class="w-full h-full rounded-lg" />
         </native:column>
     </native:pressable>
 @elseif (count($images) > 1)
@@ -19,7 +20,7 @@
                 @foreach ($column as $image)
                     @php($index = array_search($image, $images, true))
                     <native:pressable ref="image-{{ $image->id }}" @press="openImage('{{ $commit->id }}', {{ $index }})" class="w-full flex-1 bg-theme-wash" a11y-label="{{ $image->label($index, count($images)) }}">
-                        <native:image :src="$image->url" :fit="2" alt="{{ $image->label($index, count($images)) }}" class="w-full h-full" />
+                        <native:image :src="\App\Devnull\ImageCache::src($image->url)" :fit="2" alt="{{ $image->label($index, count($images)) }}" class="w-full h-full" />
                     </native:pressable>
                 @endforeach
             </native:column>
@@ -42,7 +43,7 @@
         <native:row class="w-full gap-3 p-2 items-center rounded-lg border border-theme-hairline">
             @if ($preview->imageUrl)
                 <native:column :width="56" :height="56" class="rounded-md bg-theme-wash">
-                    <native:image :src="$preview->imageUrl" :width="56" :height="56" :fit="2" class="rounded-md" />
+                    <native:image :src="\App\Devnull\ImageCache::src($preview->imageUrl)" :width="56" :height="56" :fit="2" class="rounded-md" />
                 </native:column>
             @endif
             <native:column class="flex-1 gap-[2] pr-1">

@@ -1,6 +1,3 @@
-@php($remaining = \App\Devnull\Data\Commit::MaxLength - mb_strlen($reply))
-@php($replyLength = mb_strlen(trim($reply)))
-
 <native:column class="w-full h-full bg-theme-background">
     @include('native.partials.error')
     @include('native.partials.refresh-failed')
@@ -102,16 +99,18 @@
     @if ($commit)
         {{--
             The bar is painted from its first child's background: native:bottom-bar takes no classes of its own, so
-            the surface and the hairline above it belong to this column, or the replies show through.
+            the surface and the hairline above it belong to this column, or the replies show through. On iOS the bar
+            is bare and the field is a Liquid Glass plate instead, the way the HIG floats controls over content; the
+            hairline stays as a clear 1pt so the bar keeps the height Display::ReplyBarHeight counts on.
         --}}
         <native:bottom-bar>
-            <native:column ref="reply-bar" class="w-full bg-theme-surface">
-                <native:column class="w-full h-[1] bg-theme-hairline" />
-                <native:row class="w-full pl-2 pr-4 py-2 gap-1 items-center">
+            <native:column ref="reply-bar" class="w-full android:bg-theme-surface">
+                <native:column class="w-full h-[1] android:bg-theme-hairline" />
+                <native:row class="w-full pl-2 pr-4 py-2 gap-2 items-center">
                     {{-- The bar has no room for photos or a preview, so this opens the reply in the composer sheet, which has them. --}}
                     @include('native.partials.composer-tool', ['ref' => 'reply-expand', 'icon' => \App\Icons\Lucide::Maximize2, 'label' => 'Reply with photos or a preview', 'press' => "replyInSheet('{$commit->id}')"])
                     {{-- EDGE sends no focus event, so a press on the field is how the page learns you're replying. --}}
-                    <native:column ref="reply-field" class="flex-1" @pressUp="replyTapped">
+                    <native:column ref="reply-field" class="flex-1 ios:px-4 ios:rounded-[18] ios:glass" @pressUp="replyTapped">
                         <native:bare-text-input
                             ref="reply-input"
                             class="w-full py-2 text-theme-ink"
@@ -120,14 +119,15 @@
                             :autofocus="$focusReply"
                             multiline
                             :max-lines="5"
-                            :max-length="\App\Devnull\Data\Commit::MaxLength"
+                            :max-length="\App\Devnull\Data\Commit::MaxRawLength"
                         />
                     </native:column>
-                    <native:column class="w-[8]" />
                     @include('native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget'])
-                    <native:column class="w-[8]" />
-                    <native:button ref="send-reply" :variant="$myColour" size="sm" :disabled="$replyLength < 3 || $remaining < 0" @press="sendReply">Reply</native:button>
+                    <native:button ref="send-reply" :variant="$myColour" size="sm" :loading="$sendingReply" :disabled="$sendingReply || ! \App\Devnull\Data\Commit::fits($reply)" @press="sendReply">Reply</native:button>
                 </native:row>
+                @if (\App\Devnull\Data\CommitBody::hasOversizedUrl($reply))
+                    <native:text ref="reply-link-error" class="w-full px-4 pb-2 text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
+                @endif
                 {{-- A reply stashed when you left the commit comes back with the web's stash@{0} and drop under it. --}}
                 @if ($replyRestored)
                     <native:row class="w-full px-4 -mt-2">

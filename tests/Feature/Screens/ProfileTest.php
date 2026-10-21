@@ -414,3 +414,21 @@ it('lets a drag that starts on a commit scroll the profile', function () {
 
     expect(pressFeedbackInScroller($screen))->toBe([]);
 });
+
+it('opens your profile on skeleton rows, and fills in what it kept straight after, so a tab tap shows at once', function () {
+    config(['devnull.skeleton_first' => true]);
+    holdRefreshes();
+    $profile = ['data' => userWithCountsJson(['name' => 'Kept Name']), 'is_following' => false, 'activity' => ['scale' => 'week', 'buckets' => []], 'streaks' => ['longest' => 0, 'current' => 0], 'pinned_commit' => null];
+    keep('users/local_dev', $profile);
+    keep('users/local_dev/commits', pageJson([commitJson(['id' => 'c1', 'body' => 'Kept commit'])]));
+    serveApi([
+        'GET /api/v1/users/local_dev' => [$profile],
+        'GET /api/v1/users/local_dev/commits' => [pageJson([commitJson(['id' => 'c1', 'body' => 'Kept commit'])])],
+    ]);
+
+    $screen = Native::visit('/profile')->assertSet('skeletonFrame', true)->assertDontSee('Kept Name')->assertDontSee('Kept commit');
+
+    expect(showsLoading($screen->tree()))->toBeTrue();
+
+    finishRefreshes($screen)->assertSet('skeletonFrame', false)->assertSee('Kept Name')->assertSee('Kept commit');
+});

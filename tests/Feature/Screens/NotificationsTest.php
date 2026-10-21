@@ -59,6 +59,36 @@ function ringColour(TestableComponent $screen, string $id): ?string
     return $node['style']['border_color'] ?? $node['style']['borderColor'] ?? null;
 }
 
+it('opens notification actors independently of the commit the row opens', function (string $ref, string $username) {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('starred', [
+        'actor' => personJson('grace', 'Grace'),
+        'actors' => [personJson('grace', 'Grace'), personJson('ada', 'Ada')],
+        'actors_count' => 2,
+        'event_count' => 2,
+    ])])]]);
+
+    $screen = Native::visit('/notifications')->tap($ref)->assertNavigatedTo('/notifications/users/'.$username);
+    expect($screen->navigationIntent()->data['user']->username)->toBe($username);
+})->with([
+    'name' => ['actor-name-n-starred', 'grace'],
+    'primary avatar' => ['actor-avatar-n-starred-grace', 'grace'],
+    'other stacked actor' => ['actor-avatar-n-starred-ada', 'ada'],
+]);
+
+it('opens an expanded notification actor from their own profile link', function () {
+    fakeApi([
+        'GET /api/v1/notifications' => [inboxJson([notificationJson('starred', ['event_count' => 2])])],
+        'GET /api/v1/notifications/n-starred/group' => [pageJson([notificationJson('starred', ['id' => 'older', 'actor' => personJson('linus', 'Linus'), 'actors' => [personJson('linus', 'Linus')]])])],
+    ]);
+
+    Native::visit('/notifications')->tap('group-n-starred')->tap('group-actor-older')->assertNavigatedTo('/notifications/users/linus');
+});
+
+it('does not navigate to an actor absent from the displayed notifications', function () {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([])]]);
+    Native::visit('/notifications')->call('openActor', 'nobody')->assertNoNavigation();
+});
+
 it('reads a group with its people, how many events there are and how many are unread', function () {
     Http::fake(['devnull.test/*' => Http::response(inboxJson([
         notificationJson('starred', [
@@ -103,10 +133,10 @@ it('words each kind like the web: the name, then the handle when they act alone,
         ->assertSee('Ask @local_dev about it')
         ->assertSee('2d');
 
-    expect(paragraphRuns($screen, 'replied to your commit'))->toBe([['Ada'], [' '], ['@ada'], [' replied to your commit']])
-        ->and(paragraphRuns($screen, 'quoted your commit'))->toBe([['Ada'], [' '], ['@ada'], [' quoted your commit']])
-        ->and(paragraphRuns($screen, 'mentioned you'))->toBe([['Grace'], [' '], ['@grace'], [' mentioned you']])
-        ->and(paragraphRuns($screen, 'followed you'))->toBe([['Linus'], [' '], ['@linus'], [' followed you']])
+    expect(paragraphRuns($screen, 'replied to your commit'))->toBe([['Ada', 'link'], [' '], ['@ada', 'mention'], [' replied to your commit']])
+        ->and(paragraphRuns($screen, 'quoted your commit'))->toBe([['Ada', 'link'], [' '], ['@ada', 'mention'], [' quoted your commit']])
+        ->and(paragraphRuns($screen, 'mentioned you'))->toBe([['Grace', 'link'], [' '], ['@grace', 'mention'], [' mentioned you']])
+        ->and(paragraphRuns($screen, 'followed you'))->toBe([['Linus', 'link'], [' '], ['@linus', 'mention'], [' followed you']])
         ->and(stackedAvatars($screen, 'n-followed'))->toBe(['https://avatars.test/linus']);
 });
 
@@ -124,7 +154,7 @@ it('stacks the newest three people on a group of stars, with a +N for the rest, 
         ->assertSee('+2')
         ->assertElement('icon', fn (array $node): bool => ($node['props']['name'] ?? null) === 'custom:star-filled' && ($node['props']['color'] ?? null) === config('native-ui.theme.light.lane-5'));
 
-    expect(paragraphRuns($screen, 'starred your commit'))->toBe([['Grace'], [' '], ['and 4 others starred your commit']])
+    expect(paragraphRuns($screen, 'starred your commit'))->toBe([['Grace', 'link'], [' '], ['and 4 others starred your commit']])
         ->and(stackedAvatars($screen, 'n-starred'))->toBe(['https://avatars.test/linus', 'https://avatars.test/ada', 'https://avatars.test/grace'])
         ->and(nodeByRef($screen, 'actors-n-starred')['layout']['width'] ?? null)->toEqual(108)
         // Your own commit sits in a muted hairline box, clamped to three lines.
@@ -419,16 +449,23 @@ it('follows back from a follow, as the web does, and puts it back if devnull say
         'DELETE /api/v1/users/linus/follow' => [['message' => 'Too Many Attempts.', 'code' => 'rate_limited'], 429],
     ]);
 
-    $label = fn (string $label): Closure => fn (array $node): bool => ($node['ref'] ?? null) === 'follow-back-linus' && $node['props']['label'] === $label;
+    // The web's icon: a muted user-plus to follow back, a user-check in Commit Blue once you do.
+    $followBack = fn (TestableComponent $screen): array => [
+        nodeByRef($screen, 'follow-back-linus')['props']['a11y_label'],
+        findNode(nodeByRef($screen, 'follow-back-linus'), fn (array $node): bool => ($node['type'] ?? null) === 'icon')['props']['name'],
+    ];
 
-    $screen = Native::visit('/notifications')
-        ->assertElement('button', $label('Follow'))
-        ->tap('follow-back-linus')
-        ->assertElement('button', $label('Following'));
+    $screen = Native::visit('/notifications', platform: 'ios');
 
-    $screen->tap('follow-back-linus')
-        ->assertElement('button', $label('Following'))
-        ->assertSee('Too Many Attempts.');
+    expect($followBack($screen))->toBe(['Follow @linus', 'custom:user-plus']);
+
+    $screen->tap('follow-back-linus');
+
+    expect($followBack($screen))->toBe(['Unfollow @linus', 'custom:user-check']);
+
+    $screen->tap('follow-back-linus')->assertSee('Too Many Attempts.');
+
+    expect($followBack($screen))->toBe(['Unfollow @linus', 'custom:user-check']);
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && $request->url() === 'http://devnull.test/api/v1/users/linus/follow');
 });
@@ -452,4 +489,48 @@ it('lets a drag that starts on a row scroll the list, with the list filling the 
     // Same as the Log and Profile lists: no safe-area or bottom padding of its own, the bars inset it.
     expect($list['layout'])->toBe(['width' => 'fill', 'flex_grow' => 1.0, 'flex_shrink' => 1.0])
         ->and(pressFeedbackInScroller($screen))->toBe([]);
+});
+
+it('opens on skeleton rows, and fills in what it kept straight after, so a tab tap shows at once', function () {
+    config(['devnull.skeleton_first' => true]);
+    holdRefreshes();
+    keep('notifications', inboxJson([notificationJson('followed')]), ['type' => null]);
+    serveApi(fn () => Http::response(inboxJson([notificationJson('followed')])));
+
+    $screen = Native::visit('/notifications')->assertSet('skeletonFrame', true)->assertDontSee('followed you');
+
+    expect(showsLoading(showingNotifications($screen)))->toBeTrue();
+
+    finishRefreshes($screen)->assertSet('skeletonFrame', false)->assertSee('followed you');
+});
+
+it('lists a group of followers when it is tapped, each with the same small follow back, and none for the group', function () {
+    serveApi(function (Request $request) {
+        return str_contains($request->url(), '/group')
+            ? Http::response(pageJson([
+                notificationJson('followed', ['id' => 'n-follow-1', 'actor' => personJson('linus', 'Linus', overrides: ['is_followed' => false])]),
+                notificationJson('followed', ['id' => 'n-follow-2', 'actor' => personJson('grace', 'Grace Brewster Murray Hopper', overrides: ['is_followed' => true])]),
+            ]))
+            : Http::response(inboxJson([notificationJson('followed', ['event_count' => 2, 'actors_count' => 2, 'actor' => personJson('linus', 'Linus', overrides: ['is_followed' => false])])]));
+    });
+
+    $screen = Native::visit('/notifications', platform: 'ios');
+
+    // The group could only follow one of them back, so it leaves it to the list, as the web does.
+    $screen->assertMissingElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'follow-back-linus');
+
+    // A tap on the group lists them rather than opening the latest follower.
+    $screen->tap('notification-n-followed')->assertNoNavigation()->assertSee('Grace Brewster Murray Hopper');
+
+    foreach (['linus' => 'custom:user-plus', 'grace' => 'custom:user-check'] as $username => $icon) {
+        $row = nodeByRef($screen, 'group-item-n-follow-'.($username === 'linus' ? 1 : 2));
+        $box = nodeByRef($screen, 'follow-back-icon-'.$username);
+
+        expect([(float) $box['layout']['width'], (float) $box['layout']['height']])->toBe([32.0, 32.0])
+            // The follow back is the row's only icon: a follower's row has no type icon, as on the web.
+            ->and(array_map(fn (array $node): string => $node['props']['name'], findNodes($row, fn (array $node): bool => ($node['type'] ?? null) === 'icon')))->toBe([$icon]);
+    }
+
+    // A second tap folds it away.
+    $screen->tap('notification-n-followed')->assertDontSee('Grace Brewster Murray Hopper');
 });

@@ -13,7 +13,8 @@ use Carbon\CarbonImmutable;
  * custom colour you chose (null for Automatic) and the one Automatic gives you, your GitHub
  * Sponsors page, and when your profile was last synced from GitHub (null when
  * it only was when you signed in). It has whether pastéis mode is on, how
- * many pastéis you can still give today, and how many others have given you.
+ * many pastéis you can still give today, and how many others have given you,
+ * and your Remotes settings, or null while you have Remotes off.
  */
 final readonly class CurrentUser
 {
@@ -28,6 +29,7 @@ final readonly class CurrentUser
         public bool $pasteisMode = false,
         public Pasteis $pasteisToday = new Pasteis,
         public int $pasteisReceived = 0,
+        public ?Remotes $remotes = null,
     ) {}
 
     /**
@@ -55,6 +57,8 @@ final readonly class CurrentUser
             pasteisMode: ($data['pasteis_mode'] ?? false) === true,
             pasteisToday: Pasteis::fromKept(['remaining' => $data['pasteis_remaining'] ?? null, 'resets_at' => $data['pasteis_resets_at'] ?? null]),
             pasteisReceived: is_int($data['pasteis_received'] ?? null) ? max(0, $data['pasteis_received']) : 0,
+            // Only devnull saying null means they're off: a devnull too old to say has them on, as everyone starts.
+            remotes: array_key_exists('remotes', $data) ? Remotes::fromArray($data['remotes']) : new Remotes,
         );
     }
 
@@ -77,6 +81,11 @@ final readonly class CurrentUser
     public function withPasteisMode(bool $pasteisMode): self
     {
         return new self(...[...get_object_vars($this), 'pasteisMode' => $pasteisMode]);
+    }
+
+    public function withRemotes(?Remotes $remotes): self
+    {
+        return new self(...[...get_object_vars($this), 'remotes' => $remotes]);
     }
 
     /**

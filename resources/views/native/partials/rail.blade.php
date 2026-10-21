@@ -12,7 +12,6 @@
       null        no node; a $previous segment then runs the full height of the row
     $endsWithDot stops the $tail 20pt above the bottom at a lane dot, as the web ends a commit that's alone in its run.
     $replyTail runs a dashed line in the lane on down from the node, or from that dot, to the replies under the row.
-    It's $replyDashes long when it starts at the node, enough for the row, since PHP can't know its height.
     $avatarSize draws the avatar's ring smaller than its 48pt, centred in the same place.
 --}}
 @php($previous ??= null)
@@ -22,7 +21,6 @@
 @php($tailDashes ??= 3)
 @php($endsWithDot ??= false)
 @php($replyTail ??= false)
-@php($replyDashes ??= 40)
 @php($avatarSize ??= 48)
 @php($center = 32)
 @php($endDot = 20)
@@ -48,46 +46,43 @@
     @endif
 
     @if ($replyTail && $endsWithDot)
-        @include('native.partials.dashed-line', ['position' => 'bottom-0 h-['.$endDot.']', 'left' => 31.5, 'colour' => $segment($lane), 'dashes' => 3])
+        @include('native.partials.dashed-line', ['position' => 'bottom-0 h-['.$endDot.']', 'left' => 31.5, 'lane' => $lane])
     @elseif ($replyTail)
-        @include('native.partials.dashed-line', ['position' => 'top-['.($node === 'dot' ? $center - 9 : $center).'] bottom-0', 'left' => 31.5, 'colour' => $segment($lane), 'dashes' => $replyDashes])
+        @include('native.partials.dashed-line', ['position' => 'top-['.($node === 'dot' ? $center - 9 : $center).'] bottom-0', 'left' => 31.5, 'lane' => $lane])
     @endif
 
     @if ($endsWithDot && $tail !== null)
-        <native:column ref="end-dot" class="absolute bottom-[{{ $endDot - 9 }}] left-[23]">
-            @include('native.partials.rail-node', ['lane' => $tail])
-        </native:column>
+        @include('native.partials.rail-node', ['lane' => $tail, 'nodeRef' => 'end-dot', 'position' => 'absolute bottom-['.($endDot - 9).'] left-[23]'])
     @endif
 
+    {{-- The node itself takes its place on the rail, or the pressable around it does: no wrapper just to position it. --}}
     @if ($node === 'dot' || $node === 'root')
         {{-- A continuing commit's dot sits 9pt higher, level with the author's name, as on the web. --}}
-        <native:column class="absolute top-[{{ $node === 'dot' ? $center - 18 : $center - 9 }}] left-[23]">
-            @if ($press)
-                <native:pressable @press="{{ $press }}" a11y-label="{{ $user->name }}'s profile">
-                    @include('native.partials.rail-node', ['lane' => $lane])
-                </native:pressable>
-            @else
-                @include('native.partials.rail-node', ['lane' => $lane, 'filled' => $node === 'dot'])
-            @endif
-        </native:column>
+        @php($dotAt = 'absolute top-['.($node === 'dot' ? $center - 18 : $center - 9).'] left-[23]')
+        @if ($press)
+            <native:pressable @press="{{ $press }}" class="{{ $dotAt }}" a11y-label="{{ $user->name }}'s profile">
+                @include('native.partials.rail-node', ['lane' => $lane])
+            </native:pressable>
+        @else
+            @include('native.partials.rail-node', ['lane' => $lane, 'filled' => $node === 'dot', 'position' => $dotAt])
+        @endif
     @else
         @php($nodeSize = $node === 'avatar' ? $avatarSize : 48)
-        <native:column class="absolute top-[{{ $center - intdiv($nodeSize, 2) }}] left-[{{ 32 - intdiv($nodeSize, 2) }}]">
-            @if ($node === 'avatar' && $press)
-                <native:pressable @press="{{ $press }}" a11y-label="{{ $user->name }}'s profile">
-                    @include('native.partials.rail-avatar', ['user' => $user, 'lane' => $lane, 'size' => $avatarSize])
-                </native:pressable>
-            @elseif ($node === 'avatar' || $node === 'staged')
-                @include('native.partials.rail-avatar', ['user' => $user, 'lane' => $lane, 'staged' => $node === 'staged'])
-            @elseif ($node === 'tombstone')
-                <native:column :width="48" :height="48" class="rounded-full bg-theme-surface">
-                    @include('native.partials.dashed-ring', ['size' => 48, 'colour' => 'bg-theme-rail'])
-                </native:column>
-            @elseif ($node === 'skeleton')
-                <native:stack :width="48" :height="48" center class="rounded-full bg-theme-surface">
-                    <native:column :width="40" :height="40" class="rounded-full bg-theme-wash" />
-                </native:stack>
-            @endif
-        </native:column>
+        @php($nodeAt = 'absolute top-['.($center - intdiv($nodeSize, 2)).'] left-['.(32 - intdiv($nodeSize, 2)).']')
+        @if ($node === 'avatar' && $press)
+            <native:pressable @press="{{ $press }}" class="{{ $nodeAt }}" a11y-label="{{ $user->name }}'s profile">
+                @include('native.partials.rail-avatar', ['user' => $user, 'lane' => $lane, 'size' => $avatarSize])
+            </native:pressable>
+        @elseif ($node === 'avatar' || $node === 'staged')
+            @include('native.partials.rail-avatar', ['user' => $user, 'lane' => $lane, 'staged' => $node === 'staged', 'position' => $nodeAt])
+        @elseif ($node === 'tombstone')
+            <native:column :width="48" :height="48" class="{{ $nodeAt }} rounded-full bg-theme-surface">
+                @include('native.partials.dashed-ring', ['size' => 48, 'lane' => \App\Devnull\Lane::Rail])
+            </native:column>
+        @elseif ($node === 'skeleton')
+            <native:stack :width="48" :height="48" center class="{{ $nodeAt }} rounded-full bg-theme-surface">
+                <native:column :width="40" :height="40" class="rounded-full bg-theme-wash" />
+            </native:stack>
+        @endif
     @endif
 @endif

@@ -4,8 +4,9 @@ namespace App\Devnull\Data;
 
 /**
  * Turns a commit's `body_segments` into blocks to draw, the way the web's
- * CommitBody does: prose (with mentions linked) and inline code flow together
- * in paragraphs, and fenced code blocks stand on their own.
+ * CommitBody does: prose (with URLs and mentions linked, and `/dev/null` as
+ * the wordmark) and inline code flow together in paragraphs, and fenced code
+ * blocks stand on their own.
  *
  * Mention offsets count code points into the whole body, but segments aren't
  * exact slices of it: inline code loses its backticks, a block its fences, and
@@ -23,7 +24,74 @@ final class CommitBody
      */
     private const string Ellipsis = '…';
 
+    /**
+     * The web's CodeSpans rule, retaining delimiters so code counts literally.
+     */
+    private const string CodeSpans = '/((?<![^\n])`{3,}[^`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?`{3,}[ \t]*(?![^\r\n])|`[^`\r\n]+`)/';
+
     private const string FencedBlock = '/\G`{3,}[^`\r\n]*\r?\n(?:([\s\S]*?)\r?\n)?`{3,}[ \t]*(?![^\r\n])/u';
+
+    /**
+     * A `/dev/null` that stands on its own, not part of a longer path, a word
+     * or a name. The web's rule, from withWordmarks() in linkified-text.tsx.
+     */
+    private const string Wordmark = '/(?<![\p{L}\p{M}\p{N}_.\/-])(\/dev\/null)(?![\p{L}\p{M}\p{N}_\/-])/u';
+
+    /**
+     * The body as the web saves it: line endings normalized, with runs of blank lines collapsed in prose only.
+     */
+    public static function normalize(string $body): string
+    {
+        $parts = self::parts(str_replace(["\r\n", "\r"], "\n", trim($body)));
+
+        foreach ($parts as $index => $part) {
+            if ($index % 2 === 0) {
+                $parts[$index] = (string) preg_replace('/(?:[ \t]*\n){3,}/', "\n\n", $part);
+            }
+        }
+
+        return implode('', $parts);
+    }
+
+    /**
+     * Each prose URL counts as at most 23 code points. Code and invalid URLs count literally.
+     */
+    public static function characterCount(string $body): int
+    {
+        $body = self::normalize($body);
+        $length = mb_strlen($body);
+
+        foreach (self::parts($body) as $index => $part) {
+            if ($index % 2 === 0) {
+                foreach (BodyLink::in($part) as [, $writtenLength]) {
+                    $length -= max(0, $writtenLength - 23);
+                }
+            }
+        }
+
+        return $length;
+    }
+
+    public static function hasOversizedUrl(string $body): bool
+    {
+        foreach (self::parts(self::normalize($body)) as $index => $part) {
+            if ($index % 2 === 0 && BodyLink::hasOversizedUrl($part)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Alternating prose and code, including the code's delimiters.
+     *
+     * @return list<string>
+     */
+    private static function parts(string $body): array
+    {
+        return preg_split(self::CodeSpans, $body, flags: PREG_SPLIT_DELIM_CAPTURE) ?: [$body];
+    }
 
     /**
      * @param  list<array<string, mixed>>|null  $segments  The `body_segments`, or null when the API sent none.
@@ -53,12 +121,12 @@ final class CommitBody
                     $start = $text === '' ? false : mb_strpos($body, $text, $cursor);
 
                     if ($start === false) {
-                        $runs[] = new BodyRun($text.($cut ? self::Ellipsis : ''));
+                        array_push($runs, ...self::withLinks($text.($cut ? self::Ellipsis : ''), null, []));
 
                         break;
                     }
 
-                    array_push($runs, ...self::withMentions($text, $start, $mentions));
+                    array_push($runs, ...self::withLinks($text, $start, $mentions));
                     $cursor = $start + mb_strlen($text);
 
                     if ($cut) {
@@ -100,6 +168,38 @@ final class CommitBody
     }
 
     /**
+     * Splits prose that starts at $start in the body around the links inside
+     * it, then the prose between them around its mentions, as the web does.
+     * Prose that wasn't found in the body has no start, so no mentions.
+     *
+     * @param  list<Mention>  $mentions
+     * @return list<BodyRun>
+     */
+    private static function withLinks(string $text, ?int $start, array $mentions): array
+    {
+        $runs = [];
+        $position = 0;
+        $prose = fn (string $part, int $at): array => $start === null
+            ? self::withWordmarks($part)
+            : self::withMentions($part, $start + $at, $mentions);
+
+        foreach (BodyLink::in($text) as [$offset, $length, $link]) {
+            if ($offset > $position) {
+                array_push($runs, ...$prose(mb_substr($text, $position, $offset - $position), $position));
+            }
+
+            $runs[] = new BodyRun(mb_substr($text, $offset, $length), link: $link);
+            $position = $offset + $length;
+        }
+
+        if ($position < mb_strlen($text)) {
+            array_push($runs, ...$prose(mb_substr($text, $position), $position));
+        }
+
+        return $runs;
+    }
+
+    /**
      * Splits prose that starts at $start in the body around the mentions inside it.
      *
      * @param  list<Mention>  $mentions
@@ -127,7 +227,7 @@ final class CommitBody
             }
 
             if ($offset > $position) {
-                $runs[] = new BodyRun(mb_substr($text, $position, $offset - $position));
+                array_push($runs, ...self::withWordmarks(mb_substr($text, $position, $offset - $position)));
             }
 
             $runs[] = new BodyRun($handle, username: $mention->username);
@@ -135,7 +235,27 @@ final class CommitBody
         }
 
         if ($position < $length) {
-            $runs[] = new BodyRun(mb_substr($text, $position));
+            array_push($runs, ...self::withWordmarks(mb_substr($text, $position)));
+        }
+
+        return $runs;
+    }
+
+    /**
+     * Splits prose around each standalone `/dev/null`, which becomes a
+     * wordmark run. Like the web, the prose between two mentions is looked at
+     * on its own.
+     *
+     * @return list<BodyRun>
+     */
+    private static function withWordmarks(string $prose): array
+    {
+        $runs = [];
+
+        foreach (preg_split(self::Wordmark, $prose, flags: PREG_SPLIT_DELIM_CAPTURE) ?: [$prose] as $index => $part) {
+            if ($part !== '') {
+                $runs[] = new BodyRun($part, isWordmark: $index % 2 === 1);
+            }
         }
 
         return $runs;

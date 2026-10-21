@@ -51,9 +51,15 @@ final readonly class Achievements
         return "Lv. {$this->level} · {$this->rank}";
     }
 
+    /** @return list<Badge> */
+    public function unlockedBadges(): array
+    {
+        return array_values(array_filter($this->badges, fn (Badge $badge): bool => $badge->unlocked));
+    }
+
     public function unlockedCount(): int
     {
-        return count(array_filter($this->badges, fn (Badge $badge): bool => $badge->unlocked));
+        return count($this->unlockedBadges());
     }
 
     /**

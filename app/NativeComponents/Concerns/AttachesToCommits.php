@@ -78,11 +78,6 @@ trait AttachesToCommits
     public ?array $sheetPreview = null;
 
     /**
-     * Whether a commit with photos is on its way to devnull.
-     */
-    public bool $sheetSending = false;
-
-    /**
      * @param  Closure(Client): SignedRequest  $sign
      * @param  Closure(array<string, mixed>): void  $done
      * @param  Closure(string, ?ApiException): void  $failed
@@ -141,7 +136,7 @@ trait AttachesToCommits
      */
     public function removePhoto(int $index): void
     {
-        if (! isset($this->sheetImages[$index]) || $this->sheetSending) {
+        if (! isset($this->sheetImages[$index]) || $this->sheetPosting) {
             return;
         }
 
@@ -260,20 +255,20 @@ trait AttachesToCommits
     protected function commitPhotosFromSheet(string $body, ?Commit $parent, ?Commit $quoted, Closure $sent): void
     {
         $images = $this->sheetImages;
-        $this->sheetSending = true;
+        $this->sheetPosting = true;
         $this->sheetError = null;
 
         $this->sendInBackground(
             fn (Client $devnull): SignedRequest => $devnull->signedCommitWithImages($body, $images, $parent?->id, $quoted?->id),
             function (array $json) use ($sent): void {
-                $this->sheetSending = false;
+                $this->sheetPosting = false;
                 $commit = is_array($json['data'] ?? null) ? $json['data'] : [];
 
                 app(ResponseCache::class)->commitAdded($commit);
                 $sent(Commit::fromArray($commit));
             },
             function (string $message): void {
-                $this->sheetSending = false;
+                $this->sheetPosting = false;
 
                 if ($this->isComposing()) {
                     $this->sheetError = $message;
@@ -291,7 +286,7 @@ trait AttachesToCommits
      */
     protected function forgetAttachments(): void
     {
-        if (! $this->sheetSending) {
+        if (! $this->sheetPosting) {
             app(DraftImages::class)->discard($this->sheetImages);
         }
 
@@ -305,7 +300,7 @@ trait AttachesToCommits
 
     private function canAttachPhotos(): bool
     {
-        return $this->isComposing() && $this->sheetPoll === null && ! $this->sheetSending && count($this->sheetImages) < DraftImages::MaxImages;
+        return $this->isComposing() && $this->sheetPoll === null && ! $this->sheetPosting && count($this->sheetImages) < DraftImages::MaxImages;
     }
 
     /**

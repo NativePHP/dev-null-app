@@ -4,6 +4,7 @@ namespace App\NativeComponents;
 
 use App\Devnull\Account;
 use App\Devnull\Data\Commit;
+use App\Devnull\Data\Mention;
 use App\Devnull\Data\Page;
 use App\Devnull\Data\Profile as ProfileData;
 use App\Devnull\Data\User;
@@ -13,6 +14,7 @@ use App\Devnull\ShownTabs;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Lucide;
+use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
 use App\NativeComponents\Concerns\OpensAchievements;
@@ -59,6 +61,7 @@ use Native\Mobile\Facades\Dialog;
  */
 class Profile extends NativeComponent
 {
+    use DrawsSkeletonFirst;
     use ExpandsThreads;
     use HoldsNewCommits;
     use OpensAchievements;
@@ -139,8 +142,7 @@ class Profile extends NativeComponent
             $this->tab = app(ShownTabs::class)->get($this->me()?->id, 'profile', self::Tabs, 'commits');
         }
 
-        $this->showKept();
-        $this->revalidate();
+        $this->fillInAfterFirstFrame('revalidate');
     }
 
     /**
@@ -161,12 +163,19 @@ class Profile extends NativeComponent
     public function navigationOptions(): ?NavBarOptions
     {
         if ($this->isMe()) {
-            return NavBarOptions::make()->action(
-                NavAction::make('account')
-                    ->icon(ios: Lucide::Settings2->ios(), android: Lucide::Settings2->android())
-                    ->a11yLabel('Account')
-                    ->press('openAccount'),
-            );
+            return NavBarOptions::make()
+                ->action(
+                    NavAction::make('starred')
+                        ->icon(ios: Lucide::Star->ios(), android: Lucide::Star->android())
+                        ->a11yLabel('Starred')
+                        ->press('openStarred'),
+                )
+                ->action(
+                    NavAction::make('account')
+                        ->icon(ios: Lucide::Settings2->ios(), android: Lucide::Settings2->android())
+                        ->a11yLabel('Account')
+                        ->press('openAccount'),
+                );
         }
 
         $items = $this->safetyActions();
@@ -478,6 +487,35 @@ class Profile extends NativeComponent
         $this->navigate('/profile/device');
     }
 
+    /**
+     * The commits you starred, which the web's phone keeps in its account menu.
+     */
+    public function openStarred(): void
+    {
+        $this->navigate('/profile/starred');
+    }
+
+    /**
+     * Your Remotes thread with them, empty until one of you pushes, as the web's Remote button opens it.
+     */
+    public function openRemote(): void
+    {
+        if ($this->canRemote()) {
+            $this->openInTab('/conversations/'.rawurlencode($this->username), $this->profile === null ? [] : ['user' => $this->profile->user]);
+        }
+    }
+
+    /**
+     * Whether the web would offer Remote here: you have Remotes on, it isn't you or someone across a block, and they
+     * follow you, unless devnull takes requests from anyone. Whether they have Remotes on only shows in the thread.
+     */
+    private function canRemote(): bool
+    {
+        $remotes = app(Account::class)->remotes();
+
+        return $remotes !== null && $this->canChangeSafety() && ($this->profile?->followsYou === true || $remotes->requests);
+    }
+
     public function editOnGitHub(): void
     {
         Browser::inApp('https://github.com/settings/profile');
@@ -502,6 +540,19 @@ class Profile extends NativeComponent
     public function openSafety(): void
     {
         $this->openInTab('/safety');
+    }
+
+    public function openGitHubMention(string $username): void
+    {
+        $user = $this->profile?->user;
+
+        foreach (Mention::inText(($user?->bio ?? '')."\n".($user?->company ?? '')) as $mention) {
+            if ($mention->username === $username) {
+                Browser::inApp('https://github.com/'.rawurlencode($username));
+
+                return;
+            }
+        }
     }
 
     public function openGitHubProfile(): void
@@ -720,6 +771,7 @@ class Profile extends NativeComponent
             'myColour' => $this->myColour(),
             'isBlocked' => $this->isBlocking(),
             'isMe' => $this->isMe(),
+            'canRemote' => $this->canRemote(),
             'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),
             'stashed' => app(Stash::class)->names($this->me()?->id),
@@ -738,7 +790,7 @@ class Profile extends NativeComponent
      */
     private function previewPage(string $tab): array
     {
-        $json = $this->cached($this->commitsPath(), $this->commitsQuery($tab));
+        $json = $this->skeletonFrame ? null : $this->cached($this->commitsPath(), $this->commitsQuery($tab));
         $kept = is_array($json['data'] ?? null) ? $json['data'] : [];
         $page = $json === null ? null : Page::fromArray(['data' => array_slice($kept, 0, self::PreviewCommits)] + $json, Commit::fromArray(...));
 

@@ -25,6 +25,9 @@ use Closure;
  * Opened again, it starts from the draft, marked as restored. It's forgotten
  * once it's sent.
  *
+ * A new commit's draft can become a `/feature` or `/bug` issue, as on the web
+ * (see DraftsIssues).
+ *
  * A commit's page can open its reply in the same composer, for the photos and
  * the preview the reply bar has no room for (see replyInSheet()). The draft
  * is the reply bar's, and goes back to it when the sheet closes.
@@ -38,6 +41,7 @@ use Closure;
 trait OpensCommitSheet
 {
     use AttachesToCommits;
+    use DraftsIssues;
 
     /**
      * Whether the sheet is up, or on its way up.
@@ -66,6 +70,8 @@ trait OpensCommitSheet
      * The commit you're writing in the sheet, quoting its commit or not.
      */
     public string $sheetBody = '';
+
+    public bool $sheetPosting = false;
 
     /**
      * Whether the sheet opened on a stashed draft, which it marks until you empty it or drop it.
@@ -172,6 +178,7 @@ trait OpensCommitSheet
      */
     public function updatedSheetBody(): void
     {
+        $this->typeIssueCommand();
         $name = $this->sheetStashName();
 
         if (! $this->sheetOpen || $name === null) {
@@ -205,7 +212,7 @@ trait OpensCommitSheet
         $stashName = $this->sheetStashName();
         $body = trim($this->sheetBody);
 
-        if ($stashName === null || $this->sheetSending || ! Draft::canCommit($body, $this->sheetImages, $this->sheetPoll)) {
+        if (! $this->sheetOpen || $this->sheetPosting || $stashName === null || $this->sheetIssue !== null || ! Draft::canCommit($body, $this->sheetImages, $this->sheetPoll)) {
             return;
         }
 
@@ -221,7 +228,13 @@ trait OpensCommitSheet
             return;
         }
 
-        $commit = $this->attemptInSheet(fn (Client $devnull): Commit => $devnull->createCommit($body, $parent?->id, $quoted?->id, $this->sheetPollPayload()));
+        $this->sheetPosting = true;
+
+        try {
+            $commit = $this->attemptInSheet(fn (Client $devnull): Commit => $devnull->createCommit($body, $parent?->id, $quoted?->id, $this->sheetPollPayload()));
+        } finally {
+            $this->sheetPosting = false;
+        }
 
         if ($commit !== null) {
             $sent($commit);
@@ -229,7 +242,8 @@ trait OpensCommitSheet
     }
 
     /**
-     * Done: the sheet goes.
+     * Done, after a report, and Cancel, in the composer's bar: the sheet goes. A draft in it stays stashed, as when
+     * it's swiped away, so this mustn't forget it.
      */
     public function hideCommitSheet(): void
     {
@@ -288,6 +302,7 @@ trait OpensCommitSheet
         $this->sheetRestored = false;
         $this->sheetError = null;
         $this->forgetAttachments();
+        $this->forgetIssueDraft();
     }
 
     /**

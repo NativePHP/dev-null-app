@@ -43,11 +43,8 @@
                     <native:row class="w-full">
                         @foreach ([['badges', 'Badges', count($achievements->badges)], ['ranks', 'Unix Ranks', count($achievements->ranks)]] as [$key, $title, $count])
                             <native:pressable ref="achievements-tab-{{ $key }}" @press="showAchievementsTab('{{ $key }}')" a11y-label="{{ $title }}, {{ $count }}{{ $achievementsTab === $key ? ', selected' : '' }}">
-                                <native:column>
-                                    <native:column class="px-3 py-[6]">
-                                        <native:text font="mono-medium" class="text-xs {{ $achievementsTab === $key ? 'text-theme-ink' : 'text-theme-ink-muted' }}">{{ $title }} ({{ $count }})</native:text>
-                                    </native:column>
-                                    <native:column class="w-full h-[2] {{ $achievementsTab === $key ? 'bg-theme-'.\App\Devnull\Lane::token($lane) : 'bg-transparent' }}" />
+                                <native:column class="px-3 py-[6] border-b-2 {{ $achievementsTab === $key ? 'border-theme-'.\App\Devnull\Lane::token($lane) : 'border-transparent' }}">
+                                    <native:text font="mono-medium" class="text-xs {{ $achievementsTab === $key ? 'text-theme-ink' : 'text-theme-ink-muted' }}">{{ $title }} ({{ $count }})</native:text>
                                 </native:column>
                             </native:pressable>
                         @endforeach

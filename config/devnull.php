@@ -32,6 +32,33 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Skeleton first
+    |--------------------------------------------------------------------------
+    |
+    | A tab draws its first frame with skeleton rows only, so it shows as soon
+    | as you tap it, and fills in what it kept straight after. Off, it opens on
+    | what it kept, which tests rely on.
+    |
+    */
+
+    'skeleton_first' => (bool) env('DEVNULL_SKELETON_FIRST', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Image cache
+    |--------------------------------------------------------------------------
+    |
+    | Avatars, commit images and link preview images are downloaded in the
+    | background the first time an answer from devnull carries them, then drawn
+    | from the device for this many hours instead of being fetched again each
+    | time they scroll into view. 0 turns the cache off.
+    |
+    */
+
+    'image_cache_hours' => (int) env('DEVNULL_IMAGE_CACHE_HOURS', 24),
+
+    /*
+    |--------------------------------------------------------------------------
     | Sign in with Apple
     |--------------------------------------------------------------------------
     |

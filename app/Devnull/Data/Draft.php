@@ -11,19 +11,16 @@ use Carbon\CarbonImmutable;
 final class Draft
 {
     /**
-     * Whether Commit may be pressed, as the web decides it: a body of 3 to
-     * 4,000 characters, or with images any body up to 4,000, or none at all,
-     * and a poll whose every option has something in it.
+     * Whether Commit may be pressed, as the web decides it: a body that fits
+     * (see Commit::fits()), or with images none at all, and a poll whose every
+     * option has something in it.
      *
      * @param  list<DraftImage>  $images
      * @param  list<string>|null  $poll
      */
     public static function canCommit(string $body, array $images = [], ?array $poll = null): bool
     {
-        $length = mb_strlen(trim($body));
-
-        return $length <= Commit::MaxLength
-            && ($images !== [] || $length >= Commit::MinLength)
+        return (Commit::fits($body) || ($images !== [] && trim($body) === ''))
             && ($poll === null || PollDraft::isComplete($poll));
     }
 

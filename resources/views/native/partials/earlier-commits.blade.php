@@ -19,7 +19,7 @@
             <native:column class="w-full h-[1] bg-theme-hairline" />
         </native:column>
 
-        @include('native.partials.dashed-line', ['position' => 'top-0 h-[13]', 'left' => 31.5, 'colour' => 'bg-theme-rail', 'dashes' => 2])
+        @include('native.partials.dashed-line', ['position' => 'top-0 h-[13]', 'left' => 31.5, 'lane' => \App\Devnull\Lane::Rail])
         <native:column class="absolute top-[31] bottom-0 left-[31] w-[2] {{ $colour }}" />
         <native:column ref="earlier-node" class="absolute top-[13] left-[23]">
             @include('native.partials.rail-node', ['lane' => $lane, 'filled' => false])

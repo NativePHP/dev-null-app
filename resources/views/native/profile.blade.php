@@ -44,7 +44,7 @@
             @endforeach
 
             <native:pager-overlay>
-                @include('native.partials.new-commits-pill', ['label' => $newCommitsLabel, 'press' => 'showNewCommits', 'shown' => $newCommits !== [], 'hanging' => true])
+                @include('native.partials.new-commits-pill', ['label' => $newCommitsLabel, 'press' => 'showNewCommits', 'shown' => $newCommits !== []])
             </native:pager-overlay>
         </native:pager>
     @else

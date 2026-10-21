@@ -110,14 +110,14 @@ trait ShowsCommits
 
     /**
      * Stars or unstars straight away, then takes the count devnull sends back,
-     * or puts the star back if it says no. Like the web, only someone else's
-     * approved commit can be starred: on your own the count is all there is.
+     * or puts the star back if it says no. Like the web, any visible commit
+     * can be starred, including your own and your pending commits.
      */
     public function toggleStar(string $id): void
     {
         $commit = $this->shownCommit($id);
 
-        if ($commit === null || ! $this->canStar($commit)) {
+        if ($commit === null || ! $this->canReactTo($commit)) {
             return;
         }
 
@@ -139,7 +139,7 @@ trait ShowsCommits
         $commit = $this->shownCommit($id);
         $pasteis = app(Account::class)->pasteis();
 
-        if ($commit === null || $pasteis === null || ! $this->canStar($commit)) {
+        if ($commit === null || $pasteis === null || ! $this->canGivePastel($commit)) {
             return;
         }
 
@@ -157,22 +157,6 @@ trait ShowsCommits
         });
     }
 
-    /**
-     * Saves or unsaves the commit privately, the same way.
-     */
-    public function toggleBookmark(string $id): void
-    {
-        $commit = $this->shownCommit($id);
-
-        if ($commit === null || $commit->isSaved === null || ! $this->canReactTo($commit)) {
-            return;
-        }
-
-        $this->react($commit, $commit->withSaved(! $commit->isSaved), fn ($devnull) => $commit->isSaved
-            ? $devnull->unbookmark($id)
-            : $devnull->bookmark($id));
-    }
-
     public function openLinkPreview(string $id): void
     {
         $this->openInBrowser($this->shownCommit($id)?->linkPreview?->url);
@@ -181,6 +165,23 @@ trait ShowsCommits
     public function openImage(string $id, int $index = 0): void
     {
         $this->openInBrowser(($this->shownCommit($id)?->images[$index] ?? null)?->url);
+    }
+
+    /**
+     * Opens a link in a commit's body, by its place among the body's links: a
+     * commit on dev/null here in the app, anything else in the browser.
+     */
+    public function openLink(string $id, int $index): void
+    {
+        $link = $this->shownCommit($id)?->links()[$index] ?? null;
+
+        if ($link?->commit !== null) {
+            $this->openCommit($link->commit);
+
+            return;
+        }
+
+        $this->openInBrowser($link?->href);
     }
 
     /**
@@ -338,7 +339,7 @@ trait ShowsCommits
         return ! $commit->isDeleted() && ($commit->isApproved() || $commit->author->id === $this->me()?->id);
     }
 
-    private function canStar(Commit $commit): bool
+    private function canGivePastel(Commit $commit): bool
     {
         return ! $commit->isDeleted() && $commit->isApproved() && $commit->author->id !== $this->me()?->id;
     }

@@ -3,36 +3,62 @@
     hangs its thread, inside its row's hairline, as on the web: the newest reply devnull previews, with "Show more"
     when there are others, or the replies opened in place. The commit's rail runs on past them when its author's run
     goes on below.
+
+    Given a $rowCache (see App\Devnull\RowCache), commits and replies that haven't changed since the last frame are
+    drawn from it rather than built again.
 --}}
+@php
+    $rowCache ??= null;
+@endphp
 @foreach ($rows as $row)
     @if ($row->isDayMarker())
         @include('native.partials.day-marker', ['label' => $row->label, 'lane' => $row->previousLane])
     @elseif ($row->isLastVisitMarker())
         @include('native.partials.last-visit-marker', ['lane' => $row->previousLane])
     @else
-        @php($feedCommit = $row->commit)
-        @php($opened = $threads[$feedCommit->id] ?? null)
-        @php($threadReplies = $opened ?? ($feedCommit->isDeleted() ? [] : $feedCommit->replyPreview?->replies ?? []))
-        @php($hasMoreReplies = $opened === null && ! $feedCommit->isDeleted() && ($feedCommit->replyPreview?->hasMore ?? false))
-        @php($railLane = $row->continuesNext ? $feedCommit->lane() : null)
-        @include('native.partials.commit-row', [
-            'commit' => $feedCommit,
-            'previousLane' => $row->previousLane,
-            'continuesRun' => $row->continuesRun,
-            'continuesNext' => $row->continuesNext,
-            'threadBelow' => $threadReplies !== [],
-        ])
+        @php
+            $feedCommit = $row->commit;
+            $opened = $threads[$feedCommit->id] ?? null;
+            $threadReplies = $opened ?? ($feedCommit->isDeleted() ? [] : $feedCommit->replyPreview?->replies ?? []);
+            $hasMoreReplies = $opened === null && ! $feedCommit->isDeleted() && ($feedCommit->replyPreview?->hasMore ?? false);
+            $railLane = $row->continuesNext ? $feedCommit->lane() : null;
+            $commitRow = [
+                'commit' => $feedCommit,
+                'previousLane' => $row->previousLane,
+                'continuesRun' => $row->continuesRun,
+                'continuesNext' => $row->continuesNext,
+                'threadBelow' => $threadReplies !== [],
+            ];
+        @endphp
+        @if ($rowCache === null)
+            @include('native.partials.commit-row', $commitRow)
+        @else
+            @php
+                $rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]);
+                $rowCache->include('commit-'.$feedCommit->id, \App\Devnull\RowInputs::for($feedCommit, $rowScope), 'native.partials.commit-row', $commitRow, $rowScope);
+            @endphp
+        @endif
         @foreach ($threadReplies as $index => $threadReply)
-            @include('native.partials.thread-reply', [
-                'reply' => $threadReply,
-                'lane' => $feedCommit->lane(),
-                'previousLane' => $index === 0 ? null : $threadReplies[$index - 1]->lane(),
-                'hasNext' => ! $loop->last || $hasMoreReplies,
-                'railLane' => $railLane,
-                'thread' => $feedCommit,
-                'more' => $loop->last && $hasMoreReplies ? "showMoreReplies('{$feedCommit->id}')" : null,
-                'last' => $loop->last,
-            ])
+            @php
+                $replyRow = [
+                    'reply' => $threadReply,
+                    'lane' => $feedCommit->lane(),
+                    'previousLane' => $index === 0 ? null : $threadReplies[$index - 1]->lane(),
+                    'hasNext' => ! $loop->last || $hasMoreReplies,
+                    'railLane' => $railLane,
+                    'thread' => $feedCommit,
+                    'more' => $loop->last && $hasMoreReplies ? "showMoreReplies('{$feedCommit->id}')" : null,
+                    'last' => $loop->last,
+                ];
+            @endphp
+            @if ($rowCache === null)
+                @include('native.partials.thread-reply', $replyRow)
+            @else
+                @php
+                    $rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]);
+                    $rowCache->include('reply-'.$threadReply->id, \App\Devnull\RowInputs::for($threadReply, $rowScope), 'native.partials.thread-reply', $replyRow, $rowScope);
+                @endphp
+            @endif
         @endforeach
     @endif
 @endforeach

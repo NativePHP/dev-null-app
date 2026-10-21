@@ -171,6 +171,29 @@ it('posts a reply, with no countdown while there is room', function () {
         && $request->body() === '{"body":"A fresh reply","parent_id":"c2"}');
 });
 
+it('shows a reply you posted once when the next page of replies has it too', function () {
+    Http::fake(function (Request $request) {
+        $path = parse_url($request->url(), PHP_URL_PATH);
+
+        return match (true) {
+            $request->method() === 'POST' => Http::response(['data' => commitJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'A fresh reply'])], 201),
+            $path === '/api/v1/commits/c2/replies' => Http::response(str_contains($request->url(), 'cursor=page2')
+                ? pageJson([replyJson(['id' => 'r2', 'parent_id' => 'c2', 'body' => 'Second reply']), replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'A fresh reply'])])
+                : pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply'])], 'page2', 'http://devnull.test/api/v1/commits/c2/replies')),
+            default => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'replies_count' => 3]))),
+        };
+    });
+
+    $screen = Native::visit('/log/commits/c2')
+        ->tap('replies-c2')
+        ->input('reply-input', 'A fresh reply')
+        ->tap('send-reply')
+        ->call('loadMoreReplies')
+        ->assertSet('repliesCursor', null);
+
+    expect(childRefs($screen, 'thread-page'))->toBe(['focused-commit', 'thread-reply-r1', 'thread-reply-r2', 'thread-reply-r9', 'reply-bar-clearance']);
+});
+
 it('marks a reply waiting for approval as pending on its row', function () {
     fakeThread(extra: ['POST /api/v1/commits' => [['data' => commitJson(['id' => 'r9', 'status' => 'pending', 'body' => 'Hold on'])], 201]]);
 
@@ -191,17 +214,43 @@ it('shows validation messages from the server', function () {
         ->assertSet('reply', 'Long enough');
 });
 
-it('turns the budget red at zero and holds back a short reply', function () {
+it('turns the budget red at zero and holds back a blank reply', function () {
     fakeThread();
 
     Native::visit('/log/commits/c2')
-        ->input('reply-input', 'hi')
+        ->input('reply-input', '  ')
         ->tap('send-reply')
         ->input('reply-input', str_repeat('a', 4000))
         ->assertElement('text', fn (array $node): bool => ($node['ref'] ?? null) === 'reply-budget'
             && ($node['text'] ?? $node['props']['text'] ?? null) === '0'
             && ($node['props']['color'] ?? null) === config('native-ui.theme.light.destructive'));
 
+    Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
+});
+
+it('accepts one-character replies and URL-aware reply budgets', function (string $body) {
+    fakeThread(extra: ['POST /api/v1/commits' => [['data' => replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => $body])], 201]]);
+
+    $screen = Native::visit('/log/commits/c2')->input('reply-input', $body);
+    expect(nodeByRef($screen, 'send-reply')['props']['disabled'] ?? false)->toBeFalse()
+        ->and(nodeByRef($screen, 'reply-input')['props']['max_length'])->toBe(40000);
+
+    $screen->tap('send-reply')->assertSet('reply', '')->assertSet('sendingReply', false);
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && $request['body'] === $body);
+})->with(['a', str_repeat('a', 3976).' https://example.com/'.str_repeat('x', 100)]);
+
+it('explains an oversized reply URL before it is submitted', function () {
+    fakeThread();
+    $screen = Native::visit('/log/commits/c2')->input('reply-input', 'https://example.com/'.str_repeat('x', 2030))
+        ->assertSee('Each link must not be greater than 2048 characters.');
+    expect(nodeByRef($screen, 'send-reply')['props']['disabled'])->toBeTrue();
+    $screen->call('sendReply');
+    Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
+});
+
+it('does not send a second reply while one is being submitted', function () {
+    fakeThread();
+    Native::visit('/log/commits/c2')->input('reply-input', 'a')->set('sendingReply', true)->call('sendReply');
     Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
 });
 
@@ -279,10 +328,10 @@ it('keeps deleted ancestors on the rail as tombstones', function () {
 
     // A dashed Rail Gray ring where the avatar was, as on the web, and a Rail Gray segment running on from it.
     $tombstone = nodeByRef($screen, 'tombstone-c1');
-    $dashes = findNodes($tombstone, fn (array $node): bool => isset($node['props']['rotate']));
+    $rings = findNodes($tombstone, fn (array $node): bool => ($node['props']['border_style'] ?? null) === 1);
 
-    expect($dashes)->toHaveCount(16)
-        ->and(array_unique(array_map(fn (array $dash): ?string => $dash['style']['bg_color'] ?? null, $dashes)))->toBe([$rail])
+    expect($rings)->toHaveCount(1)
+        ->and($rings[0]['style'])->toMatchArray(['border_width' => 2.0, 'border_color' => $rail, 'border_radius' => 9999.0])
         ->and(findNode($tombstone, fn (array $node): bool => ($node['type'] ?? null) === 'stack' && ($node['layout']['width'] ?? null) === 40.0))->toBeNull();
 });
 
@@ -435,14 +484,14 @@ it('focuses the reply composer when opened from a Reply action', function () {
 it('stars the focused commit and its replies in place', function () {
     fakeThread(['author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace'])], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2'])], extra: [
         'POST /api/v1/commits/c2/star' => [['data' => commitJson(['id' => 'c2', 'stars_count' => 1, 'starred' => true])]],
-        'PUT /api/v1/commits/r1/bookmark' => [['data' => commitJson(['id' => 'r1', 'is_saved' => true])]],
+        'POST /api/v1/commits/r1/star' => [['data' => commitJson(['id' => 'r1', 'starred' => true])]],
     ]);
 
-    $screen = Native::visit('/log/commits/c2')->tap('star-c2')->tap('replies-c2')->tap('save-r1');
+    $screen = Native::visit('/log/commits/c2')->tap('star-c2')->tap('replies-c2')->tap('star-r1');
 
     expect($screen->instance()->commit->starred)->toBeTrue()
         ->and($screen->instance()->commit->body)->toBe('The focused commit')
-        ->and($screen->instance()->replies[0]->isSaved)->toBeTrue();
+        ->and($screen->instance()->replies[0]->starred)->toBeTrue();
 });
 
 it('lets a drag that starts on an ancestor or a reply scroll the thread', function () {
@@ -456,16 +505,29 @@ it('lets a drag that starts on an ancestor or a reply scroll the thread', functi
     expect(pressFeedbackInScroller($screen))->toBe([]);
 });
 
-it('paints the reply bar solid, with its hairline, so the replies never show through', function () {
+it('paints the reply bar solid on Android, with its hairline, so the replies never show through', function () {
+    fakeThread();
+
+    $screen = Native::visit('/log/commits/c2', platform: 'android');
+    $bar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
+
+    expect($bar['children'][0]['ref'] ?? null)->toBe('reply-bar')
+        ->and($bar['children'][0]['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
+        ->and($bar['children'][0]['props']['dark_bg_color'] ?? null)->toBe(config('native-ui.theme.dark.surface'))
+        ->and($bar['children'][0]['children'][0]['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.hairline'))
+        ->and(nodeByRef($screen, 'reply-field')['props']['glass'] ?? null)->toBeNull();
+});
+
+it('leaves the reply bar bare on iOS and floats the field on Liquid Glass', function () {
     fakeThread();
 
     $screen = Native::visit('/log/commits/c2', platform: 'ios');
     $bar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
 
     expect($bar['children'][0]['ref'] ?? null)->toBe('reply-bar')
-        ->and($bar['children'][0]['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
-        ->and($bar['children'][0]['props']['dark_bg_color'] ?? null)->toBe(config('native-ui.theme.dark.surface'))
-        ->and($bar['children'][0]['children'][0]['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.hairline'));
+        ->and($bar['children'][0]['style']['bg_color'] ?? null)->toBeNull()
+        ->and($bar['children'][0]['children'][0]['style']['bg_color'] ?? null)->toBeNull()
+        ->and(nodeByRef($screen, 'reply-field')['props']['glass'] ?? null)->toBe(1);
 });
 
 it('ends the page above the reply bar, and further as the draft grows', function () {

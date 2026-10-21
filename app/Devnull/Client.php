@@ -72,6 +72,25 @@ final readonly class Client
      */
     public const string PreviewPath = 'commits/preview';
 
+    /**
+     * Your Remotes inbox, and where Remotes are switched on and off and their settings saved, as on the web.
+     */
+    public const string RemotesPath = 'remotes';
+
+    public const string RemotesSwitchPath = 'me/remotes';
+
+    public const string RemotePreferencesPath = 'me/remote-preferences';
+
+    /** Who you could start a remote or an org with, as the web's pickers ask. */
+    public const string RemoteCandidatesPath = 'remotes/candidates';
+
+    public const string OrgsPath = 'remotes/orgs';
+
+    /**
+     * Where a `/feature` or `/bug` draft goes, to be opened as an issue upstream.
+     */
+    public const string IssuesPath = 'issues';
+
     public function __construct(private DeviceKey $deviceKey, private string $baseUrl, private ResponseCache $cache) {}
 
     /**
@@ -80,6 +99,23 @@ final readonly class Client
     public static function pollVotesPath(string $id): string
     {
         return 'commits/'.rawurlencode($id).'/poll/votes';
+    }
+
+    /**
+     * Where a Remotes thread lives: with a person, by their username, or an org, by its id. Its messages are pushed
+     * to the same path, and its read, typing and stash live beside it.
+     */
+    public static function threadPath(string $username = '', ?string $orgId = null): string
+    {
+        return $orgId === null ? 'remotes/@'.rawurlencode($username) : 'remotes/orgs/'.rawurlencode($orgId);
+    }
+
+    /**
+     * Where a message's reactions are left and taken back.
+     */
+    public static function reactionsPath(int $messageId): string
+    {
+        return 'remotes/messages/'.$messageId.'/reactions';
     }
 
     /**
@@ -244,26 +280,68 @@ final readonly class Client
     }
 
     /**
-     * Saves a commit privately, as the web's bookmark button does.
-     */
-    public function bookmark(string $id): Commit
-    {
-        return $this->react('PUT', 'commits/'.rawurlencode($id).'/bookmark', saving: true);
-    }
-
-    public function unbookmark(string $id): Commit
-    {
-        return $this->react('DELETE', 'commits/'.rawurlencode($id).'/bookmark', saving: true);
-    }
-
-    /**
-     * The commits you saved, last saved first, as the web's Saved page lists them.
+     * The commits you starred, newest first, as the web's Starred page lists them.
      *
      * @return Page<Commit>
      */
-    public function saved(?string $cursor = null): Page
+    public function starred(?string $cursor = null): Page
     {
-        return Page::fromArray($this->get('saved', ['cursor' => $cursor]), Commit::fromArray(...));
+        return Page::fromArray($this->get('starred', ['cursor' => $cursor]), Commit::fromArray(...));
+    }
+
+    /**
+     * A page of your Remotes inbox, newest first, for the web's Open, Fetched
+     * or Stashed tab, continuing before a conversation.
+     *
+     * @return array<string, mixed>
+     */
+    public function remotes(?string $tab = null, ?string $before = null): array
+    {
+        return $this->get(self::RemotesPath, ['tab' => $tab, 'before' => $before]);
+    }
+
+    /**
+     * People matching a term, each with the web's reason you can't message
+     * them, or add them to a new org, when there is one. Never kept: who you
+     * can reach changes as people follow, block and turn Remotes off.
+     *
+     * @return list<array{user: User, reason: string|null}>
+     */
+    public function remoteCandidates(string $term, string $for): array
+    {
+        $candidates = $this->json($this->send('GET', self::RemoteCandidatesPath, ['q' => $term, 'for' => $for]))['candidates'] ?? null;
+
+        return array_values(array_map(
+            fn (array $candidate): array => [
+                'user' => User::fromArray($candidate['user']),
+                'reason' => is_string($candidate['reason'] ?? null) ? $candidate['reason'] : null,
+            ],
+            array_filter(is_array($candidates) ? $candidates : [], fn (mixed $candidate): bool => is_array($candidate) && is_array($candidate['user'] ?? null)),
+        ));
+    }
+
+    /**
+     * Starts an org, as the web's New org does: you maintain it, and the
+     * people named contribute. Answers its id.
+     *
+     * @param  list<string>  $members
+     */
+    public function createOrg(?string $name, array $members): string
+    {
+        $org = $this->json($this->send('POST', self::OrgsPath, payload: ['name' => $name, 'members' => $members]))['org'] ?? null;
+
+        return is_array($org) && is_string($org['id'] ?? null) ? $org['id'] : '';
+    }
+
+    /**
+     * The messages of a Remotes thread before one, as the web loads them when
+     * you scroll back.
+     *
+     * @return array<string, mixed>
+     */
+    public function olderMessages(string $threadPath, int $before): array
+    {
+        return $this->get($threadPath.'/messages', ['before' => (string) $before]);
     }
 
     /**
@@ -464,22 +542,21 @@ final readonly class Client
     {
         $json = $this->json($this->send('GET', $path, $query));
         $this->cache->put($path, $query, $json);
+        ImageCache::prefetch($json);
 
         return $json;
     }
 
     /**
-     * Stars, unstars, saves or unsaves, and gives every kept copy of the commit the new counts.
-     * Saving or unsaving puts it on top of your kept saved commits, or takes it out.
+     * Stars or unstars, and gives every kept copy of the commit the new counts.
+     * Starring or unstarring updates your kept starred commits too.
      */
-    private function react(string $method, string $path, bool $saving = false): Commit
+    private function react(string $method, string $path): Commit
     {
         $commit = $this->data($this->send($method, $path));
         $this->cache->commitReacted($commit);
 
-        if ($saving) {
-            $this->cache->commitSaved($commit);
-        }
+        $this->cache->commitStarred($commit);
 
         return Commit::fromArray($commit);
     }

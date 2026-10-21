@@ -488,7 +488,6 @@ function commitJson(array $overrides = []): array
         'series_size' => null,
         'is_pinned' => false,
         'starred' => false,
-        'is_saved' => false,
         'deleted_at' => null,
         ...$overrides,
     ];
@@ -522,7 +521,7 @@ function replyJson(array $overrides = []): array
 
 /**
  * A notification's commit, as the API sends it: without its counts, preview,
- * images or your star and bookmark, and with the commit it replies to when you
+ * images or your star, and with the commit it replies to when you
  * may see it. That parent comes without a parent of its own.
  *
  * @param  array<string, mixed>  $overrides
@@ -530,7 +529,7 @@ function replyJson(array $overrides = []): array
  */
 function notificationCommitJson(array $overrides = [], bool $withParent = true): array
 {
-    $commit = array_diff_key(commitJson($overrides), array_flip(['stars_count', 'replies_count', 'link_preview', 'images', 'starred', 'is_saved', 'parent']));
+    $commit = array_diff_key(commitJson($overrides), array_flip(['stars_count', 'replies_count', 'link_preview', 'images', 'starred', 'parent']));
 
     return $withParent ? [...$commit, 'parent' => $overrides['parent'] ?? null] : $commit;
 }
@@ -618,7 +617,10 @@ function pageJson(array $items, ?string $nextCursor = null, string $path = 'http
 
 /**
  * The runs of the first paragraph whose text contains $text, as [text, style]:
- * 'mention' for a pressable run, 'code' for one on a wash, or nothing for prose.
+ * 'mention' for a pressable @handle, 'link' for any other pressable run,
+ * 'code' for one on a wash, 'wordmark' for one drawn from runs of its own, or
+ * nothing for prose. A run drawn from runs of its own reads as their text,
+ * without the invisible line-break hints they hold.
  *
  * @return list<array{0: string, 1?: string}>
  */
@@ -643,10 +645,15 @@ function paragraphRuns(TestableComponent $screen, string $text): array
 
     expect($paragraph)->not->toBeNull("No paragraph with [{$text}] was rendered.");
 
-    return array_map(fn (array $run): array => match (true) {
-        isset($run['on_press']) => [$run['props']['text'], 'mention'],
-        isset($run['style']['bg_color']) => [$run['props']['text'], 'code'],
-        default => [$run['props']['text']],
+    return array_map(function (array $run): array {
+        $text = $run['props']['text'] ?? str_replace(["\u{200B}", "\u{2060}"], '', implode('', array_map(fn (array $part): string => $part['props']['text'], $run['children'] ?? [])));
+
+        return match (true) {
+            isset($run['on_press']) => [$text, str_starts_with($text, '@') ? 'mention' : 'link'],
+            isset($run['style']['bg_color']) => [$text, 'code'],
+            isset($run['children']) => [$text, 'wordmark'],
+            default => [$text],
+        };
     }, $paragraph['children']);
 }
 
@@ -819,4 +826,108 @@ function testPhoto(string $type = 'png', int $width = 40, int $height = 30): str
     };
 
     return $path;
+}
+
+/**
+ * A Remotes message as devnull sends it to someone in the conversation. Its segments follow its body unless a test
+ * sends its own.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function remoteMessageJson(array $overrides = []): array
+{
+    $body = $overrides['body'] ?? 'Shipped it.';
+
+    return [
+        'id' => 1,
+        'user_id' => 'u2',
+        'client_id' => '9f0f6f3e-0000-4000-8000-000000000001',
+        'body' => $body,
+        'body_segments' => $body === '' ? [] : [['type' => 'text', 'text' => $body]],
+        'mentions' => [],
+        'reply_to_id' => null,
+        'reply_to' => null,
+        'link_preview' => null,
+        'images' => [],
+        'reactions' => [],
+        'event' => null,
+        'subject_id' => null,
+        'created_at' => '2026-10-19T15:00:00Z',
+        ...$overrides,
+    ];
+}
+
+/**
+ * A row of the Remotes inbox: a conversation with Ada, unless a test says otherwise.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function conversationJson(array $overrides = []): array
+{
+    return [
+        'id' => 'conv-1',
+        'kind' => 'direct',
+        'name' => null,
+        'partner' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]),
+        'members' => null,
+        'last_message' => remoteMessageJson(),
+        'last_message_at' => '2026-10-19T15:00:00.000000Z',
+        'ahead' => 0,
+        'partner_read_through_id' => 0,
+        'partner_read_at' => null,
+        'is_archived' => false,
+        ...$overrides,
+    ];
+}
+
+/**
+ * `GET /remotes` as devnull answers it.
+ *
+ * @param  list<array<string, mixed>>  $conversations
+ * @return array<string, mixed>
+ */
+function remotesInboxJson(array $conversations, bool $hasMore = false, int $unread = 0, int $requests = 0): array
+{
+    return ['data' => $conversations, 'has_more' => $hasMore, 'unread_count' => $unread, 'requests_count' => $requests];
+}
+
+/**
+ * A Remotes thread with Ada as devnull answers it, its first page or a poll.
+ *
+ * @param  list<array<string, mixed>>  $messages
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function threadJson(array $messages, array $overrides = []): array
+{
+    return ['data' => [
+        'partner' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]),
+        'messages' => $messages,
+        'has_older' => false,
+        'reactions_version' => 0,
+        'reaction_changes' => [],
+        'read_through_id' => 0,
+        'partner_read_through_id' => 0,
+        'partner_read_at' => null,
+        'partner_typing' => false,
+        'is_archived' => false,
+        'access' => 'open',
+        ...$overrides,
+    ]];
+}
+
+/**
+ * The requests sent to devnull with a method and a path, as their bodies.
+ *
+ * @return list<string>
+ */
+function sentTo(string $method, string $path): array
+{
+    return collect(Http::recorded())
+        ->filter(fn (array $sent): bool => $sent[0]->method() === $method && parse_url($sent[0]->url(), PHP_URL_PATH) === '/api/v1/'.$path)
+        ->map(fn (array $sent): string => $sent[0]->body())
+        ->values()
+        ->all();
 }

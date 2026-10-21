@@ -23,7 +23,6 @@
 @php($spine ??= null)
 @php($tombstones ??= false)
 @php($more ??= null)
-@php($segment = fn (int|string $lane): string => 'bg-theme-'.\App\Devnull\Lane::token($lane))
 @php($avatarLine = 76 + $indent)
 @if ($reply->isDeleted())
     @php($opened = $tombstones && array_key_exists($reply->id, $tombstoneReplies ?? []))
@@ -32,7 +31,7 @@
         <native:column class="flex-1">
             <native:row class="w-full pr-4 pt-[10] gap-2 {{ $last && $more === null ? 'pb-3' : 'pb-1' }} {{ $indent > 0 ? 'pl-['.$indent.']' : '' }}">
                 <native:column :width="24" :height="24" class="rounded-full">
-                    @include('native.partials.dashed-ring', ['size' => 24, 'colour' => 'bg-theme-rail'])
+                    @include('native.partials.dashed-ring', ['size' => 24, 'lane' => \App\Devnull\Lane::Rail])
                 </native:column>
                 <native:column class="flex-1 gap-1">
                     <native:row class="w-full min-h-[24] items-center">
@@ -58,7 +57,7 @@
         @include('native.partials.thread-links')
         @if ($opened && ($tombstoneReplies[$reply->id] ?? []) !== [])
             {{-- The spine its own replies hang off, down from its ring. --}}
-            @include('native.partials.dashed-line', ['position' => 'top-[38] bottom-0', 'left' => $avatarLine - 0.5, 'colour' => 'bg-theme-rail', 'dashes' => 6])
+            @include('native.partials.dashed-line', ['position' => 'top-[38] bottom-0', 'left' => $avatarLine - 0.5, 'lane' => \App\Devnull\Lane::Rail])
         @endif
     </native:row>
 @else
@@ -69,7 +68,7 @@
             <native:column class="flex-1">
                 <native:row class="w-full pr-4 pt-[10] gap-2 {{ $last && $more === null ? 'pb-3' : '' }} {{ $indent > 0 ? 'pl-['.$indent.']' : '' }}">
                     <native:pressable @press="openProfile('{{ $reply->author->username }}')" a11y-label="{{ $reply->author->name }}'s profile">
-                        @include('native.partials.avatar', ['user' => $reply->author, 'size' => 24])
+                        @include('native.partials.rail-avatar', ['user' => $reply->author, 'lane' => $reply->lane(), 'size' => 24, 'staged' => false])
                     </native:pressable>
                     <native:column class="flex-1 gap-1">
                         <native:row class="w-full min-h-[24] gap-[6] items-center">

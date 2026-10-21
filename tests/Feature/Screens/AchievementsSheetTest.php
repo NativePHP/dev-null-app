@@ -107,18 +107,18 @@ it('opens the web\'s achievements dialog from the shelf, with the rank, the XP a
 it('marks the badge it was opened on in the owner\'s lane', function () {
     $screen = adaWithAchievements();
 
-    expect(nodeByRef($screen, 'badge-stdout')['props']['a11y_label'])->toBe('stdout, 12 of 50. Reached 50 commits piped to /dev/null.');
+    expect(nodeByRef($screen, 'badge-init')['props']['a11y_label'])->toBe('init, unlocked. Piped your first commit to /dev/null.');
 
-    $screen->tap('badge-stdout');
+    $screen->tap('badge-init');
 
-    $screen->assertSet('achievementsBadge', 'stdout');
+    $screen->assertSet('achievementsBadge', 'init');
 
-    expect(markedBadges($screen))->toBe(['sheet-badge-stdout'])
+    expect(markedBadges($screen))->toBe(['sheet-badge-init'])
         ->and(nodeByRef($screen, 'achievements-scroll')['props']['scroll_anchor'])->toBe('top');
 });
 
 it('opens at the end of the list on a badge in its second half, where that badge is in view', function () {
-    $screen = adaWithAchievements()->tap('badge-max_payload');
+    $screen = adaWithAchievements()->call('openAchievements', 'max_payload');
 
     expect(markedBadges($screen))->toBe(['sheet-badge-max_payload'])
         ->and(nodeByRef($screen, 'achievements-scroll')['props']['scroll_anchor'])->toBe('bottom');
@@ -133,7 +133,7 @@ it('marks nothing for a badge the profile doesn\'t have', function () {
 });
 
 it('lists the Unix ranks with the XP each needs, the current one in the lane', function () {
-    $screen = adaWithAchievements()->tap('badge-max_payload')->tap('achievements-tab-ranks');
+    $screen = adaWithAchievements()->call('openAchievements', 'max_payload')->tap('achievements-tab-ranks');
 
     $screen->assertSet('achievementsTab', 'ranks')
         ->assertSee('Background process running in user space')
@@ -152,7 +152,7 @@ it('lists the Unix ranks with the XP each needs, the current one in the lane', f
 });
 
 it('forgets the badge and the tab once the sheet has gone, and opens on the badges again', function () {
-    $screen = adaWithAchievements()->tap('badge-stdout')->tap('achievements-tab-ranks')->dismissSheet('achievements-sheet');
+    $screen = adaWithAchievements()->tap('badge-init')->tap('achievements-tab-ranks')->dismissSheet('achievements-sheet');
 
     $screen->assertSet('achievementsOpen', false)
         ->assertSet('achievementsBadge', null)
