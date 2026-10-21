@@ -38,8 +38,62 @@ it('follows the link iOS puts in between, as phoneIn() does', function () {
     expect(app(Timezone::class)->phone())->toBe('Asia/Kathmandu');
 });
 
-it('has no phone timezone without a localtime link, as on Android', function () {
+it("asks NativePHP for the phone's timezone before reading localtime", function () {
+    Native::fakeBridge()->respondTo('Device.GetInfo', ['info' => json_encode(['platform' => 'ios', 'timezone' => 'Asia/Kathmandu'])]);
+
+    expect((new Timezone(localtimeLinkingTo('/var/db/timezone/zoneinfo/Atlantic/Canary')))->phone())->toBe('Asia/Kathmandu');
+});
+
+it("gets the phone's timezone from NativePHP where there's no localtime, as on Android", function () {
+    Native::fakeBridge()->respondTo('Device.GetInfo', ['info' => json_encode(['platform' => 'android', 'timezone' => 'America/Sao_Paulo'])]);
+
+    expect((new Timezone('/nonexistent'))->phone())->toBe('America/Sao_Paulo');
+});
+
+it("reads localtime when NativePHP's device info doesn't say, as older builds send it", function (?array $info) {
+    $bridge = Native::fakeBridge();
+
+    if ($info !== null) {
+        $bridge->respondTo('Device.GetInfo', ['info' => json_encode($info)]);
+    }
+
+    expect((new Timezone(localtimeLinkingTo('/var/db/timezone/zoneinfo/Atlantic/Canary')))->phone())->toBe('Atlantic/Canary');
+})->with([
+    'no timezone' => [['platform' => 'ios', 'language' => 'en-US']],
+    'not a timezone PHP knows' => [['timezone' => 'Mars/Olympus_Mons']],
+    'no answer' => [null],
+]);
+
+it('has no phone timezone when neither NativePHP nor localtime tells, as on Android with older builds', function () {
+    Native::fakeBridge();
+
     expect((new Timezone('/nonexistent'))->phone())->toBeNull();
+});
+
+it("keeps the phone's timezone for a minute, so a list doesn't ask NativePHP once a row", function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-15T12:00:00Z'));
+    $bridge = Native::fakeBridge()->respondTo('Device.GetInfo', ['info' => json_encode(['timezone' => 'Europe/Lisbon'])]);
+    $timezone = new Timezone('/nonexistent');
+
+    expect($timezone->phone())->toBe('Europe/Lisbon')
+        ->and($timezone->phone())->toBe('Europe/Lisbon');
+
+    // The phone lands in Tokyo.
+    $bridge->respondTo('Device.GetInfo', ['info' => json_encode(['timezone' => 'Asia/Tokyo'])]);
+    $this->travel(Timezone::PhoneSeconds - 1)->seconds();
+
+    expect($timezone->phone())->toBe('Europe/Lisbon');
+
+    $this->travel(1)->seconds();
+
+    expect($timezone->phone())->toBe('Asia/Tokyo')
+        ->and($bridge->callsTo('Device.GetInfo'))->toHaveCount(2);
+});
+
+it('is the same Timezone everywhere, so what it keeps is shared', function () {
+    app()->forgetInstance(Timezone::class);
+
+    expect(app(Timezone::class))->toBe(app(Timezone::class));
 });
 
 it("shows your times in the timezone you chose, or else the phone's, as the web falls back to the browser's", function () {
