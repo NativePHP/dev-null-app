@@ -239,7 +239,6 @@ it('never puts a page held from before under a list that has been replaced since
 
     match ($replacedBy) {
         'a fresh ranking', 'pull to refresh' => $screen->call('load'),
-        'another log' => tapLogTab(tapLogTab($screen, 'latest'), 'following'),
         'the pill' => $screen->call('checkForNewCommits')->tap('new-commits'),
     };
 
@@ -248,19 +247,33 @@ it('never puts a page held from before under a list that has been replaced since
     expect(logCommitIds($screen))->toContain('from-now')
         ->not->toContain('from-before')
         ->and(timesAskedFor("log/{$log}?cursor=page2"))->toBe(2);
-})->with(['a fresh ranking', 'another log', 'pull to refresh', 'the pill']);
+})->with(['a fresh ranking', 'pull to refresh', 'the pill']);
 
-it('lets go of a next page that lands after the list it was for was replaced', function () {
+it('keeps the next page held for a log you swipe away from, and puts it in when you reach the end back there', function () {
     holdRefreshes();
     keep('log/following', pageJson(commitsWithIds(['f1']), 'page2'));
     keep('log/latest', pageJson(commitsWithIds(['l1']), path: 'http://devnull.test/api/v1/log/latest'));
-    $asked = 0;
-
     serveLogPages([
         'log/following' => [pageJson(commitsWithIds(['f1']), 'page2')],
-        'log/following?cursor=page2' => function () use (&$asked) {
-            return Http::response(pageJson(commitsWithIds([++$asked === 1 ? 'from-before' : 'from-now'])));
-        },
+        'log/following?cursor=page2' => [pageJson(commitsWithIds(['f2']))],
+        'log/latest' => [pageJson(commitsWithIds(['l1']), path: 'http://devnull.test/api/v1/log/latest')],
+    ]);
+
+    // Following's next page lands and is held, then you swipe away and back.
+    $screen = finishRefreshes(Native::visit('/log'));
+    finishRefreshes(tapLogTab(tapLogTab($screen, 'latest'), 'following'))->call('loadMore');
+
+    expect(logCommitIds($screen))->toBe(['f1', 'f2'])
+        ->and(timesAskedFor('log/following?cursor=page2'))->toBe(1);
+});
+
+it('asks again for a next page still on its way when you swiped away, and takes whichever lands first', function () {
+    holdRefreshes();
+    keep('log/following', pageJson(commitsWithIds(['f1']), 'page2'));
+    keep('log/latest', pageJson(commitsWithIds(['l1']), path: 'http://devnull.test/api/v1/log/latest'));
+    serveLogPages([
+        'log/following' => [pageJson(commitsWithIds(['f1']), 'page2')],
+        'log/following?cursor=page2' => [pageJson(commitsWithIds(['f2']))],
         'log/latest' => [pageJson(commitsWithIds(['l1']), path: 'http://devnull.test/api/v1/log/latest')],
     ]);
 
@@ -268,11 +281,12 @@ it('lets go of a next page that lands after the list it was for was replaced', f
     $screen = Native::visit('/log');
     tapLogTab(tapLogTab($screen, 'latest'), 'following')->call('loadMore');
 
-    // The first answer lands first, for a list that's gone.
+    // Leaving let go of it, since a page that lands for a log you're not on is let go, so coming back asked again.
+    // Both are for the same list, so the first in goes in.
     finishRefreshes($screen);
 
-    expect($asked)->toBe(2)
-        ->and(logCommitIds($screen))->toBe(['f1', 'from-now']);
+    expect(timesAskedFor('log/following?cursor=page2'))->toBe(2)
+        ->and(logCommitIds($screen))->toBe(['f1', 'f2']);
 });
 
 it('puts a next page that is already here in a little before the end of the list, and never asks for one itself', function () {
@@ -287,12 +301,12 @@ it('puts a next page that is already here in a little before the end of the list
     $edge = 100 - Log::NextPageWithin;
 
     // Far from the end, then one row short of near enough, it waits.
-    $screen->call('showRows', 10, 15)->call('showRows', $edge - 6, $edge - 1);
+    $screen->call('showRows', 'following', 10, 15)->call('showRows', 'following', $edge - 6, $edge - 1);
 
     expect($screen->get('nextCursor'))->toBe('page2')
         ->and(logCommitIds($screen))->not->toContain('older');
 
-    $screen->call('showRows', $edge - 5, $edge);
+    $screen->call('showRows', 'following', $edge - 5, $edge);
 
     expect(logCommitIds($screen))->toContain('older')
         ->and($screen->get('nextCursor'))->toBe('page3')
@@ -301,7 +315,7 @@ it('puts a next page that is already here in a little before the end of the list
     // The page after it failed to come ahead, so there's nothing here to put in, and nothing is asked for.
     $requests = count(Http::recorded());
 
-    $screen->call('showRows', 95, 101);
+    $screen->call('showRows', 'following', 95, 101);
 
     expect(count(Http::recorded()))->toBe($requests)
         ->and($screen->get('nextCursor'))->toBe('page3');

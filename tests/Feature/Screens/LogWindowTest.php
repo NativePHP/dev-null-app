@@ -58,7 +58,7 @@ it('draws the rows around the ones on screen as you scroll, each keeping its pla
 
     // On screen: c229 to c234, which come after c220 and its reply. Drawn: the first ten rows of the timeline, and
     // those from a hundred above c229 (c129) on.
-    $rows = windowRows($screen->call('showRows', 231, 236));
+    $rows = windowRows($screen->call('showRows', 'following', 231, 236));
 
     expect(windowRowIds($screen))->toBe($ids)
         ->and(array_slice($rows, 0, 10))->toBe(['day-Today', ...array_map(fn (int $n): string => "commit-c{$n}", range(0, 8))])
@@ -71,21 +71,31 @@ it('draws the rows around the ones on screen as you scroll, each keeping its pla
 
 it('draws more rows above the screen once you scroll back up', function () {
     // Down to c229, then back up to c199: drawn from 150 above c199 (c49).
-    $rows = windowRows(Native::visit('/log')->call('showRows', 231, 236)->call('showRows', 200, 205));
+    $rows = windowRows(Native::visit('/log')->call('showRows', 'following', 231, 236)->call('showRows', 'following', 200, 205));
 
     expect($rows[49])->toBe('placeholder')
         ->and($rows[50])->toBe('commit-c49');
 });
 
-it('only asks the log you are on where it is scrolled to', function () {
+it('asks every log where it is scrolled to, by name, and only moves the window of the log that says', function () {
     $screen = Native::visit('/log');
+    $ids = windowRowIds($screen);
 
+    // The phone only draws a placeholder at its row's height in a list that says where it is, so every list does.
     expect(showingLog($screen)['props'])->toHaveKey('on_visible_range')
-        ->and(nodeByRef($screen, 'log-latest')['props'] ?? [])->not->toHaveKey('on_visible_range');
+        ->and(nodeByRef($screen, 'log-latest')['props'])->toHaveKey('on_visible_range')
+        ->and(nodeByRef($screen, 'log-trending')['props'])->toHaveKey('on_visible_range')
+        ->and(showingLog($screen)['props']['on_visible_range'])->not->toBe(nodeByRef($screen, 'log-latest')['props']['on_visible_range']);
+
+    // Latest saying where it is leaves Following's window where it was.
+    $screen->call('showRows', 'latest', 231, 236);
+
+    expect(windowRows($screen)[200])->toBe('placeholder')
+        ->and(windowRowIds($screen))->toBe($ids);
 });
 
 it('draws the top again when the log goes back to the top of a new list', function () {
-    $screen = Native::visit('/log')->call('showRows', 231, 236)->call('show', 'following');
+    $screen = Native::visit('/log')->call('showRows', 'following', 231, 236)->call('show', 'following');
     $rows = windowRows($screen);
 
     expect($rows[21])->toBe('commit-c20')

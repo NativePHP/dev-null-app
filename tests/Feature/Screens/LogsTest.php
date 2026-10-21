@@ -195,33 +195,25 @@ it('changes nothing when the pager reports the log it is already on', function (
         ->and(showingLog($screen)['id'])->toBe($list);
 });
 
-it('keeps the list a log was drawn in when you swipe to it, and starts the log you leave again in a fresh one', function () {
+it('keeps every log in the list it was drawn in as you swipe between them, so each stays scrolled where you left it', function () {
     holdRefreshes();
     keep('log/following', pageJson([commitJson(['id' => 'f1'])]));
     keep('log/latest', pageJson([commitJson(['id' => 'l1'])]));
     keep('log/trending', trendingJson([commitJson(['id' => 't1'])], newest: 't1'));
 
     $screen = Native::visit('/log');
-    $listOf = fn (string $log): int => nodeByRef($screen, $screen->get('log') === $log ? 'log' : 'log-'.$log)['id'];
+    $lists = fn (): array => array_map(fn (string $log): int => nodeByRef($screen, $screen->get('log') === $log ? 'log' : 'log-'.$log)['id'], Log::Logs);
+    $drawnIn = $lists();
 
-    $following = $listOf('following');
-    $latest = $listOf('latest');
-    $trending = $listOf('trending');
+    // Swiped to, each log fills the list its first commits were drawn in. The log you leave keeps its own.
+    foreach ([1, 2, 1, 0, 2, 0] as $page) {
+        $screen->changeTab('showPage', $page);
 
-    // Swiped to, Latest fills the list its first commits were drawn in. Following, left, gets a fresh list at the top.
-    $screen->changeTab('showPage', 1);
-
-    expect($listOf('latest'))->toBe($latest)
-        ->and($listOf('following'))->not->toBe($following)
-        ->and($listOf('trending'))->toBe($trending);
-
-    $screen->changeTab('showPage', 2);
-
-    expect($listOf('trending'))->toBe($trending)
-        ->and($listOf('latest'))->not->toBe($latest);
+        expect($lists())->toBe($drawnIn);
+    }
 });
 
-it('opens the log you swipe back to from what was kept, at the top, and asks what is new since', function () {
+it('brings back every commit a log had when you swipe back to it, and asks what is new since', function () {
     holdRefreshes();
     keep('log/following', pageJson([commitJson(['id' => 'f1', 'body' => 'First page'])], 'page2'));
     keep('log/latest', pageJson([commitJson(['id' => 'l1'])]));
@@ -240,20 +232,21 @@ it('opens the log you swipe back to from what was kept, at the top, and asks wha
 
     $screen->changeTab('showPage', 1);
 
-    // Off to the side, Following shows the first of what was kept, ready for a swipe back.
+    // Off to the side, Following is as you left it, ready for a swipe back.
     expect(treeShows(nodeByRef($screen, 'log-following'), 'First page'))->toBeTrue()
-        ->and(treeShows(nodeByRef($screen, 'log-following'), 'Second page'))->toBeFalse();
+        ->and(treeShows(nodeByRef($screen, 'log-following'), 'Second page'))->toBeTrue();
 
     $sent = count(logRequestsSent());
     $screen->changeTab('showPage', 0);
 
-    // No skeleton rows: only the one standing in for the next page, under what was kept.
-    expect(shownLogIds($screen))->toBe(['f1'])
-        ->and(findNode(showingLog($screen), fn (array $node): bool => ($node['ref'] ?? null) === 'loading-1'))->toBeNull();
+    // No skeleton rows, and nothing to stand in for: devnull said there's nothing after the second page.
+    expect(shownLogIds($screen))->toBe(['f1', 'f2'])
+        ->and(showsLoading(showingLog($screen)))->toBeFalse();
 
     finishRefreshes($screen);
 
-    expect(array_slice(logRequestsSent(), $sent))->toContain('log/following?since=f1');
+    expect(array_slice(logRequestsSent(), $sent))->toContain('log/following?since=f1')
+        ->not->toContain('log/following?cursor=page2');
 });
 
 it('shows the first few commits kept for a log you are not on, and has only the log you are on ask for its next page', function () {

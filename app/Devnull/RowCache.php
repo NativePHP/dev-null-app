@@ -34,6 +34,11 @@ final class RowCache
     private array $drawn = [];
 
     /**
+     * Whether the last frame was a resting one (see startFrame()).
+     */
+    private bool $resting = false;
+
+    /**
      * @var WeakMap<object, string>
      */
     private WeakMap $fingerprints;
@@ -45,10 +50,21 @@ final class RowCache
 
     /**
      * Starts a frame, letting go of the rows the last one didn't draw.
+     *
+     * A $resting list, such as the page of a log you've swiped away from,
+     * draws only the few rows on its screen (see RowWindow). It lets go of
+     * nothing while it rests, nor in the first frame after, so the rows it
+     * drew before are drawn again from here when you're back on it. Built
+     * afresh, they made the frame after every swipe back cost as much as
+     * opening the log.
      */
-    public function startFrame(): void
+    public function startFrame(bool $resting = false): void
     {
-        $this->rows = array_intersect_key($this->rows, $this->drawn);
+        if (! $resting && ! $this->resting) {
+            $this->rows = array_intersect_key($this->rows, $this->drawn);
+        }
+
+        $this->resting = $resting;
         $this->drawn = [];
     }
 

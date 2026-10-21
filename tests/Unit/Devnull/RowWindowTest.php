@@ -25,9 +25,9 @@ function windowTimeline(int $count, string $prefix = 'c'): array
  * @param  list<TimelineRow>  $rows
  * @return list<bool>
  */
-function windowFrame(RowWindow $window, array $rows, int $listKey = 0): array
+function windowFrame(RowWindow $window, array $rows, int $listKey = 0, bool $resting = false): array
 {
-    $window->frame($rows, $listKey);
+    $window->frame($rows, $listKey, $resting);
 
     return array_map(fn (int $index): bool => $window->place($index), array_keys($rows));
 }
@@ -121,4 +121,34 @@ it('counts the timeline rows below the last one on screen, a commit and its repl
     $window->show(100, 110);
 
     expect($window->rowsBelowScreen())->toBe(0);
+});
+
+it('draws only the rows around those on screen while the list rests, and none of the top', function () {
+    $window = new RowWindow;
+    windowFrame($window, windowTimeline(300));
+    $window->show(200, 205);
+
+    $drawn = array_keys(array_filter(windowFrame($window, windowTimeline(300), resting: true)));
+
+    expect($drawn)->toBe(range(200 - RowWindow::Resting, 205 + RowWindow::Resting));
+});
+
+it('keeps its place while the list rests, and draws the full window round it again after', function () {
+    $window = new RowWindow;
+    $rows = windowTimeline(400);
+    windowFrame($window, $rows);
+    $window->show(200, 205);
+
+    windowFrame($window, $rows, resting: true);
+    windowFrame($window, [...windowTimeline(5, 'new'), ...$rows], resting: true);
+
+    // Five rows came in above while it rested, so c200 is row 205 now: drawn from a hundred above it to a hundred
+    // and fifty below c205, with the first ten rows of the timeline.
+    $drawn = windowFrame($window, [...windowTimeline(5, 'new'), ...$rows]);
+
+    expect($drawn[9])->toBeTrue()
+        ->and($drawn[104])->toBeFalse()
+        ->and($drawn[105])->toBeTrue()
+        ->and($drawn[360])->toBeTrue()
+        ->and($drawn[361])->toBeFalse();
 });

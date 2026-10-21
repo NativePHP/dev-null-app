@@ -59,22 +59,27 @@ use Native\Mobile\Edge\NativeComponent;
  * The three logs are pages you swipe between, as paged tabs go in native apps.
  * The pager draws the tabs and moves them with your finger, and only says
  * which log it settled on once the swipe is over. Only the log you're on is
- * live. The others show the first few commits kept for them, as they'll open,
- * so there's something under your finger as you swipe. Each page has its own
- * list. A log you leave starts again at the top of a fresh one, as a tab tap
- * opens it, since a list kept while every row changed under its scroll offset
- * drew blank on iOS.
+ * live. Each page has its own list, and a log you swipe away from keeps its
+ * commits and its list as they were, so the phone still has it scrolled where
+ * you left it when you swipe back (see switchTo). A log you haven't been on
+ * yet shows the first few commits kept for it, as it'll open, so there's
+ * something under your finger as you swipe.
  *
- * The log you're on keeps every commit it has loaded, but only draws those
- * near the screen and the first few (see RowWindow). The list says where
- * you've scrolled to, and the rest go as placeholders the phone draws at their
- * rows' heights, so a log scrolled thousands of commits down costs what one a
- * couple of hundred down does.
+ * Each log keeps every commit it has loaded, but only draws those near the
+ * screen and the first few (see RowWindow). The list says where you've
+ * scrolled to, and the rest go as placeholders the phone draws at their rows'
+ * heights, so a log scrolled thousands of commits down costs what one a couple
+ * of hundred down does. A log you're not on draws only the rows around its
+ * screen, since it can't scroll until you're on it.
  *
- * The pages beside the one you're on are kept small on purpose. EDGE writes
- * each frame into a buffer of fixed size, and a frame that doesn't fit is
- * dropped without a word; the frames after it then refer to rows the phone
- * never got, which leaves holes in the list.
+ * The pages beside the one you're on are kept small on purpose. Every frame
+ * goes in full, so every row on a page you can't see is one more for PHP to
+ * write and the phone to read on every render. A log you left used to start
+ * again at the top of a fresh list: a list kept while every row changed under
+ * its scroll offset drew blank on iOS, and until NativePHP/php-bin-mobile#46
+ * a frame of more than about 3,250 nodes was dropped without a word. The rows
+ * a log you've left stops drawing go as placeholders at their last heights
+ * now, so the rest keep their places, and frames that size go through.
  *
  * The log you're on fetches its next page in the background as soon as it
  * knows the cursor, and holds it in memory until you scroll near the end.
@@ -84,8 +89,9 @@ use Native\Mobile\Edge\NativeComponent;
  * (see NextPageWithin), or when the end comes, so it's usually there before
  * you are. A held page only follows on from the list it was cut from, so
  * it's let go when that list is replaced rather than added to: a fresh
- * ranking, another log, pull to refresh, or the pill replacing the list.
- * Cursor pages are never kept in the response cache.
+ * ranking, pull to refresh, or the pill replacing the list. A log you swipe
+ * away from keeps the page held for it. Cursor pages are never kept in the
+ * response cache.
  */
 class Log extends NativeComponent
 {
@@ -135,14 +141,26 @@ class Log extends NativeComponent
      */
     public const int NextPageWithin = 40;
 
+    /**
+     * What a log keeps while you're on another, by the properties that hold it
+     * while you're on it: its commits and next cursor, the threads open in it,
+     * Trending's ranking and what was put above it, the suggestions for an
+     * empty Following log, where its last-visit marker stands, its list, and
+     * the next page held for it.
+     */
+    private const array KeptWhileAway = [
+        'commits', 'nextCursor', 'threads', 'latestCommits', 'rankedSince', 'suggestions', 'loaded', 'lastVisitAt',
+        'listKey', 'listGeneration', 'heldPage',
+    ];
+
     public string $log = 'following';
 
     /**
-     * The list key of each log you're not on. The log you're on uses $listKey.
+     * Each log you've been on and left, as you left it (see KeptWhileAway).
      *
-     * @var array<string, int>
+     * @var array<string, array<string, mixed>>
      */
-    public array $listKeys = [];
+    protected array $leftLogs = [];
 
     /**
      * Trending's commits newer than its ranking, put above it by the pill, newest first.
@@ -319,17 +337,67 @@ class Log extends NativeComponent
     }
 
     /**
-     * The log you go to keeps the list its first few commits were drawn in,
-     * which can't have been scrolled, and fills it. The log you leave starts
-     * again at the top of a fresh one.
+     * The log you leave is kept as it is, in the list it's in, which the phone
+     * keeps scrolled where you were (see KeptWhileAway). A next page still on
+     * its way for it is let go, since a page that lands for a log you're not
+     * on is let go too, and it's asked for again when you're back.
+     *
+     * The log you go to is back as you left it, if it had loaded. Otherwise
+     * it opens afresh in the list it was drawn in, which can't have been
+     * scrolled.
      */
     private function switchTo(string $log): void
     {
         app(ShownTabs::class)->remember($this->me()?->id, 'log', $log);
-        $this->listKeys[$this->log] = $this->listKey + 1;
+
+        foreach (self::KeptWhileAway as $property) {
+            $this->leftLogs[$this->log][$property] = $this->{$property};
+        }
+
         $this->log = $log;
-        $this->listKey = $this->listKeys[$log] ?? 0;
+        $this->fetchingNextPage = null;
+        $this->waitingForNextPage = false;
+        $this->error = null;
+        $this->refreshFailed = false;
+        $this->forgetNewCommits();
+
+        $left = $this->leftLogs[$log] ?? null;
+        unset($this->leftLogs[$log]);
+
+        if ($left !== null && $left['loaded']) {
+            $this->returnTo($left);
+
+            return;
+        }
+
+        $this->listKey = $left['listKey'] ?? 0;
         $this->openAfresh();
+    }
+
+    /**
+     * Back on a log you'd left, as you left it. What changed meanwhile is
+     * laid over it, as when you come back from a commit, and devnull is asked
+     * what's new since, which waits in the pill. Trending keeps the ranking
+     * you were reading, and isn't ranked again until you pull to refresh: a
+     * swipe back isn't opening it, and a fresh ranking would put you back at
+     * the top of a fresh list.
+     *
+     * It's the same after a long time away: the log you were reading is where
+     * you left it, with the pill counting what came in since, as the web's is
+     * when you come back to a tab you left open.
+     *
+     * @param  array<string, mixed>  $left
+     */
+    private function returnTo(array $left): void
+    {
+        foreach ($left as $property => $value) {
+            $this->{$property} = $value;
+        }
+
+        $this->showKept();
+        $this->revalidate();
+        $this->prefetchNextPage();
+        $this->appendNextPageNearTheEnd(waitForIt: true);
     }
 
     /**
@@ -344,9 +412,6 @@ class Log extends NativeComponent
         $this->rankedSince = null;
         $this->nextCursor = null;
         $this->loaded = false;
-        $this->error = null;
-        $this->refreshFailed = false;
-        $this->forgetNewCommits();
         $this->replacedList();
         $this->lastVisitAt = $this->lastVisitSeenAt();
         $this->showKept();
@@ -354,8 +419,9 @@ class Log extends NativeComponent
     }
 
     /**
-     * A log you're not on: the first few commits kept for it, as it will
-     * open, or skeleton rows with nothing kept, or while it's two swipes away.
+     * A log you haven't been on yet, or left before it loaded: the first few
+     * commits kept for it, as it will open, or skeleton rows with nothing
+     * kept, or while it's two swipes away.
      *
      * @return array<string, mixed>
      */
@@ -469,10 +535,13 @@ class Log extends NativeComponent
      * once. One still on its way goes in when it lands, with the loading row
      * showing until then. Otherwise it's asked for now, and a failure prints
      * its error as any other.
+     *
+     * The list names its log, so one that reaches its end as you swipe away
+     * from it doesn't load more of the log you swipe to.
      */
-    public function loadMore(): void
+    public function loadMore(?string $log = null): void
     {
-        if ($this->nextCursor === null) {
+        if ($this->nextCursor === null || ($log ?? $this->log) !== $this->log) {
             return;
         }
 
@@ -492,18 +561,44 @@ class Log extends NativeComponent
     }
 
     /**
-     * The list's rows on screen as you scroll, by position: the rows near them
+     * A log's rows on screen as you scroll, by position: the rows near them
      * are drawn, and the rest go as placeholders. Near the end, a next page
      * that's already here goes in, so the phone has it before you reach the
      * end rather than when you do. This never asks devnull for one.
+     *
+     * Every log's list says where it is, the logs you're not on included:
+     * the phone only draws a placeholder at its row's height in a list that
+     * does (see log-page). A log you're not on only notes it.
      */
-    public function showRows(int $first, int $last): void
+    public function showRows(string $log, int $first, int $last): void
     {
-        $window = $this->rowWindow($this->log);
-        $window->show($first, $last);
+        if (! in_array($log, self::Logs, true)) {
+            return;
+        }
 
-        if (($held = $this->heldNextPage()) !== null && $window->rowsBelowScreen() <= self::NextPageWithin) {
+        $this->rowWindow($log)->show($first, $last);
+
+        if ($log === $this->log) {
+            $this->appendNextPageNearTheEnd();
+        }
+    }
+
+    /**
+     * Puts the next page in if it's here and you're within NextPageWithin
+     * rows of the end. Back on a log you'd left, one still on its way is
+     * $waitForIt, and goes in when it lands: the end of the list may already
+     * be on screen, where the list won't say it reached it again.
+     */
+    private function appendNextPageNearTheEnd(bool $waitForIt = false): void
+    {
+        if ($this->rowWindow($this->log)->rowsBelowScreen() > self::NextPageWithin) {
+            return;
+        }
+
+        if (($held = $this->heldNextPage()) !== null) {
             $this->appendPage($held);
+        } elseif ($waitForIt && $this->fetchesNextPage()) {
+            $this->waitingForNextPage = true;
         }
     }
 
@@ -651,9 +746,10 @@ class Log extends NativeComponent
 
     /**
      * The list the next cursor points into was replaced rather than added to:
-     * a fresh ranking, another log, pull to refresh, or the pill putting new
-     * commits in place of the list. Whatever was fetched for the old list's
-     * next page is let go, and the end of the list stops waiting for it.
+     * a fresh ranking, a log opening afresh, pull to refresh, or the pill
+     * putting new commits in place of the list. Whatever was fetched for the
+     * old list's next page is let go, and the end of the list stops waiting
+     * for it.
      */
     protected function replacedList(): void
     {
@@ -664,16 +760,36 @@ class Log extends NativeComponent
     }
 
     /**
-     * Takes commits out of the next page held for the log too, so they don't come back with it.
+     * Takes commits out of every log, the ones you've left too, and out of
+     * the next page held for each, so they don't come back with it.
      *
      * @param  Closure(Commit): bool  $keep
      */
-    private function keepInHeldPage(Closure $keep): void
+    private function keepCommits(Closure $keep): void
     {
-        if ($this->heldPage !== null) {
-            $page = $this->heldPage['page'];
-            $this->heldPage['page'] = new Page(array_values(array_filter($page->items, $keep)), $page->nextCursor);
+        $this->commits = array_values(array_filter($this->commits, $keep));
+        $this->latestCommits = array_values(array_filter($this->latestCommits, $keep));
+        $this->heldPage = self::keepInHeldPage($this->heldPage, $keep);
+
+        foreach ($this->leftLogs as $log => $left) {
+            $this->leftLogs[$log]['commits'] = array_values(array_filter($left['commits'], $keep));
+            $this->leftLogs[$log]['latestCommits'] = array_values(array_filter($left['latestCommits'], $keep));
+            $this->leftLogs[$log]['heldPage'] = self::keepInHeldPage($left['heldPage'], $keep);
         }
+    }
+
+    /**
+     * @param  array{log: string, cursor: string, generation: int, page: Page<Commit>}|null  $held
+     * @param  Closure(Commit): bool  $keep
+     * @return array{log: string, cursor: string, generation: int, page: Page<Commit>}|null
+     */
+    private static function keepInHeldPage(?array $held, Closure $keep): ?array
+    {
+        if ($held !== null) {
+            $held['page'] = new Page(array_values(array_filter($held['page']->items, $keep)), $held['page']->nextCursor);
+        }
+
+        return $held;
     }
 
     /**
@@ -719,11 +835,21 @@ class Log extends NativeComponent
         return [...$this->latestCommits, ...$this->commits, ...$this->suggestions, ...$this->threadCommits()];
     }
 
+    /**
+     * A star or a pin changes a commit in the logs you've left too, so a
+     * commit in two of them reads the same in both.
+     */
     protected function updateShownCommits(Closure $update): void
     {
         $this->latestCommits = array_map($update, $this->latestCommits);
         $this->commits = array_map($update, $this->commits);
         $this->threads = array_map(fn (array $replies): array => array_map($update, $replies), $this->threads);
+
+        foreach ($this->leftLogs as $log => $left) {
+            $this->leftLogs[$log]['latestCommits'] = array_map($update, $left['latestCommits']);
+            $this->leftLogs[$log]['commits'] = array_map($update, $left['commits']);
+            $this->leftLogs[$log]['threads'] = array_map(fn (array $replies): array => array_map($update, $replies), $left['threads']);
+        }
     }
 
     /**
@@ -856,41 +982,29 @@ class Log extends NativeComponent
     }
 
     /**
-     * Commits deleted while you were on their page leave the log. A ranked
+     * Commits deleted while you were on their page leave every log. A ranked
      * log can't tell from a fresh page that one went, so it asks the cache.
      */
     private function forgetDeleted(): void
     {
         $deleted = array_flip(app(ResponseCache::class)->deletedIds());
 
-        if ($deleted === []) {
-            return;
+        if ($deleted !== []) {
+            $this->keepCommits(fn (Commit $commit): bool => ! isset($deleted[$commit->id]));
         }
-
-        $shown = fn (Commit $commit): bool => ! isset($deleted[$commit->id]);
-
-        $this->commits = array_values(array_filter($this->commits, $shown));
-        $this->latestCommits = array_values(array_filter($this->latestCommits, $shown));
-        $this->keepInHeldPage($shown);
     }
 
     /**
      * Takes out the commits of anyone you muted or blocked since, as devnull
-     * leaves them out.
+     * leaves them out. The cache only says once, so it's every log at once.
      */
     private function forgetHidden(): void
     {
         $hidden = array_flip(app(ResponseCache::class)->takeHiddenAuthorIds());
 
-        if ($hidden === []) {
-            return;
+        if ($hidden !== []) {
+            $this->keepCommits(fn (Commit $commit): bool => ! isset($hidden[$commit->author->id]));
         }
-
-        $shown = fn (Commit $commit): bool => ! isset($hidden[$commit->author->id]);
-
-        $this->commits = array_values(array_filter($this->commits, $shown));
-        $this->latestCommits = array_values(array_filter($this->latestCommits, $shown));
-        $this->keepInHeldPage($shown);
     }
 
     /**
@@ -942,11 +1056,11 @@ class Log extends NativeComponent
         $viewer = $this->me();
 
         foreach (self::Logs as $log) {
-            $this->rowCache($log)->startFrame();
+            $this->rowCache($log)->startFrame(resting: $this->keepsLeft($log));
         }
 
-        $pages = array_map(fn (string $log): array => $log === $this->log
-            ? $this->page($log, [
+        $pages = array_map(fn (string $log): array => match (true) {
+            $log === $this->log => $this->page($log, [
                 'commits' => $this->commits,
                 'latestCommits' => $this->latestCommits,
                 'threads' => $this->threads,
@@ -955,8 +1069,10 @@ class Log extends NativeComponent
                 'loaded' => $this->loaded,
                 'lastVisitAt' => $this->lastVisitAt,
                 'error' => $this->error,
-            ], $viewer, $this->listKey)
-            : $this->page($log, $this->previewState($log), $viewer, $this->listKeys[$log] ?? 0), self::Logs);
+            ], $viewer, $this->listKey),
+            $this->keepsLeft($log) => $this->page($log, ['error' => null] + $this->leftLogs[$log], $viewer, $this->leftLogs[$log]['listKey'], resting: true),
+            default => $this->page($log, $this->previewState($log), $viewer, $this->leftLogs[$log]['listKey'] ?? 0),
+        }, self::Logs);
 
         $showing = $pages[array_search($this->log, self::Logs, true)];
 
@@ -974,12 +1090,21 @@ class Log extends NativeComponent
     }
 
     /**
-     * What a log's page shows, from the state it's in.
+     * Whether a log you're not on is kept as you left it, rather than shown as it would open.
+     */
+    private function keepsLeft(string $log): bool
+    {
+        return $log !== $this->log && ($this->leftLogs[$log]['loaded'] ?? false);
+    }
+
+    /**
+     * What a log's page shows, from the state it's in. A $resting one is a log
+     * you've left, which draws only the rows around where you left it.
      *
      * @param  array<string, mixed>  $state
      * @return array<string, mixed>
      */
-    private function page(string $log, array $state, ?User $viewer, int $listKey): array
+    private function page(string $log, array $state, ?User $viewer, int $listKey, bool $resting = false): array
     {
         /** @var list<Commit> $commits */
         $commits = $state['commits'];
@@ -992,8 +1117,8 @@ class Log extends NativeComponent
             'showing' => $log === $this->log,
             'listKey' => $listKey,
             'rowCache' => $this->rowCache($log),
-            // The other logs show their first few commits, as they'll open.
-            'rowWindow' => $log === $this->log ? $this->rowWindow($log)->frame($rows, $listKey) : null,
+            // A log you haven't been on shows its first few commits, as it'll open, and draws them all.
+            'rowWindow' => $log === $this->log || $resting ? $this->rowWindow($log)->frame($rows, $listKey, $resting) : null,
             'loaded' => $state['loaded'],
             'error' => $state['error'],
             'threads' => $state['threads'],

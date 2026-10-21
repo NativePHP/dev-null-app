@@ -18,6 +18,10 @@ use Native\Mobile\UI\Elements\ListPlaceholder;
  * The list says which of its rows are on screen as you scroll, by position. A
  * commit coming in above moves every position, so the window holds on to the
  * timeline rows' keys instead, and finds them again in each frame.
+ *
+ * A list that's resting, as the page of a log you've swiped away from is,
+ * can't scroll until you're back on it. It draws only the rows around those
+ * on its screen, and the frame after you're back draws the rest.
  */
 final class RowWindow
 {
@@ -36,6 +40,16 @@ final class RowWindow
      * The timeline rows drawn past the rows on screen, the way you came from.
      */
     public const int Behind = 100;
+
+    /**
+     * The timeline rows drawn either side of the rows on screen while the list
+     * rests. The list says where it is once it has moved 20 rows (see
+     * log-page), so its screen is always fewer than 20 rows from what it last
+     * said, either way. Every row drawn is one more in every frame, so a fling
+     * the moment you're back can reach placeholders before the frame that
+     * draws the rest, as one past the window can on the log you're on.
+     */
+    public const int Resting = 20;
 
     /**
      * The keys of the first and last timeline rows on screen. Null is the top.
@@ -57,6 +71,8 @@ final class RowWindow
     private bool $scrollingUp = false;
 
     private ?int $listKey = null;
+
+    private bool $resting = false;
 
     /**
      * This frame's timeline row keys.
@@ -87,12 +103,14 @@ final class RowWindow
 
     /**
      * Starts a frame of a feed's rows. A new list key means a new list, which
-     * starts at the top.
+     * starts at the top. A $resting list draws only the rows around its screen.
      *
      * @param  list<TimelineRow>  $rows
      */
-    public function frame(array $rows, int $listKey): self
+    public function frame(array $rows, int $listKey, bool $resting = false): self
     {
+        $this->resting = $resting;
+
         if ($listKey !== $this->listKey) {
             $this->listKey = $listKey;
             $this->firstShown = $this->lastShown = null;
@@ -123,6 +141,10 @@ final class RowWindow
     public function place(int $index, int $listRows = 1): bool
     {
         array_push($this->listRows, ...array_fill(0, $listRows, $index));
+
+        if ($this->resting) {
+            return $index >= $this->first - self::Resting && $index <= $this->last + self::Resting;
+        }
 
         return $index < self::Top
             || ($index >= $this->first - ($this->scrollingUp ? self::Ahead : self::Behind)
