@@ -10,27 +10,51 @@ use Native\Mobile\AsyncTask;
  * PHP threads, so a refresh never holds up a tap, and a slow write can say it's
  * under way. It only carries bytes: the screen that asked decides what the
  * answer means and keeps it (see Concerns\RefreshesInBackground and
- * Concerns\WritesInBackground). Nothing here touches the Keychain or the cache.
+ * Concerns\WritesInBackground). Nothing here touches the Keychain or the
+ * response cache.
+ *
+ * Asked $withImages, it downloads the answer's images that aren't on the
+ * device yet before it comes back, so they land with it. Every task that
+ * finishes makes the screen draw a frame, and a frame of the log costs the
+ * phone's main thread whether anything in it changed or not, so a log page
+ * and its images landing apart cost two. The Log's next page asks for this,
+ * since it waits in memory until you scroll near it anyway.
  */
 final class FetchInBackground extends AsyncTask
 {
     /**
+     * How long an answer's images may hold it up once it's here, in seconds.
+     * Any not down by then load from their URLs, as before they're kept.
+     */
+    public const int ImagesWithin = 5;
+
+    /**
      * @param  array<string, string>  $headers
      * @return array{status: int, json: mixed, retry_after: string, from_devnull: bool}
      */
-    public function handle(string $url, array $headers, string $method = 'GET', string $body = ''): array
+    public function handle(string $url, array $headers, string $method = 'GET', string $body = '', bool $withImages = false, ?int $pruneBefore = null): array
     {
+        if ($pruneBefore !== null) {
+            DownloadImages::prune($pruneBefore);
+        }
+
         try {
             $response = Client::sendSigned(new SignedRequest($url, $headers, $method, $body));
         } catch (ConnectionException) {
             return ['status' => 0, 'json' => null, 'retry_after' => '', 'from_devnull' => false];
         }
 
-        return [
+        $result = [
             'status' => $response->status(),
             'json' => $response->json(),
             'retry_after' => $response->header('Retry-After'),
             'from_devnull' => Client::answeredByDevnull($response, $method),
         ];
+
+        if ($withImages && $result['from_devnull'] && $response->successful() && is_array($result['json'])) {
+            DownloadImages::save(ImageCache::missingIn($result['json']), until: microtime(true) + self::ImagesWithin);
+        }
+
+        return $result;
     }
 }

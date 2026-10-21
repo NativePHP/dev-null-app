@@ -82,10 +82,10 @@ use Native\Mobile\Edge\NativeComponent;
  * waiting on devnull while the phone kept scrolling, so you reached the
  * loading row and stayed on it. Now the page goes in a little before the end
  * (see NextPageWithin), or when the end comes, so it's usually there before
- * you are. A held page only follows on from the list it was cut from, so
- * it's let go when that list is replaced rather than added to: a fresh
- * ranking, another log, pull to refresh, or the pill replacing the list.
- * Cursor pages are never kept in the response cache.
+ * you are. Its images come down with it. A held page only follows on from
+ * the list it was cut from, so it's let go when that list is replaced rather
+ * than added to: a fresh ranking, another log, pull to refresh, or the pill
+ * replacing the list. Cursor pages are never kept in the response cache.
  */
 class Log extends NativeComponent
 {
@@ -550,6 +550,12 @@ class Log extends NativeComponent
      * refresh() would otherwise skip: that one may be for a list replaced
      * since, whose answer is let go, and the end of the list would wait on
      * nothing.
+     *
+     * The page's images come down with it, so its rows are drawn from the
+     * device from the start, and the page costs one frame landing rather than
+     * a second when its images do (see FetchInBackground). The frame it lands
+     * in shows nothing new, since a held page isn't drawn, but NativePHP
+     * draws one after every task all the same.
      */
     private function prefetchNextPage(): void
     {
@@ -570,6 +576,7 @@ class Log extends NativeComponent
             again: true,
             quiet: true,
             failed: fn () => $this->nextPageFailed($log, $cursor, $generation),
+            withImages: true,
         );
     }
 
