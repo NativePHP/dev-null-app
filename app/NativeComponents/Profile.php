@@ -589,6 +589,27 @@ class Profile extends NativeComponent
     }
 
     /**
+     * On your profile, the commit you pinned leaves your commits for the top
+     * at once, and the one you unpinned leaves the top. Then devnull answers
+     * with your commits in order, as the web reloads them after a pin.
+     */
+    protected function showPinned(Commit $commit): void
+    {
+        if ($this->profile === null || ! $this->isMe()) {
+            return;
+        }
+
+        if ($commit->isPinned) {
+            $this->profile = $this->profile->withPinnedCommit($commit);
+            $this->commits = array_values(array_filter($this->commits, fn (Commit $shown): bool => $shown->id !== $commit->id));
+        } elseif ($this->profile->pinnedCommit?->id === $commit->id) {
+            $this->profile = $this->profile->withPinnedCommit(null);
+        }
+
+        $this->refreshProfile(showNewer: true);
+    }
+
+    /**
      * Asks again for the profile and the tab, and on your own the unread count,
      * which picks up name and avatar changes too.
      */
