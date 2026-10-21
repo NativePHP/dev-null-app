@@ -231,12 +231,12 @@ final readonly class Client
      */
     public function pin(string $id): Commit
     {
-        return $this->react('PUT', 'commits/'.rawurlencode($id).'/pin');
+        return $this->react('PUT', 'commits/'.rawurlencode($id).'/pin', starring: false);
     }
 
     public function unpin(string $id): Commit
     {
-        return $this->react('DELETE', 'commits/'.rawurlencode($id).'/pin');
+        return $this->react('DELETE', 'commits/'.rawurlencode($id).'/pin', starring: false);
     }
 
     /**
@@ -511,12 +511,14 @@ final readonly class Client
      * Stars, unstars, pins or unpins, and gives every kept copy of the commit the new counts.
      * Starring or unstarring updates your kept starred commits too.
      */
-    private function react(string $method, string $path): Commit
+    private function react(string $method, string $path, bool $starring = true): Commit
     {
         $commit = $this->data($this->send($method, $path));
         $this->cache->commitReacted($commit);
 
-        $this->cache->commitStarred($commit);
+        if ($starring) {
+            $this->cache->commitStarred($commit);
+        }
 
         return Commit::fromArray($commit);
     }
