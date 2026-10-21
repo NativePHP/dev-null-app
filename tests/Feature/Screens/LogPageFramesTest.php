@@ -1,6 +1,7 @@
 <?php
 
 use App\Devnull\ImageCache;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
@@ -11,6 +12,8 @@ use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 
 beforeEach(function () {
+    // Every commit was made at 11:55, as devnull keeps it, however late a page is asked for.
+    $this->travelTo(CarbonImmutable::parse('2026-10-21 12:00:00', 'UTC'));
     config(['devnull.url' => 'http://devnull.test', 'devnull.image_cache_hours' => 24]);
     app()->useStoragePath(sys_get_temp_dir().'/devnull-log-frames-'.bin2hex(random_bytes(4)));
     signIn();
@@ -49,6 +52,7 @@ function logPageCommits(int $page): array
 {
     return array_map(fn (int $n): array => commitJson([
         'id' => "p{$page}-{$n}",
+        'created_at' => '2026-10-21T11:55:00Z',
         'author' => userJson(['id' => "u{$page}-{$n}", 'username' => "author{$page}x{$n}", 'avatar_url' => "https://avatars.githubusercontent.com/u/{$page}0{$n}?v=4"]),
         'images' => $n === 1 ? [['id' => "i{$page}", 'url' => "https://dev-null.sh/commit-images/i{$page}", 'width' => 10, 'height' => 10]] : [],
     ]), range(1, 20));
@@ -97,7 +101,7 @@ function drawnImageSources(TestableComponent $screen): array
     );
 }
 
-it('costs two frames a page as you scroll: the one that puts the page in, and the one the page after it lands in', function () {
+it('renders twice a page as you scroll, and the page after it landing leaves the frame as it was', function () {
     $screen = Native::visit('/log');
 
     // The first page's images download in a task of their own, and its next page's come with it.
@@ -135,4 +139,40 @@ it('draws the rows of a page fetched ahead from the device from the start', func
         ->not->toContain('https://avatars.githubusercontent.com/u/201?v=4')
         // The first page was drawn before its images came, and stays as it was drawn.
         ->toContain('https://avatars.githubusercontent.com/u/101?v=4');
+});
+
+it('draws the frame a page lands in at the time of the frame before it, so a minute ticking over in between changes nothing', function () {
+    $screen = Native::visit('/log');
+    landBackgroundTasks($screen);
+
+    $screen->call('showRows', 10_000, 10_005);
+    $drawn = $screen->tree();
+
+    expect(treeShows(showingLog($screen), '5m'))->toBeTrue();
+
+    $this->travel(61)->seconds();
+
+    expect(landBackgroundTasks($screen))->toBe(['FetchInBackground'])
+        ->and($screen->tree())->toBe($drawn);
+
+    // The next report of the rows on screen draws at the time it comes.
+    expect(treeShows(showingLog($screen->call('showRows', 10_000, 10_005)), '6m'))->toBeTrue();
+});
+
+it('still brings the times up to date on the poll, with nothing new to show', function () {
+    $screen = Native::visit('/log');
+    landBackgroundTasks($screen);
+
+    $this->travel(61)->seconds();
+    $screen->firePoll('checkForNewCommits');
+
+    expect(treeShows(showingLog($screen), '6m'))->toBeTrue()
+        ->and(treeShows(showingLog($screen), '5m'))->toBeFalse();
+
+    // What the poll asked lands with nothing new, and the frame stays as the poll drew it.
+    $drawn = $screen->tree();
+    $this->travel(61)->seconds();
+    landBackgroundTasks($screen);
+
+    expect($screen->tree())->toBe($drawn);
 });

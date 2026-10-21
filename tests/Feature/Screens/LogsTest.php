@@ -36,10 +36,9 @@ function logRequestsSent(): array
  */
 function shownLogIds(TestableComponent $screen): array
 {
-    return array_map(fn ($row): string => $row->commit->id, array_values(array_filter(
-        $screen->instance()->render()->getData()['rows'],
-        fn ($row): bool => $row->isCommit(),
-    )));
+    $rows = Closure::bind(fn (): array => $this->frame()->getData()['rows'], $screen->instance(), Log::class)();
+
+    return array_map(fn ($row): string => $row->commit->id, array_values(array_filter($rows, fn ($row): bool => $row->isCommit())));
 }
 
 /**

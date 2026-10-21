@@ -15,10 +15,10 @@ use Native\Mobile\AsyncTask;
  *
  * Asked $withImages, it downloads the answer's images that aren't on the
  * device yet before it comes back, so they land with it. Every task that
- * finishes makes the screen draw a frame, and a frame of the log costs the
- * phone's main thread whether anything in it changed or not, so a log page
- * and its images landing apart cost two. The Log's next page asks for this,
- * since it waits in memory until you scroll near it anyway.
+ * lands makes the screen render again, so a log page and its images landing
+ * apart cost two renders where one will do, and rows drawn before their
+ * images came would load them from their URLs. The Log's next page asks for
+ * this, since it waits in memory until you scroll near it anyway.
  */
 final class FetchInBackground extends AsyncTask
 {
