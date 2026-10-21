@@ -6,10 +6,18 @@ use App\Devnull\Exceptions\KeychainUnavailable;
 
 /**
  * This device's SSH key. Only the seed is stored, and only in the Keychain.
+ *
+ * One per app process (see AppServiceProvider), and it holds the key once it
+ * has read or made it: every signed request needs the key, and reading it
+ * from Android's Keystore takes about 150ms, several times per screen. It's
+ * the same key for the life of the install, so there's nothing per request in
+ * it, and forget() drops it with the stored seed.
  */
 final class DeviceKey
 {
     public const string StorageKey = 'devnull.device-key';
+
+    private ?SshKey $key = null;
 
     public function __construct(private KeyStore $store) {}
 
@@ -33,7 +41,7 @@ final class DeviceKey
             throw new KeychainUnavailable('fatal: could not save a new device key to the Keychain.');
         }
 
-        return $key;
+        return $this->key = $key;
     }
 
     /**
@@ -41,6 +49,10 @@ final class DeviceKey
      */
     public function existing(): ?SshKey
     {
+        if ($this->key !== null) {
+            return $this->key;
+        }
+
         $stored = $this->store->read(self::StorageKey);
 
         if ($stored->found()) {
@@ -50,7 +62,7 @@ final class DeviceKey
                 throw new KeychainUnavailable('fatal: the device key in the Keychain is unreadable.');
             }
 
-            return SshKey::fromSeed($seed);
+            return $this->key = SshKey::fromSeed($seed);
         }
 
         if (! $stored->missing()) {
@@ -62,6 +74,7 @@ final class DeviceKey
 
     public function forget(): void
     {
+        $this->key = null;
         $this->store->delete(self::StorageKey);
     }
 }

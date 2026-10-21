@@ -4,6 +4,7 @@ namespace App\NativeComponents;
 
 use App\Devnull\Account;
 use App\Devnull\Data\Commit;
+use App\Devnull\Data\Mention;
 use App\Devnull\Data\Page;
 use App\Devnull\Data\Profile as ProfileData;
 use App\Devnull\Data\User;
@@ -13,6 +14,7 @@ use App\Devnull\ShownTabs;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Lucide;
+use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
 use App\NativeComponents\Concerns\OpensAchievements;
@@ -59,6 +61,7 @@ use Native\Mobile\Facades\Dialog;
  */
 class Profile extends NativeComponent
 {
+    use DrawsSkeletonFirst;
     use ExpandsThreads;
     use HoldsNewCommits;
     use OpensAchievements;
@@ -139,8 +142,7 @@ class Profile extends NativeComponent
             $this->tab = app(ShownTabs::class)->get($this->me()?->id, 'profile', self::Tabs, 'commits');
         }
 
-        $this->showKept();
-        $this->revalidate();
+        $this->fillInAfterFirstFrame('revalidate');
     }
 
     /**
@@ -163,10 +165,10 @@ class Profile extends NativeComponent
         if ($this->isMe()) {
             return NavBarOptions::make()
                 ->action(
-                    NavAction::make('saved')
-                        ->icon(ios: Lucide::Bookmark->ios(), android: Lucide::Bookmark->android())
-                        ->a11yLabel('Saved')
-                        ->press('openSaved'),
+                    NavAction::make('starred')
+                        ->icon(ios: Lucide::Star->ios(), android: Lucide::Star->android())
+                        ->a11yLabel('Starred')
+                        ->press('openStarred'),
                 )
                 ->action(
                     NavAction::make('account')
@@ -486,11 +488,11 @@ class Profile extends NativeComponent
     }
 
     /**
-     * The commits you saved, which the web's phone keeps in its account menu.
+     * The commits you starred, which the web's phone keeps in its account menu.
      */
-    public function openSaved(): void
+    public function openStarred(): void
     {
-        $this->navigate('/profile/saved');
+        $this->navigate('/profile/starred');
     }
 
     /**
@@ -538,6 +540,19 @@ class Profile extends NativeComponent
     public function openSafety(): void
     {
         $this->openInTab('/safety');
+    }
+
+    public function openGitHubMention(string $username): void
+    {
+        $user = $this->profile?->user;
+
+        foreach (Mention::inText(($user?->bio ?? '')."\n".($user?->company ?? '')) as $mention) {
+            if ($mention->username === $username) {
+                Browser::inApp('https://github.com/'.rawurlencode($username));
+
+                return;
+            }
+        }
     }
 
     public function openGitHubProfile(): void
@@ -796,7 +811,7 @@ class Profile extends NativeComponent
      */
     private function previewPage(string $tab): array
     {
-        $json = $this->cached($this->commitsPath(), $this->commitsQuery($tab));
+        $json = $this->skeletonFrame ? null : $this->cached($this->commitsPath(), $this->commitsQuery($tab));
         $kept = is_array($json['data'] ?? null) ? $json['data'] : [];
         $page = $json === null ? null : Page::fromArray(['data' => array_slice($kept, 0, self::PreviewCommits)] + $json, Commit::fromArray(...));
 

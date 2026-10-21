@@ -52,40 +52,37 @@
     @endif
 
     @if ($endsWithDot && $tail !== null)
-        <native:column ref="end-dot" class="absolute bottom-[{{ $endDot - 9 }}] left-[23]">
-            @include('native.partials.rail-node', ['lane' => $tail])
-        </native:column>
+        @include('native.partials.rail-node', ['lane' => $tail, 'nodeRef' => 'end-dot', 'position' => 'absolute bottom-['.($endDot - 9).'] left-[23]'])
     @endif
 
+    {{-- The node itself takes its place on the rail, or the pressable around it does: no wrapper just to position it. --}}
     @if ($node === 'dot' || $node === 'root')
         {{-- A continuing commit's dot sits 9pt higher, level with the author's name, as on the web. --}}
-        <native:column class="absolute top-[{{ $node === 'dot' ? $center - 18 : $center - 9 }}] left-[23]">
-            @if ($press)
-                <native:pressable @press="{{ $press }}" a11y-label="{{ $user->name }}'s profile">
-                    @include('native.partials.rail-node', ['lane' => $lane])
-                </native:pressable>
-            @else
-                @include('native.partials.rail-node', ['lane' => $lane, 'filled' => $node === 'dot'])
-            @endif
-        </native:column>
+        @php($dotAt = 'absolute top-['.($node === 'dot' ? $center - 18 : $center - 9).'] left-[23]')
+        @if ($press)
+            <native:pressable @press="{{ $press }}" class="{{ $dotAt }}" a11y-label="{{ $user->name }}'s profile">
+                @include('native.partials.rail-node', ['lane' => $lane])
+            </native:pressable>
+        @else
+            @include('native.partials.rail-node', ['lane' => $lane, 'filled' => $node === 'dot', 'position' => $dotAt])
+        @endif
     @else
         @php($nodeSize = $node === 'avatar' ? $avatarSize : 48)
-        <native:column class="absolute top-[{{ $center - intdiv($nodeSize, 2) }}] left-[{{ 32 - intdiv($nodeSize, 2) }}]">
-            @if ($node === 'avatar' && $press)
-                <native:pressable @press="{{ $press }}" a11y-label="{{ $user->name }}'s profile">
-                    @include('native.partials.rail-avatar', ['user' => $user, 'lane' => $lane, 'size' => $avatarSize])
-                </native:pressable>
-            @elseif ($node === 'avatar' || $node === 'staged')
-                @include('native.partials.rail-avatar', ['user' => $user, 'lane' => $lane, 'staged' => $node === 'staged'])
-            @elseif ($node === 'tombstone')
-                <native:column :width="48" :height="48" class="rounded-full bg-theme-surface">
-                    @include('native.partials.dashed-ring', ['size' => 48, 'lane' => \App\Devnull\Lane::Rail])
-                </native:column>
-            @elseif ($node === 'skeleton')
-                <native:stack :width="48" :height="48" center class="rounded-full bg-theme-surface">
-                    <native:column :width="40" :height="40" class="rounded-full bg-theme-wash" />
-                </native:stack>
-            @endif
-        </native:column>
+        @php($nodeAt = 'absolute top-['.($center - intdiv($nodeSize, 2)).'] left-['.(32 - intdiv($nodeSize, 2)).']')
+        @if ($node === 'avatar' && $press)
+            <native:pressable @press="{{ $press }}" class="{{ $nodeAt }}" a11y-label="{{ $user->name }}'s profile">
+                @include('native.partials.rail-avatar', ['user' => $user, 'lane' => $lane, 'size' => $avatarSize])
+            </native:pressable>
+        @elseif ($node === 'avatar' || $node === 'staged')
+            @include('native.partials.rail-avatar', ['user' => $user, 'lane' => $lane, 'staged' => $node === 'staged', 'position' => $nodeAt])
+        @elseif ($node === 'tombstone')
+            <native:column :width="48" :height="48" class="{{ $nodeAt }} rounded-full bg-theme-surface">
+                @include('native.partials.dashed-ring', ['size' => 48, 'lane' => \App\Devnull\Lane::Rail])
+            </native:column>
+        @elseif ($node === 'skeleton')
+            <native:stack :width="48" :height="48" center class="{{ $nodeAt }} rounded-full bg-theme-surface">
+                <native:column :width="40" :height="40" class="rounded-full bg-theme-wash" />
+            </native:stack>
+        @endif
     @endif
 @endif

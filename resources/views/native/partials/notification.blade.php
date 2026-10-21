@@ -6,7 +6,9 @@
     commit sits under a star or a verdict in a muted hairline box. A rejection gives the moderator's reason.
 
     A group of more than one opens in place from a Commit Blue toggle ("5 stars"), listing each event behind a Rail
-    Gray guide line, each follower with their own Follow button.
+    Gray guide line, each follower with their own follow back. A group of followers has none of its own, as the web
+    leaves it out, since it could only follow one of them back, and a tap on it opens the list rather than the latest
+    follower's profile.
 
     No press-* feedback: on iOS it holds any drag that starts on the row, and these rows cover the whole list.
     The name's run carries font-semibold as well as the font: inside a sentence, NativeUITextRenderer sets each run's
@@ -32,7 +34,7 @@
                     @endif
                     <native:spacer />
                     <native:text font="mono" class="text-[13px] text-theme-ink-muted flex-shrink-0">{{ \App\Devnull\Display::relativeTime($notification->createdAt) }}</native:text>
-                    @if ($notification->isFollow() && $notification->actorIsFollowed !== null)
+                    @if ($notification->isFollow() && $notification->actorsCount === 1 && $notification->actorIsFollowed !== null)
                         @include('native.partials.follow-back', ['actor' => $notification->actor, 'isFollowing' => $notification->actorIsFollowed])
                     @endif
                 </native:row>
@@ -40,10 +42,10 @@
                 @if ($notification->isModeration())
                     <native:text class="w-full text-[15px] text-theme-ink">{{ $notification->sentence() }}.</native:text>
                 @else
-<native:text class="w-full text-[15px] text-theme-ink whitespace-pre-wrap"><native:text :text="$notification->actor->name" font="semibold" class="font-semibold" />
+<native:text class="w-full text-[15px] text-theme-ink whitespace-pre-wrap"><native:text ref="actor-name-{{ $notification->id }}" :text="$notification->actor->name" font="semibold" class="font-semibold" @press="openActor('{{ $notification->actor->username }}')" a11y-label="{{ $notification->actor->handle() }}'s profile" />
 <native:text text=" " />
 @if ($notification->others() === '')
-<native:text :text="$notification->actor->handle()" font="mono" class="text-[13px] text-theme-ink-muted" />
+<native:text :text="$notification->actor->handle()" font="mono" class="text-[13px] text-theme-ink-muted" @press="openActor('{{ $notification->actor->username }}')" />
 <native:text :text="' '.$notification->sentence()" />
 @else
 <native:text :text="$notification->others().' '.$notification->sentence()" />

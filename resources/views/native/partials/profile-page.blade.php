@@ -16,7 +16,7 @@
     >
         @if (! $page['loaded'] && $page['error'] === null)
             @foreach (range(1, 3) as $skeleton)
-                @include('native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits'])
+                @include('native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits', 'pulse' => $page['showing']])
             @endforeach
         @endif
 
@@ -46,7 +46,7 @@
 
         @if (! $page['isEmpty'] || $page['pinnedCommit'])
             @if ($page['nextCursor'] !== null)
-                @include('native.partials.rail-loading')
+                @include('native.partials.rail-loading', ['pulse' => $page['showing']])
             @elseif ($page['tab'] === 'replies')
                 @include('native.partials.rail-end', ['lane' => $user->lane(), 'message' => $isMe ? 'That was your first reply.' : "That's {$user->handle()}'s first reply."])
             @else

@@ -122,10 +122,10 @@ it('offers who can push to you only while devnull offers everyone', function (bo
 it('remembers your Remotes whenever devnull says who you are', function () {
     fakeApi([
         'GET /api/v1/me' => [meWithRemotes(['unread_count' => 4, 'requests' => true])],
-        'GET /api/v1/saved' => [pageJson([])],
+        'GET /api/v1/starred' => [pageJson([])],
     ]);
 
-    finishRefreshes(Native::visit('/profile/saved'));
+    finishRefreshes(Native::visit('/profile/starred'));
 
     expect(app(Account::class)->remotes())->toEqual(new Remotes(requests: true, unreadCount: 4));
 });
@@ -133,10 +133,10 @@ it('remembers your Remotes whenever devnull says who you are', function () {
 it('keeps Remotes on when devnull is too old to say', function () {
     fakeApi([
         'GET /api/v1/me' => [currentUserJson()],
-        'GET /api/v1/saved' => [pageJson([])],
+        'GET /api/v1/starred' => [pageJson([])],
     ]);
 
-    finishRefreshes(Native::visit('/profile/saved'));
+    finishRefreshes(Native::visit('/profile/starred'));
 
     expect(app(Account::class)->remotes())->toEqual(new Remotes);
 });

@@ -75,6 +75,24 @@ it('hangs the newest reply under a commit, on a dashed elbow in its lane, instea
     $screen->tap('thread-reply-r9')->assertNavigatedTo('/log/commits/r9');
 });
 
+it('frames a reply avatar in its own lane without shifting the thread', function (string $platform) {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([previewedJson([
+        replyJson(['id' => 'r9', 'parent_id' => 'c1', 'author' => grace()]),
+    ])]))]);
+
+    $screen = Native::visit('/log', platform: $platform);
+    $reply = nodeByRef($screen, 'thread-reply-r9');
+    $ring = findNode($reply, fn (array $node): bool => ($node['style']['border_color'] ?? null) === config('native-ui.theme.light.lane-4')
+        && ($node['layout']['width'] ?? null) === 24.0
+        && ($node['layout']['height'] ?? null) === 24.0);
+
+    expect($ring)->not->toBeNull()
+        ->and($ring['style']['border_radius'])->toBeGreaterThanOrEqual(12.0)
+        ->and($ring['style'])->toMatchArray(['border_width' => 1.0, 'bg_color' => config('native-ui.theme.light.surface')])
+        ->and($ring['children'])->toHaveCount(1)
+        ->and($ring['children'][0]['layout'])->toMatchArray(['width' => 20.0, 'height' => 20.0]);
+})->with(['ios', 'android']);
+
 it('opens the rest of the thread in place, newest first, from Show more', function () {
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([previewedJson([replyJson(['id' => 'r3', 'parent_id' => 'c1', 'body' => 'Third', 'author' => grace()])], more: true)])],

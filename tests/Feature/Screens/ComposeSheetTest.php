@@ -46,7 +46,7 @@ it('opens a composer in the sheet from the nav bar, over the log where you are i
         ->and(nodeByRef($screen, 'sheet-body')['props'])->toMatchArray([
             'placeholder' => 'What did you ship?',
             'multiline' => true,
-            'max_length' => Commit::MaxLength,
+            'max_length' => Commit::MaxRawLength,
             'autofocus' => true,
             'value' => '',
         ])
@@ -59,10 +59,10 @@ it('keeps Commit disabled until the commit is long enough, and short enough', fu
 
     expect(sheetCommitDisabled($screen))->toBeTrue();
 
-    $screen->input('sheet-body', '  ab  ');
+    $screen->input('sheet-body', '  ');
     expect(sheetCommitDisabled($screen))->toBeTrue();
 
-    $screen->input('sheet-body', 'abc');
+    $screen->input('sheet-body', 'a');
     expect(sheetCommitDisabled($screen))->toBeFalse();
 
     $screen->input('sheet-body', str_repeat('a', Commit::MaxLength - 10));
@@ -75,6 +75,37 @@ it('keeps Commit disabled until the commit is long enough, and short enough', fu
     // Pressing it anyway sends nothing.
     $screen->call('commitFromSheet');
     Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
+});
+
+it('counts long prose URLs like the web without shortening the submitted destination', function () {
+    $body = str_repeat('a', 3976).' https://example.com/'.str_repeat('x', 100);
+    $screen = composeSheetOnLog()->input('sheet-body', $body);
+
+    expect(sheetCommitDisabled($screen))->toBeFalse()
+        ->and(nodeByRef($screen, 'sheet-budget')['props']['text'])->toBe('0');
+
+    $screen->tap('sheet-commit');
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && $request['body'] === $body);
+});
+
+it('explains the URL length limit without applying it to inline code', function () {
+    $url = 'https://example.com/'.str_repeat('x', 2030);
+    $screen = composeSheetOnLog()->input('sheet-body', $url)
+        ->assertSee('Each link must not be greater than 2048 characters.');
+    expect(sheetCommitDisabled($screen))->toBeTrue();
+    $screen->call('commitFromSheet');
+    Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
+
+    $screen->input('sheet-body', '`'.$url.'`')->assertDontSee('Each link must not be greater than 2048 characters.');
+    expect(sheetCommitDisabled($screen))->toBeFalse();
+});
+
+it('does not submit a closed composer twice and leaves a failed draft retryable', function () {
+    $screen = composeSheetOnLog()->input('sheet-body', 'a')->tap('sheet-commit')->call('commitFromSheet');
+    expect(Http::recorded(fn (Request $request): bool => $request->method() === 'POST'))->toHaveCount(1);
+
+    $screen->press('composeInSheet')->input('sheet-body', 'a')->set('sheetPosting', true)->call('commitFromSheet');
+    expect(Http::recorded(fn (Request $request): bool => $request->method() === 'POST'))->toHaveCount(1);
 });
 
 it('commits from the sheet and puts the commit at the top of the log, leaving the list where it was', function () {
@@ -116,6 +147,7 @@ it('shows why devnull said no in the sheet, keeping the draft', function () {
         ->and(sheetCommitDisabled($screen))->toBeFalse()
         ->and(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
         ->and($screen->instance()->error)->toBeNull()
+        ->and($screen->instance()->sheetPosting)->toBeFalse()
         ->and(array_map(fn (Commit $commit): string => $commit->id, $screen->instance()->commits))->toBe(['c1']);
 });
 

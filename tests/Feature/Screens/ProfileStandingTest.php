@@ -59,7 +59,7 @@ it('shows the Unix rank beside the handle and the achievements shelf, as the web
         ->assertSee('120 / 250 XP')
         ->assertSee('130 XP to operator')
         ->assertSee('init')
-        ->assertSee('(12/100)')
+        ->assertDontSee('(12/100)')
         ->assertDontSee('(0/1)');
 
     $lane = config('native-ui.theme.light.lane-1');
@@ -69,19 +69,53 @@ it('shows the Unix rank beside the handle and the achievements shelf, as the web
         ->and(findNode($rank, fn (array $node): bool => ($node['type'] ?? null) === 'text')['props']['color'] ?? null)->toBe($lane)
         // The bar fills 40% of the way in the owner's lane.
         ->and(nodeByRef($screen, 'level-progress')['children'][0]['style']['bg_color'] ?? null)->toBe($lane)
-        ->and(array_map(fn (array $badge): string => $badge['ref'], findNodes(nodeByRef($screen, 'badges'), fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'badge-'))))->toBe(['badge-init', 'badge-stdout', 'badge-max_payload'])
+        ->and(array_map(fn (array $badge): string => $badge['ref'], findNodes(nodeByRef($screen, 'badges'), fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'badge-'))))->toBe(['badge-init'])
         ->and(findNode(nodeByRef($screen, 'badge-init'), fn (array $node): bool => ($node['type'] ?? null) === 'icon')['props']['name'] ?? null)->toBe('custom:terminal');
 });
 
-it('scrolls the badges out to the edge of the screen, with the first one still in line with the shelf', function () {
+it('keeps earned badges compact and aligned with the shelf', function () {
     fakeApi(['GET /api/v1/users/ada' => [standingJson()], 'GET /api/v1/users/ada/commits' => [pageJson([])]]);
 
     $screen = Native::visit('/log/users/ada', platform: 'ios');
     $horizontal = fn (array $node): array => [($node['layout']['padding'] ?? [0, 0, 0, 0])[1], ($node['layout']['padding'] ?? [0, 0, 0, 0])[3]];
 
     expect($horizontal(nodeByRef($screen, 'achievements')))->toEqual([0, 0])
-        ->and($horizontal(nodeByRef($screen, 'badges')))->toEqual([0, 0])
-        ->and($horizontal(nodeByRef($screen, 'badges')['children'][0]))->toEqual([16, 16]);
+        ->and($horizontal(nodeByRef($screen, 'badges')))->toEqual([16, 16])
+        ->and(nodeByRef($screen, 'badges')['type'])->toBe('row');
+});
+
+it('opens all achievements from the compact shelf even with none earned', function (bool $unlocked, string $label) {
+    $json = standingJson();
+    foreach ($json['achievements']['badges'] as &$badge) {
+        $badge['unlocked'] = $unlocked;
+    }
+    unset($badge);
+    fakeApi(['GET /api/v1/users/ada' => [$json], 'GET /api/v1/users/ada/commits' => [pageJson([])]]);
+
+    $screen = Native::visit('/log/users/ada')->assertSee($label);
+    expect(findNodes(nodeByRef($screen, 'badges'), fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'badge-')))->toHaveCount($unlocked ? 2 : 0);
+
+    $screen->tap('badges-more')->assertSet('achievementsOpen', true);
+    expect(childRefs($screen, 'sheet-badges'))->toBe(['sheet-badge-init', 'sheet-badge-stdout', 'sheet-badge-max_payload']);
+})->with(['earned' => [true, '+1 more'], 'none earned' => [false, 'View achievements']]);
+
+it('opens tagged bio and company accounts on GitHub rather than as devnull users', function (string $ref, string $url) {
+    $json = standingJson();
+    $json['data']['bio'] = 'Builds @laravel with @nunomaduro.';
+    $json['data']['company'] = '@nativephp';
+    fakeApi(['GET /api/v1/users/ada' => [$json], 'GET /api/v1/users/ada/commits' => [pageJson([])]]);
+
+    Native::visit('/log/users/ada')->tap($ref)
+        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === $url)
+        ->assertNoNavigation();
+})->with([
+    'bio' => ['profile-bio-mention-7', 'https://github.com/laravel'],
+    'company' => ['profile-company-text-mention-0', 'https://github.com/nativephp'],
+]);
+
+it('ignores profile mention actions for accounts that are not in the bio or company', function () {
+    fakeApi(['GET /api/v1/users/ada' => [standingJson()], 'GET /api/v1/users/ada/commits' => [pageJson([])]]);
+    Native::visit('/log/users/ada')->call('openGitHubMention', 'nobody')->assertNativeNotCalled('Browser.OpenInApp');
 });
 
 it('marks a profile you mute, as the web does', function () {

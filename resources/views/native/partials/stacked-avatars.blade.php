@@ -18,9 +18,11 @@
     @endif
     @foreach (array_reverse($actors, true) as $index => $actor)
         <native:column class="absolute top-0 left-[{{ $index * $step }}]">
-            <native:stack :width="36" :height="36" center class="rounded-full bg-theme-surface">
-                @include('native.partials.avatar', ['user' => $actor, 'size' => 32])
-            </native:stack>
+            <native:pressable ref="actor-avatar-{{ $id }}-{{ $actor->username }}" @press="openActor('{{ $actor->username }}')" a11y-label="{{ $actor->handle() }}'s profile">
+                <native:stack :width="36" :height="36" center class="rounded-full bg-theme-surface">
+                    @include('native.partials.avatar', ['user' => $actor, 'size' => 32])
+                </native:stack>
+            </native:pressable>
         </native:column>
     @endforeach
 </native:column>

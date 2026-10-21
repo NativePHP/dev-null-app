@@ -46,7 +46,7 @@ final readonly class BodyLink
      */
     private const string GitHubLink = '/^https?:\/\/(?:www\.)?github\.com\/([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/([A-Za-z0-9._-]{1,100})(?:\/(issues|pull)\/([1-9][0-9]{0,9}))?$/i';
 
-    private const int MaxLength = 2048;
+    public const int MaxLength = 2048;
 
     private const int MaxShortenedPathLength = 20;
 
@@ -83,6 +83,22 @@ final readonly class BodyLink
         }
 
         return $links;
+    }
+
+    public static function hasOversizedUrl(string $prose): bool
+    {
+        preg_match_all(self::pattern(), $prose, $matches);
+
+        foreach ($matches[0] as $candidate) {
+            $written = self::withoutTrailingPunctuation($candidate);
+            $url = preg_match('/^https?:\/\//i', $written) === 1 ? $written : 'https://'.$written;
+
+            if (mb_strlen($url) > self::MaxLength) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -138,7 +154,7 @@ final readonly class BodyLink
     {
         $topLevelDomains = implode('|', [...self::TopLevelDomains, ...array_map(strtoupper(...), self::TopLevelDomains)]);
 
-        return '/\b[Hh][Tt][Tt][Pp][Ss]?:\/\/[^\s<>]+'
+        return '/(?<![\p{L}\p{N}\p{M}\p{Pc}])[Hh][Tt][Tt][Pp][Ss]?:\/\/[^\s<>]+'
             .'|(?<![\p{L}\p{N}_.\/@-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+(?:'.$topLevelDomains.')'
             .'(?![\p{L}\p{N}_(-]|\.[A-Za-z0-9])(?:[\/?#][^\s<>]*)?/u';
     }
@@ -151,7 +167,7 @@ final readonly class BodyLink
     {
         do {
             $previous = $url;
-            $url = mb_rtrim($url, '.,;:!?\'"');
+            $url = mb_rtrim($url, '.,;:!?\'"…”’');
 
             foreach (['(' => ')', '[' => ']'] as $open => $close) {
                 if (str_ends_with($url, $close) && mb_substr_count($url, $open) < mb_substr_count($url, $close)) {

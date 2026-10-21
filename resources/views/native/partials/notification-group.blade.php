@@ -1,7 +1,7 @@
 {{--
     A group opened in place, as the web expands it: each of its notifications on a compact line behind a 1pt Rail Gray
-    guide line, with a 28pt avatar, the name, the icon and time, and the words someone wrote. Each opens its own
-    commit, or profile for a follow. Older ones come with "Show older stars"; one that wouldn't load says so in git's
+    guide line, with a 28pt avatar, the name, the icon and time, and the words someone wrote. A follower has no icon,
+    as on the web, only the time and their follow back. Each opens its own commit, or profile for a follow. Older ones come with "Show older stars"; one that wouldn't load says so in git's
     voice, with Try again.
 --}}
 @php($noun = $group->groupNoun())
@@ -9,13 +9,17 @@
     @foreach ($items as $item)
         <native:pressable ref="group-item-{{ $item->id }}" @press="open('{{ $item->id }}')" class="w-full">
             <native:row class="w-full py-2 pl-8 gap-[10] items-start">
-                @include('native.partials.avatar', ['user' => $item->actor, 'size' => 28])
+                <native:pressable ref="group-actor-{{ $item->id }}" @press="openActor('{{ $item->actor->username }}')" a11y-label="{{ $item->actor->handle() }}'s profile">
+                    @include('native.partials.avatar', ['user' => $item->actor, 'size' => 28])
+                </native:pressable>
                 <native:column class="flex-1 gap-1">
                     <native:row class="w-full min-h-[28] gap-2 items-center">
-                        <native:text font="semibold" class="flex-shrink text-[15px] text-theme-ink" :max-lines="1">{{ $item->actor->name }}</native:text>
+                        <native:text font="semibold" class="flex-shrink text-[15px] text-theme-ink" :max-lines="1" @press="openActor('{{ $item->actor->username }}')" a11y-label="{{ $item->actor->handle() }}'s profile">{{ $item->actor->name }}</native:text>
                         <native:spacer />
-                        @php($itemIcon = \App\Icons\Lucide::forNotification($item->type))
-                        <native:icon :ios="$itemIcon->ios($item->isStar())" :android="$itemIcon->android($item->isStar())" :size="16" class="{{ $item->isModeration() ? 'text-theme-ink-muted' : 'text-theme-'.\App\Devnull\Lane::token($item->actor->lane()) }}" />
+                        @unless ($item->isFollow())
+                            @php($itemIcon = \App\Icons\Lucide::forNotification($item->type))
+                            <native:icon :ios="$itemIcon->ios($item->isStar())" :android="$itemIcon->android($item->isStar())" :size="16" class="{{ $item->isModeration() ? 'text-theme-ink-muted' : 'text-theme-'.\App\Devnull\Lane::token($item->actor->lane()) }}" />
+                        @endunless
                         <native:text font="mono" class="text-[13px] text-theme-ink-muted flex-shrink-0">{{ \App\Devnull\Display::relativeTime($item->createdAt) }}</native:text>
                         @if ($item->isFollow() && $item->actorIsFollowed !== null)
                             @include('native.partials.follow-back', ['actor' => $item->actor, 'isFollowing' => $item->actorIsFollowed])

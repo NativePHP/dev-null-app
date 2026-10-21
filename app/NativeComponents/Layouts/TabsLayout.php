@@ -17,7 +17,7 @@ use Native\Mobile\Edge\NativeComponent;
  * The top-level sections: Log, Notifications, Remotes and your Profile, with
  * the icons of the web's nav, picked out in the colour you chose for your lane.
  * Notifications and Remotes wear a badge with the unread count devnull last
- * gave. Saved opens from your own profile.
+ * gave. Starred opens from your own profile.
  */
 class TabsLayout extends NativeLayout
 {

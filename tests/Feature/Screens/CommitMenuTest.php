@@ -14,7 +14,7 @@ it('fills More with what you can do to the commit', function (string $platform) 
     $ada = userJson(['id' => 'u2', 'username' => 'ada']);
 
     serveApi(fn () => Http::response(pageJson([
-        commitJson(['id' => 'c4', 'is_saved' => true, 'author' => $ada]),
+        commitJson(['id' => 'c4', 'starred' => true, 'author' => $ada]),
         commitJson(['id' => 'c3', 'status' => 'pending', 'author' => $ada]),
         commitJson(['id' => 'c2']),
         commitJson(['id' => 'c1', 'status' => 'pending']),
@@ -27,9 +27,8 @@ it('fills More with what you can do to the commit', function (string $platform) 
     expect($more['props']['has_menu'] ?? null)->toBeTrue()
         ->and($more['on_press'] ?? $more['props']['on_press'] ?? null)->toBeNull();
 
-    // Someone else's published commit: save it, share it, or report it.
+    // Someone else's published commit: share it or report it.
     expect(menuItems($screen, 'more-c4'))->toBe([
-        ['save-c4', 'Unsave commit', 'custom:bookmark-filled'],
         ['share-c4', 'Share link', 'custom:link'],
         'divider',
         ['report-c4', 'Report commit', 'custom:flag'],
@@ -37,9 +36,8 @@ it('fills More with what you can do to the commit', function (string $platform) 
         // Theirs, waiting for approval: only its link, as the web leaves the rest off.
         ->and(menuItems($screen, 'more-c3'))->toBe([['share-c3', 'Share link', 'custom:link']]);
 
-    // Your own published one: save it, share it, pin it to your profile, or delete it.
+    // Your own published one: share it, pin it to your profile, or delete it.
     expect(menuItems($screen, 'more-c2'))->toBe([
-        ['save-c2', 'Save commit', 'custom:bookmark'],
         ['share-c2', 'Share link', 'custom:link'],
         ['pin-c2', 'Pin to profile', $platform === 'ios' ? 'pin' : 'push_pin'],
         'divider',
@@ -47,7 +45,6 @@ it('fills More with what you can do to the commit', function (string $platform) 
     ])
         // Yours, waiting for approval: the same, but it can't be pinned yet.
         ->and(menuItems($screen, 'more-c1'))->toBe([
-            ['save-c1', 'Save commit', 'custom:bookmark'],
             ['share-c1', 'Share link', 'custom:link'],
             'divider',
             ['delete-c1', 'Delete commit', 'custom:trash-2'],

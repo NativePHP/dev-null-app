@@ -2,6 +2,7 @@
 
 namespace App\Devnull;
 
+use App\Devnull\Data\CommitBody;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
@@ -129,6 +130,27 @@ final class Display
         return $date?->format('D M j H:i:s Y O') ?? '';
     }
 
+    /**
+     * The web's compact en-US counts, starting at a thousand, with one decimal at most.
+     */
+    public static function compactCount(int $count): string
+    {
+        if ($count < 1000) {
+            return (string) $count;
+        }
+
+        $units = ['k', 'm', 'b', 't'];
+        $unit = 0;
+        $value = $count / 1000;
+
+        while (round($value, 1) >= 1000 && $unit < count($units) - 1) {
+            $value /= 1000;
+            $unit++;
+        }
+
+        return rtrim(rtrim(number_format($value, 1, '.', ''), '0'), '.').$units[$unit];
+    }
+
     public static function shortHash(string $id): string
     {
         return substr(str_replace('-', '', $id), -7);
@@ -170,6 +192,7 @@ final class Display
         return self::ReplyBarHeight
             + (min(self::ReplyBarMaxLines, $lines) - 1) * self::ReplyBarLineHeight
             + ($restored ? self::ReplyBarStashLabelHeight : 0)
+            + (CommitBody::hasOversizedUrl($draft) ? 3 * self::ReplyBarLineHeight : 0)
             + self::HomeIndicatorHeight;
     }
 

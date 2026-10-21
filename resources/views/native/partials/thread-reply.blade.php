@@ -68,7 +68,7 @@
             <native:column class="flex-1">
                 <native:row class="w-full pr-4 pt-[10] gap-2 {{ $last && $more === null ? 'pb-3' : '' }} {{ $indent > 0 ? 'pl-['.$indent.']' : '' }}">
                     <native:pressable @press="openProfile('{{ $reply->author->username }}')" a11y-label="{{ $reply->author->name }}'s profile">
-                        @include('native.partials.avatar', ['user' => $reply->author, 'size' => 24])
+                        @include('native.partials.rail-avatar', ['user' => $reply->author, 'lane' => $reply->lane(), 'size' => 24, 'staged' => false])
                     </native:pressable>
                     <native:column class="flex-1 gap-1">
                         <native:row class="w-full min-h-[24] gap-[6] items-center">

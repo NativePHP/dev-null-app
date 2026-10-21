@@ -14,7 +14,7 @@ use App\NativeComponents\Onboarding;
 use App\NativeComponents\Profile;
 use App\NativeComponents\Remotes;
 use App\NativeComponents\Safety;
-use App\NativeComponents\Saved;
+use App\NativeComponents\Starred;
 use App\NativeComponents\ThisDevice;
 use Illuminate\Support\Facades\Route;
 
@@ -30,7 +30,7 @@ Route::nativeGroup(TabsLayout::class, function (): void {
     Route::native('/remotes/new-org', NewOrg::class);
     Route::native('/profile', Profile::class);
     Route::native('/profile/device', ThisDevice::class);
-    Route::native('/profile/saved', Saved::class);
+    Route::native('/profile/starred', Starred::class);
 
     // Commits, profiles, their followers, the people you mute and block, and
     // Remotes threads open beneath the tab they were tapped in, so that tab's

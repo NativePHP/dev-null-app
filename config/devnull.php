@@ -32,6 +32,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Skeleton first
+    |--------------------------------------------------------------------------
+    |
+    | A tab draws its first frame with skeleton rows only, so it shows as soon
+    | as you tap it, and fills in what it kept straight after. Off, it opens on
+    | what it kept, which tests rely on.
+    |
+    */
+
+    'skeleton_first' => (bool) env('DEVNULL_SKELETON_FIRST', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Image cache
     |--------------------------------------------------------------------------
     |

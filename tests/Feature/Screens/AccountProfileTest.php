@@ -88,7 +88,7 @@ it('shows your profile as devnull mirrors it from GitHub, ringed in your colour,
     $identity = nodeByRef($screen, 'profile-identity');
     $ring = findNode($identity, fn (array $node): bool => ($node['type'] ?? null) === 'stack' && (float) ($node['layout']['width'] ?? 0) === 56.0);
 
-    expect(strtolower($ring['style']['bg_color']))->toBe(strtolower(config('native-ui.theme.light.lane-4')))
+    expect(strtolower($ring['style']['border_color']))->toBe(strtolower(config('native-ui.theme.light.lane-4')))
         ->and(treeShows($identity, '@local_dev'))->toBeTrue();
 });
 

@@ -3,7 +3,6 @@
 namespace App\NativeComponents\Concerns;
 
 use App\Devnull\Client;
-use App\Devnull\Data\Commit;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\IssueCommand;
 use App\Devnull\Stash;
@@ -123,7 +122,7 @@ trait DraftsIssues
         $command = $this->sheetIssue === null ? null : IssueCommand::tryFrom($this->sheetIssue);
         $body = trim($this->sheetBody);
 
-        if ($command === null || $this->openingIssue || ! $this->canDraftIssue() || ! Commit::fits($body)) {
+        if ($command === null || $this->openingIssue || ! $this->canDraftIssue() || ! IssueCommand::fits($body)) {
             return;
         }
 

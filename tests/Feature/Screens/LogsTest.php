@@ -272,6 +272,23 @@ it('shows the first few commits kept for a log you are not on, and has only the 
     }
 });
 
+it('leaves the log two swipes away as skeleton rows until you are beside it', function () {
+    holdRefreshes();
+    keep('log/trending', pageJson(array_map(fn (int $n): array => commitJson(['id' => "t{$n}", 'body' => "Trending {$n}"]), range(1, 5))));
+
+    // From Following, Trending is two swipes away, so none of what was kept for it is sent.
+    $screen = Native::visit('/log');
+
+    expect(treeShows(nodeByRef($screen, 'log-trending'), 'Trending 1'))->toBeFalse()
+        ->and(findNode(nodeByRef($screen, 'log-trending'), fn (array $node): bool => ($node['ref'] ?? null) === 'loading-1'))->not->toBeNull();
+
+    // Beside it, on Latest, it shows the first of what was kept.
+    $screen->changeTab('showPage', 1);
+
+    expect(treeShows(nodeByRef($screen, 'log-trending'), 'Trending '.Log::PreviewCommits))->toBeTrue()
+        ->and(treeShows(nodeByRef($screen, 'log-trending'), 'Trending '.(Log::PreviewCommits + 1)))->toBeFalse();
+});
+
 it('holds new commits in the pill after a swipe, over what was kept, with no spinner', function () {
     holdRefreshes();
     keep('log/following', pageJson([commitJson(['id' => 'f1'])]));
@@ -563,4 +580,24 @@ it('drops a commit you deleted from Trending when you come back to it', function
     $screen->call('onResume');
 
     expect(shownLogIds($screen))->toBe(['a']);
+});
+
+it('opens on skeleton rows, and fills in what it kept straight after, so a tab tap shows at once', function () {
+    config(['devnull.skeleton_first' => true]);
+    holdRefreshes();
+    keep('log/following', pageJson([commitJson(['id' => 'f1', 'body' => 'Kept following'])]));
+    keep('log/latest', pageJson([commitJson(['id' => 'l1', 'body' => 'Kept latest'])]));
+    serveApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'f1', 'body' => 'Kept following'])])]]);
+
+    $screen = Native::visit('/log')
+        ->assertSet('skeletonFrame', true)
+        ->assertDontSee('Kept following')
+        ->assertDontSee('Kept latest');
+
+    expect(showsLoading(showingLog($screen)))->toBeTrue();
+
+    finishRefreshes($screen)
+        ->assertSet('skeletonFrame', false)
+        ->assertSee('Kept following')
+        ->assertSee('Kept latest');
 });

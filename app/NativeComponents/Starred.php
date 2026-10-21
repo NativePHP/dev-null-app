@@ -20,25 +20,25 @@ use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Edge\Transition;
 
 /**
- * The commits you saved, last saved first, as the web's Saved page lists them:
+ * The commits you starred, newest first, as the web's Starred page lists them:
  * the Log's rows, with a day marker wherever the day of the commits changes.
  * Only you see them.
  *
- * Unsaving one here takes its row away once devnull says it's done, as on the
- * web. Saving or unsaving anywhere else changes the kept list too (see
- * ResponseCache::commitSaved), and a tab tap mounts this screen afresh, so it
+ * Unstarring one here takes its row away once devnull says it's done, as on the
+ * web. Starring or unstarring anywhere else changes the kept list too (see
+ * ResponseCache::commitStarred), and a tab tap mounts this screen afresh, so it
  * shows the next time you open it.
  *
  * It opens on the list as it was last time, then asks devnull behind it. Only
  * you change it, so what devnull sends goes straight in: there's no pill.
  */
-class Saved extends NativeComponent
+class Starred extends NativeComponent
 {
     use ExpandsThreads;
     use OpensInTab;
     use RefreshesInBackground;
     use ShowsCommits {
-        toggleBookmark as private toggleSaved;
+        toggleStar as private toggleShownStar;
     }
     use TalksToDevnull;
 
@@ -76,7 +76,7 @@ class Saved extends NativeComponent
 
     public function navTitle(): string
     {
-        return 'Saved';
+        return 'Starred';
     }
 
     /**
@@ -84,14 +84,14 @@ class Saved extends NativeComponent
      */
     public function load(): void
     {
-        $this->refresh('saved', [], fn (array $json) => $this->takeFresh($json), again: true);
+        $this->refresh('starred', [], fn (array $json) => $this->takeFresh($json), again: true);
         $this->refreshThreads();
         $this->refreshUnreadNotifications();
     }
 
     protected function revalidate(): void
     {
-        $this->refresh('saved', [], fn (array $json) => $this->takeFresh($json));
+        $this->refresh('starred', [], fn (array $json) => $this->takeFresh($json));
         $this->refreshThreads();
         $this->refreshUnreadNotifications();
     }
@@ -107,7 +107,7 @@ class Saved extends NativeComponent
             return;
         }
 
-        $page = $this->attempt(fn ($devnull) => $devnull->saved($this->nextCursor));
+        $page = $this->attempt(fn ($devnull) => $devnull->starred($this->nextCursor));
 
         if ($page !== null) {
             $this->commits = [...$this->commits, ...self::without($page->items, self::ids($this->commits))];
@@ -116,18 +116,18 @@ class Saved extends NativeComponent
     }
 
     /**
-     * Saves or unsaves straight away, as anywhere else. A commit you unsaved
+     * Stars or unstars straight away, as anywhere else. A commit you unstarred
      * leaves the list once devnull says so. When it was the last one showing
      * and there are more, the list starts again from the top, as on the web.
      */
-    public function toggleBookmark(string $id): void
+    public function toggleStar(string $id): void
     {
-        $this->toggleSaved($id);
+        $this->toggleShownStar($id);
 
         $row = array_values(array_filter($this->commits, fn (Commit $commit): bool => $commit->id === $id))[0] ?? null;
 
-        // A reply under a saved commit can be unsaved too, and it isn't a row.
-        if ($row?->isSaved !== false) {
+        // A reply under a starred commit can be unstarred too, and it isn't a row.
+        if ($row?->starred !== false) {
             return;
         }
 
@@ -167,26 +167,26 @@ class Saved extends NativeComponent
 
     private function showKept(): void
     {
-        if (($json = $this->cached('saved')) !== null) {
+        if (($json = $this->cached('starred')) !== null) {
             $this->takeFresh($json);
         }
     }
 
     /**
-     * Commits unsaved or deleted on this phone leave the list, wherever they
+     * Commits unstarred or deleted on this phone leave the list, wherever they
      * are in it. A kept first page only knows about its own.
      */
     private function forgetGone(): void
     {
         $cache = app(ResponseCache::class);
 
-        $this->commits = self::without($this->commits, [...$cache->unsavedIds(), ...$cache->deletedIds()]);
+        $this->commits = self::without($this->commits, [...$cache->unstarredIds(), ...$cache->deletedIds()]);
     }
 
     /**
      * A fresh first page replaces the top of the list. The pages loaded below
      * it stay, from the last commit the fresh page also has, unless it's the
-     * whole list. Saving a commit again moves it to the top, so rows are
+     * whole list. Starring a commit again moves it to the top, so rows are
      * matched from the end of the page, where the order hasn't changed.
      *
      * @param  array<string, mixed>  $json
@@ -236,7 +236,7 @@ class Saved extends NativeComponent
         $lastCommit = $this->commits[array_key_last($this->commits) ?? -1] ?? null;
         $viewer = $this->me();
 
-        return view('native.saved', [
+        return view('native.starred', [
             'viewer' => $viewer,
             'stashed' => app(Stash::class)->names($viewer?->id),
             'myColour' => $this->myColour(),

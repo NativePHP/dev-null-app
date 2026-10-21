@@ -8,6 +8,7 @@ use App\Devnull\Data\Conversation as ConversationData;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\ShownTabs;
 use App\Icons\Lucide;
+use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -41,6 +42,7 @@ use Native\Mobile\Edge\Transition;
  */
 class Remotes extends NativeComponent
 {
+    use DrawsSkeletonFirst;
     use OpensInTab;
     use RefreshesInBackground;
     use TalksToDevnull;
@@ -99,8 +101,7 @@ class Remotes extends NativeComponent
     {
         $this->off = app(Account::class)->remotes() === null;
         $this->tab = app(ShownTabs::class)->get($this->me()?->id, 'remotes', array_keys($this->tabs()), 'open');
-        $this->showKept();
-        $this->revalidate();
+        $this->fillInAfterFirstFrame('revalidate');
     }
 
     /**
@@ -160,7 +161,8 @@ class Remotes extends NativeComponent
     #[Poll(15000)]
     public function pollInbox(): void
     {
-        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($json), quiet: true);
+        $tab = $this->tab;
+        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($tab, $json), quiet: true);
     }
 
     /**
@@ -168,13 +170,15 @@ class Remotes extends NativeComponent
      */
     public function load(): void
     {
-        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($json), again: true);
+        $tab = $this->tab;
+        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($tab, $json), again: true);
         $this->refreshUnreadNotifications();
     }
 
     protected function revalidate(): void
     {
-        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($json));
+        $tab = $this->tab;
+        $this->refresh(Client::RemotesPath, $this->query(), fn (array $json) => $this->takeFresh($tab, $json));
         $this->refreshUnreadNotifications();
     }
 
@@ -329,7 +333,7 @@ class Remotes extends NativeComponent
     private function showKept(): void
     {
         if (! $this->off && ($json = $this->cached(Client::RemotesPath, $this->query())) !== null) {
-            $this->takeFresh($json);
+            $this->takeFresh($this->tab, $json);
         }
     }
 
@@ -339,8 +343,13 @@ class Remotes extends NativeComponent
      *
      * @param  array<string, mixed>  $json
      */
-    private function takeFresh(array $json): void
+    private function takeFresh(string $tab, array $json): void
     {
+        // An answer for a tab you've left.
+        if ($tab !== $this->tab) {
+            return;
+        }
+
         $fresh = self::conversationsFrom($json);
         $freshIds = array_flip(array_map(fn (ConversationData $conversation): string => $conversation->id, $fresh));
         $oldest = $fresh[array_key_last($fresh) ?? -1]->lastMessageAt ?? null;
@@ -410,7 +419,7 @@ class Remotes extends NativeComponent
      */
     private function preview(string $tab): array
     {
-        $json = $this->off ? null : $this->cached(Client::RemotesPath, $this->query($tab));
+        $json = $this->off || $this->skeletonFrame ? null : $this->cached(Client::RemotesPath, $this->query($tab));
 
         return $this->page($tab, array_slice($json === null ? [] : self::conversationsFrom($json), 0, self::PreviewRows), $json !== null, false, null, $this->listKeys[$tab] ?? 0);
     }

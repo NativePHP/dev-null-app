@@ -76,6 +76,8 @@ class CommitDetail extends NativeComponent
 
     public string $reply = '';
 
+    public bool $sendingReply = false;
+
     /**
      * Whether the reply was stashed when the page opened, which the bar marks until you empty it or drop it.
      */
@@ -230,7 +232,10 @@ class CommitDetail extends NativeComponent
         $page = $this->attempt(fn ($devnull) => $devnull->replies($this->id, $this->repliesCursor));
 
         if ($page !== null) {
-            $this->replies = [...$this->replies, ...$page->items];
+            // A reply you posted is shown at the end before its page loads, so it moves to where the page has it.
+            $loaded = array_flip(array_map(fn (Commit $reply): string => $reply->id, $page->items));
+
+            $this->replies = [...array_values(array_filter($this->replies, fn (Commit $reply): bool => ! isset($loaded[$reply->id]))), ...$page->items];
             $this->repliesCursor = $page->nextCursor;
         }
     }
@@ -239,11 +244,17 @@ class CommitDetail extends NativeComponent
     {
         $body = trim($this->reply);
 
-        if (mb_strlen($body) < Commit::MinLength || mb_strlen($body) > Commit::MaxLength) {
+        if ($this->sendingReply || ! Commit::fits($body)) {
             return;
         }
 
-        $reply = $this->attempt(fn ($devnull) => $devnull->createCommit($body, $this->id));
+        $this->sendingReply = true;
+
+        try {
+            $reply = $this->attempt(fn ($devnull) => $devnull->createCommit($body, $this->id));
+        } finally {
+            $this->sendingReply = false;
+        }
 
         if ($reply === null) {
             return;

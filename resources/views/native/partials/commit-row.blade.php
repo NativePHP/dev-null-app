@@ -17,9 +17,7 @@
         @include('native.partials.commit-row-content')
     </native:row>
 @else
-    <native:pressable native:key="{{ $rowKey ?? 'commit-'.$commit->id }}" ref="commit-{{ $commit->id }}" @press="openCommit('{{ $commit->id }}')" class="w-full bg-theme-surface">
-        <native:row class="w-full">
-            @include('native.partials.commit-row-content')
-        </native:row>
+    <native:pressable native:key="{{ $rowKey ?? 'commit-'.$commit->id }}" ref="commit-{{ $commit->id }}" @press="openCommit('{{ $commit->id }}')" class="w-full flex-row bg-theme-surface">
+        @include('native.partials.commit-row-content')
     </native:pressable>
 @endif

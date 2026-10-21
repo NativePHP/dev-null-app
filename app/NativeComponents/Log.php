@@ -8,11 +8,13 @@ use App\Devnull\Data\Page;
 use App\Devnull\Data\User;
 use App\Devnull\LastVisit;
 use App\Devnull\ResponseCache;
+use App\Devnull\RowCache;
 use App\Devnull\ShownTabs;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Android;
 use App\Icons\Ios;
+use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
 use App\NativeComponents\Concerns\OpensInTab;
@@ -66,6 +68,7 @@ use Native\Mobile\Edge\NativeComponent;
  */
 class Log extends NativeComponent
 {
+    use DrawsSkeletonFirst;
     use ExpandsThreads;
     use HoldsNewCommits;
     use OpensInTab;
@@ -94,9 +97,12 @@ class Log extends NativeComponent
     public const string Ranked = 'trending';
 
     /**
-     * How many kept commits a log you're not on shows, enough to fill the screen while you swipe to it.
+     * How many kept commits the log beside yours shows, enough for the top of
+     * the screen while you swipe to it. The log two swipes away shows skeleton
+     * rows until you're beside it: every row sent is one the phone builds, and
+     * on a slow Android phone the off-screen pages were a third of the frame.
      */
-    public const int PreviewCommits = 5;
+    public const int PreviewCommits = 3;
 
     public string $log = 'following';
 
@@ -138,12 +144,18 @@ class Log extends NativeComponent
      */
     public ?string $lastVisitAt = null;
 
+    /**
+     * Each log's rows from the last frame, so a render only builds the rows that changed.
+     *
+     * @var array<string, RowCache>
+     */
+    private array $rowCaches = [];
+
     public function mount(): void
     {
         $this->log = app(ShownTabs::class)->get($this->me()?->id, 'log', self::Logs, 'following');
         $this->lastVisitAt = $this->lastVisitSeenAt();
-        $this->showKept();
-        $this->open();
+        $this->fillInAfterFirstFrame('open');
     }
 
     /**
@@ -260,13 +272,14 @@ class Log extends NativeComponent
 
     /**
      * A log you're not on: the first few commits kept for it, as it will
-     * open, or skeleton rows with nothing kept.
+     * open, or skeleton rows with nothing kept, or while it's two swipes away.
      *
      * @return array<string, mixed>
      */
     private function previewState(string $log): array
     {
-        $json = $this->cached('log/'.$log);
+        $beside = abs(array_search($log, self::Logs, true) - array_search($this->log, self::Logs, true)) === 1;
+        $json = $beside && ! $this->skeletonFrame ? $this->cached('log/'.$log) : null;
         $kept = is_array($json['data'] ?? null) ? $json['data'] : [];
         $page = $json === null ? null : Page::fromArray(['data' => array_slice($kept, 0, self::PreviewCommits)] + $json, Commit::fromArray(...));
 
@@ -626,6 +639,10 @@ class Log extends NativeComponent
     {
         $viewer = $this->me();
 
+        foreach (self::Logs as $log) {
+            $this->rowCache($log)->startFrame();
+        }
+
         $pages = array_map(fn (string $log): array => $log === $this->log
             ? $this->page($log, [
                 'commits' => $this->commits,
@@ -672,6 +689,7 @@ class Log extends NativeComponent
             'log' => $log,
             'showing' => $log === $this->log,
             'listKey' => $listKey,
+            'rowCache' => $this->rowCache($log),
             'loaded' => $state['loaded'],
             'error' => $state['error'],
             'threads' => $state['threads'],
@@ -690,5 +708,10 @@ class Log extends NativeComponent
                     firstSeenId: LastVisit::firstSeenId($commits, $state['lastVisitAt'], $viewer?->id),
                 ),
         ];
+    }
+
+    private function rowCache(string $log): RowCache
+    {
+        return $this->rowCaches[$log] ??= new RowCache;
     }
 }

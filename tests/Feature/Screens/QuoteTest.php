@@ -69,7 +69,7 @@ it('makes Quote a button with a full target where the row had it', function () {
 
         expect($quote['type'])->toBe('pressable')
             ->and($quote['props']['a11y_label'])->toBe('Quote')
-            ->and($quote['children'][0]['layout'])->toMatchArray(['min_width' => 44.0, 'height' => 36.0]);
+            ->and($quote['layout'])->toMatchArray(['min_width' => 44.0, 'height' => 36.0]);
     }
 
     // Not someone else's that isn't published, and nothing opens a sheet for it.
@@ -86,7 +86,7 @@ it('opens a composer over the commit being quoted, drawn as the static quote car
         ->and(nodeByRef($screen, 'sheet-body')['props'])->toMatchArray([
             'placeholder' => 'Add your take',
             'multiline' => true,
-            'max_length' => Commit::MaxLength,
+            'max_length' => Commit::MaxRawLength,
             'autofocus' => true,
         ]);
 
@@ -106,10 +106,10 @@ it('keeps Commit disabled until the quote is long enough, and short enough', fun
 
     expect(quoteButtonDisabled($screen))->toBeTrue();
 
-    $screen->input('sheet-body', '  ab  ');
+    $screen->input('sheet-body', '  ');
     expect(quoteButtonDisabled($screen))->toBeTrue();
 
-    $screen->input('sheet-body', 'abc');
+    $screen->input('sheet-body', 'a');
     expect(quoteButtonDisabled($screen))->toBeFalse();
 
     // The Log composer's counter, once few characters are left.

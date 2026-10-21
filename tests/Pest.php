@@ -488,7 +488,6 @@ function commitJson(array $overrides = []): array
         'series_size' => null,
         'is_pinned' => false,
         'starred' => false,
-        'is_saved' => false,
         'deleted_at' => null,
         ...$overrides,
     ];
@@ -522,7 +521,7 @@ function replyJson(array $overrides = []): array
 
 /**
  * A notification's commit, as the API sends it: without its counts, preview,
- * images or your star and bookmark, and with the commit it replies to when you
+ * images or your star, and with the commit it replies to when you
  * may see it. That parent comes without a parent of its own.
  *
  * @param  array<string, mixed>  $overrides
@@ -530,7 +529,7 @@ function replyJson(array $overrides = []): array
  */
 function notificationCommitJson(array $overrides = [], bool $withParent = true): array
 {
-    $commit = array_diff_key(commitJson($overrides), array_flip(['stars_count', 'replies_count', 'link_preview', 'images', 'starred', 'is_saved', 'parent']));
+    $commit = array_diff_key(commitJson($overrides), array_flip(['stars_count', 'replies_count', 'link_preview', 'images', 'starred', 'parent']));
 
     return $withParent ? [...$commit, 'parent' => $overrides['parent'] ?? null] : $commit;
 }
