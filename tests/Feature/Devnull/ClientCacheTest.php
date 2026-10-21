@@ -145,6 +145,23 @@ it('keeps starred commits in newest-star order as you star and unstar', function
         ->and(app(ResponseCache::class)->unstarredIds())->toBe(['c2']);
 });
 
+it('leaves your starred commits in their order when you pin or unpin one', function () {
+    keep('starred', pageJson([
+        commitJson(['id' => 'c2', 'starred' => true]),
+        commitJson(['id' => 'c1', 'starred' => true]),
+    ]));
+    serveApi([
+        'PUT /api/v1/commits/c1/pin' => [['data' => commitJson(['id' => 'c1', 'starred' => true, 'is_pinned' => true])]],
+        'DELETE /api/v1/commits/c1/pin' => [['data' => commitJson(['id' => 'c1', 'starred' => true, 'is_pinned' => false])]],
+    ]);
+
+    $this->devnull->pin('c1');
+    expect(array_column(kept('starred')['data'], 'id'))->toBe(['c2', 'c1']);
+
+    $this->devnull->unpin('c1');
+    expect(array_column(kept('starred')['data'], 'id'))->toBe(['c2', 'c1']);
+});
+
 it('keeps the first page of your starred commits', function () {
     serveApi(['GET /api/v1/starred' => [pageJson([commitJson(['id' => 'c1', 'starred' => true])], 'page2')]]);
 

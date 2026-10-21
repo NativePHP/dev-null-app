@@ -19,11 +19,11 @@ use Native\Mobile\Facades\Share;
 
 /**
  * The actions under a commit: the star, the pastel in pastéis mode, Quote,
- * Reply, and the More menu's Save commit, Share link, Report commit and Delete
- * commit (Quote and Report open a sheet, see OpensCommitSheet), plus opening
- * its link preview or images in the in-app browser, and "Show more" on a long
- * one. Taps name the commit rather than a URL, so a URL is never rebuilt from
- * an attribute.
+ * Reply, and the More menu's Save commit, Share link, Pin to profile, Report
+ * commit and Delete commit (Quote and Report open a sheet, see
+ * OpensCommitSheet), plus opening its link preview or images in the in-app
+ * browser, and "Show more" on a long one. Taps name the commit rather than a
+ * URL, so a URL is never rebuilt from an attribute.
  *
  * A commit can be tapped where a row nests it too: the commit a row quotes,
  * and the replies a feed shows under a commit.
@@ -154,6 +154,37 @@ trait ShowsCommits
         $this->writeInBackground('POST', Client::pastelPath($id), null, fn (array $json) => $this->pastelGiven($id, $json), function (string $message, ?ApiException $exception = null) use ($id): void {
             $this->pastelTurnedDown($id, $exception);
         });
+    }
+
+    /**
+     * Pin to profile or Unpin from profile, in your own published commit's
+     * More menu. Once devnull answers, a toast says so in the web's words, and
+     * a pin takes the place of the one before (see showPinned()).
+     */
+    public function togglePin(string $id): void
+    {
+        $commit = $this->shownCommit($id);
+
+        if ($commit === null || ! $this->canPin($commit)) {
+            return;
+        }
+
+        $fresh = $this->attempt(fn (Client $devnull): Commit => $commit->isPinned
+            ? $devnull->unpin($id)
+            : $devnull->pin($id));
+
+        if (! $fresh instanceof Commit) {
+            return;
+        }
+
+        $this->updateShownCommits(fn (Commit $shown): Commit => match (true) {
+            $shown->id === $id => $shown->withPinned($fresh->isPinned),
+            $fresh->isPinned && $shown->isPinned => $shown->withPinned(false),
+            default => $shown,
+        });
+
+        Dialog::toast($fresh->isPinned ? 'Commit pinned to your profile.' : 'Commit unpinned.', 'short');
+        $this->showPinned($commit->withPinned($fresh->isPinned));
     }
 
     public function openLinkPreview(string $id): void
@@ -307,6 +338,11 @@ trait ShowsCommits
     }
 
     /**
+     * Your profile moves the commit you pinned or unpinned (see Profile).
+     */
+    protected function showPinned(Commit $commit): void {}
+
+    /**
      * devnull turned the pastel down, so it comes back off the commit. With
      * none left today, you have none until the reset. A rate limit says so in
      * devnull's words; anything else in the web's.
@@ -341,6 +377,11 @@ trait ShowsCommits
     private function canGivePastel(Commit $commit): bool
     {
         return ! $commit->isDeleted() && $commit->isApproved() && $commit->author->id !== $this->me()?->id;
+    }
+
+    private function canPin(Commit $commit): bool
+    {
+        return ! $commit->isDeleted() && $commit->isApproved() && $commit->parentId === null && $commit->author->id === $this->me()?->id;
     }
 
     private function canDelete(Commit $commit): bool

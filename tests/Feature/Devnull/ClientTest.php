@@ -142,6 +142,25 @@ it('signs bodiless deletes and posts', function (string $call, string $method, s
     ['deleteCommit', 'DELETE', '/api/v1/commits/local_dev'],
 ]);
 
+it('pins and unpins your commit with a signed bodiless PUT and DELETE, reading is_pinned', function (string $call, string $method, bool $pinned) {
+    Http::fake(['devnull.test/*' => Http::response(['data' => commitJson(['id' => 'c1', 'is_pinned' => $pinned])])]);
+
+    $commit = app(Client::class)->{$call}('c1');
+
+    expect($commit->isPinned)->toBe($pinned);
+
+    Http::assertSent(function (Request $request) use ($method): bool {
+        expect($request->method())->toBe($method)
+            ->and($request->body())->toBe('')
+            ->and(receivedMessage($request))->toEndWith("\n{$method}\n/api/v1/commits/c1/pin\n");
+
+        return true;
+    });
+})->with([
+    ['pin', 'PUT', true],
+    ['unpin', 'DELETE', false],
+]);
+
 it('signs the path prefix when devnull lives under one', function () {
     config(['devnull.url' => 'https://example.test/devnull/']);
     Http::fake(['example.test/*' => Http::response(['data' => userJson()])]);
