@@ -52,7 +52,7 @@ it('shows the draft as the commit it would become, with the body devnull would k
     expect(treeShows($preview, 'Shipped 🚀 with '))->toBeTrue()
         ->and(paragraphRuns($screen, 'Shipped 🚀'))->toBe([['Shipped 🚀 with '], ['@ada', 'mention']])
         // Commit stays where it was, and works from here.
-        ->and(nodeByRef($screen, 'sheet-commit')['props']['disabled'] ?? false)->toBeFalse();
+        ->and(sheetButtonEnabled($screen, 'sheet-commit'))->toBeTrue();
 
     Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/'.Client::PreviewPath
         && $request->body() === '{"body":"Shipped :rocket: with @ada"}');

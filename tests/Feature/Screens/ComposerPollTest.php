@@ -31,7 +31,7 @@ function pollComposerOnLog(): TestableComponent
 
 function sheetCanCommit(TestableComponent $screen): bool
 {
-    return ! (nodeByRef($screen, 'sheet-commit')['props']['disabled'] ?? false);
+    return sheetButtonEnabled($screen, 'sheet-commit');
 }
 
 it('adds a poll with two empty options, open for a day, and waits for both before it commits', function () {

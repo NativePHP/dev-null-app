@@ -166,7 +166,7 @@ it('commits photos with a short body, or none, as multipart, then shows the comm
         $screen->input('sheet-body', $body);
     }
 
-    expect(nodeByRef($screen, 'sheet-commit')['props']['disabled'] ?? false)->toBeFalse();
+    expect(sheetButtonEnabled($screen, 'sheet-commit'))->toBeTrue();
 
     $screen->tap('sheet-commit')->dismissSheet('sheet');
 
@@ -205,7 +205,9 @@ it('spins Commit while the photos upload, and says why devnull turned them down,
 
     $screen->tap('sheet-commit');
 
-    expect(nodeByRef($screen, 'sheet-commit')['props'])->toMatchArray(['loading' => true, 'disabled' => true])
+    // The check turns into a spinner, and can't be tapped again.
+    expect(sheetButtonEnabled($screen, 'sheet-commit'))->toBeFalse()
+        ->and(findNode(sheetButtonCircle($screen, 'sheet-commit'), fn (array $node): bool => ($node['type'] ?? null) === 'activity_indicator'))->not->toBeNull()
         ->and(isTool($screen, 'sheet-photos'))->toBeFalse();
 
     // Pressed again while it's on its way, nothing more goes.
@@ -215,7 +217,7 @@ it('spins Commit while the photos upload, and says why devnull turned them down,
     finishRefreshes($screen);
 
     expect(nodeByRef($screen, 'sheet-error')['props']['text'])->toBe('The images.0 field must be an image.')
-        ->and(nodeByRef($screen, 'sheet-commit')['props'])->not->toHaveKey('loading')
+        ->and(sheetButtonEnabled($screen, 'sheet-commit'))->toBeTrue()
         ->and(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
         ->and($screen->instance()->sheetImages)->toHaveCount(1)
         ->and(file_exists($screen->instance()->sheetImages[0]->path))->toBeTrue();
@@ -252,7 +254,7 @@ it('opens a commit\'s reply in the sheet with what the reply bar had, and replie
         ->and(nodeByRef($screen, 'quote-card')['props']['a11y_label'])->toBe('Replying to Ada')
         ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-stash'))->toBeNull()
         ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-poll'))->toBeNull()
-        ->and(nodeByRef($screen, 'sheet-commit')['props']['label'] ?? null)->toBe('Reply');
+        ->and(nodeByRef($screen, 'sheet-commit')['props']['a11y_label'] ?? null)->toBe('Reply');
 
     photosPicked($screen, [testPhoto()])
         ->input('sheet-body', 'Here it is')

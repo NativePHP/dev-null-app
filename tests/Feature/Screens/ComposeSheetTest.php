@@ -28,7 +28,7 @@ function composeSheetOnLog(?array $answer = null): TestableComponent
 
 function sheetCommitDisabled(TestableComponent $screen): bool
 {
-    return nodeByRef($screen, 'sheet-commit')['props']['disabled'] ?? false;
+    return ! sheetButtonEnabled($screen, 'sheet-commit');
 }
 
 it('opens a composer in the sheet from the nav bar, over the log where you are in it', function () {
@@ -104,7 +104,13 @@ it('does not submit a closed composer twice and leaves a failed draft retryable'
     $screen = composeSheetOnLog()->input('sheet-body', 'a')->tap('sheet-commit')->call('commitFromSheet');
     expect(Http::recorded(fn (Request $request): bool => $request->method() === 'POST'))->toHaveCount(1);
 
-    $screen->press('composeInSheet')->input('sheet-body', 'a')->set('sheetPosting', true)->call('commitFromSheet');
+    $screen->press('composeInSheet')->input('sheet-body', 'a')->set('sheetPosting', true);
+
+    // While it posts, the check spins in its circle and can't be tapped.
+    expect(sheetButtonEnabled($screen, 'sheet-commit'))->toBeFalse()
+        ->and(findNode(nodeByRef($screen, 'sheet-commit'), fn (array $node): bool => $node['type'] === 'activity_indicator'))->not->toBeNull();
+
+    $screen->call('commitFromSheet');
     expect(Http::recorded(fn (Request $request): bool => $request->method() === 'POST'))->toHaveCount(1);
 });
 
@@ -181,17 +187,33 @@ it('closes the sheet from Cancel in its bar, keeping the draft as a swipe does',
         ->and(nodeByRef($screen, 'sheet-stash'))->not->toBeEmpty();
 });
 
-it('draws the bar on Liquid Glass on iOS, and as a full-screen dialog header on Android', function () {
-    $commit = nodeByRef(composeSheetOnLog(), 'sheet-commit');
-
-    expect($commit['props']['glass'] ?? null)->toBe(3)
-        ->and($commit['props']['label'])->toBe('Commit');
-
+it('draws Cancel and Commit as a cross and a check in circles, 16pt in from the top and sides, on both platforms', function (string $platform) {
     fakeApi(['GET /api/v1/log/following' => [pageJson([])]]);
+    $screen = Native::visit('/log', platform: $platform)->press('composeInSheet')->input('sheet-body', 'Shipped it');
+    $bar = findNode($screen->tree(), fn (array $node): bool => in_array('sheet-cancel', array_column($node['children'] ?? [], 'ref'), true));
+    $size = fn (string $ref): array => [sheetButtonCircle($screen, $ref)['layout']['width'], sheetButtonCircle($screen, $ref)['layout']['height']];
+
+    // Android draws its handle over the content as iOS does, so the bar's padding is its distance from the sheet's edge.
+    expect(nodeByRef($screen, 'sheet')['props']['handle_over_content'])->toBeTrue()
+        ->and($bar['layout']['padding'])->toBe(16.0)
+        ->and($size('sheet-cancel'))->toBe([44.0, 44.0])
+        ->and($size('sheet-commit'))->toBe([44.0, 44.0])
+        ->and(nodeByRef($screen, 'sheet-cancel')['props']['a11y_label'])->toBe('Cancel')
+        ->and(nodeByRef($screen, 'sheet-commit')['props']['a11y_label'])->toBe('Commit');
+})->with(['ios', 'android']);
+
+it('puts the cross on glass on iOS and on a tonal circle on Android', function () {
+    fakeApi(['GET /api/v1/log/following' => [pageJson([])]]);
+    $ios = Native::visit('/log', platform: 'ios')->press('composeInSheet');
+    $icon = fn (string $ref): ?string => findNode(sheetButtonCircle($ios, $ref), fn (array $node): bool => $node['type'] === 'icon')['props']['name'] ?? null;
+
+    expect([$icon('sheet-cancel'), $icon('sheet-commit')])->toBe(['custom:x', 'custom:check'])
+        ->and(sheetButtonCircle($ios, 'sheet-cancel')['props']['glass'] ?? null)->toBe(5);
+
     $android = Native::visit('/log', platform: 'android')->press('composeInSheet');
 
-    expect(nodeByRef($android, 'sheet-commit')['props'])->toMatchArray(['label' => 'Commit', 'variant' => 'ghost'])
-        ->and(nodeByRef($android, 'sheet-commit')['props'])->not->toHaveKey('glass');
+    expect(strtolower(sheetButtonCircle($android, 'sheet-cancel')['style']['bg_color']))->toBe(strtolower(config('native-ui.theme.light.surface-variant')))
+        ->and(sheetButtonCircle($android, 'sheet-cancel')['props'])->not->toHaveKey('glass');
 });
 
 it('only commits from a sheet that has a composer in it', function () {

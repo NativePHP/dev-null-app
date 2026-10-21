@@ -53,8 +53,6 @@ function laneLog(): TestableComponent
 }
 
 dataset('main buttons', [
-    'Commit, in the compose sheet' => [fn (): TestableComponent => laneLog()->press('composeInSheet'), 'sheet-commit'],
-    'Commit, quoting a commit' => [fn (): TestableComponent => laneLog()->tap('quote-c1'), 'sheet-commit'],
     'Send report' => [fn (): TestableComponent => laneLog()->tap('report-c1'), 'send-report'],
     'Follow, on a suggestion in an empty log' => [function (): TestableComponent {
         serveApi(fn (Request $request) => Http::response([...pageJson([]), 'suggestions' => [commitJson(['id' => 's1', 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada'])])]]));
@@ -96,6 +94,25 @@ it('draws the main buttons in your lane, with a label that reads on it', functio
 })->with('main buttons')->with([
     'green, labelled in ink' => 1,
     'rose, labelled in white' => 4,
+]);
+
+it("fills the compose sheet's check with your lane, with a check that reads on it", function (Closure $open, int $lane) {
+    signIn(['lane' => $lane]);
+    $check = sheetButtonCircle($open()->input('sheet-body', 'Shipped it'), 'sheet-commit');
+    $icon = findNode($check, fn (array $node): bool => $node['type'] === 'icon')['props'];
+
+    expect(array_map(strtolower(...), [$check['style']['bg_color'], $check['props']['dark_bg_color'], $icon['color'], $icon['dark_color']]))->toBe(array_map(strtolower(...), [
+        config("native-ui.theme.light.lane-{$lane}"),
+        config("native-ui.theme.dark.lane-{$lane}"),
+        config("native-ui.theme.light.on-lane-{$lane}"),
+        config("native-ui.theme.dark.on-lane-{$lane}"),
+    ]));
+})->with([
+    'composing' => fn (): TestableComponent => laneLog()->press('composeInSheet'),
+    'quoting a commit' => fn (): TestableComponent => laneLog()->tap('quote-c1'),
+])->with([
+    'green, checked in ink' => 1,
+    'rose, checked in white' => 4,
 ]);
 
 it('draws the tab underline in your lane, in its light and dark shades', function (string $path, int $lane) {
@@ -168,8 +185,6 @@ it('makes the full-width buttons large, and leaves the ones in a row their size'
     $report->selectRadio('report-reason', 'spam')->tap('send-report');
 
     expect(buttonProps($report, 'report-done')['size'] ?? null)->toBe('lg');
-
-    expect(buttonProps(laneLog()->tap('quote-c1'), 'sheet-commit'))->not->toHaveKey('size');
 });
 
 it('makes Unlink Apple ID large too', function () {
