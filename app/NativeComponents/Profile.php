@@ -720,9 +720,20 @@ class Profile extends NativeComponent
         }
 
         $this->refresh('users/'.rawurlencode($this->username), [], function (array $json): void {
-            $this->profile = ProfileData::fromArray($json);
+            $profile = ProfileData::fromArray($json);
+
+            // An answer with nobody in it, like a maintenance page, leaves what's showing alone.
+            if ($profile->user->username === '') {
+                return;
+            }
+
+            $this->profile = $profile;
             $this->sketched = false;
             $this->unavailable = null;
+
+            if ($this->isMe()) {
+                app(Account::class)->rememberProfile($json);
+            }
         }, again: $showNewer);
         $this->refreshCommits($showNewer);
         $this->refreshThreads();
@@ -749,10 +760,10 @@ class Profile extends NativeComponent
             return;
         }
 
-        $profile = $this->cached('users/'.rawurlencode($this->username));
+        $profile = $this->keptProfile();
 
         if ($profile !== null) {
-            $this->profile = ProfileData::fromArray($profile);
+            $this->profile = $profile;
             $this->sketched = false;
         } elseif ($this->profile === null && ($author = $this->data('user')) instanceof User && $author->username === $this->username) {
             $this->profile = new ProfileData($author);
@@ -762,6 +773,24 @@ class Profile extends NativeComponent
         if (($commits = $this->cached($this->commitsPath(), $this->commitsQuery())) !== null) {
             $this->takeCommits($this->tab, $commits);
         }
+    }
+
+    /**
+     * The profile as it was kept. Your own falls back to the one the phone keeps
+     * from when you signed in (see Account::profile()), so it still shows when
+     * devnull can't be reached and nothing usable was kept. A kept answer with
+     * nobody in it is no profile at all.
+     */
+    private function keptProfile(): ?ProfileData
+    {
+        $json = $this->cached('users/'.rawurlencode($this->username));
+        $profile = $json === null ? null : ProfileData::fromArray($json);
+
+        if (($profile === null || $profile->user->username === '') && $this->isMe() && ($stored = app(Account::class)->profile()) !== null) {
+            return ProfileData::fromArray($stored);
+        }
+
+        return $profile?->user->username === '' ? null : $profile;
     }
 
     /**

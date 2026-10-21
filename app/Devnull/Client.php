@@ -318,7 +318,17 @@ final readonly class Client
 
     public function profile(string $username): Profile
     {
-        return Profile::fromArray($this->get('users/'.rawurlencode($username)));
+        return Profile::fromArray($this->profileJson($username));
+    }
+
+    /**
+     * Someone's profile as devnull sent it, for keeping as it is (see Account::rememberProfile()).
+     *
+     * @return array<string, mixed>
+     */
+    public function profileJson(string $username): array
+    {
+        return $this->get('users/'.rawurlencode($username));
     }
 
     /**

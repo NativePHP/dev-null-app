@@ -5,6 +5,7 @@ namespace App\NativeComponents;
 use App\Devnull\Account;
 use App\Devnull\AppleSignIn;
 use App\Devnull\Client;
+use App\Devnull\Data\User;
 use App\Devnull\DeviceKey;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\Exceptions\KeychainUnavailable;
@@ -160,6 +161,7 @@ class Onboarding extends NativeComponent
         }
 
         app(Account::class)->remember($user);
+        $this->keepProfile($user);
         $this->replace('/log');
     }
 
@@ -230,6 +232,7 @@ class Onboarding extends NativeComponent
         }
 
         app(Account::class)->remember($user);
+        $this->keepProfile($user);
         $this->replace('/log');
     }
 
@@ -254,7 +257,22 @@ class Onboarding extends NativeComponent
         app(Account::class)->rememberUnreadNotifications($current->unreadNotificationsCount);
         app(Account::class)->rememberPasteis($current->pasteis());
         app(Account::class)->rememberRemotes($current->remotes);
+        $this->keepProfile($current->user);
         $this->replace('/log');
+    }
+
+    /**
+     * Keeps your profile on the phone as you sign in (see Account::profile()),
+     * so it shows when devnull can't be reached later. Signing in doesn't wait
+     * on it working.
+     */
+    private function keepProfile(User $user): void
+    {
+        try {
+            app(Account::class)->rememberProfile(app(Client::class)->profileJson($user->username));
+        } catch (ApiException|KeychainUnavailable) {
+            //
+        }
     }
 
     /**

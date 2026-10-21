@@ -3,6 +3,7 @@
 namespace App\Devnull;
 
 use App\Devnull\Data\Pasteis;
+use App\Devnull\Data\Profile;
 use App\Devnull\Data\Remotes;
 use App\Devnull\Data\User;
 use Illuminate\Support\Facades\Cache;
@@ -22,6 +23,8 @@ final class Account
 
     private const string RemotesKey = 'devnull.remotes';
 
+    private const string ProfileKey = 'devnull.profile';
+
     /**
      * What's kept while devnull has said you have Remotes off, as against not having said yet.
      */
@@ -37,6 +40,36 @@ final class Account
     public function remember(User $user): void
     {
         Cache::forever(self::CacheKey, $user->toArray());
+    }
+
+    /**
+     * Your own profile as devnull last sent it (GET /users/{you}), kept for as
+     * long as you're signed in rather than as long as the response cache keeps
+     * things, so your profile still shows when devnull can't be reached. Your
+     * commits and replies aren't kept here.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function profile(): ?array
+    {
+        $json = Cache::get(self::ProfileKey);
+
+        return is_array($json) ? $json : null;
+    }
+
+    /**
+     * Keeps your profile. An answer with nobody in it, like a maintenance page
+     * read as JSON, leaves the one kept alone.
+     *
+     * @param  array<string, mixed>  $json
+     */
+    public function rememberProfile(array $json): void
+    {
+        if (Profile::fromArray($json)->user->username === '') {
+            return;
+        }
+
+        Cache::forever(self::ProfileKey, $json);
     }
 
     /**
@@ -132,5 +165,6 @@ final class Account
         Cache::forget(self::UnreadKey);
         Cache::forget(self::PasteisKey);
         Cache::forget(self::RemotesKey);
+        Cache::forget(self::ProfileKey);
     }
 }
