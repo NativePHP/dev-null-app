@@ -5,21 +5,36 @@
     goes on below.
 
     Given a $rowCache (see App\Devnull\RowCache), commits and replies that haven't changed since the last frame are
-    drawn from it rather than built again.
+    drawn from it rather than built again. Given a $rowWindow (see App\Devnull\RowWindow), rows far from the screen
+    go as placeholders with the keys their partials give them, so the phone keeps each one's place and height.
 --}}
 @php
     $rowCache ??= null;
+    $rowWindow ??= null;
 @endphp
-@foreach ($rows as $row)
+@foreach ($rows as $feedIndex => $row)
     @if ($row->isDayMarker())
-        @include('native.partials.day-marker', ['label' => $row->label, 'lane' => $row->previousLane])
+        @if ($rowWindow?->place($feedIndex) ?? true)
+            @include('native.partials.day-marker', ['label' => $row->label, 'lane' => $row->previousLane])
+        @else
+            @php
+                $rowWindow->placeholder('day-'.$row->label);
+            @endphp
+        @endif
     @elseif ($row->isLastVisitMarker())
-        @include('native.partials.last-visit-marker', ['lane' => $row->previousLane])
+        @if ($rowWindow?->place($feedIndex) ?? true)
+            @include('native.partials.last-visit-marker', ['lane' => $row->previousLane])
+        @else
+            @php
+                $rowWindow->placeholder('last-visit');
+            @endphp
+        @endif
     @else
         @php
             $feedCommit = $row->commit;
             $opened = $threads[$feedCommit->id] ?? null;
             $threadReplies = $opened ?? ($feedCommit->isDeleted() ? [] : $feedCommit->replyPreview?->replies ?? []);
+            $feedDraws = $rowWindow?->place($feedIndex, 1 + count($threadReplies)) ?? true;
             $hasMoreReplies = $opened === null && ! $feedCommit->isDeleted() && ($feedCommit->replyPreview?->hasMore ?? false);
             $railLane = $row->continuesNext ? $feedCommit->lane() : null;
             $commitRow = [
@@ -30,7 +45,11 @@
                 'threadBelow' => $threadReplies !== [],
             ];
         @endphp
-        @if ($rowCache === null)
+        @if (! $feedDraws)
+            @php
+                $rowWindow->placeholder(($feedCommit->isDeleted() ? 'tombstone-' : 'commit-').$feedCommit->id);
+            @endphp
+        @elseif ($rowCache === null)
             @include('native.partials.commit-row', $commitRow)
         @else
             @php
@@ -51,7 +70,11 @@
                     'last' => $loop->last,
                 ];
             @endphp
-            @if ($rowCache === null)
+            @if (! $feedDraws)
+                @php
+                    $rowWindow->placeholder('thread-reply-'.$threadReply->id);
+                @endphp
+            @elseif ($rowCache === null)
                 @include('native.partials.thread-reply', $replyRow)
             @else
                 @php

@@ -5,10 +5,13 @@ namespace App\NativeComponents;
 use App\Devnull\Account;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Page;
+use App\Devnull\Data\TimelineRow;
 use App\Devnull\Data\User;
+use App\Devnull\Display;
 use App\Devnull\LastVisit;
 use App\Devnull\ResponseCache;
 use App\Devnull\RowCache;
+use App\Devnull\RowWindow;
 use App\Devnull\ShownTabs;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
@@ -21,6 +24,7 @@ use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
+use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\View\View;
 use Native\Mobile\Attributes\Poll;
@@ -60,6 +64,12 @@ use Native\Mobile\Edge\NativeComponent;
  * list. A log you leave starts again at the top of a fresh one, as a tab tap
  * opens it, since a list kept while every row changed under its scroll offset
  * drew blank on iOS.
+ *
+ * The log you're on keeps every commit it has loaded, but only draws those
+ * near the screen and the first few (see RowWindow). The list says where
+ * you've scrolled to, and the rest go as placeholders the phone draws at their
+ * rows' heights, so a log scrolled thousands of commits down costs what one a
+ * couple of hundred down does.
  *
  * The pages beside the one you're on are kept small on purpose. EDGE writes
  * each frame into a buffer of fixed size, and a frame that doesn't fit is
@@ -150,6 +160,22 @@ class Log extends NativeComponent
      * @var array<string, RowCache>
      */
     private array $rowCaches = [];
+
+    /**
+     * Which rows of each log are drawn.
+     *
+     * @var array<string, RowWindow>
+     */
+    private array $rowWindows = [];
+
+    /**
+     * Each log's rows from its last frame, laid out again only when its commits
+     * or the day change: for a log thousands of commits long, laying them all
+     * out cost more than drawing the rows near the screen.
+     *
+     * @var array<string, array{0: string, 1: list<TimelineRow>}>
+     */
+    private array $timelines = [];
 
     public function mount(): void
     {
@@ -394,6 +420,15 @@ class Log extends NativeComponent
             $this->commits = [...$this->commits, ...array_values(array_filter($page->items, fn (Commit $commit): bool => ! isset($shown[$commit->id])))];
             $this->nextCursor = $page->nextCursor;
         }
+    }
+
+    /**
+     * The list's rows on screen as you scroll, by position: the rows near them
+     * are drawn, and the rest go as placeholders.
+     */
+    public function showRows(int $first, int $last): void
+    {
+        $this->rowWindow($this->log)->show($first, $last);
     }
 
     /**
@@ -683,13 +718,15 @@ class Log extends NativeComponent
         $commits = $state['commits'];
         /** @var list<Commit> $latestCommits */
         $latestCommits = $state['latestCommits'];
-        $latest = array_flip(array_map(fn (Commit $commit): string => $commit->id, $latestCommits));
+        $rows = $this->timeline($log, $latestCommits, $commits, $log === self::Ranked ? null : LastVisit::firstSeenId($commits, $state['lastVisitAt'], $viewer?->id));
 
         return [
             'log' => $log,
             'showing' => $log === $this->log,
             'listKey' => $listKey,
             'rowCache' => $this->rowCache($log),
+            // The other logs show their first few commits, as they'll open.
+            'rowWindow' => $log === $this->log ? $this->rowWindow($log)->frame($rows, $listKey) : null,
             'loaded' => $state['loaded'],
             'error' => $state['error'],
             'threads' => $state['threads'],
@@ -697,21 +734,44 @@ class Log extends NativeComponent
             'nextCursor' => $state['nextCursor'],
             'isEmpty' => $commits === [] && $latestCommits === [],
             'lastCommit' => $commits[array_key_last($commits) ?? -1] ?? $latestCommits[array_key_last($latestCommits) ?? -1] ?? null,
-            'rows' => $log === self::Ranked
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * A log's rows on the rail: a feed, or Trending's ranking under what was put above it.
+     *
+     * @param  list<Commit>  $latestCommits
+     * @param  list<Commit>  $commits
+     * @return list<TimelineRow>
+     */
+    private function timeline(string $log, array $latestCommits, array $commits, ?string $firstSeenId): array
+    {
+        // Commits are readonly, so the same ones lay out the same way until the day changes.
+        $key = implode(',', [Display::dayKey(CarbonImmutable::now()), $firstSeenId, count($latestCommits), ...array_map(spl_object_id(...), [...$latestCommits, ...$commits])]);
+
+        if (($this->timelines[$log][0] ?? null) !== $key) {
+            $latest = array_flip(array_map(fn (Commit $commit): string => $commit->id, $latestCommits));
+
+            $this->timelines[$log] = [$key, $log === self::Ranked
                 ? Timeline::ranked(
                     $latestCommits,
                     // The web lists a commit put above the ranking only there.
                     array_values(array_filter($commits, fn (Commit $commit): bool => ! isset($latest[$commit->id]))),
                 )
-                : Timeline::feed(
-                    $commits,
-                    firstSeenId: LastVisit::firstSeenId($commits, $state['lastVisitAt'], $viewer?->id),
-                ),
-        ];
+                : Timeline::feed($commits, firstSeenId: $firstSeenId)];
+        }
+
+        return $this->timelines[$log][1];
     }
 
     private function rowCache(string $log): RowCache
     {
         return $this->rowCaches[$log] ??= new RowCache;
+    }
+
+    private function rowWindow(string $log): RowWindow
+    {
+        return $this->rowWindows[$log] ??= new RowWindow;
     }
 }
