@@ -225,12 +225,16 @@ it('opens the log you swipe back to from what was kept, at the top, and asks wha
     holdRefreshes();
     keep('log/following', pageJson([commitJson(['id' => 'f1', 'body' => 'First page'])], 'page2'));
     keep('log/latest', pageJson([commitJson(['id' => 'l1'])]));
-    serveApi([
-        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'f2', 'body' => 'Second page'])])],
-        'GET /api/v1/me' => [['data' => userWithCountsJson(), 'unread_notifications_count' => 0]],
-    ]);
+    serveApi(fn (Request $request) => match (parse_url($request->url(), PHP_URL_PATH)) {
+        '/api/v1/log/following' => Http::response(str_contains($request->url(), 'cursor=page2')
+            ? pageJson([commitJson(['id' => 'f2', 'body' => 'Second page'])])
+            : pageJson([commitJson(['id' => 'f1', 'body' => 'First page'])], 'page2')),
+        '/api/v1/me' => Http::response(['data' => userWithCountsJson(), 'unread_notifications_count' => 0]),
+        default => Http::response(['message' => 'No fake.'], 404),
+    });
 
-    $screen = Native::visit('/log')->call('loadMore');
+    // The second page was already on its way, so it goes in when it lands.
+    $screen = finishRefreshes(Native::visit('/log')->call('loadMore'));
 
     expect(shownLogIds($screen))->toBe(['f1', 'f2']);
 

@@ -75,6 +75,17 @@ use Native\Mobile\Edge\NativeComponent;
  * each frame into a buffer of fixed size, and a frame that doesn't fit is
  * dropped without a word; the frames after it then refer to rows the phone
  * never got, which leaves holes in the list.
+ *
+ * The log you're on fetches its next page in the background as soon as it
+ * knows the cursor, and holds it in memory until you scroll near the end.
+ * It used to be asked for on the UI thread once you got there, and PHP sat
+ * waiting on devnull while the phone kept scrolling, so you reached the
+ * loading row and stayed on it. Now the page goes in a little before the end
+ * (see NextPageWithin), or when the end comes, so it's usually there before
+ * you are. A held page only follows on from the list it was cut from, so
+ * it's let go when that list is replaced rather than added to: a fresh
+ * ranking, another log, pull to refresh, or the pill replacing the list.
+ * Cursor pages are never kept in the response cache.
  */
 class Log extends NativeComponent
 {
@@ -113,6 +124,16 @@ class Log extends NativeComponent
      * on a slow Android phone the off-screen pages were a third of the frame.
      */
     public const int PreviewCommits = 3;
+
+    /**
+     * How near the end of the log a next page fetched ahead goes in, in
+     * timeline rows below the last one on screen. The list says which rows are
+     * on screen every 20 rows, and asks for more 5 rows from its end (see
+     * log-page), so anything under 25 could let the end come before a report
+     * does. 40 leaves room for a report that lands late. A commit's thread
+     * replies count as one timeline row, so in list rows it's never less.
+     */
+    public const int NextPageWithin = 40;
 
     public string $log = 'following';
 
@@ -155,6 +176,35 @@ class Log extends NativeComponent
     public ?string $lastVisitAt = null;
 
     /**
+     * The log's next page, fetched before you scroll to it: the log and cursor
+     * it was asked for, the list it was cut from (see $listGeneration), and the
+     * page itself.
+     *
+     * @var array{log: string, cursor: string, generation: int, page: Page<Commit>}|null
+     */
+    protected ?array $heldPage = null;
+
+    /**
+     * The next page's fetch that's still out, by log, cursor and list, and when it was sent.
+     *
+     * @var array{log: string, cursor: string, generation: int, sentAt: float}|null
+     */
+    protected ?array $fetchingNextPage = null;
+
+    /**
+     * Which list the next cursor points into. It goes up whenever the list is
+     * replaced rather than added to, so a page cut from the old list is never
+     * put under the new one, even when the cursor reads the same, as it may
+     * from one ranking of Trending to the next.
+     */
+    protected int $listGeneration = 0;
+
+    /**
+     * The end of the list came while its next page was on its way. The page goes in when it lands.
+     */
+    protected bool $waitingForNextPage = false;
+
+    /**
      * Each log's rows from the last frame, so a render only builds the rows that changed.
      *
      * @var array<string, RowCache>
@@ -185,15 +235,21 @@ class Log extends NativeComponent
     }
 
     /**
-     * Back from a commit or a profile: take any change made there from the cache at once, then ask devnull.
+     * Back from a commit or a profile: take any change made there from the
+     * cache at once, then ask devnull. An answer that landed while another
+     * screen was on top was dropped, the next page's among them, so that's
+     * asked for again, and goes in when it lands if the end of the list was
+     * waiting for it.
      */
     public function onResume(): void
     {
         $this->forgetRefreshes();
+        $this->fetchingNextPage = null;
         $this->forgetDeleted();
         $this->forgetHidden();
         $this->showKept();
         $this->revalidate();
+        $this->prefetchNextPage();
     }
 
     /**
@@ -291,6 +347,7 @@ class Log extends NativeComponent
         $this->error = null;
         $this->refreshFailed = false;
         $this->forgetNewCommits();
+        $this->replacedList();
         $this->lastVisitAt = $this->lastVisitSeenAt();
         $this->showKept();
         $this->open();
@@ -361,6 +418,7 @@ class Log extends NativeComponent
         }
 
         $this->listKey++;
+        $this->prefetchNextPage();
     }
 
     /**
@@ -405,30 +463,217 @@ class Log extends NativeComponent
         return $this->loaded;
     }
 
+    /**
+     * The end of the list, which the list says 5 rows before it gets there. The
+     * next page is usually here already (see prefetchNextPage), and goes in at
+     * once. One still on its way goes in when it lands, with the loading row
+     * showing until then. Otherwise it's asked for now, and a failure prints
+     * its error as any other.
+     */
     public function loadMore(): void
     {
         if ($this->nextCursor === null) {
             return;
         }
 
-        $page = $this->attempt(fn ($devnull) => $devnull->log($this->log, $this->nextCursor));
+        if (($held = $this->heldNextPage()) !== null) {
+            $this->appendPage($held);
 
-        if ($page !== null) {
-            // A ranked commit can move to a later page while you scroll, so each one is only listed once.
-            $shown = array_flip(array_map(fn (Commit $commit): string => $commit->id, [...$this->commits, ...$this->latestCommits]));
-
-            $this->commits = [...$this->commits, ...array_values(array_filter($page->items, fn (Commit $commit): bool => ! isset($shown[$commit->id])))];
-            $this->nextCursor = $page->nextCursor;
+            return;
         }
+
+        if ($this->fetchesNextPage()) {
+            $this->waitingForNextPage = true;
+
+            return;
+        }
+
+        $this->loadNextPageNow();
     }
 
     /**
      * The list's rows on screen as you scroll, by position: the rows near them
-     * are drawn, and the rest go as placeholders.
+     * are drawn, and the rest go as placeholders. Near the end, a next page
+     * that's already here goes in, so the phone has it before you reach the
+     * end rather than when you do. This never asks devnull for one.
      */
     public function showRows(int $first, int $last): void
     {
-        $this->rowWindow($this->log)->show($first, $last);
+        $window = $this->rowWindow($this->log);
+        $window->show($first, $last);
+
+        if (($held = $this->heldNextPage()) !== null && $window->rowsBelowScreen() <= self::NextPageWithin) {
+            $this->appendPage($held);
+        }
+    }
+
+    /**
+     * Asks devnull for the next page on the UI thread, which holds up
+     * everything else until it answers. Only for when no page is here or on
+     * its way.
+     */
+    private function loadNextPageNow(): void
+    {
+        $page = $this->attempt(fn ($devnull) => $devnull->log($this->log, $this->nextCursor));
+
+        if ($page !== null) {
+            $this->appendPage($page);
+        }
+    }
+
+    /**
+     * Puts a page under the list, then fetches the one after it. A ranked
+     * commit can move to a later page while you scroll, so each one is only
+     * listed once.
+     *
+     * @param  Page<Commit>  $page
+     */
+    private function appendPage(Page $page): void
+    {
+        $shown = array_flip(array_map(fn (Commit $commit): string => $commit->id, [...$this->commits, ...$this->latestCommits]));
+
+        $this->commits = [...$this->commits, ...array_values(array_filter($page->items, fn (Commit $commit): bool => ! isset($shown[$commit->id])))];
+        $this->nextCursor = $page->nextCursor;
+        $this->heldPage = null;
+        $this->waitingForNextPage = false;
+        $this->prefetchNextPage();
+    }
+
+    /**
+     * Fetches the log's next page in the background, to hold until the list
+     * needs it (see holdNextPage). With a page for this cursor already held or
+     * on its way it does nothing, so anything that may have moved the cursor
+     * can call it. Only the log you're on fetches ahead: the pages beside it
+     * show a few kept commits and nothing more.
+     *
+     * It's sent even when a fetch for the same cursor is still out, which
+     * refresh() would otherwise skip: that one may be for a list replaced
+     * since, whose answer is let go, and the end of the list would wait on
+     * nothing.
+     */
+    private function prefetchNextPage(): void
+    {
+        $log = $this->log;
+        $cursor = $this->nextCursor;
+        $generation = $this->listGeneration;
+
+        if ($cursor === null || $this->heldNextPage() !== null || $this->fetchesNextPage()) {
+            return;
+        }
+
+        $this->fetchingNextPage = ['log' => $log, 'cursor' => $cursor, 'generation' => $generation, 'sentAt' => microtime(true)];
+
+        $this->refresh(
+            'log/'.$log,
+            ['cursor' => $cursor],
+            fn (array $json) => $this->holdNextPage($log, $cursor, $generation, $json),
+            again: true,
+            quiet: true,
+            failed: fn () => $this->nextPageFailed($log, $cursor, $generation),
+        );
+    }
+
+    /**
+     * The next page landing. A page for a cursor or a list that's gone since
+     * is let go. Otherwise it's held for the end of the list, or goes straight
+     * in if the end of the list is waiting for it.
+     *
+     * @param  array<string, mixed>  $json
+     */
+    private function holdNextPage(string $log, string $cursor, int $generation, array $json): void
+    {
+        if (! $this->isNextPage($log, $cursor, $generation)) {
+            return;
+        }
+
+        $page = Page::fromArray($json, Commit::fromArray(...));
+
+        $this->fetchingNextPage = null;
+        $this->heldPage = ['log' => $log, 'cursor' => $cursor, 'generation' => $generation, 'page' => $page];
+
+        if ($this->waitingForNextPage) {
+            $this->appendPage($page);
+        }
+    }
+
+    /**
+     * The next page didn't come. If the end of the list is waiting for it,
+     * it's asked for on the UI thread instead, which prints the error if that
+     * fails too. Otherwise it's forgotten, and the end of the list asks then.
+     */
+    private function nextPageFailed(string $log, string $cursor, int $generation): void
+    {
+        if (! $this->isNextPage($log, $cursor, $generation)) {
+            return;
+        }
+
+        $this->fetchingNextPage = null;
+
+        if ($this->waitingForNextPage) {
+            $this->waitingForNextPage = false;
+            $this->loadNextPageNow();
+        }
+    }
+
+    /**
+     * Whether a page asked for with this cursor still follows on from the list showing.
+     */
+    private function isNextPage(string $log, string $cursor, int $generation): bool
+    {
+        return $log === $this->log && $cursor === $this->nextCursor && $generation === $this->listGeneration;
+    }
+
+    /**
+     * The next page, if it's here.
+     *
+     * @return Page<Commit>|null
+     */
+    private function heldNextPage(): ?Page
+    {
+        $held = $this->heldPage;
+
+        return $held !== null && $this->isNextPage($held['log'], $held['cursor'], $held['generation']) ? $held['page'] : null;
+    }
+
+    /**
+     * Whether the next page is on its way. A fetch out for longer than its 30
+     * second timeout counts as lost, as refresh() counts it, so the end of the
+     * list never waits on an answer that was dropped.
+     */
+    private function fetchesNextPage(): bool
+    {
+        $fetching = $this->fetchingNextPage;
+
+        return $fetching !== null
+            && $this->isNextPage($fetching['log'], $fetching['cursor'], $fetching['generation'])
+            && microtime(true) - $fetching['sentAt'] < 30;
+    }
+
+    /**
+     * The list the next cursor points into was replaced rather than added to:
+     * a fresh ranking, another log, pull to refresh, or the pill putting new
+     * commits in place of the list. Whatever was fetched for the old list's
+     * next page is let go, and the end of the list stops waiting for it.
+     */
+    protected function replacedList(): void
+    {
+        $this->listGeneration++;
+        $this->heldPage = null;
+        $this->fetchingNextPage = null;
+        $this->waitingForNextPage = false;
+    }
+
+    /**
+     * Takes commits out of the next page held for the log too, so they don't come back with it.
+     *
+     * @param  Closure(Commit): bool  $keep
+     */
+    private function keepInHeldPage(Closure $keep): void
+    {
+        if ($this->heldPage !== null) {
+            $page = $this->heldPage['page'];
+            $this->heldPage['page'] = new Page(array_values(array_filter($page->items, $keep)), $page->nextCursor);
+        }
     }
 
     /**
@@ -495,7 +740,7 @@ class Log extends NativeComponent
         }
 
         $this->isRanked()
-            ? $this->takeRankedUpdate($this->log, $json)
+            ? $this->takeRankedUpdate($this->log, $json, kept: true)
             : $this->takeFresh($this->log, $json);
     }
 
@@ -504,9 +749,12 @@ class Log extends NativeComponent
      * that was showing goes, in a fresh list at the top. Skeleton rows, or the
      * kept ranking a swipe brought in, stay in theirs, still at the top.
      *
+     * Its next page is fetched ahead, unless $prefetch says it's a ranking
+     * kept from last time, which only stands in until devnull ranks afresh.
+     *
      * @param  array<string, mixed>  $json
      */
-    private function takeRanking(string $log, array $json): void
+    private function takeRanking(string $log, array $json, bool $prefetch = true): void
     {
         if ($log !== $this->log) {
             return;
@@ -515,6 +763,8 @@ class Log extends NativeComponent
         if ($this->loaded) {
             $this->listKey++;
         }
+
+        $this->replacedList();
 
         $page = Page::fromArray($json, Commit::fromArray(...));
 
@@ -525,16 +775,22 @@ class Log extends NativeComponent
         $this->rankedSince = is_string($json['newest_commit_id'] ?? null) ? $json['newest_commit_id'] : null;
         $this->forgetNewCommits();
         $this->loaded = true;
+
+        if ($prefetch) {
+            $this->prefetchNextPage();
+        }
     }
 
     /**
      * What Trending learns between rankings: rows already showing change in
      * place, without moving, and the commits newer than the ranking wait for
-     * the pill. With nothing showing yet, the answer is the ranking.
+     * the pill. With nothing showing yet, the answer is the ranking, and one
+     * $kept from last time only stands in until devnull ranks afresh (see
+     * open()), so its next page isn't fetched.
      *
      * @param  array<string, mixed>  $json
      */
-    private function takeRankedUpdate(string $log, array $json): void
+    private function takeRankedUpdate(string $log, array $json, bool $kept = false): void
     {
         if ($log !== $this->log) {
             return;
@@ -542,7 +798,7 @@ class Log extends NativeComponent
 
         // Nothing to keep in place yet, so this is the ranking.
         if (! $this->loaded || ($this->commits === [] && $this->latestCommits === [])) {
-            $this->takeRanking($log, $json);
+            $this->takeRanking($log, $json, prefetch: ! $kept);
 
             return;
         }
@@ -564,6 +820,7 @@ class Log extends NativeComponent
 
         $this->newCommits = $count > 0 ? $latest : [];
         $this->newCommitsCount = $count > 0 && $latest !== [] ? $count : null;
+        $this->prefetchNextPage();
     }
 
     /**
@@ -610,8 +867,11 @@ class Log extends NativeComponent
             return;
         }
 
-        $this->commits = array_values(array_filter($this->commits, fn (Commit $commit): bool => ! isset($deleted[$commit->id])));
-        $this->latestCommits = array_values(array_filter($this->latestCommits, fn (Commit $commit): bool => ! isset($deleted[$commit->id])));
+        $shown = fn (Commit $commit): bool => ! isset($deleted[$commit->id]);
+
+        $this->commits = array_values(array_filter($this->commits, $shown));
+        $this->latestCommits = array_values(array_filter($this->latestCommits, $shown));
+        $this->keepInHeldPage($shown);
     }
 
     /**
@@ -630,12 +890,14 @@ class Log extends NativeComponent
 
         $this->commits = array_values(array_filter($this->commits, $shown));
         $this->latestCommits = array_values(array_filter($this->latestCommits, $shown));
+        $this->keepInHeldPage($shown);
     }
 
     /**
      * Lays a first page of the log over what's showing. Rows already there change
      * in place; newer ones wait for the pill, unless the log had nothing to show
-     * or you pulled to refresh.
+     * or you pulled to refresh. A pull to refresh starts the next page afresh
+     * too, as everything else under it is.
      *
      * @param  array<string, mixed>  $json
      */
@@ -646,10 +908,15 @@ class Log extends NativeComponent
             return;
         }
 
+        if ($showNewer) {
+            $this->replacedList();
+        }
+
         $this->layFreshCommits($json, showNewer: $showNewer || ! $this->loaded);
         $this->suggestions = array_values(array_map(Commit::fromArray(...), array_filter(is_array($json['suggestions'] ?? null) ? $json['suggestions'] : [], is_array(...))));
         $this->loaded = true;
         $this->rememberLastVisit();
+        $this->prefetchNextPage();
     }
 
     /**

@@ -80,12 +80,15 @@ trait RefreshesInBackground
     /**
      * Asks devnull for a GET in the background and hands $apply the JSON when it
      * lands. A refresh of the same thing already on its way isn't sent twice,
-     * unless $again says it must be. A $quiet one never says it failed.
+     * unless $again says it must be. A $quiet one never says it failed on the
+     * screen. It only tells $failed, for a caller that has something else to
+     * do then.
      *
      * @param  array<string, string|null>  $query
      * @param  Closure(array<string, mixed>): void  $apply
+     * @param  (Closure(): void)|null  $failed
      */
-    protected function refresh(string $path, array $query, Closure $apply, bool $again = false, bool $quiet = false, bool $retried = false): void
+    protected function refresh(string $path, array $query, Closure $apply, bool $again = false, bool $quiet = false, ?Closure $failed = null, bool $retried = false): void
     {
         $key = ResponseCache::key('', $path, $query);
 
@@ -96,7 +99,9 @@ trait RefreshesInBackground
         try {
             $request = app(Client::class)->signedGet($path, $query);
         } catch (KeychainUnavailable $exception) {
-            if (! $quiet) {
+            if ($quiet) {
+                $failed?->__invoke();
+            } else {
                 $this->couldNotRefresh($exception->getMessage());
             }
 
@@ -107,23 +112,25 @@ trait RefreshesInBackground
 
         FetchInBackground::dispatch($request->url, $request->headers)
             ->timeout(30)
-            ->finished(function (mixed $result) use ($key, $path, $query, $apply, $quiet, $retried): void {
+            ->finished(function (mixed $result) use ($key, $path, $query, $apply, $quiet, $failed, $retried): void {
                 unset($this->refreshing[$key]);
 
                 $result = is_array($result) ? $result : [];
 
                 if (! $retried && (int) ($result['status'] ?? 0) >= 500) {
-                    $this->refresh($path, $query, $apply, again: true, quiet: $quiet, retried: true);
+                    $this->refresh($path, $query, $apply, again: true, quiet: $quiet, failed: $failed, retried: true);
 
                     return;
                 }
 
-                $this->settleRefresh($result, $path, $query, $apply, $quiet);
+                $this->settleRefresh($result, $path, $query, $apply, $quiet, $failed);
             })
-            ->failed(function (Throwable $exception) use ($key, $quiet): void {
+            ->failed(function (Throwable $exception) use ($key, $quiet, $failed): void {
                 unset($this->refreshing[$key]);
 
-                if (! $quiet) {
+                if ($quiet) {
+                    $failed?->__invoke();
+                } else {
                     $this->couldNotRefresh('fatal: '.$exception->getMessage());
                 }
             });
@@ -173,8 +180,9 @@ trait RefreshesInBackground
      * @param  array{status?: int, json?: mixed, retry_after?: string, from_devnull?: bool}  $result
      * @param  array<string, string|null>  $query
      * @param  Closure(array<string, mixed>): void  $apply
+     * @param  (Closure(): void)|null  $failed
      */
-    private function settleRefresh(array $result, string $path, array $query, Closure $apply, bool $quiet): void
+    private function settleRefresh(array $result, string $path, array $query, Closure $apply, bool $quiet, ?Closure $failed = null): void
     {
         $status = (int) ($result['status'] ?? 0);
         $successful = $status >= 200 && $status < 300;
@@ -192,6 +200,8 @@ trait RefreshesInBackground
         }
 
         if ($quiet) {
+            $failed?->__invoke();
+
             return;
         }
 

@@ -96,3 +96,29 @@ it('draws more rows the way you are scrolling', function () {
         ->and($up[325])->toBeTrue()
         ->and($up[326])->toBeFalse();
 });
+
+it('counts the timeline rows below the last one on screen, a commit and its replies as one', function () {
+    $window = new RowWindow;
+    $window->frame(windowTimeline(100), 0);
+
+    foreach (range(0, 99) as $index) {
+        $window->place($index, $index === 90 ? 6 : 1);
+    }
+
+    // Until the list says otherwise, the top is on screen.
+    expect($window->rowsBelowScreen())->toBe(99);
+
+    $window->show(10, 15);
+
+    expect($window->rowsBelowScreen())->toBe(84);
+
+    // List rows 90 to 95 are c90 and its replies, so list row 100 is c95.
+    $window->show(95, 100);
+
+    expect($window->rowsBelowScreen())->toBe(4);
+
+    // The row loading the next page counts as the last.
+    $window->show(100, 110);
+
+    expect($window->rowsBelowScreen())->toBe(0);
+});
