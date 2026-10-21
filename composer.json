@@ -32,7 +32,7 @@
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
         "nativephp/mobile": "dev-combined/dev-null-app as 4.6.0",
-        "nativephp/mobile-browser": "^1.0",
+        "nativephp/mobile-browser": "^1.2",
         "nativephp/mobile-secure-storage": "^1.1",
         "nativephp/mobile-share": "^1.1",
         "nativephp/mobile-ui": "dev-combined/dev-null-app as 0.8.0",

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "db9e34f24e114a45a188e38b4d6524f8",
+    "content-hash": "03e37596dd8bb9cc83599a7f836d1f05",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2840,16 +2840,16 @@
         },
         {
             "name": "nativephp/mobile-browser",
-            "version": "1.1.0",
+            "version": "1.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-browser.git",
-                "reference": "28de91ee6051b848dde893e70ce95752846a8c25"
+                "reference": "632cf93df3f29531e7e0b931106cc9e47d052eff"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-browser/zipball/28de91ee6051b848dde893e70ce95752846a8c25",
-                "reference": "28de91ee6051b848dde893e70ce95752846a8c25",
+                "url": "https://api.github.com/repos/NativePHP/mobile-browser/zipball/632cf93df3f29531e7e0b931106cc9e47d052eff",
+                "reference": "632cf93df3f29531e7e0b931106cc9e47d052eff",
                 "shasum": ""
             },
             "require": {
@@ -2889,9 +2889,9 @@
             "description": "Browser functionality for NativePHP Mobile - open URLs in system browser, in-app browser, and OAuth authentication",
             "support": {
                 "issues": "https://github.com/NativePHP/mobile-browser/issues",
-                "source": "https://github.com/NativePHP/mobile-browser/tree/1.1.0"
+                "source": "https://github.com/NativePHP/mobile-browser/tree/1.2.0"
             },
-            "time": "2026-09-03T18:26:19+00:00"
+            "time": "2026-10-21T16:15:09+00:00"
         },
         {
             "name": "nativephp/mobile-secure-storage",
