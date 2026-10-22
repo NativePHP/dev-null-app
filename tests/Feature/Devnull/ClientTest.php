@@ -195,6 +195,7 @@ it('signs bodiless deletes and posts', function (string $call, string $method, s
 })->with([
     ['follow', 'POST', '/api/v1/users/local_dev/follow'],
     ['unfollow', 'DELETE', '/api/v1/users/local_dev/follow'],
+    ['dismissSuggestion', 'POST', '/api/v1/users/local_dev/dismiss'],
     ['deleteCommit', 'DELETE', '/api/v1/commits/local_dev'],
 ]);
 

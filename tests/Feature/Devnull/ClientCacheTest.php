@@ -274,7 +274,6 @@ it('keeps mutes on the kept profile and the people you mute, and takes their com
     keep('me/muted', pageJson([userJson(['id' => 'u3', 'handle' => 'grace'])]));
     keep('log/following', [...pageJson([commitJson(['id' => 'c2', 'author' => $ada]), commitJson(['id' => 'c1'])]), 'suggestions' => [commitJson(['id' => 'c4', 'author' => $ada])]]);
     keep('log/trending', [...pageJson([commitJson(['id' => 'c3', 'author' => $ada])]), 'is_ranked' => true]);
-    keep(Client::SuggestedUsersPath, ['data' => [$ada, userJson(['id' => 'u3', 'username' => 'grace'])]], ['round' => '0']);
     serveApi([
         'POST /api/v1/users/ada/mute' => [['data' => $ada, 'is_muting' => true]],
         'DELETE /api/v1/users/ada/mute' => [['data' => $ada, 'is_muting' => false]],
@@ -287,7 +286,6 @@ it('keeps mutes on the kept profile and the people you mute, and takes their com
         ->and(array_column(kept('log/following')['data'], 'id'))->toBe(['c1'])
         ->and(kept('log/following')['suggestions'])->toBe([])
         ->and(kept('log/trending')['data'])->toBe([])
-        ->and(array_column(kept(Client::SuggestedUsersPath, ['round' => '0'])['data'], 'username'))->toBe(['grace'])
         // Their own profile still shows their commits, as on the web.
         ->and(array_column(kept('users/ada/commits')['data'], 'id'))->toBe(['c2']);
 
@@ -380,15 +378,3 @@ it('leaves the cache alone when a mute or block fails, or devnull answers withou
     'a block' => ['POST /api/v1/users/ada/block', fn (Client $devnull) => $devnull->block('ada')],
     'an answer without the user' => ['POST /api/v1/users/ada/mute', fn (Client $devnull) => $devnull->unmute('ada')],
 ]);
-
-it('takes someone not interesting out of every kept page of who to follow', function () {
-    keep(Client::SuggestedUsersPath, ['data' => [userJson(['id' => 'u2', 'username' => 'ada']), userJson(['id' => 'u3', 'username' => 'grace'])]], ['round' => '0']);
-    keep(Client::SuggestedUsersPath, ['data' => [userJson(['id' => 'u2', 'username' => 'ada'])]], ['round' => '1']);
-    serveApi(['POST /api/v1/users/ada/dismiss' => [null, 204]]);
-
-    $this->devnull->dismissSuggestion('ada');
-
-    expect(array_column(kept(Client::SuggestedUsersPath, ['round' => '0'])['data'], 'username'))->toBe(['grace'])
-        ->and(kept(Client::SuggestedUsersPath, ['round' => '1'])['data'])->toBe([])
-        ->and(sentTo('POST', 'users/ada/dismiss'))->toHaveCount(1);
-});

@@ -457,7 +457,6 @@ final readonly class Client
     public function dismissSuggestion(string $username): void
     {
         $this->send('POST', 'users/'.rawurlencode($username).'/dismiss');
-        $this->cache->suggestionDismissed($username);
     }
 
     /**

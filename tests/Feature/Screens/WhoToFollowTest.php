@@ -115,18 +115,18 @@ it('leaves who to follow out while there is nobody to suggest', function () {
     Native::visit('/log')->assertDontSee('$ who --should-i-follow');
 });
 
-it('shows the people kept from last time at once, then asks again', function () {
-    holdRefreshes();
-    keep('log/following', pageJson([commitJson(['id' => 'c1'])]));
-    keep('me/suggested-users', ['data' => [suggestedJson('ada')]], ['round' => '0']);
+it('keeps nothing between visits, and asks again when you come back to the Log', function () {
+    serveLogWithSuggestions([suggestedJson('ada')]);
 
     $screen = Native::visit('/log');
 
-    expect(shownSuggestions($screen))->toBe(['ada']);
+    expect(kept('me/suggested-users', ['round' => '0']))->toBeNull();
 
     serveLogWithSuggestions([suggestedJson('grace')]);
+    $screen->call('onResume');
 
-    expect(shownSuggestions(finishRefreshes($screen)))->toBe(['grace']);
+    expect(shownSuggestions($screen))->toBe(['grace'])
+        ->and(suggestionRoundsAsked())->toBe(['0', '0']);
 });
 
 it('follows someone suggested in place, and unfollows them again', function () {
@@ -142,8 +142,7 @@ it('follows someone suggested in place, and unfollows them again', function () {
     $screen->tap('suggested-follow-ada');
 
     expect($screen->instance()->suggestedUsers[0]->isFollowed)->toBeTrue()
-        ->and(sentTo('POST', 'users/ada/follow'))->toHaveCount(1)
-        ->and(kept('me/suggested-users', ['round' => '0'])['data'][0]['is_followed'])->toBeTrue();
+        ->and(sentTo('POST', 'users/ada/follow'))->toHaveCount(1);
 
     $screen->tap('suggested-follow-ada');
 
@@ -179,8 +178,7 @@ it('gives the place of someone not interesting to the first spare, then tops the
     $screen->tap('suggested-dismiss-grace');
 
     expect(shownSuggestions($screen))->toBe(['ada', 'spare', 'linus'])
-        ->and(sentTo('POST', 'users/grace/dismiss'))->toHaveCount(1)
-        ->and(array_column(kept('me/suggested-users', ['round' => '0'])['data'], 'username'))->toBe(['ada', 'linus', 'spare', 'other']);
+        ->and(sentTo('POST', 'users/grace/dismiss'))->toHaveCount(1);
 
     serveLogWithSuggestions([suggestedJson('ada'), suggestedJson('linus'), suggestedJson('spare'), suggestedJson('other'), suggestedJson('newcomer')]);
     finishRefreshes($screen);
@@ -267,9 +265,10 @@ it('leaves an answer for the round before alone once the next is asked for', fun
         };
     });
     keep('log/following', pageJson([commitJson(['id' => 'c1'])]));
-    keep('me/suggested-users', ['data' => [suggestedJson('kept')]], ['round' => '0']);
 
-    $screen = Native::visit('/log')->tap('who-to-follow-refresh');
+    $screen = finishRefreshes(Native::visit('/log'));
+    holdRefreshes();
+    $screen->tap('who-to-follow-refresh');
 
     expect(nodeByRef($screen, 'who-to-follow-refresh')['props']['a11y_label'] ?? null)->toBe('Suggesting other people');
 
@@ -295,14 +294,15 @@ it('keeps the round and who is showing when the next few fail to come', function
 });
 
 it('never brings back someone dismissed with an answer that crossed the dismissal', function () {
-    holdRefreshes();
-    keep('log/following', pageJson([commitJson(['id' => 'c1'])]));
-    keep('me/suggested-users', ['data' => [suggestedJson('ada'), suggestedJson('grace')]], ['round' => '0']);
     serveLogWithSuggestions([suggestedJson('ada'), suggestedJson('grace')], routes: [
         'POST /api/v1/users/grace/dismiss' => [null, 204],
     ]);
 
-    $screen = Native::visit('/log')->tap('suggested-dismiss-grace');
+    $screen = Native::visit('/log');
+    holdRefreshes();
+    // Coming back to the Log asks again, and grace is dismissed while that answer is on its way.
+    $screen->call('onResume');
+    $screen->tap('suggested-dismiss-grace');
 
     finishRefreshes($screen);
 
