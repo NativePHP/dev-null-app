@@ -4,7 +4,7 @@ Thanks for helping out. This covers how to pick something up and what we look fo
 
 ## Picking something up
 
-The [roadmap](README.md#roadmap) lists what we want next, and the [open issues](https://github.com/NativePHP/dev-null-app/issues) cover bugs and smaller requests.
+The [roadmap](README.md#roadmap) lists the bigger things we want next, but it isn't the only place to find work. The [open issues](https://github.com/NativePHP/dev-null-app/issues) cover bugs and smaller requests. And [/dev/null](https://dev-null.sh) itself keeps changing, so look at what's been [merged there recently](https://github.com/dev-null-sh/dev-null.sh/pulls?q=is%3Apr+is%3Amerged) and bring across anything the app doesn't have yet.
 
 Before you start, check that nobody is already working on it. Search the open issues and pull requests, drafts included. Work in progress is often named differently from the roadmap line, so try a few words for the screen or feature rather than the exact wording.
 
