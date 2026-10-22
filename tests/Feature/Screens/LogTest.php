@@ -304,7 +304,10 @@ it('holds images at their aspect ratio, so one that never loads leaves the row i
             && ($node['style']['bg_color'] ?? null) === config('native-ui.theme.light.wash'))
         ->assertElement('image', fn (array $node): bool => ($node['props']['src'] ?? null) === 'http://devnull.test/commit-images/i1')
         ->tap('image-i1')
-        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'http://devnull.test/commit-images/i1');
+        ->assertSet('viewerOpen', true)
+        ->assertElement('image', fn (array $node): bool => ($node['ref'] ?? null) === 'viewed-image'
+            && ($node['props']['src'] ?? null) === 'http://devnull.test/commit-images/i1')
+        ->assertNativeNotCalled('Browser.OpenInApp');
 });
 
 it('lays out several images in the web grid', function () {
@@ -320,7 +323,10 @@ it('lays out several images in the web grid', function () {
     Native::visit('/log')
         ->assertElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'image-i3' && ($node['a11y']['label'] ?? $node['props']['a11y_label'] ?? null) !== null)
         ->tap('image-i3')
-        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://img.test/3');
+        ->assertSet('viewerIndex', 2)
+        ->assertElement('image', fn (array $node): bool => ($node['ref'] ?? null) === 'viewed-image'
+            && ($node['props']['src'] ?? null) === 'https://img.test/3')
+        ->assertNativeNotCalled('Browser.OpenInApp');
 });
 
 it('reads each image out by the description its author gave it, as the web does with alt text', function (array $images, array $labels) {

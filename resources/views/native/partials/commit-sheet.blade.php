@@ -27,7 +27,8 @@
     they upload, and no body at all will do.
 
     It's full height for the forms, and short for the receipts. It's always on the screen, shown or not, so iOS can
-    slide it away and say when it's gone.
+    slide it away and say when it's gone. Beside it hangs the image viewer (see partials/image-viewer), always in the
+    tree too, which covers the sheet when a commit's images are opened from under it.
 --}}
 <native:bottom-sheet ref="sheet" handle-over-content :visible="$sheetOpen" :detents="in_array($sheetView, ['reported', 'issued'], true) ? '0.3' : 'large'" @dismiss="commitSheetClosed">
     @if ($sheetCommit || in_array($sheetView, ['compose', 'issued'], true))
@@ -175,3 +176,5 @@
         @endif
     @endif
 </native:bottom-sheet>
+
+@include('native.partials.image-viewer')
