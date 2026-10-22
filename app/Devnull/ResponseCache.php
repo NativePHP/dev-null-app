@@ -38,7 +38,6 @@ final class ResponseCache
         '#^me$#',
         '#^me/muted$#',
         '#^me/blocked$#',
-        '#^me/suggested-users$#',
         '#^notifications$#',
         '#^notifications/[^/]+/group$#',
         '#^log/[^/]+$#',
@@ -57,7 +56,6 @@ final class ResponseCache
      * The kept answers that list people with whether you follow each one.
      */
     private const array FollowedPeople = [
-        '#^me/suggested-users$#',
         '#^users/[^/]+/(followers|following)$#',
         '#^notifications$#',
         '#^notifications/[^/]+/group$#',
@@ -447,15 +445,6 @@ final class ResponseCache
     }
 
     /**
-     * You said you're not interested in someone who to follow suggested: they
-     * leave every kept page of suggestions, and a spare moves up.
-     */
-    public function suggestionDismissed(string $username): void
-    {
-        $this->dropFromSuggestions(fn (array $user): bool => ($user['username'] ?? null) === $username);
-    }
-
-    /**
      * You muted or unmuted someone, and devnull answered with them and
      * whether you mute them now: their profile says so, and they join the top
      * of the people you mute, or leave it. Once muted, their commits leave
@@ -543,12 +532,10 @@ final class ResponseCache
 
     /**
      * Takes someone's commits out of every kept log, and out of what an empty
-     * Following log suggests, and them out of who to follow.
+     * Following log suggests.
      */
     private function dropFromLogs(string $authorId): void
     {
-        $this->dropFromSuggestions(fn (array $user): bool => ($user['id'] ?? null) === $authorId);
-
         $userId = $this->userId();
 
         foreach ($userId === null ? [] : $this->index($userId) as $meta) {
@@ -561,30 +548,6 @@ final class ResponseCache
                     if (is_array($json[$list] ?? null)) {
                         $json[$list] = array_values(array_filter($json[$list], fn (mixed $commit): bool => ! is_array($commit) || ($commit['author']['id'] ?? null) !== $authorId));
                     }
-                }
-
-                return $json;
-            });
-        }
-    }
-
-    /**
-     * Takes the people $drops picks out of every kept page of who to follow.
-     *
-     * @param  Closure(array<mixed>): bool  $drops
-     */
-    private function dropFromSuggestions(Closure $drops): void
-    {
-        $userId = $this->userId();
-
-        foreach ($userId === null ? [] : $this->index($userId) as $meta) {
-            if ($meta['path'] !== Client::SuggestedUsersPath) {
-                continue;
-            }
-
-            $this->patch($meta['path'], $meta['query'], function (array $json) use ($drops): array {
-                if (is_array($json['data'] ?? null)) {
-                    $json['data'] = array_values(array_filter($json['data'], fn (mixed $user): bool => ! is_array($user) || ! $drops($user)));
                 }
 
                 return $json;

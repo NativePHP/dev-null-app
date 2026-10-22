@@ -265,7 +265,7 @@ class Log extends NativeComponent
         $this->showKept();
         $this->revalidate();
         $this->prefetchNextPage();
-        $this->openWhoToFollow();
+        $this->openWhoToFollow(again: true);
     }
 
     /**

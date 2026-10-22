@@ -66,10 +66,13 @@ trait SuggestsWhoToFollow
     protected array $dismissedSuggestions = [];
 
     /**
-     * The suggestions kept for the round showing, then asked again. A
-     * refresh asked for less than 30 seconds ago isn't sent twice.
+     * Asks devnull for the round showing, as the web loads who to follow
+     * after the page. They're only kept while the Log is open, as the web
+     * keeps them for the visit: devnull picks afresh each day, so a kept
+     * page would be yesterday's. Coming back to the Log asks again, since a
+     * follow, mute or block elsewhere changes who's suggested.
      */
-    protected function openWhoToFollow(): void
+    protected function openWhoToFollow(bool $again = false): void
     {
         $userId = $this->me()?->id;
 
@@ -77,16 +80,8 @@ trait SuggestsWhoToFollow
             return;
         }
 
-        $round = app(WhoToFollow::class)->round($userId);
-        $this->wantedRound = $round;
-        $kept = $this->cached(Client::SuggestedUsersPath, ['round' => (string) $round]);
-
-        // The kept answer has any follow or dismissal made since, here or on another screen.
-        if ($kept !== null) {
-            $this->takeSuggestedUsers($kept);
-        }
-
-        $this->askForSuggestedUsers($round);
+        $this->wantedRound = app(WhoToFollow::class)->round($userId);
+        $this->askForSuggestedUsers($this->wantedRound, again: $again);
     }
 
     /**
