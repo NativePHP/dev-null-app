@@ -30,10 +30,12 @@ final class Timeline
      * A feed, like the web's CommitFeed: a day marker wherever the day changes and
      * the last-visit marker above the first commit you had already seen.
      *
+     * Given $whoToFollowAfter, who to follow sits under that many commits, or under the last when there are fewer.
+     *
      * @param  list<Commit>  $commits
      * @return list<TimelineRow>
      */
-    public static function feed(array $commits, ?string $firstSeenId = null, ?CarbonInterface $now = null): array
+    public static function feed(array $commits, ?string $firstSeenId = null, ?CarbonInterface $now = null, ?int $whoToFollowAfter = null): array
     {
         $now ??= CarbonImmutable::now();
         $rows = [];
@@ -59,7 +61,7 @@ final class Timeline
             $previousDay = $day;
         }
 
-        return self::joinRuns($rows);
+        return self::joinRuns(self::withWhoToFollow($rows, $whoToFollowAfter));
     }
 
     /**
@@ -73,7 +75,7 @@ final class Timeline
      * @param  list<Commit>  $ranked
      * @return list<TimelineRow>
      */
-    public static function ranked(array $latest, array $ranked): array
+    public static function ranked(array $latest, array $ranked, ?int $whoToFollowAfter = null): array
     {
         $rows = [];
         $previous = null;
@@ -97,7 +99,36 @@ final class Timeline
             $previous = $commit;
         }
 
-        return self::joinRuns($rows);
+        return self::joinRuns(self::withWhoToFollow($rows, $whoToFollowAfter));
+    }
+
+    /**
+     * Puts who to follow under the commit $after commits down, or under the
+     * last when there are fewer, as the web's log does on smaller screens. The
+     * rail stops above it, so the commit below starts a run of its own, as it
+     * does under a day marker.
+     *
+     * @param  list<TimelineRow>  $rows
+     * @return list<TimelineRow>
+     */
+    private static function withWhoToFollow(array $rows, ?int $after): array
+    {
+        $commits = array_keys(array_filter($rows, fn (TimelineRow $row): bool => $row->isCommit()));
+
+        if ($after === null || $commits === []) {
+            return $rows;
+        }
+
+        $at = $commits[min(max(1, $after), count($commits)) - 1] + 1;
+        $below = $rows[$at] ?? null;
+
+        if ($below?->isCommit() === true) {
+            $rows[$at] = $below->startingRun();
+        }
+
+        array_splice($rows, $at, 0, [TimelineRow::whoToFollow()]);
+
+        return $rows;
     }
 
     /**

@@ -23,7 +23,6 @@ These are the next things we want in the app. If you'd like to take one on, read
 - Styling for livestreams
 - Search
 - A notifications centre that matches the web
-- Who to follow
 - A better welcome screen, with sign up and log in that don't mention GitHub, and maybe the public feed
 - Everything Remotes does on the web, including audio recordings and image uploads
 - WebSockets

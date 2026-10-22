@@ -71,6 +71,7 @@ enum Lucide
     case Camera;
     case ChartBar;
     case Eye;
+    case EyeOff;
     case Plus;
     case Maximize2;
 
@@ -169,6 +170,7 @@ enum Lucide
             self::Camera => 'camera',
             self::ChartBar => 'chart-bar',
             self::Eye => 'eye',
+            self::EyeOff => 'eye-off',
             self::Plus => 'plus',
             self::Maximize2 => 'maximize-2',
             self::Terminal => 'terminal',

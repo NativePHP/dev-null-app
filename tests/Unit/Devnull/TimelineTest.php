@@ -21,7 +21,7 @@ function timelineCommit(string $id, string $userId, string $createdAt, array $ov
 }
 
 /**
- * Each row as a short string: "day:Today", "visit", or "c1:avatar" / "c1:dot".
+ * Each row as a short string: "day:Today", "visit", "follow", or "c1:avatar" / "c1:dot".
  *
  * @param  list<TimelineRow>  $rows
  * @return list<string>
@@ -31,6 +31,7 @@ function describeRows(array $rows): array
     return array_map(fn (TimelineRow $row): string => match (true) {
         $row->isDayMarker() => "day:{$row->label}",
         $row->isLastVisitMarker() => 'visit',
+        $row->isWhoToFollow() => 'follow',
         default => $row->commit->id.':'.($row->continuesRun ? 'dot' : 'avatar'),
     }, $rows);
 }
@@ -113,6 +114,26 @@ it('lays Trending out with what came in above the ranking, and joins runs within
     expect(describeRows($rows))->toBe(['day:Just now', 'n2:avatar', 'n1:dot', 'day:Top commits', 'c2:avatar', 'c1:avatar'])
         ->and($rows[1]->continuesNext)->toBeTrue()
         ->and($rows[4]->endsWithDot())->toBeTrue();
+});
+
+it('puts who to follow under the fifth commit, and the commit below it starts a run of its own', function () {
+    $commits = array_map(fn (int $index): Commit => timelineCommit("c{$index}", 'ada', '2026-10-15T1'.(9 - $index).':00:00Z'), range(1, 7));
+
+    $rows = Timeline::feed($commits, now: $this->now, whoToFollowAfter: 5);
+
+    expect(describeRows($rows))->toBe(['day:Today', 'c1:avatar', 'c2:dot', 'c3:dot', 'c4:dot', 'c5:dot', 'follow', 'c6:avatar', 'c7:dot'])
+        ->and($rows[5]->continuesNext)->toBeFalse()
+        ->and($rows[7]->previousLane)->toBeNull()
+        ->and($rows[7]->continuesNext)->toBeTrue();
+});
+
+it('puts who to follow under the last commit of a shorter feed, and in Trending', function () {
+    $feed = Timeline::feed([timelineCommit('c1', 'ada', '2026-10-15T10:00:00Z')], now: $this->now, whoToFollowAfter: 5);
+    $ranked = Timeline::ranked([], [timelineCommit('c2', 'grace', '2026-10-13T11:00:00Z'), timelineCommit('c1', 'ada', '2026-10-15T09:00:00Z')], whoToFollowAfter: 1);
+
+    expect(describeRows($feed))->toBe(['day:Today', 'c1:avatar', 'follow'])
+        ->and(describeRows($ranked))->toBe(['c2:avatar', 'follow', 'c1:avatar'])
+        ->and(describeRows(Timeline::feed([], whoToFollowAfter: 5)))->toBe([]);
 });
 
 it('never runs on from or into a deleted commit', function () {
