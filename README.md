@@ -18,7 +18,7 @@ To make that instance work with the app on your phone, create a tunnel (ngrok, C
 
 ## Roadmap
 
-These are the next things we want in the app. If you'd like to take one on, open an issue or a draft PR first so two people don't end up building the same thing.
+These are the next things we want in the app. If you'd like to take one on, read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 - A native image viewer, instead of opening images in a browser sheet
 - Styling for livestreams
