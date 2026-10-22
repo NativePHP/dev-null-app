@@ -247,6 +247,7 @@ final class RowWindow
         return match (true) {
             $row->isDayMarker() => 'day-'.$row->label,
             $row->isLastVisitMarker() => 'last-visit',
+            $row->isWhoToFollow() => 'who-to-follow',
             default => 'commit-'.$row->commit?->id,
         };
     }

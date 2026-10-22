@@ -63,6 +63,11 @@ final readonly class Client
     public const string BlockedPath = 'me/blocked';
 
     /**
+     * Who to follow: three people to show and three spares, the next page of the day's picks for each ?round=.
+     */
+    public const string SuggestedUsersPath = 'me/suggested-users';
+
+    /**
      * Where pastéis mode is switched on and off for the signed-in account.
      */
     public const string PasteisModePath = 'me/pasteis-mode';
@@ -444,6 +449,15 @@ final readonly class Client
     {
         $this->send('DELETE', 'users/'.rawurlencode($username).'/follow');
         $this->cache->followChanged(rawurlencode($username), false);
+    }
+
+    /**
+     * Not interested, as the web's who to follow says it: devnull never suggests them again.
+     */
+    public function dismissSuggestion(string $username): void
+    {
+        $this->send('POST', 'users/'.rawurlencode($username).'/dismiss');
+        $this->cache->suggestionDismissed($username);
     }
 
     /**

@@ -1,8 +1,9 @@
 {{--
-    A feed's rows from App\Devnull\Timeline: day markers, the last-visit marker and commits on the rail. Under a commit
-    hangs its thread, inside its row's hairline, as on the web: the newest reply devnull previews, with "Show more"
-    when there are others, or the replies opened in place, with "Show more" to the commit's page when there are more
-    than they show. The commit's rail runs on past them when its author's run goes on below.
+    A feed's rows from App\Devnull\Timeline: day markers, the last-visit marker, who to follow ($whoToFollow, see
+    partials/who-to-follow) and commits on the rail. Under a commit hangs its thread, inside its row's hairline, as on
+    the web: the newest reply devnull previews, with "Show more" when there are others, or the replies opened in place,
+    with "Show more" to the commit's page when there are more than they show. The commit's rail runs on past them when
+    its author's run goes on below.
 
     Given a $rowCache (see App\Devnull\RowCache), commits and replies that haven't changed since the last frame are
     drawn from it rather than built again. Given a $rowWindow (see App\Devnull\RowWindow), rows far from the screen
@@ -11,6 +12,7 @@
 @php
     $rowCache ??= null;
     $rowWindow ??= null;
+    $whoToFollow ??= null;
 @endphp
 @foreach ($rows as $feedIndex => $row)
     @if ($row->isDayMarker())
@@ -19,6 +21,14 @@
         @else
             @php
                 $rowWindow->placeholder('day-'.$row->label);
+            @endphp
+        @endif
+    @elseif ($row->isWhoToFollow())
+        @if ($rowWindow?->place($feedIndex) ?? true)
+            @include('native.partials.who-to-follow', ['whoToFollow' => $whoToFollow])
+        @else
+            @php
+                $rowWindow->placeholder('who-to-follow');
             @endphp
         @endif
     @elseif ($row->isLastVisitMarker())

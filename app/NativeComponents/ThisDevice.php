@@ -13,6 +13,7 @@ use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Hsl;
 use App\Devnull\Lane;
 use App\Devnull\ResponseCache;
+use App\Devnull\WhoToFollow;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SignsInWithApple;
 use App\NativeComponents\Concerns\SyncsOutbox;
@@ -297,6 +298,14 @@ class ThisDevice extends NativeComponent
     }
 
     /**
+     * The web's Show and Hide for who to follow, kept on this phone as the web keeps it in a cookie.
+     */
+    public function setShowsWhoToFollow(bool $shows): void
+    {
+        app(WhoToFollow::class)->show($this->me()?->id, $shows);
+    }
+
+    /**
      * The people you mute and block, as the web's Safety settings list them.
      */
     public function openSafety(): void
@@ -571,6 +580,7 @@ class ThisDevice extends NativeComponent
             'lanes' => $current === null ? [] : $this->laneOptions($current),
             'laneChanged' => $current !== null && $this->chosenLane !== $current->preferredLane,
             'pasteisMode' => $current?->pasteisMode ?? false,
+            'showsWhoToFollow' => app(WhoToFollow::class)->shows($this->me()?->id),
             'remotes' => $current?->remotes,
             'remote' => self::remote(),
             'offersApple' => AppleSignIn::isAvailable(),
