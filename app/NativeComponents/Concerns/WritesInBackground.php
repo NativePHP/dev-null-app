@@ -53,7 +53,7 @@ trait WritesInBackground
             return;
         }
 
-        FetchInBackground::dispatch($request->url, $request->headers, $request->method, $request->body, $request->contentType)
+        FetchInBackground::dispatch($request->url, $request->headers, $request->method, $request->body, false, null, $request->contentType)
             ->timeout($timeout)
             ->finished(function (mixed $result) use ($done, $failed): void {
                 $result = is_array($result) ? $result : [];

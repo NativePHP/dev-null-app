@@ -157,6 +157,16 @@ final class RowWindow
     }
 
     /**
+     * How many timeline rows sit below the last one on screen, so a screen can
+     * tell how near the end you are before the list says you reached it. A
+     * commit and its thread replies count as one.
+     */
+    public function rowsBelowScreen(): int
+    {
+        return max(0, count($this->keys) - 1 - $this->last);
+    }
+
+    /**
      * The timeline row a list row belongs to. Rows after the feed, such as the
      * one loading the next page, count as its last.
      */

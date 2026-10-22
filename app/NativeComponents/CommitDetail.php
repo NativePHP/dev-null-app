@@ -274,6 +274,7 @@ class CommitDetail extends NativeComponent
         $this->updatedReply();
         $this->replies = [...$this->replies, $reply];
         $this->repliesShown = true;
+        $this->openCommit($reply->id);
     }
 
     /**

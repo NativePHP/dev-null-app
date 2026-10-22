@@ -2,6 +2,8 @@
 
 namespace App\Devnull;
 
+use Carbon\CarbonImmutable;
+
 /**
  * Remote images kept on the device: avatars, commit images and link preview
  * images. NativePHP's image element streams a remote URL every time it comes
@@ -10,19 +12,54 @@ namespace App\Devnull;
  * file until it's older than config('devnull.image_cache_hours').
  *
  * Downloads start when an answer from devnull arrives, never while a screen is
- * drawn, so an image not downloaded yet just loads from its URL as before.
+ * drawn, so an image not downloaded yet just loads from its URL as before. The
+ * log's next page brings its images down with it (see FetchInBackground), so
+ * its rows are drawn from the device from the start.
+ *
+ * Each URL is drawn the same way for as long as the app runs: from its file if
+ * it had one the first time it was drawn, from the URL otherwise. A download
+ * landing later is drawn from its file from the next launch on. Switching an
+ * image to its file as soon as it landed rebuilt every row showing it, and the
+ * phone loaded the visible ones again from disk, for a picture that looked the
+ * same. So rows are kept against their commits alone (see RowInputs).
+ *
+ * The singleton holds what's settled, so it lives as long as the app does.
  */
 final class ImageCache
 {
     public const string Directory = 'image-cache';
 
     /**
+     * What each URL drawn so far is drawn from, by URL.
+     *
+     * @var array<string, string>
+     */
+    private array $sources = [];
+
+    /**
+     * When the app started, which sets what the launch's one prune clears out.
+     */
+    private int $startedAt;
+
+    private bool $pruneTaken = false;
+
+    public function __construct()
+    {
+        $this->startedAt = CarbonImmutable::now()->getTimestamp();
+    }
+
+    /**
      * What to give an image element: the file this URL was downloaded to while
-     * it's fresh, otherwise the URL itself.
+     * it's fresh, otherwise the URL itself, as it was the first time it was
+     * drawn since the app started.
      */
     public static function src(?string $url): ?string
     {
-        return self::freshPath($url) ?? $url;
+        if (! self::isRemote($url)) {
+            return $url;
+        }
+
+        return app(self::class)->sources[$url] ??= self::freshPath($url) ?? $url;
     }
 
     /**
@@ -33,18 +70,51 @@ final class ImageCache
      */
     public static function prefetch(array $json): void
     {
+        $missing = self::missingIn($json);
+
+        if ($missing !== []) {
+            DownloadImages::dispatch($missing, self::takePrune())->timeout(120);
+        }
+    }
+
+    /**
+     * The image URLs in an answer that aren't on the device yet, once each.
+     * None with the cache off.
+     *
+     * @param  array<array-key, mixed>  $json
+     * @return list<string>
+     */
+    public static function missingIn(array $json): array
+    {
         if (self::hours() <= 0) {
-            return;
+            return [];
         }
 
-        $missing = array_values(array_filter(
+        return array_values(array_filter(
             array_unique(self::urlsIn($json)),
             fn (string $url): bool => self::freshPath($url) === null,
         ));
+    }
 
-        if ($missing !== []) {
-            DownloadImages::dispatch($missing)->timeout(120);
+    /**
+     * For the first task this launch that downloads images, the time images
+     * older than are cleared out, and null for every task after it (see
+     * DownloadImages::prune). Every task listed the whole folder before, which
+     * cost the background threads 15 seconds of CPU in 75 of scrolling. Only
+     * images that were already too old when the app started go, so none drawn
+     * since can.
+     */
+    public static function takePrune(): ?int
+    {
+        $cache = app(self::class);
+
+        if ($cache->pruneTaken || self::hours() <= 0) {
+            return null;
         }
+
+        $cache->pruneTaken = true;
+
+        return $cache->startedAt - self::hours() * 3600;
     }
 
     /**
@@ -97,9 +167,9 @@ final class ImageCache
      * The file a URL was downloaded to, while it's younger than the cache
      * keeps images, or null.
      */
-    private static function freshPath(?string $url): ?string
+    private static function freshPath(string $url): ?string
     {
-        if (self::hours() <= 0 || ! self::isRemote($url)) {
+        if (self::hours() <= 0) {
             return null;
         }
 
