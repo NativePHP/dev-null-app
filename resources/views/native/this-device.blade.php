@@ -182,6 +182,19 @@
                 </native:column>
             @endif
 
+            @if ($commitRowSwitch)
+                {{-- Only in builds made to measure the two commit rows against each other (see App\Devnull\CommitRows). --}}
+                <native:column ref="native-commit-rows" class="w-full pt-10">
+                    <native:row class="w-full px-4 gap-6 items-start">
+                        <native:column class="flex-1 gap-2">
+                            <native:text font="semibold" class="text-lg text-theme-ink">Native commit rows</native:text>
+                            <native:text class="text-sm leading-relaxed text-theme-ink-muted">Draws each commit in your feeds as one native view instead of the usual EDGE views, to compare how they scroll.</native:text>
+                        </native:column>
+                        <native:toggle ref="native-commit-rows-switch" :value="$nativeCommitRows" @change="setNativeCommitRows" a11y-label="Native commit rows" />
+                    </native:row>
+                </native:column>
+            @endif
+
             <native:column ref="safety" class="w-full pt-10">
                 @include('native.partials.settings-heading', [
                     'title' => 'Safety',

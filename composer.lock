@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "03e37596dd8bb9cc83599a7f836d1f05",
+    "content-hash": "ab72a01206f444f0fe51082e622a60c9",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -390,6 +390,42 @@
                 "source": "https://github.com/DASPRiD/Enum/tree/1.0.7"
             },
             "time": "2025-09-16T12:23:56+00:00"
+        },
+        {
+            "name": "devnull/commit-row",
+            "version": "1.0.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/devnull/commit-row",
+                "reference": "354599cfe4e4c7e1c21fd00b9deb68e0603f3117"
+            },
+            "require": {
+                "nativephp/mobile": "^4.0",
+                "php": "^8.3"
+            },
+            "type": "nativephp-ui-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Devnull\\CommitRow\\CommitRowServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Devnull\\CommitRow\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "The dev/null Log's commit row as one native element, for measuring against the same row drawn with EDGE.",
+            "transport-options": {
+                "relative": true
+            }
         },
         {
             "name": "dflydev/dot-access-data",

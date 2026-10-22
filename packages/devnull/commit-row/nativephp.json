@@ -1,0 +1,26 @@
+{
+    "name": "devnull/commit-row",
+    "version": "1.0.0",
+    "description": "The dev/null Log's commit row as one native element.",
+    "namespace": "CommitRow",
+    "platforms": [
+        "android",
+        "ios"
+    ],
+    "components": [
+        {
+            "type": "commit_row",
+            "element": "Devnull\\CommitRow\\Elements\\CommitRow",
+            "blade": "Devnull\\CommitRow\\Components\\CommitRow",
+            "android_renderer": "com.devnull.plugins.commit_row.ui.CommitRowRenderer",
+            "ios_renderer": "CommitRowRenderer",
+            "self_closing": true
+        }
+    ],
+    "android": {
+        "min_version": 26
+    },
+    "ios": {
+        "min_version": 18.2
+    }
+}

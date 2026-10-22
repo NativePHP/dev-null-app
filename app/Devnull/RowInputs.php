@@ -32,6 +32,7 @@ final class RowInputs
             'tombstones' => $scope['tombstones'] ?? false,
             'tombstoneReplies' => array_key_exists($commit->id, $scope['tombstoneReplies'] ?? []),
             'shown' => [self::changing($commit), $commit->quotedCommit === null ? null : self::changing($commit->quotedCommit)],
+            'nativeRow' => app(CommitRows::class)->native(),
         ];
     }
 

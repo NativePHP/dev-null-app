@@ -71,4 +71,20 @@ return [
 
     'apple_sign_in' => (bool) env('DEVNULL_APPLE_SIGN_IN', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Native commit row
+    |--------------------------------------------------------------------------
+    |
+    | Draw the feeds' commit rows as one native element (devnull/commit-row)
+    | instead of the Blade row's EDGE nodes, to measure the two on a phone.
+    | The switch adds a toggle to This Device that picks the row on that phone,
+    | so one build can be measured both ways. See App\Devnull\CommitRows.
+    |
+    */
+
+    'native_commit_row' => (bool) env('DEVNULL_NATIVE_COMMIT_ROW', false),
+
+    'commit_row_switch' => (bool) env('DEVNULL_COMMIT_ROW_SWITCH', false),
+
 ];

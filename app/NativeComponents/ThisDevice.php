@@ -5,6 +5,7 @@ namespace App\NativeComponents;
 use App\Devnull\Account;
 use App\Devnull\AppleSignIn;
 use App\Devnull\Client;
+use App\Devnull\CommitRows;
 use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\Remotes;
 use App\Devnull\DeviceKey;
@@ -309,6 +310,14 @@ class ThisDevice extends NativeComponent
      * it has, so the last flip wins. When devnull says no, the switch goes
      * back to what devnull has and the section says so in the web's words.
      */
+    /**
+     * Picks the commit row the feeds draw on this phone (see CommitRows).
+     */
+    public function setNativeCommitRows(bool $native): void
+    {
+        app(CommitRows::class)->useNative($native);
+    }
+
     public function setPasteisMode(bool $enabled): void
     {
         if ($this->current === null || $this->current->pasteisMode === $enabled) {
@@ -572,6 +581,8 @@ class ThisDevice extends NativeComponent
             'remotes' => $current?->remotes,
             'remote' => self::remote(),
             'offersApple' => AppleSignIn::isAvailable(),
+            'commitRowSwitch' => CommitRows::switchable(),
+            'nativeCommitRows' => app(CommitRows::class)->native(),
             'appleStatus' => match ($this->appleLinked) {
                 true => 'linked',
                 false => 'not linked',
