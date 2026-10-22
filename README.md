@@ -49,7 +49,6 @@ For now the app tracks unreleased branches, which Composer pulls straight from G
   - button variants named after a theme colour ([#137](https://github.com/NativePHP/mobile-ui/pull/137)),
   - a sticky header for lists ([#138](https://github.com/NativePHP/mobile-ui/pull/138)),
   - a pager header that scrolls with the page showing ([#139](https://github.com/NativePHP/mobile-ui/pull/139)).
-- `nativephp/mobile-camera` on `fix/present-over-sheets`, the plugin's `main` plus presenting the camera and the photo library from the topmost view controller, so they open over the composer sheet ([NativePHP/mobile-camera#17](https://github.com/NativePHP/mobile-camera/pull/17)). `main` also has the HEIC to JPEG conversion and the persistent storage fix that 1.0.4 lacks.
 
 Once those are released, the app goes back to tagged versions and the combined branches can be deleted.
 

@@ -20,10 +20,6 @@
             "url": "https://github.com/NativePHP/mobile-ui"
         },
         {
-            "type": "vcs",
-            "url": "https://github.com/NativePHP/mobile-camera"
-        },
-        {
             "name": "nativephp-plugins",
             "type": "composer",
             "url": "https://plugins.nativephp.com"
@@ -37,7 +33,7 @@
         "laravel/tinker": "^3.0",
         "nativephp/mobile": "dev-combined/dev-null-app as 4.6.0",
         "nativephp/mobile-browser": "^1.2",
-        "nativephp/mobile-camera": "dev-fix/present-over-sheets as 1.0.5",
+        "nativephp/mobile-camera": "^1.1",
         "nativephp/mobile-secure-storage": "^1.1",
         "nativephp/mobile-share": "^1.1",
         "nativephp/mobile-ui": "dev-combined/dev-null-app as 0.8.0",
