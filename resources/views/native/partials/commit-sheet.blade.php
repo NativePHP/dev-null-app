@@ -2,8 +2,9 @@
     The sheet under a commit (see OpensCommitSheet). Quote opens it as a composer: a bar of Cancel, the title and
     Commit, which waits for a body long enough to make, over the field, focused, with the commit being quoted under it
     as a static card, then the counter. Cancel and Commit are a cross and a check in circles, as Apple draws a sheet's
-    bar, the same on both platforms (see sheet-bar-button), 16pt in from the sheet's top and sides. Android draws its
-    handle over the sheet, as iOS does, so the bar starts at the top there too. The title is centred.
+    bar, the same on both platforms (see sheet-bar-button), 16pt in from the sheet's top and sides. On Android the bar
+    sits under Material's handle strip, since mobile-ui has no way yet to draw the handle over the content. The title is
+    centred.
     Cancel closes it as a swipe does, keeping the draft. If devnull says no, why shows here and the draft stays. The
     Log's compose button opens the same composer for a new commit, without the card. A draft stashed last time comes
     back in it, with the web's stash@{0} and drop beside the counter, in the toolbar at the bottom.
@@ -29,7 +30,7 @@
     It's full height for the forms, and short for the receipts. It's always on the screen, shown or not, so iOS can
     slide it away and say when it's gone.
 --}}
-<native:bottom-sheet ref="sheet" handle-over-content :visible="$sheetOpen" :detents="in_array($sheetView, ['reported', 'issued'], true) ? '0.3' : 'large'" @dismiss="commitSheetClosed">
+<native:bottom-sheet ref="sheet" :visible="$sheetOpen" :detents="in_array($sheetView, ['reported', 'issued'], true) ? '0.3' : 'large'" @dismiss="commitSheetClosed">
     @if ($sheetCommit || in_array($sheetView, ['compose', 'issued'], true))
         @if (in_array($sheetView, ['quote', 'compose', 'reply'], true))
             @php($quoting = $sheetView === 'quote')

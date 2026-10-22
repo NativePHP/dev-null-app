@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "009b62d2b9630b1cb607353263f57b5c",
+    "content-hash": "8bcaeeb71989e08fe920116ba3e08bcd",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2717,16 +2717,16 @@
         },
         {
             "name": "nativephp/mobile",
-            "version": "dev-combined/dev-null-app",
+            "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-air.git",
-                "reference": "0f0587bb3a92324d15cb9707a852d643a7729e82"
+                "reference": "2eda16dd1a84fd67b67b413df7e2f751b0a841bb"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/0f0587bb3a92324d15cb9707a852d643a7729e82",
-                "reference": "0f0587bb3a92324d15cb9707a852d643a7729e82",
+                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/2eda16dd1a84fd67b67b413df7e2f751b0a841bb",
+                "reference": "2eda16dd1a84fd67b67b413df7e2f751b0a841bb",
                 "shasum": ""
             },
             "require": {
@@ -2766,6 +2766,7 @@
             "suggest": {
                 "ext-zip": "Required by native:install to validate and extract the downloaded Android PHP binary archives"
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "laravel": {
@@ -2833,10 +2834,10 @@
                 "nativephp"
             ],
             "support": {
-                "source": "https://github.com/NativePHP/mobile-air/tree/combined/dev-null-app",
+                "source": "https://github.com/NativePHP/mobile-air/tree/main",
                 "issues": "https://github.com/NativePHP/mobile-air/issues"
             },
-            "time": "2026-10-22T00:18:06+00:00"
+            "time": "2026-10-22T22:24:28+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
@@ -3060,16 +3061,16 @@
         },
         {
             "name": "nativephp/mobile-ui",
-            "version": "dev-combined/dev-null-app",
+            "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-ui.git",
-                "reference": "ebbc94b79f489175ab815a69e579c368cd295ff1"
+                "reference": "b2a8b2ab5979fb217424210740a5aaca268f295d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/ebbc94b79f489175ab815a69e579c368cd295ff1",
-                "reference": "ebbc94b79f489175ab815a69e579c368cd295ff1",
+                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/b2a8b2ab5979fb217424210740a5aaca268f295d",
+                "reference": "b2a8b2ab5979fb217424210740a5aaca268f295d",
                 "shasum": ""
             },
             "require": {
@@ -3081,6 +3082,7 @@
                 "orchestra/testbench": "^10.0",
                 "pestphp/pest": "^3.0"
             },
+            "default-branch": true,
             "type": "nativephp-plugin",
             "extra": {
                 "laravel": {
@@ -3119,7 +3121,7 @@
             ],
             "description": "Native SwiftUI and Jetpack Composer components for NativePHP",
             "support": {
-                "source": "https://github.com/NativePHP/mobile-ui/tree/combined/dev-null-app",
+                "source": "https://github.com/NativePHP/mobile-ui/tree/main",
                 "issues": "https://github.com/NativePHP/mobile-ui/issues"
             },
             "funding": [
@@ -3128,7 +3130,7 @@
                     "url": "https://nativephp.com/sponsor"
                 }
             ],
-            "time": "2026-10-21T15:07:28+00:00"
+            "time": "2026-10-22T19:20:50+00:00"
         },
         {
             "name": "nesbot/carbon",
@@ -11130,13 +11132,13 @@
     "aliases": [
         {
             "package": "nativephp/mobile",
-            "version": "dev-combined/dev-null-app",
+            "version": "dev-main",
             "alias": "4.6.0",
             "alias_normalized": "4.6.0.0"
         },
         {
             "package": "nativephp/mobile-ui",
-            "version": "dev-combined/dev-null-app",
+            "version": "dev-main",
             "alias": "0.8.0",
             "alias_normalized": "0.8.0.0"
         }
