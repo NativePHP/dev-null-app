@@ -128,9 +128,9 @@ it('fits the pastel into the row beside the full Reply and replies labels, with 
     $screen = Native::visit('/log', platform: 'ios');
     $pastel = $pasteisMode ? ['pastel-c1'] : [];
 
-    // Star, the pastel in pastéis mode, Quote, Reply with its word, then More: no bookmark or link in the row.
+    // Star, the pastel in pastéis mode, Quote, Reply (icons, no words), then More: no bookmark or link in the row.
     expect(array_values(array_filter(childRefs($screen, 'actions-c1'))))->toBe(['star-c1', ...$pastel, 'quote-c1', 'reply-to-c1', 'more-c1'])
-        ->and(textInside($screen, 'reply-to-c1'))->toBe('Reply')
+        ->and(nodeByRef($screen, 'reply-to-c1')['props']['a11y_label'])->toBe('Reply')
         ->and(textInside($screen, 'replies-c2'))->toBe('3 replies')
         ->and(nodeByRef($screen, 'replies-c2')['props']['a11y_label'])->toBe('3 replies');
 

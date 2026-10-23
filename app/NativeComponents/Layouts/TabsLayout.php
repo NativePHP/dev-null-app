@@ -62,7 +62,7 @@ class TabsLayout extends NativeLayout
             ->displayMode('inline');
 
         if ($screen instanceof Log) {
-            $navBar->titleView(Image::make(self::logo())->height(28)->alt('devnull'));
+            $navBar->titleView(Image::make(self::logo())->width(105)->height(28)->fit(1)->alt('devnull'));
         }
 
         return $navBar;

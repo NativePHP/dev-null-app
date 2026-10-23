@@ -276,7 +276,7 @@ it('keeps the dots inside Quote and Reply in pastéis mode, beside the pastel, t
         ->and(showsRef($screen, 'quote-stash-c2'))->toBeTrue()
         ->and(showsRef($screen, 'reply-stash-c2'))->toBeTrue()
         ->and(showsRef($screen, 'reply-stash-c1'))->toBeTrue()
-        ->and(findNode(nodeByRef($screen, 'reply-to-c1'), fn (array $node): bool => ($node['type'] ?? null) === 'text')['props']['text'] ?? null)->toBe('Reply');
+        ->and(findNode(nodeByRef($screen, 'reply-to-c1'), fn (array $node): bool => ($node['type'] ?? null) === 'text'))->toBeNull();
 });
 
 // ── Signing out ────────────────────────────────

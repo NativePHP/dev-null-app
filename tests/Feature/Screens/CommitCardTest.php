@@ -101,9 +101,12 @@ it('gives every action under a commit a target big enough to tap, without growin
         ? array_values(array_filter($node['children'], fn (array $child): bool => $child['type'] !== 'top_bar_action'))[0]['layout']
         : $node['layout'];
 
-    foreach (['star-c1', 'quote-c1', 'more-c1'] as $ref) {
+    // Star, Quote and Reply share one target size and centre what they hold, so the row reads evenly.
+    foreach (['star-c1', 'quote-c1', 'reply-to-c1'] as $ref) {
         expect($target($ref))->toMatchArray(['min_width' => 44.0, 'height' => 36.0]);
     }
+
+    expect($target('more-c1'))->toMatchArray(['min_width' => 44.0, 'height' => 36.0]);
 
     expect($target('reply-to-c1')['height'])->toBe(36.0)
         ->and($target('replies-c1')['height'])->toBe(36.0)
@@ -119,7 +122,7 @@ it('builds a row from as few views as it can, as a list builds and measures each
     // One column beside the rail, its gutter a margin and the hairline under it a border, and buttons that are their
     // own rows. Wrapped the old way, this row took 47 views in eight levels.
     expect($row['layout']['flex_direction'])->toBe(1)
-        ->and($content['layout']['margin'])->toBe([0.0, 0.0, 0.0, 64.0])
+        ->and($content['layout']['padding'][3])->toBe(64.0)
         ->and($content['props']['border_b'])->toBe(1.0)
         ->and(array_column(nodeByRef($screen, 'star-c1')['children'], 'type'))->toBe(['icon', 'text'])
         ->and(count(findNodes($row, fn (): bool => true)))->toBeLessThanOrEqual(35);
