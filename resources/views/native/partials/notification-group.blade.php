@@ -1,13 +1,16 @@
 {{--
     A group opened in place, as the web expands it: each of its notifications on a compact line behind a 1pt Rail Gray
-    guide line, with a 28pt avatar, the name, the icon and time, and the words someone wrote. A follower has no icon,
-    as on the web, only the time and their follow back. Each opens its own commit, or profile for a follow. Older ones come with "Show older stars"; one that wouldn't load says so in git's
-    voice, with Try again.
+    guide line, with a 28pt avatar, the name, the icon and time, and the words someone wrote. As on the web, a star
+    opens the person who gave it — the commit it was given to is the one the group is about — while a reply, a quote
+    or a mention opens the commit it names. A follower has no icon, as on the web, only the time and their follow
+    back. Older ones come with "Show older stars"; one that wouldn't load says so in git's voice, with Try again.
 --}}
 @php($noun = $group->groupNoun())
 <native:column ref="group-items-{{ $group->id }}" class="w-full mt-2">
     @foreach ($items as $item)
-        <native:pressable ref="group-item-{{ $item->id }}" @press="open('{{ $item->id }}')" class="w-full">
+        @php($opensPerson = $item->isStar() || $item->isFollow())
+        @php($press = $opensPerson ? "openActor('{$item->actor->username}')" : "open('{$item->id}')")
+        <native:pressable ref="group-item-{{ $item->id }}" @press="{{ $press }}" class="w-full">
             <native:row class="w-full py-2 pl-8 gap-[10] items-start">
                 <native:pressable ref="group-actor-{{ $item->id }}" @press="openActor('{{ $item->actor->username }}')" a11y-label="{{ $item->actor->handle() }}'s profile">
                     @include('native.partials.avatar', ['user' => $item->actor, 'size' => 28])

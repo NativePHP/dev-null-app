@@ -2,6 +2,8 @@
 
 use App\Devnull\Client;
 use App\Devnull\Display;
+use App\Devnull\ImageCache;
+use App\Devnull\NotificationFilters;
 use App\NativeComponents\Notifications;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -59,6 +61,14 @@ function ringColour(TestableComponent $screen, string $id): ?string
     return $node['style']['border_color'] ?? $node['style']['borderColor'] ?? null;
 }
 
+/**
+ * The text a single node shows, as one string.
+ */
+function nodeText(array $node): string
+{
+    return (string) ($node['props']['text'] ?? '');
+}
+
 it('opens notification actors independently of the commit the row opens', function (string $ref, string $username) {
     fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('starred', [
         'actor' => personJson('grace', 'Grace'),
@@ -74,6 +84,19 @@ it('opens notification actors independently of the commit the row opens', functi
     'primary avatar' => ['actor-avatar-n-starred-grace', 'grace'],
     'other stacked actor' => ['actor-avatar-n-starred-ada', 'ada'],
 ]);
+
+it('opens a reply through each of its targets: the person from their avatar and name, the commit from what they did', function () {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('replied', [
+        'actor' => personJson('grace', 'Grace', 5),
+        'actors' => [personJson('grace', 'Grace', 5)],
+    ])])]]);
+
+    Native::visit('/notifications')->tap('node-avatar-n-replied')->assertNavigatedTo('/notifications/users/grace');
+
+    Native::visit('/notifications')->tap('actor-name-n-replied')->assertNavigatedTo('/notifications/users/grace');
+
+    Native::visit('/notifications')->tap('action-n-replied')->assertNavigatedTo('/notifications/commits/c-replied');
+});
 
 it('opens an expanded notification actor from their own profile link', function () {
     fakeApi([
@@ -117,7 +140,7 @@ it('reads a group with its people, how many events there are and how many are un
         ->and($follow->isGrouped())->toBeFalse();
 });
 
-it('words each kind like the web: the name, then the handle when they act alone, and what they did', function () {
+it('lays a reply, a quote and a mention out as the web does: the name and handle heading the row, what they did under it, then their words', function () {
     fakeApi(['GET /api/v1/notifications' => [inboxJson([
         notificationJson('replied', ['commit' => notificationCommitJson(['id' => 'r1', 'parent_id' => 'c-yours', 'body' => 'Nice work.'])]),
         notificationJson('quoted', ['id' => 'n-quoted', 'commit' => notificationCommitJson(['id' => 'q1', 'body' => 'Quoting this one.'])]),
@@ -125,7 +148,7 @@ it('words each kind like the web: the name, then the handle when they act alone,
         notificationJson('followed', ['created_at' => now()->subDays(2)->toIso8601ZuluString(), 'actor' => personJson('linus', 'Linus'), 'actors' => [personJson('linus', 'Linus')]]),
     ])]]);
 
-    $screen = Native::visit('/notifications')
+    $screen = Native::visit('/notifications', platform: 'ios')
         ->assertNavTitle('Notifications')
         ->assertTabActive('Notifications')
         ->assertSee('Nice work.')
@@ -133,10 +156,17 @@ it('words each kind like the web: the name, then the handle when they act alone,
         ->assertSee('Ask @local_dev about it')
         ->assertSee('2d');
 
-    expect(paragraphRuns($screen, 'replied to your commit'))->toBe([['Ada', 'link'], [' '], ['@ada', 'mention'], [' replied to your commit']])
-        ->and(paragraphRuns($screen, 'quoted your commit'))->toBe([['Ada', 'link'], [' '], ['@ada', 'mention'], [' quoted your commit']])
-        ->and(paragraphRuns($screen, 'mentioned you'))->toBe([['Grace', 'link'], [' '], ['@grace', 'mention'], [' mentioned you']])
-        ->and(paragraphRuns($screen, 'followed you'))->toBe([['Linus', 'link'], [' '], ['@linus', 'mention'], [' followed you']])
+    // Their name heads the row with their handle, and what they did runs under it in the web's words,
+    // with the type's icon beside the time, in their lane, as the web draws it.
+    $iconName = ['replied' => 'message-square-reply', 'quoted' => 'quote', 'mentioned' => 'at-sign'];
+
+    foreach (['replied' => 'Replied to your commit', 'quoted' => 'Quoted your commit', 'mentioned' => 'Mentioned you'] as $type => $action) {
+        expect(nodeText(nodeByRef($screen, 'actor-name-n-'.$type)))->toBe($type === 'mentioned' ? 'Grace' : 'Ada')
+            ->and(nodeText(nodeByRef($screen, 'action-n-'.$type)))->toBe($action)
+            ->and(findNode(nodeByRef($screen, 'notification-n-'.$type), fn (array $node): bool => ($node['type'] ?? null) === 'icon' && ($node['props']['name'] ?? null) === 'custom:'.$iconName[$type]))->not->toBeNull();
+    }
+
+    expect(paragraphRuns($screen, 'followed you'))->toBe([['Linus', 'link'], [' '], ['@linus', 'mention'], [' followed you']])
         ->and(stackedAvatars($screen, 'n-followed'))->toBe(['https://avatars.test/linus']);
 });
 
@@ -161,6 +191,92 @@ it('stacks the newest three people on a group of stars, with a +N for the rest, 
         ->and(nodeByRef($screen, 'your-commit-n-starred'))->not->toBeNull();
 
     $screen->tap('notification-n-starred')->assertNavigatedTo('/notifications/commits/c-starred');
+});
+
+it('words a star of an image-only commit as yours, and shows its image beside it, and nothing of the commit', function () {
+    $commit = [...notificationCommitJson(['id' => 'c-pictures', 'body' => ''], withParent: false), 'images' => [
+        ['id' => 'img-1', 'url' => 'https://images.test/cat.jpg', 'width' => 640, 'height' => 480],
+        ['id' => 'img-2', 'url' => 'https://images.test/dog.jpg', 'width' => 640, 'height' => 640],
+    ]];
+
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('starred', ['commit' => $commit])])]]);
+
+    $screen = Native::visit('/notifications');
+
+    expect(nodeText(nodeByRef($screen, 'actor-name-n-starred')))->toBe('Ada')
+        ->and(paragraphRuns($screen, 'starred your images'))->toBe([['Ada', 'link'], [' '], ['@ada', 'mention'], [' starred your images']])
+        // devnull's signed API loads no images today, so the thumbnail lights up only when it does.
+        ->and(nodeByRef($screen, 'starred-image-n-starred')['props']['src'])->toBe(ImageCache::src('https://images.test/cat.jpg'))
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'your-commit-n-starred'))->toBeNull();
+});
+
+it('boxes the commit of yours a quote quotes when devnull sends it, a tombstone once deleted, and nothing when it does not', function (array $commit, string $ref) {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('quoted', [
+        'commit' => notificationCommitJson(['id' => 'q1', 'body' => 'Quoting this one.', 'quoted_commit' => $commit]),
+    ])])]]);
+
+    $screen = Native::visit('/notifications')->assertSee('Quoting this one.');
+
+    expect(nodeByRef($screen, $ref))->not->toBeNull();
+})->with([
+    'live' => [commitJson(['id' => 'c-mine', 'body' => 'The commit of mine they quoted.']), 'quoted-q1'],
+    'deleted' => [tombstoneJson(), 'quoted-q1'],
+]);
+
+it('opens the quoted commit of yours from its card, not the one quoting it, and names who wrote it and when', function () {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('quoted', [
+        'commit' => notificationCommitJson(['id' => 'q1', 'body' => 'Quoting this one.', 'quoted_commit' => commitJson(['id' => 'c-mine', 'body' => 'The commit of mine they quoted.'])]),
+    ])])]]);
+
+    $screen = Native::visit('/notifications')->assertSee('The commit of mine they quoted.');
+
+    $card = nodeByRef($screen, 'quoted-q1');
+
+    expect(shownText($screen))->toContain('Local Dev')
+        ->and(nodeByRef($screen, 'quoted-q1'))->not->toBeNull();
+
+    $screen->tap('quoted-q1')->assertNavigatedTo('/notifications/commits/c-mine');
+});
+
+it('shows no box under a quote whose commit devnull did not load', function () {
+    // The signed API loads no quoted commits today: the key itself is absent, so nothing is boxed.
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('quoted', [
+        'commit' => array_diff_key(notificationCommitJson(['id' => 'q1', 'body' => 'Quoting this one.']), ['quoted_commit' => '']),
+    ])])]]);
+
+    $screen = Native::visit('/notifications')->assertSee('Quoting this one.');
+
+    expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'quoted-q1'))->toBeNull();
+});
+
+it('words a level-up as safely as the API allows: no level it did not send, no reply action, and your profile to open', function (array $overrides) {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('leveled_up', $overrides)])]]);
+
+    $screen = Native::visit('/notifications')->assertSee('You reached a new level.');
+
+    expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'level-chip-n-leveled_up'))->toBeNull()
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'level-description-n-leveled_up'))->toBeNull()
+        // Nothing but a follow or a level-up opens a profile, and no commit is named.
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'action-n-leveled_up'))->toBeNull();
+
+    $screen->tap('notification-n-leveled_up')->assertNavigatedTo('/notifications/users/ada');
+})->with([
+    'the API sends no level' => [[]],
+    'an empty rank' => [['level' => 4, 'rank' => '  ']],
+]);
+
+it('chips a level-up with its level and rank when devnull actually sends them', function () {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('leveled_up', [
+        'level' => 4,
+        'rank' => 'Wizard',
+        'rank_description' => 'Shipped five days in a row.',
+    ])])]]);
+
+    $screen = Native::visit('/notifications', platform: 'ios')->assertSee('Lv. 4 · Wizard')->assertSee('Shipped five days in a row.');
+
+    expect(nodeByRef($screen, 'level-chip-n-leveled_up'))->not->toBeNull()
+        ->and(nodeByRef($screen, 'level-description-n-leveled_up'))->not->toBeNull()
+        ->and(findNode(nodeByRef($screen, 'node-n-leveled_up'), fn (array $node): bool => ($node['props']['name'] ?? null) === 'custom:chevrons-up'))->not->toBeNull();
 });
 
 it('words moderation updates like the web, with a verdict chip and the reason for a rejection', function () {
@@ -219,6 +335,18 @@ it('rings what arrived since your last visit in blue, above the last-visit marke
     )));
 
     expect($refs)->toBe(['day-Today', 'notification-n-mentioned', 'last-visit', 'day-'.Display::dayLabel(now()->subDays(3)), 'notification-n-followed']);
+
+    // The new one says so to a screen reader, on the icon and the avatar in its node — the only place that
+    // reaches one, a pressable's own label staying unannounced — and the one read before says nothing.
+    $saysNew = fn (array $node): ?string => collect(findNodes($node, fn (array $child): bool => in_array($child['type'] ?? null, ['icon', 'image'], true)
+        && (string) ($child['props']['a11y_label'] ?? $child['props']['alt'] ?? '') !== ''))->map(
+            fn (array $child): string => (string) ($child['props']['a11y_label'] ?? $child['props']['alt']),
+        )->first();
+
+    expect($saysNew(nodeByRef($screen, 'notification-n-mentioned')))->toBe('New')
+        ->and($saysNew(nodeByRef($screen, 'node-n-mentioned')))->toBe('New')
+        ->and($saysNew(nodeByRef($screen, 'notification-n-followed')))->toBeNull()
+        ->and($saysNew(nodeByRef($screen, 'node-n-followed')))->toBeNull();
 });
 
 it('opens what the web opens for each kind', function (string $type, string $destination) {
@@ -227,55 +355,57 @@ it('opens what the web opens for each kind', function (string $type, string $des
     Native::visit('/notifications')->tap('notification-n-'.$type)->assertNavigatedTo($destination);
 })->with([
     ['replied', '/notifications/commits/c-replied'],
+    ['quoted', '/notifications/commits/c-quoted'],
     ['starred', '/notifications/commits/c-starred'],
     ['mentioned', '/notifications/commits/c-mentioned'],
     ['approved', '/notifications/commits/c-approved'],
     ['rejected', '/notifications/commits/c-rejected'],
     ['followed', '/notifications/users/ada'],
+    ['leveled_up', '/notifications/users/ada'],
 ]);
 
-it("has the web's filters, each asked for by its type, with All asked for plainly", function () {
+it("has the web's filters, several on at once, each asked for by its type with all asked for plainly", function () {
     serveApi(function (Request $request) {
         parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
         $type = $query['type'] ?? 'all';
 
         return str_starts_with((string) parse_url($request->url(), PHP_URL_PATH), '/api/v1/notifications')
-            ? Http::response(inboxJson($type === 'stars' ? [notificationJson('starred')] : [notificationJson('followed')], $type))
+            ? Http::response(inboxJson($type === 'none' ? [] : (str_contains($type, 'follows') ? [notificationJson('followed')] : [notificationJson('starred')]), $type))
             : Http::response(['data' => userWithCountsJson(), 'unread_notifications_count' => 0]);
     });
 
-    $screen = Native::visit('/notifications')->assertSee('followed you');
+    $screen = Native::visit('/notifications')->assertSee('starred your commit');
 
-    // The pager draws the filters along the top, in a row that scrolls, on All.
-    expect(nodeByRef($screen, 'notifications-pager')['props'])->toMatchArray([
-        'tabs' => ['All', 'Replies', 'Quotes', 'Stars', 'Mentions', 'Follows', 'Moderation'],
-        'tabs_scrollable' => true,
-        'page' => 0,
-    ]);
+    // The three chips the web's phone layout shows, and its More button for the rest.
+    foreach ([...Notifications::QuickFilters, 'more'] as $ref) {
+        expect(nodeByRef($screen, 'filter-'.$ref))->not->toBeNull();
+    }
 
-    tapFilter($screen, 'stars')
-        ->assertSet('type', 'stars')
-        ->assertSee('starred your commit')
-        ->assertDontSee('followed you');
+    // Several on at once, tapped in any order, sent as one canonical comma-separated type.
+    tapFilter($screen, 'replies');
+    tapFilter($screen, 'quotes');
+    $screen->assertSet('type', 'stars,mentions,follows,moderation')->assertSee('followed you')->assertDontSee('starred your commit');
+
+    // The More sheet carries the rest, and stays open across a tap, as the web's menu does.
+    $screen->tap('filter-more');
+    expect(nodeByRef($screen, 'filters-sheet')['props'])->toMatchArray(['visible' => true]);
+    tapFilter($screen, 'follows');
+    $screen->assertSet('type', 'stars,mentions,moderation')->assertDontSee('followed you');
+
+    // Every one off asks for none of them.
+    tapFilter($screen, 'stars')->tap('filter-mentions')->tap('filter-moderation')->assertSet('type', 'none');
 
     $urls = Http::recorded(fn (Request $request): bool => str_contains($request->url(), '/notifications'))->map(fn (array $pair): string => $pair[0]->url())->values()->all();
 
-    expect($urls)->toContain('http://devnull.test/api/v1/notifications', 'http://devnull.test/api/v1/notifications?type=stars');
+    expect($urls)->toContain(
+        'http://devnull.test/api/v1/notifications',
+        'http://devnull.test/api/v1/notifications?type=stars%2Cmentions%2Cfollows%2Cmoderation',
+        'http://devnull.test/api/v1/notifications?type=stars%2Cmentions%2Cmoderation',
+        'http://devnull.test/api/v1/notifications?type=none',
+    );
 });
 
-it("says what each filter shows when it's empty, in the web's words, with a way back to all of them", function (string $type) {
-    fakeApi(['GET /api/v1/notifications' => [inboxJson([])]]);
-
-    $screen = Native::test(Notifications::class)->call('show', $type)
-        ->assertSee($type === 'all' ? '$ cat /dev/notifications' : '$ cat /dev/notifications | grep '.$type)
-        ->assertSee(Notifications::Types[$type][1]);
-
-    if ($type !== 'all') {
-        $screen->assertSee('Show all notifications')->tap('show-all')->assertSet('type', 'all');
-    }
-})->with(array_keys(Notifications::Types));
-
-it('keeps each filter on its own, and opens one kept before at once', function () {
+it('keeps the selection on for the account, and opens on it at once', function () {
     holdRefreshes();
     keep('notifications', inboxJson([notificationJson('followed')]), ['type' => null]);
     keep('notifications', inboxJson([notificationJson('mentioned')], 'mentions'), ['type' => 'mentions']);
@@ -284,7 +414,8 @@ it('keeps each filter on its own, and opens one kept before at once', function (
     $screen = Native::visit('/notifications')->assertSee('followed you');
     $requests = count(Http::recorded());
 
-    tapFilter($screen, 'mentions')
+    // Mentions alone, as a link from another screen would ask for it.
+    $screen->call('show', 'mentions')
         ->assertSee('mentioned you')
         ->assertDontSee('followed you');
 
@@ -292,68 +423,71 @@ it('keeps each filter on its own, and opens one kept before at once', function (
         ->and(count(Http::recorded()))->toBe($requests)
         ->and(kept('notifications', ['type' => 'mentions']))->not->toBeNull()
         ->and(kept('notifications', ['type' => 'stars']))->toBeNull();
+
+    // Opening again is on what was kept, with nothing asked yet.
+    holdRefreshes();
+
+    $screen = Native::visit('/notifications')->assertSee('mentioned you')->assertSet('enabled', ['mentions']);
+
+    expect(showsLoading(showingNotifications($screen)))->toBeFalse()
+        ->and(count(Http::recorded()))->toBe(0);
 });
 
-it('swipes between the filters both ways under the filters the pager draws, and stops at the ends', function () {
+it("says what each filter shows when it's empty, in the web's words, with a way back to all of them", function (string $type) {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([])]]);
+
+    $screen = Native::test(Notifications::class)->call('show', $type)
+        ->assertSee($type === 'all' ? '$ cat /dev/notifications' : '$ cat /dev/notifications | grep -E \''.$type.'\'')
+        ->assertSee($type === 'all' ? Notifications::AllEmpty : Notifications::Categories[$type][1]);
+
+    if ($type !== 'all') {
+        $screen->assertSee('Show all notifications')->tap('show-all')->assertSet('type', 'all');
+    }
+})->with(['all', ...array_keys(Notifications::Categories)]);
+
+it("says what's on when several are and neither is everything, and when nothing is", function () {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([])]]);
+
+    Native::test(Notifications::class)
+        ->call('show', 'replies,quotes')
+        ->assertSee('$ cat /dev/notifications | grep -E \'replies|quotes\'')
+        ->assertSee(Notifications::CombinedEmpty)
+        ->assertSee('Show all notifications');
+
+    Native::test(Notifications::class)
+        ->call('show', 'none')
+        ->assertSee('$ cat /dev/notifications | grep -E \'^$\'')
+        ->assertSee(Notifications::NoneEmpty)
+        ->assertSee('Show all notifications')
+        ->tap('show-all')
+        ->assertSee('$ cat /dev/notifications')
+        ->assertSee(Notifications::AllEmpty)
+        ->assertDontSee('Show all notifications');
+});
+
+it('starts the list over when the selection changes, and holds it while the list refreshes and pages', function () {
     holdRefreshes();
-    keep('notifications', inboxJson([notificationJson('followed')]), ['type' => null]);
+    keep('notifications', inboxJson([notificationJson('followed')], cursor: 'next'), ['type' => null]);
     keep('notifications', inboxJson([notificationJson('replied')], 'replies'), ['type' => 'replies']);
-    serveApi(fn () => Http::response(inboxJson([])));
-
-    $screen = Native::visit('/notifications');
-    $pager = fn (): array => nodeByRef($screen, 'notifications-pager');
-
-    // All is first: it and Replies are shipped, nothing before it. The pager says where it is once a swipe has settled.
-    expect($pager()['props'])->toMatchArray(['horizontal' => true, 'count' => 7, 'page' => 0, 'window_from' => 0, 'window_to' => 1, 'report_on_settle' => true])
-        ->and($pager()['props'])->toHaveKey('on_tab_reselect')
-        ->and(treeShows(nodeByRef($screen, 'notifications-replies'), 'replied'))->toBeTrue();
-
-    $screen->changeTab('showPage', 1)->assertSet('type', 'replies');
-
-    expect($pager()['props'])->toMatchArray(['page' => 1, 'window_from' => 0, 'window_to' => 2])
-        ->and(treeShows(showingNotifications($screen), 'replied'))->toBeTrue()
-        ->and(showsLoading(showingNotifications($screen)))->toBeFalse();
-
-    $screen->changeTab('showPage', 0)->assertSet('type', 'all');
-
-    expect($pager()['props']['page'])->toBe(0);
-
-    // Nothing before All, and no wrapping round from Moderation to All.
-    $screen->changeTab('showPage', -1)->assertSet('type', 'all');
-    $screen->changeTab('showPage', 6)->assertSet('type', 'moderation');
-
-    expect($pager()['props'])->toMatchArray(['page' => 6, 'window_from' => 5, 'window_to' => 6]);
-
-    $screen->changeTab('showPage', 7)->assertSet('type', 'moderation');
-});
-
-it('gives each filter its own list, starts the one you leave again in a fresh one, and only lets the one you are on page', function () {
-    holdRefreshes();
-    keep('notifications', inboxJson([notificationJson('followed')]), ['type' => null]);
-    keep('notifications', inboxJson(array_map(fn (int $n): array => notificationJson('replied', ['id' => "r{$n}"]), range(1, 10)), 'replies', cursor: 'next'), ['type' => 'replies']);
-    serveApi(fn () => Http::response(inboxJson([])));
+    serveApi(function (Request $request) {
+        return str_contains($request->url(), 'cursor=next')
+            ? Http::response(inboxJson([notificationJson('starred')]))
+            : Http::response(inboxJson([notificationJson('followed')], cursor: 'next'));
+    });
 
     $screen = Native::visit('/notifications');
     $all = showingNotifications($screen)['id'];
-    $replies = nodeByRef($screen, 'notifications-replies');
 
-    // Beside All, Replies shows the first few groups kept for it, with nothing under them yet.
-    expect(count(findNodes($replies, fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'notification-'))))->toBe(Notifications::PreviewGroups)
-        ->and(showsLoading($replies))->toBeFalse()
-        ->and($replies['props'])->toHaveKey('on_refresh')
-        ->and($replies['props'])->not->toHaveKey('on_end_reached')
-        ->and(showingNotifications($screen)['props'])->toHaveKey('on_end_reached');
+    // A page under the list keeps its key, so its rows keep their identity.
+    finishRefreshes($screen);
+    $screen->call('loadMore');
+    expect(showingNotifications($screen)['id'])->toBe($all)
+        ->and($screen->instance()->notifications)->toHaveCount(2);
 
-    $screen->changeTab('showPage', 1);
-
-    // Swiped to, Replies keeps its list and fills it. All, left behind, starts again at the top of a fresh one.
-    expect(showingNotifications($screen)['id'])->toBe($replies['id'])
-        ->and(nodeByRef($screen, 'notifications-all')['id'])->not->toBe($all);
-
-    // The filter you're on takes you back to its top.
+    // A new selection starts a fresh list at the top.
     tapFilter($screen, 'replies');
-
-    expect(showingNotifications($screen)['id'])->not->toBe($replies['id']);
+    expect(showingNotifications($screen)['id'])->not->toBe($all)
+        ->and($screen->instance()->listKey)->toBeGreaterThan(0);
 });
 
 it('opens a group in place, as the web expands it, and folds it away again', function () {
@@ -379,14 +513,15 @@ it('opens a group in place, as the web expands it, and folds it away again', fun
     expect(array_map(fn ($item): string => $item->id, $screen->instance()->expanded['n-starred']))->toBe(['n-star-2', 'n-star-1'])
         ->and(childRefs($screen, 'group-items-n-starred'))->toContain('group-item-n-star-2', 'group-item-n-star-1');
 
-    $screen->tap('group-item-n-star-1')->assertNavigatedTo('/notifications/commits/c-starred');
+    // A star in the list opens the person who gave it, as on the web; a reply would open the commit.
+    $screen->tap('group-item-n-star-1')->assertNavigatedTo('/notifications/users/ada');
 
     Native::visit('/notifications')->tap('group-n-starred')->tap('group-n-starred')->assertSee('2 stars')->assertDontSee('Hide stars');
 
     Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/notifications/n-starred/group');
 });
 
-it('opens a group with the filter it was listed under, and pages its older ones', function () {
+it('opens a group with the selection it was listed under, and pages its older ones', function () {
     serveApi(function (Request $request) {
         $url = $request->url();
 
@@ -427,7 +562,7 @@ it('says when a group would not open, and tries again', function () {
     expect($screen->instance()->expanded['n-starred'][0]->id)->toBe('n-star-1');
 });
 
-it('opens a group kept before at once, and keeps groups per filter', function () {
+it('opens a group kept before at once, and keeps groups per selection', function () {
     holdRefreshes();
     keep('notifications', inboxJson([notificationJson('starred', ['event_count' => 2])]), ['type' => null]);
     keep('notifications/n-starred/group', pageJson([notificationJson('starred', ['id' => 'n-star-kept', 'actor' => personJson('grace', 'Grace')])]), ['type' => null]);
@@ -534,3 +669,83 @@ it('lists a group of followers when it is tapped, each with the same small follo
     // A second tap folds it away.
     $screen->tap('notification-n-followed')->assertDontSee('Grace Brewster Murray Hopper');
 });
+
+it('draws the filters and rows on Android as on iOS', function () {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([
+        notificationJson('replied', ['actor' => personJson('grace', 'Grace', 5), 'actors' => [personJson('grace', 'Grace', 5)]]),
+        notificationJson('starred', ['event_count' => 2, 'actor' => personJson('ada', 'Ada'), 'actors' => [personJson('ada', 'Ada'), personJson('linus', 'Linus')]]),
+    ])]]);
+
+    $screen = Native::visit('/notifications', platform: 'android');
+
+    expect(nodeByRef($screen, 'filter-replies'))->not->toBeNull()
+        ->and(nodeByRef($screen, 'action-n-replied'))->not->toBeNull()
+        ->and(nodeByRef($screen, 'node-n-replied'))->not->toBeNull()
+        ->and($screen->assertSee('Replied to your commit')->assertSee('2 stars'));
+});
+
+it('shows the first image beside any starred commit that has images, with its words still boxed as yours', function () {
+    $commit = [...notificationCommitJson(['id' => 'c-shipped', 'body' => 'Shipped the pictures.'], withParent: false), 'images' => [
+        ['id' => 'img-1', 'url' => 'https://images.test/cat.jpg', 'width' => 640, 'height' => 480],
+    ]];
+
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('starred', ['commit' => $commit])])]]);
+
+    $screen = Native::visit('/notifications');
+
+    expect(paragraphRuns($screen, 'starred your commit'))->toBe([['Ada', 'link'], [' '], ['@ada', 'mention'], [' starred your commit']])
+        ->and(nodeByRef($screen, 'starred-image-n-starred')['props']['src'])->toBe(ImageCache::src('https://images.test/cat.jpg'))
+        ->and(nodeByRef($screen, 'your-commit-n-starred'))->not->toBeNull();
+});
+
+it('draws the filters as chips that carry their own selected state, which a screen reader says', function () {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('followed')])]]);
+
+    $screen = Native::visit('/notifications', platform: 'ios');
+
+    expect(nodeByRef($screen, 'filter-replies')['type'])->toBe('chip')
+        ->and(nodeByRef($screen, 'filter-replies')['props'])->toMatchArray(['label' => 'Replies', 'value' => true, 'a11y_label' => 'Replies notifications'])
+        // Everything is on at first, so the More chip's filters are on with it.
+        ->and(nodeByRef($screen, 'filter-more')['props'])->toMatchArray(['a11y_label' => 'More notification filters', 'value' => true]);
+
+    tapFilter($screen, 'replies');
+
+    expect(nodeByRef($screen, 'filter-replies')['props']['value'])->toBeFalse();
+
+    // The More sheet's lines are chips of their own, saying which are on.
+    $screen->tap('filter-more');
+
+    expect(nodeByRef($screen, 'filter-mentions')['props'])->toMatchArray(['label' => 'Mentions', 'value' => true, 'a11y_label' => 'Mentions notifications']);
+
+    tapFilter($screen, 'mentions');
+
+    expect(nodeByRef($screen, 'filter-mentions')['props']['value'])->toBeFalse()
+        ->and(nodeByRef($screen, 'filter-more')['props']['value'])->toBeTrue();
+});
+
+it('changes nothing when asked to show something that names no selection', function (string $bogus) {
+    holdRefreshes();
+    keep('notifications', inboxJson([notificationJson('followed')]), ['type' => null]);
+    serveApi(fn () => Http::response(inboxJson([notificationJson('starred')])));
+
+    $screen = Native::visit('/notifications');
+    $list = showingNotifications($screen)['id'];
+    $requests = count(Http::recorded());
+
+    $screen->call('show', $bogus);
+
+    expect($screen->instance()->type)->toBe('all')
+        ->and($screen->instance()->enabled)->toBe(array_keys(Notifications::Categories))
+        ->and(showingNotifications($screen)['id'])->toBe($list)
+        ->and($screen->instance()->listKey)->toBe(0)
+        ->and(count(Http::recorded()))->toBe($requests)
+        // Nothing was kept for the account, and nothing remembered as none of them.
+        ->and(kept('notifications', ['type' => 'none']))->toBeNull()
+        ->and(app(NotificationFilters::class)->type('0199e5c4-0000-7000-8000-000000000001'))->toBe('all');
+})->with([
+    'an unknown word' => ['bogus'],
+    'nothing' => [''],
+    'a list with an unknown word in it' => ['stars,bogus'],
+    'a trailing comma' => ['stars,'],
+    'all among the categories' => ['all,stars'],
+]);
