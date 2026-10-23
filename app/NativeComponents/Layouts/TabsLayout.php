@@ -12,6 +12,7 @@ use Native\Mobile\Edge\Layouts\Builders\Tab;
 use Native\Mobile\Edge\Layouts\Builders\TabBar;
 use Native\Mobile\Edge\Layouts\NativeLayout;
 use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Platform;
 
 /**
  * The top-level sections: Log, Notifications, Remotes and your Profile, with
@@ -70,8 +71,19 @@ class TabsLayout extends NativeLayout
 
     public function tabBar(NativeComponent $screen): ?TabBar
     {
+        $log = Tab::link('Log', '/log', ios: Lucide::GitCommitVertical->ios(), android: Lucide::GitCommitVertical->android());
         $notifications = Tab::link('Notifications', '/notifications', ios: Lucide::Bell->ios(), android: Lucide::Bell->android());
         $remotes = Tab::link('Remotes', '/remotes', ios: Lucide::MessagesSquare->ios(), android: Lucide::MessagesSquare->android());
+
+        // On Android, a re-tap of the Log tab while the Log is the screen showing
+        // takes the log you're on back to its top and, once it's there, refreshes
+        // it (see Log::refreshLog). The target names the list of the log that's
+        // showing, of the three the pager keeps. Only that screen and platform
+        // carry the handler: iOS and every other screen, stacked under the tab or
+        // not, keep the tab's plain URL navigation.
+        if ($screen instanceof Log && Platform::isAndroid()) {
+            $log->onReselect('refreshLog', 'log-feed-'.$screen->log);
+        }
 
         self::badge($notifications, app(Account::class)->unreadNotifications());
         self::badge($remotes, app(Account::class)->unreadRemotes());
@@ -79,7 +91,7 @@ class TabsLayout extends NativeLayout
         return TabBar::make()
             ->activeColor(self::accent())
             ->labelVisibility('labeled')
-            ->add(Tab::link('Log', '/log', ios: Lucide::GitCommitVertical->ios(), android: Lucide::GitCommitVertical->android()))
+            ->add($log)
             ->add($notifications)
             ->add($remotes)
             ->add(Tab::link('Profile', '/profile', ios: Lucide::UserRound->ios(), android: Lucide::UserRound->android()));

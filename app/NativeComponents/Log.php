@@ -415,6 +415,17 @@ class Log extends NativeComponent
     }
 
     /**
+     * A re-tap of the Log tab at the bottom, which the tab bar only sends once
+     * the log you're on is back at its top (it scrolls the list there itself
+     * when it isn't): pull the log to refresh, as the web's tab does. Keeps
+     * the log you're on and its list where they are.
+     */
+    public function refreshLog(): void
+    {
+        $this->load();
+    }
+
+    /**
      * The pill: the new commits go on top, and they're the newest you've seen now.
      */
     public function showNewCommits(): void
