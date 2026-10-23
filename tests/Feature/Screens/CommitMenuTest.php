@@ -27,26 +27,22 @@ it('fills More with what you can do to the commit', function (string $platform) 
     expect($more['props']['has_menu'] ?? null)->toBeTrue()
         ->and($more['on_press'] ?? $more['props']['on_press'] ?? null)->toBeNull();
 
-    // Someone else's published commit: share it or report it.
+    // Someone else's published commit: report it. Share is a button of its own in the row.
     expect(menuItems($screen, 'more-c4'))->toBe([
-        ['share-c4', 'Share link', 'custom:link'],
-        'divider',
         ['report-c4', 'Report commit', 'custom:flag'],
     ])
-        // Theirs, waiting for approval: only its link, as the web leaves the rest off.
-        ->and(menuItems($screen, 'more-c3'))->toBe([['share-c3', 'Share link', 'custom:link']]);
+        // Theirs, waiting for approval: nothing to put in More, so it isn't drawn.
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'more-c3'))->toBeNull()
+        ->and(nodeByRef($screen, 'share-c3')['type'])->toBe('pressable');
 
-    // Your own published one: share it, pin it to your profile, or delete it.
+    // Your own published one: pin it to your profile, or delete it.
     expect(menuItems($screen, 'more-c2'))->toBe([
-        ['share-c2', 'Share link', 'custom:link'],
         ['pin-c2', 'Pin to profile', $platform === 'ios' ? 'pin' : 'push_pin'],
         'divider',
         ['delete-c2', 'Delete commit', 'custom:trash-2'],
     ])
         // Yours, waiting for approval: the same, but it can't be pinned yet.
         ->and(menuItems($screen, 'more-c1'))->toBe([
-            ['share-c1', 'Share link', 'custom:link'],
-            'divider',
             ['delete-c1', 'Delete commit', 'custom:trash-2'],
         ]);
 

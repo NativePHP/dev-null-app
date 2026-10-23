@@ -49,7 +49,7 @@ it('lists your starred commits newest first with the same copy as the web', func
 
     expect(starredIds($screen))->toBe(['s2', 's1'])
         ->and(nodeByRef($screen, 'star-s1')['props']['a11y_label'])->toBe('Unstar commit, 1 star')
-        ->and(menuItems($screen, 'more-s1')[0][0])->toBe('share-s1');
+        ->and(nodeByRef($screen, 'share-s1')['props']['a11y_label'])->toBe('Share link');
 
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/saved') || str_contains($request->url(), '/bookmark'));
 })->with(['ios', 'android']);

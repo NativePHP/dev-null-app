@@ -3,8 +3,9 @@
     and its count, Quote, Reply, and in Commit Blue "› N replies" when the row has no thread under it already. On the
     right: More.
 
-    Share link, Report and Delete live in More, which opens the platform's own menu (a UIMenu on iOS, a dropdown
-    on Android, see CommitMenu for what's in it). Tapping More only opens the menu.
+    Share is its own button at the end of the row. Pin, Report and Delete live in More, which opens the platform's own
+    menu (a UIMenu on iOS, a dropdown on Android, see CommitMenu for what's in it), and is left off when there's
+    nothing in it. Tapping More only opens the menu.
 
     Reply opens the commit with its reply composer focused. In a feed ($expandable) the replies link opens the thread in
     place, as on the web; elsewhere it opens the commit. Like the web, someone else's commit that isn't approved gets no
@@ -54,6 +55,7 @@
 @php($canGivePastel = $pasteis !== null && $viewer !== null && ! $isOwn && $commit->isApproved())
 @php($pastelLabel = \App\Devnull\Display::count($commit->pasteisCount, 'pastel', 'pastéis'))
 @php($pastelSize = $compact ? 18 : 20)
+@php($menu = \App\Devnull\CommitMenu::items($commit, $viewer))
 @php($starLabel = ($commit->starred ? 'Unstar commit' : 'Star commit').($commit->starsCount > 0 ? ', '.\App\Devnull\Display::count($commit->starsCount, 'star', 'stars') : ''))
 <native:row ref="actions-{{ $commit->id }}" class="w-full -ml-2 -my-[6] items-center">
     @if ($canReact && $viewer !== null && ! $commit->isDeleted())
@@ -107,9 +109,17 @@
         </native:pressable>
     @endif
 
-    <native:pressable ref="more-{{ $commit->id }}" :menu="\App\Devnull\CommitMenu::items($commit, $viewer)" a11y-label="More">
-        <native:column class="min-w-[44] h-[36] items-center justify-center">
-            <native:icon :ios="\App\Icons\Lucide::Ellipsis->ios()" :android="\App\Icons\Lucide::Ellipsis->android()" :size="$iconSize" class="text-theme-ink-muted" />
-        </native:column>
-    </native:pressable>
+    @unless ($commit->isDeleted())
+        <native:pressable ref="share-{{ $commit->id }}" @press="shareCommit('{{ $commit->id }}')" class="flex-row flex-1 min-w-[44] h-[36] px-2 items-center" a11y-label="Share link">
+            <native:icon :ios="\App\Icons\Lucide::Share->ios()" :android="\App\Icons\Lucide::Share->android()" :size="$iconSize" class="text-theme-ink-muted" />
+        </native:pressable>
+    @endunless
+
+    @if ($menu !== [])
+        <native:pressable ref="more-{{ $commit->id }}" :menu="$menu" a11y-label="More">
+            <native:column class="min-w-[44] h-[36] items-center justify-center">
+                <native:icon :ios="\App\Icons\Lucide::Ellipsis->ios()" :android="\App\Icons\Lucide::Ellipsis->android()" :size="$iconSize" class="text-theme-ink-muted" />
+            </native:column>
+        </native:pressable>
+    @endif
 </native:row>
