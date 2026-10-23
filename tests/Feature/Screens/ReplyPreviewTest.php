@@ -202,5 +202,6 @@ it("closes a commit's row in the log with a hairline after its last previewed re
 
     $screen = Native::visit('/log', platform: 'ios');
 
-    expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'thread-end-r9'))->not->toBeNull();
+    // The hairline is the border of the reply's own row, so it runs under the rail's gutter too.
+    expect(nodeByRef($screen, 'thread-reply-r9')['props']['border_b'])->toBe(1.0);
 });

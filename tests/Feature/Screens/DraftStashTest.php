@@ -271,12 +271,12 @@ it('keeps the dots inside Quote and Reply in pastéis mode, beside the pastel, t
     $screen = Native::visit('/log', platform: 'ios');
 
     // The dots sit inside the buttons, so the row has the same actions as without them.
-    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'pastel-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'more-c2'])
-        ->and(array_values(array_filter(childRefs($screen, 'actions-c1'))))->toBe(['star-c1', 'pastel-c1', 'quote-c1', 'reply-to-c1', 'more-c1'])
+    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'pastel-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'share-c2', 'more-c2'])
+        ->and(array_values(array_filter(childRefs($screen, 'actions-c1'))))->toBe(['star-c1', 'pastel-c1', 'quote-c1', 'reply-to-c1', 'share-c1', 'more-c1'])
         ->and(showsRef($screen, 'quote-stash-c2'))->toBeTrue()
         ->and(showsRef($screen, 'reply-stash-c2'))->toBeTrue()
         ->and(showsRef($screen, 'reply-stash-c1'))->toBeTrue()
-        ->and(findNode(nodeByRef($screen, 'reply-to-c1'), fn (array $node): bool => ($node['type'] ?? null) === 'text')['props']['text'] ?? null)->toBe('Reply');
+        ->and(findNode(nodeByRef($screen, 'reply-to-c1'), fn (array $node): bool => ($node['type'] ?? null) === 'text'))->toBeNull();
 });
 
 // ── Signing out ────────────────────────────────
