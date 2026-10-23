@@ -29,8 +29,12 @@
 
     It's full height for the forms, and short for the receipts. It's always on the screen, shown or not, so iOS can
     slide it away and say when it's gone.
+
+    The sheet and its field are keyed, so nothing drawn above the field (Commit turning on, the issue badge, a banner
+    behind the sheet) gives it a new id. iOS and Android would build a new field for a new id, and the keyboard would
+    go down with the old one.
 --}}
-<native:bottom-sheet ref="sheet" :visible="$sheetOpen" :detents="in_array($sheetView, ['reported', 'issued'], true) ? '0.3' : 'large'" @dismiss="commitSheetClosed">
+<native:bottom-sheet native:key="commit-sheet" ref="sheet" :visible="$sheetOpen" :detents="in_array($sheetView, ['reported', 'issued'], true) ? '0.3' : 'large'" @dismiss="commitSheetClosed">
     @if ($sheetCommit || in_array($sheetView, ['compose', 'issued'], true))
         @if (in_array($sheetView, ['quote', 'compose', 'reply'], true))
             @php($quoting = $sheetView === 'quote')
@@ -66,6 +70,7 @@
                             @include('native.partials.composer-preview')
                         @else
                             <native:bare-text-input
+                                native:key="sheet-body"
                                 ref="sheet-body"
                                 class="w-full text-theme-ink"
                                 :placeholder="$issueCommand?->placeholder() ?? match (true) { $quoting => 'Add your take', $replying => 'Reply to '.$sheetCommit->author->handle(), default => 'What did you ship?' }"
