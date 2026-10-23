@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "2a5c0cde3030efb5e9c1f0586f3632b3",
+    "content-hash": "abab2d6147983d77671c0ba0837c35f3",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2717,16 +2717,16 @@
         },
         {
             "name": "nativephp/mobile",
-            "version": "dev-combined/dev-null-app",
+            "version": "dev-fix/root-tab-reselect",
             "source": {
                 "type": "git",
-                "url": "https://github.com/NativePHP/mobile-air.git",
-                "reference": "0f0587bb3a92324d15cb9707a852d643a7729e82"
+                "url": "https://github.com/ricardovfreixo/mobile-air.git",
+                "reference": "f06d13ccc80e597b86600e442a2dd2407ac0ab5e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/0f0587bb3a92324d15cb9707a852d643a7729e82",
-                "reference": "0f0587bb3a92324d15cb9707a852d643a7729e82",
+                "url": "https://api.github.com/repos/ricardovfreixo/mobile-air/zipball/f06d13ccc80e597b86600e442a2dd2407ac0ab5e",
+                "reference": "f06d13ccc80e597b86600e442a2dd2407ac0ab5e",
                 "shasum": ""
             },
             "require": {
@@ -2833,10 +2833,9 @@
                 "nativephp"
             ],
             "support": {
-                "source": "https://github.com/NativePHP/mobile-air/tree/combined/dev-null-app",
-                "issues": "https://github.com/NativePHP/mobile-air/issues"
+                "source": "https://github.com/ricardovfreixo/mobile-air/tree/fix/root-tab-reselect"
             },
-            "time": "2026-10-22T00:18:06+00:00"
+            "time": "2026-10-23T13:20:45+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
@@ -2931,16 +2930,7 @@
                     "Native\\Mobile\\Providers\\": "src/"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "Tests\\": "tests/"
-                }
-            },
-            "scripts": {
-                "test": [
-                    "pest"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "MIT"
             ],
@@ -2952,8 +2942,8 @@
             ],
             "description": "Camera plugin for NativePHP Mobile (Photo capture, Video recording, Gallery picker)",
             "support": {
-                "source": "https://github.com/NativePHP/mobile-camera/tree/1.1.0",
-                "issues": "https://github.com/NativePHP/mobile-camera/issues"
+                "issues": "https://github.com/NativePHP/mobile-camera/issues",
+                "source": "https://github.com/NativePHP/mobile-camera/tree/1.1.0"
             },
             "time": "2026-10-22T15:11:58+00:00"
         },
@@ -3069,16 +3059,16 @@
         },
         {
             "name": "nativephp/mobile-ui",
-            "version": "dev-combined/dev-null-app",
+            "version": "dev-fix/list-root-tab-scroll-target",
             "source": {
                 "type": "git",
-                "url": "https://github.com/NativePHP/mobile-ui.git",
-                "reference": "ebbc94b79f489175ab815a69e579c368cd295ff1"
+                "url": "https://github.com/ricardovfreixo/mobile-ui.git",
+                "reference": "28753b7ea337349243330c1f531ed61f386a2c6d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/ebbc94b79f489175ab815a69e579c368cd295ff1",
-                "reference": "ebbc94b79f489175ab815a69e579c368cd295ff1",
+                "url": "https://api.github.com/repos/ricardovfreixo/mobile-ui/zipball/28753b7ea337349243330c1f531ed61f386a2c6d",
+                "reference": "28753b7ea337349243330c1f531ed61f386a2c6d",
                 "shasum": ""
             },
             "require": {
@@ -3128,8 +3118,7 @@
             ],
             "description": "Native SwiftUI and Jetpack Composer components for NativePHP",
             "support": {
-                "source": "https://github.com/NativePHP/mobile-ui/tree/combined/dev-null-app",
-                "issues": "https://github.com/NativePHP/mobile-ui/issues"
+                "source": "https://github.com/ricardovfreixo/mobile-ui/tree/fix/list-root-tab-scroll-target"
             },
             "funding": [
                 {
@@ -3137,7 +3126,7 @@
                     "url": "https://nativephp.com/sponsor"
                 }
             ],
-            "time": "2026-10-21T15:07:28+00:00"
+            "time": "2026-10-23T12:43:42+00:00"
         },
         {
             "name": "nesbot/carbon",
@@ -11139,13 +11128,13 @@
     "aliases": [
         {
             "package": "nativephp/mobile",
-            "version": "dev-combined/dev-null-app",
+            "version": "dev-fix/root-tab-reselect",
             "alias": "4.6.0",
             "alias_normalized": "4.6.0.0"
         },
         {
             "package": "nativephp/mobile-ui",
-            "version": "dev-combined/dev-null-app",
+            "version": "dev-fix/list-root-tab-scroll-target",
             "alias": "0.8.0",
             "alias_normalized": "0.8.0.0"
         }

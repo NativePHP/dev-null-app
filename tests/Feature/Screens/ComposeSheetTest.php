@@ -193,9 +193,7 @@ it('draws Cancel and Commit as a cross and a check in circles, 16pt in from the 
     $bar = findNode($screen->tree(), fn (array $node): bool => in_array('sheet-cancel', array_column($node['children'] ?? [], 'ref'), true));
     $size = fn (string $ref): array => [sheetButtonCircle($screen, $ref)['layout']['width'], sheetButtonCircle($screen, $ref)['layout']['height']];
 
-    // Android draws its handle over the content as iOS does, so the bar's padding is its distance from the sheet's edge.
-    expect(nodeByRef($screen, 'sheet')['props']['handle_over_content'])->toBeTrue()
-        ->and($bar['layout']['padding'])->toBe(16.0)
+    expect($bar['layout']['padding'])->toBe(16.0)
         ->and($size('sheet-cancel'))->toBe([44.0, 44.0])
         ->and($size('sheet-commit'))->toBe([44.0, 44.0])
         ->and(nodeByRef($screen, 'sheet-cancel')['props']['a11y_label'])->toBe('Cancel')

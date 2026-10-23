@@ -20,7 +20,7 @@ class AuthCallback extends NativeComponent
     public function mount(Account $account, SignIn $signIn): void
     {
         if ($account->user() === null) {
-            $signIn->receive($this->query());
+            $signIn->receive($this->callbackQuery());
         }
 
         if ($this->nativeRouter?->isRootScreen() ?? true) {
@@ -43,7 +43,7 @@ class AuthCallback extends NativeComponent
      *
      * @return array<string, string>
      */
-    private function query(): array
+    private function callbackQuery(): array
     {
         parse_str((string) parse_url((string) $this->nativeRouter?->currentUri(), PHP_URL_QUERY), $query);
 
