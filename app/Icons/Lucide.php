@@ -48,6 +48,7 @@ enum Lucide
     case UserPlus;
     case UserCheck;
     case AtSign;
+    case ChevronsUp;
     case FoldVertical;
     case Award;
     case Ellipsis;
@@ -93,6 +94,7 @@ enum Lucide
     {
         return match ($type) {
             'followed' => self::UserPlus,
+            'leveled_up' => self::ChevronsUp,
             'quoted' => self::Quote,
             'starred' => self::Star,
             'mentioned' => self::AtSign,
@@ -146,6 +148,7 @@ enum Lucide
             self::UserPlus => 'user-plus',
             self::UserCheck => 'user-check',
             self::AtSign => 'at-sign',
+            self::ChevronsUp => 'chevrons-up',
             self::FoldVertical => 'fold-vertical',
             self::Award => 'award',
             self::Ellipsis => 'ellipsis',

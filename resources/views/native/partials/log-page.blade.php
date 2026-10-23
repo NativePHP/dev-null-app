@@ -6,6 +6,10 @@
     row changed under it kept its scroll offset and row heights, and iOS drew it blank with the first rows pushed to the
     bottom, so a page only gets new rows under it when it can't have been scrolled.
 
+    Each also registers itself under its own scroll target key (log-feed-<log>), which Android's tab bar looks the
+    current log's list up by to scroll it back to its top on a re-tap of the Log tab, and to say it's at its top so
+    that tap refreshes instead (see Log::refreshLog). iOS ignores the key.
+
     Only the log you're on asks for its next page: a page laid out off screen still shows its rows, and its last ones
     would ask for more of the log you're on. It also says which rows are on screen as you scroll, so only the rows
     near them are drawn (see App\Devnull\RowWindow). Every page keeps pull to refresh, which can only be pulled on the log
@@ -15,6 +19,7 @@
     <native:list
         native:key="log-{{ $page['log'] }}-{{ $page['listKey'] }}"
         :ref="$page['showing'] ? 'log' : 'log-'.$page['log']"
+        scroll-target="log-feed-{{ $page['log'] }}"
         class="w-full flex-1 bg-theme-surface"
         on-refresh="load"
         :on-end-reached="$page['showing'] ? 'loadMore' : null"

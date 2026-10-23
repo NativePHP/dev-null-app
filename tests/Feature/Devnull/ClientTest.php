@@ -13,6 +13,7 @@ use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Exceptions\Unauthenticated;
 use App\Devnull\ReportReason;
 use App\Devnull\RequestSigner;
+use App\Devnull\ResponseCache;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -72,6 +73,43 @@ it('leaves the cursor off the first page', function () {
     app(Client::class)->notifications();
 
     Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/notifications');
+});
+
+it('asks for several notification filters as the web sends them, comma-separated, and none as none', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
+
+    app(Client::class)->notifications('replies,stars');
+    app(Client::class)->notifications('none');
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/notifications?type=replies%2Cstars'
+        && str_ends_with(receivedMessage($request), "\nGET\n/api/v1/notifications?type=replies%2Cstars\n"));
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/notifications?type=none'
+        && str_ends_with(receivedMessage($request), "\nGET\n/api/v1/notifications?type=none\n"));
+});
+
+it('asks for a poll\'s notifications since the oldest one showing, without changing the first page otherwise', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
+
+    app(Client::class)->notifications('replies', null, '2026-10-15T15:00:00Z');
+    app(Client::class)->notifications();
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/notifications?type=replies&through=2026-10-15T15%3A00%3A00Z'
+        && str_ends_with(receivedMessage($request), "\nGET\n/api/v1/notifications?type=replies&through=2026-10-15T15%3A00%3A00Z\n"));
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/notifications');
+
+    // Without a through, the query is the one it always was, so the first page kept stays the one that's found.
+    expect(Client::notificationsQuery('replies'))->toBe(['type' => 'replies', 'cursor' => null, 'through' => null])
+        ->and(ResponseCache::key('u1', 'notifications', Client::notificationsQuery('replies')))
+        ->toBe(ResponseCache::key('u1', 'notifications', ['type' => 'replies']));
+});
+
+it('opens a group under several filters, comma-separated as the listing sends them', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
+
+    app(Client::class)->notificationGroup('n-1', 'follows,moderation');
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/notifications/n-1/group?type=follows%2Cmoderation'
+        && str_ends_with(receivedMessage($request), "\nGET\n/api/v1/notifications/n-1/group?type=follows%2Cmoderation\n"));
 });
 
 it('asks for a profile\'s replies with ?replies=1 and signs it', function () {

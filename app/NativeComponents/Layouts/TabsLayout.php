@@ -12,6 +12,7 @@ use Native\Mobile\Edge\Layouts\Builders\Tab;
 use Native\Mobile\Edge\Layouts\Builders\TabBar;
 use Native\Mobile\Edge\Layouts\NativeLayout;
 use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Platform;
 
 /**
  * The top-level sections: Log, Notifications, Remotes and your Profile, with
@@ -70,8 +71,22 @@ class TabsLayout extends NativeLayout
 
     public function tabBar(NativeComponent $screen): ?TabBar
     {
+        $log = Tab::link('Log', '/log', ios: Lucide::GitCommitVertical->ios(), android: Lucide::GitCommitVertical->android());
         $notifications = Tab::link('Notifications', '/notifications', ios: Lucide::Bell->ios(), android: Lucide::Bell->android());
         $remotes = Tab::link('Remotes', '/remotes', ios: Lucide::MessagesSquare->ios(), android: Lucide::MessagesSquare->android());
+
+        /**
+         * Android reselect refreshes a root feed after scrolling to its top,
+         * but returns from child screens without replacing the existing feed.
+         * Inactive tabs still use their normal URL press.
+         */
+        if (Platform::isAndroid()) {
+            if ($screen instanceof Log) {
+                $log->onReselect('refreshLog', 'log-feed-'.$screen->log);
+            } elseif (method_exists($screen, 'returnToLog')) {
+                $log->onReselect('returnToLog');
+            }
+        }
 
         self::badge($notifications, app(Account::class)->unreadNotifications());
         self::badge($remotes, app(Account::class)->unreadRemotes());
@@ -79,7 +94,7 @@ class TabsLayout extends NativeLayout
         return TabBar::make()
             ->activeColor(self::accent())
             ->labelVisibility('labeled')
-            ->add(Tab::link('Log', '/log', ios: Lucide::GitCommitVertical->ios(), android: Lucide::GitCommitVertical->android()))
+            ->add($log)
             ->add($notifications)
             ->add($remotes)
             ->add(Tab::link('Profile', '/profile', ios: Lucide::UserRound->ios(), android: Lucide::UserRound->android()));

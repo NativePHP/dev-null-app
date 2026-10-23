@@ -265,12 +265,17 @@ function tapProfileTab(TestableComponent $screen, string $tab): TestableComponen
 }
 
 /**
- * A tap on one of the notifications filters along the top, which the pager
- * draws, as for the Log's tabs (see tapLogTab).
+ * A tap on one of the notification filters: a chip along the top, or a line in
+ * the More sheet for one the web's phone layout keeps in its menu. The filter
+ * the screen is already showing toggles off and on, as the chips do.
  */
-function tapFilter(TestableComponent $screen, string $type): TestableComponent
+function tapFilter(TestableComponent $screen, string $category): TestableComponent
 {
-    return $screen->changeTab($screen->get('type') === $type ? 'backToTop' : 'showPage', (int) array_search($type, array_keys(Notifications::Types), true));
+    if (in_array($category, Notifications::QuickFilters, true)) {
+        return $screen->tap('filter-'.$category);
+    }
+
+    return $screen->tap('filter-more')->tap('filter-'.$category);
 }
 
 /**
