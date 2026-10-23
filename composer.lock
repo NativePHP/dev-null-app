@@ -3063,12 +3063,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/ricardovfreixo/mobile-ui.git",
-                "reference": "4d663b55c9e2ade32724524de732c9c515b35c03"
+                "reference": "28753b7ea337349243330c1f531ed61f386a2c6d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/ricardovfreixo/mobile-ui/zipball/4d663b55c9e2ade32724524de732c9c515b35c03",
-                "reference": "4d663b55c9e2ade32724524de732c9c515b35c03",
+                "url": "https://api.github.com/repos/ricardovfreixo/mobile-ui/zipball/28753b7ea337349243330c1f531ed61f386a2c6d",
+                "reference": "28753b7ea337349243330c1f531ed61f386a2c6d",
                 "shasum": ""
             },
             "require": {
@@ -3126,7 +3126,7 @@
                     "url": "https://nativephp.com/sponsor"
                 }
             ],
-            "time": "2026-10-23T11:50:53+00:00"
+            "time": "2026-10-23T12:43:42+00:00"
         },
         {
             "name": "nesbot/carbon",
