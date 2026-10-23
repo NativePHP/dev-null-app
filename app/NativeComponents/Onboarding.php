@@ -53,6 +53,12 @@ class Onboarding extends NativeComponent
      */
     public ?string $appleError = null;
 
+    /**
+     * Whether the box for the terms and privacy policy is ticked. Neither way in works until it is, and devnull is told
+     * which version was accepted as the phone signs in.
+     */
+    public bool $acceptedTerms = false;
+
     private string $deviceName = '';
 
     /**
@@ -93,13 +99,28 @@ class Onboarding extends NativeComponent
         $this->finishSignIn();
     }
 
+    public function toggleTerms(): void
+    {
+        $this->acceptedTerms = ! $this->acceptedTerms;
+    }
+
+    public function openTerms(): void
+    {
+        Browser::inApp(rtrim((string) config('devnull.url'), '/').'/terms');
+    }
+
+    public function openPrivacy(): void
+    {
+        Browser::inApp(rtrim((string) config('devnull.url'), '/').'/privacy');
+    }
+
     /**
      * Opens dev-null.sh with a fresh verifier and state. Dismissing the sheet
      * sends nothing back, so the screen simply stays as it is.
      */
     public function signIn(): void
     {
-        if ($this->fingerprint === '') {
+        if ($this->fingerprint === '' || ! $this->acceptedTerms) {
             return;
         }
 
@@ -117,7 +138,7 @@ class Onboarding extends NativeComponent
      */
     public function signInWithApple(): void
     {
-        if ($this->fingerprint === '' || ! AppleSignIn::isAvailable()) {
+        if ($this->fingerprint === '' || ! $this->acceptedTerms || ! AppleSignIn::isAvailable()) {
             return;
         }
 
@@ -149,7 +170,7 @@ class Onboarding extends NativeComponent
     protected function useAppleToken(#[SensitiveParameter] string $identityToken, #[SensitiveParameter] string $nonce): void
     {
         try {
-            $user = app(Client::class)->signInWithApple($identityToken, $nonce, $this->deviceName());
+            $user = app(Client::class)->signInWithApple($identityToken, $nonce, $this->deviceName(), $this->acceptedTerms ? Client::TermsVersion : null);
         } catch (ApiException $exception) {
             $this->appleError = $exception->firstError();
 
@@ -220,7 +241,7 @@ class Onboarding extends NativeComponent
         }
 
         try {
-            $user = app(Client::class)->redeemSignIn($code, $attempt->verifier());
+            $user = app(Client::class)->redeemSignIn($code, $attempt->verifier(), $this->acceptedTerms ? Client::TermsVersion : null);
         } catch (ApiException $exception) {
             $this->error = $exception->firstError();
 
