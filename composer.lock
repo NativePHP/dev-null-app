@@ -2721,12 +2721,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/ricardovfreixo/mobile-air.git",
-                "reference": "7ffc50875aeaeed98d8f0cb4ee1dfc10c9c3a3c9"
+                "reference": "f06d13ccc80e597b86600e442a2dd2407ac0ab5e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/ricardovfreixo/mobile-air/zipball/7ffc50875aeaeed98d8f0cb4ee1dfc10c9c3a3c9",
-                "reference": "7ffc50875aeaeed98d8f0cb4ee1dfc10c9c3a3c9",
+                "url": "https://api.github.com/repos/ricardovfreixo/mobile-air/zipball/f06d13ccc80e597b86600e442a2dd2407ac0ab5e",
+                "reference": "f06d13ccc80e597b86600e442a2dd2407ac0ab5e",
                 "shasum": ""
             },
             "require": {
@@ -2835,7 +2835,7 @@
             "support": {
                 "source": "https://github.com/ricardovfreixo/mobile-air/tree/fix/root-tab-reselect"
             },
-            "time": "2026-10-23T12:06:54+00:00"
+            "time": "2026-10-23T13:20:45+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
