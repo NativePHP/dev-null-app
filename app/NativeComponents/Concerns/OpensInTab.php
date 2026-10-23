@@ -22,6 +22,14 @@ use App\NativeComponents\Layouts\TabsLayout;
 trait OpensInTab
 {
     /**
+     * Resume the existing feed instead of mounting another one over it.
+     */
+    public function returnToLog(): void
+    {
+        $this->popTo(TabsLayout::Tabs[0]);
+    }
+
+    /**
      * @param  array<string, mixed>  $data
      */
     protected function openInTab(string $path, array $data = []): void

@@ -75,14 +75,17 @@ class TabsLayout extends NativeLayout
         $notifications = Tab::link('Notifications', '/notifications', ios: Lucide::Bell->ios(), android: Lucide::Bell->android());
         $remotes = Tab::link('Remotes', '/remotes', ios: Lucide::MessagesSquare->ios(), android: Lucide::MessagesSquare->android());
 
-        // On Android, a re-tap of the Log tab while the Log is the screen showing
-        // takes the log you're on back to its top and, once it's there, refreshes
-        // it (see Log::refreshLog). The target names the list of the log that's
-        // showing, of the three the pager keeps. Only that screen and platform
-        // carry the handler: iOS and every other screen, stacked under the tab or
-        // not, keep the tab's plain URL navigation.
-        if ($screen instanceof Log && Platform::isAndroid()) {
-            $log->onReselect('refreshLog', 'log-feed-'.$screen->log);
+        /**
+         * Android reselect refreshes a root feed after scrolling to its top,
+         * but returns from child screens without replacing the existing feed.
+         * Inactive tabs still use their normal URL press.
+         */
+        if (Platform::isAndroid()) {
+            if ($screen instanceof Log) {
+                $log->onReselect('refreshLog', 'log-feed-'.$screen->log);
+            } elseif (method_exists($screen, 'returnToLog')) {
+                $log->onReselect('returnToLog');
+            }
         }
 
         self::badge($notifications, app(Account::class)->unreadNotifications());

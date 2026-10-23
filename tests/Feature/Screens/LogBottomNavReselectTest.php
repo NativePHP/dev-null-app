@@ -169,14 +169,13 @@ it('still crosses sections on the tab URL, which the Log reselect leaves alone',
 
     $screen = Native::visit('/notifications', platform: 'android');
 
-    // Off the Log screen the tab carries no reselect handler: from here a
-    // tap on it is the tab's plain URL navigation.
-    expect(retapTab($screen, 'Log')['props']['on_reselect'] ?? null)->toBeNull();
+    expect(retapTab($screen, 'Log')['props']['on_reselect'] ?? null)->toBeInt()
+        ->and(retapTab($screen, 'Log')['props']['reselect_scroll_target'] ?? null)->toBeNull();
 
     $screen->tap('Log')->assertReplacedWith('/log');
 });
 
-it('publishes no Log reselect handler on a screen stacked under the Log tab', function () {
+it('wires a child screen Log reselect to pop back without scrolling or refreshing the feed', function () {
     fakeApi([
         'GET /api/v1/commits/c1' => [commitPageJson(commitJson(['id' => 'c1', 'body' => 'A commit']), [commitJson(['id' => 'c0', 'body' => 'Its parent'])])],
         'GET /api/v1/commits/c1/replies' => [pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c1', 'body' => 'A reply', 'author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace'])])])],
@@ -184,12 +183,17 @@ it('publishes no Log reselect handler on a screen stacked under the Log tab', fu
         'GET /api/v1/me' => [['data' => userWithCountsJson(), 'unread_notifications_count' => 0]],
     ]);
 
-    // The Log tab is still the active one, but the screen showing is a
-    // commit under it: no Log reselect handler is published.
-    Native::visit('/log/commits/c1', platform: 'android')
+    $screen = Native::visit('/log/commits/c1', platform: 'android')
         ->assertTabActive('Log');
+    $tab = retapTab($screen, 'Log');
+    $callback = 'returnToLog';
 
-    expect(retapTab(Native::visit('/log/commits/c1', platform: 'android'), 'Log')['props']['on_reselect'] ?? null)->toBeNull();
+    expect($tab['props']['on_reselect'] ?? null)->toBeInt()
+        ->and(retapCallbackId($screen, $callback))->toBe($tab['props']['on_reselect'])
+        ->and($tab['props']['reselect_scroll_target'] ?? null)->toBeNull();
+
+    $screen->fireEvent($callback, TestableComponent::EVENT_PRESS)
+        ->assertPoppedTo('/log');
 });
 
 it('leaves the Log tab unwired on iOS', function () {
