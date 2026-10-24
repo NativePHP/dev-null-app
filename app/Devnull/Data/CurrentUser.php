@@ -3,6 +3,7 @@
 namespace App\Devnull\Data;
 
 use App\Devnull\Lane;
+use App\Devnull\Timezone;
 use Carbon\CarbonImmutable;
 
 /**
@@ -14,7 +15,8 @@ use Carbon\CarbonImmutable;
  * Sponsors page, and when your profile was last synced from GitHub (null when
  * it only was when you signed in). It has whether pastéis mode is on, how
  * many pastéis you can still give today, and how many others have given you,
- * and your Remotes settings, or null while you have Remotes off.
+ * and your Remotes settings, or null while you have Remotes off, and the timezone you chose, or null while you
+ * haven't.
  */
 final readonly class CurrentUser
 {
@@ -30,6 +32,7 @@ final readonly class CurrentUser
         public Pasteis $pasteisToday = new Pasteis,
         public int $pasteisReceived = 0,
         public ?Remotes $remotes = null,
+        public ?string $timezone = null,
     ) {}
 
     /**
@@ -59,15 +62,16 @@ final readonly class CurrentUser
             pasteisReceived: is_int($data['pasteis_received'] ?? null) ? max(0, $data['pasteis_received']) : 0,
             // Only devnull saying null means they're off: a devnull too old to say has them on, as everyone starts.
             remotes: array_key_exists('remotes', $data) ? Remotes::fromArray($data['remotes']) : new Remotes,
+            timezone: Timezone::isKnown($data['timezone'] ?? null) ? $data['timezone'] : null,
         );
     }
 
     /**
      * You as this phone remembers you, until devnull says the rest.
      */
-    public static function remembered(User $user): self
+    public static function remembered(User $user, ?string $timezone = null): self
     {
-        return self::fromArray(['data' => $user->toArray()]);
+        return self::fromArray(['data' => [...$user->toArray(), 'timezone' => $timezone]]);
     }
 
     /**

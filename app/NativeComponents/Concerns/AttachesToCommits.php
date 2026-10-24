@@ -164,11 +164,11 @@ trait AttachesToCommits
 
     /**
      * The web's poll button: two empty options, open for a day. A commit has photos or a poll, not both, and a
-     * reply never has one.
+     * reply never has one. Nor does a commit being scheduled, which devnull's app API takes as a body alone.
      */
     public function addPoll(): void
     {
-        if ($this->isComposing() && $this->sheetView !== 'reply' && $this->sheetImages === [] && $this->sheetPoll === null) {
+        if ($this->isComposing() && $this->sheetView !== 'reply' && ! $this->scheduling && $this->sheetImages === [] && $this->sheetPoll === null) {
             $this->sheetPoll = PollDraft::start();
             $this->sheetPollLength = PollDraft::DefaultLength;
         }
@@ -300,7 +300,7 @@ trait AttachesToCommits
 
     private function canAttachPhotos(): bool
     {
-        return $this->isComposing() && $this->sheetPoll === null && ! $this->sheetPosting && count($this->sheetImages) < DraftImages::MaxImages;
+        return $this->isComposing() && ! $this->scheduling && $this->sheetPoll === null && ! $this->sheetPosting && count($this->sheetImages) < DraftImages::MaxImages;
     }
 
     /**

@@ -50,6 +50,7 @@ final class ResponseCache
         '#^remotes$#',
         '#^remotes/@[^/]+/messages$#',
         '#^remotes/orgs/[^/]+/messages$#',
+        '#^scheduled-commits$#',
     ];
 
     /**
@@ -105,8 +106,8 @@ final class ResponseCache
      */
     public static function caches(string $path, array $query = []): bool
     {
-        // A cursor's page, and a Remotes thread's messages before or after one, aren't the first page.
-        if (array_intersect_key(self::normalise($query), array_flip(['cursor', 'before', 'after'])) !== []) {
+        // A cursor's page, a numbered page, and a Remotes thread's messages before or after one, aren't the first page.
+        if (array_intersect_key(self::normalise($query), array_flip(['cursor', 'page', 'before', 'after'])) !== []) {
             return false;
         }
 

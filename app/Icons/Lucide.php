@@ -40,6 +40,7 @@ enum Lucide
     case Building2;
     case MapPin;
     case CalendarDays;
+    case Clock3;
     /** The web draws GitHub's own mark, which neither system has, so this is the code glyph. */
     case Github;
     case Quote;
@@ -152,6 +153,7 @@ enum Lucide
             self::Flag => 'flag',
             self::RefreshCw => 'refresh-cw',
             self::LockKeyhole => 'lock-keyhole',
+            self::Clock3 => 'clock-3',
             self::VolumeX => 'volume-x',
             self::Volume2 => 'volume-2',
             self::Ban => 'ban',

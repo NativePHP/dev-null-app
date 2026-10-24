@@ -140,7 +140,7 @@ trait RefreshesInBackground
     /**
      * Asks devnull how many notifications are unread, for the badge on the
      * Notifications tab, and picks up any change to you while it's there,
-     * your Remotes and their unread count among them.
+     * your Remotes and their unread count among them, and your timezone.
      * The badge is a nicety, so a failure here is never put on the screen.
      */
     protected function refreshUnreadNotifications(): void
@@ -152,6 +152,7 @@ trait RefreshesInBackground
                 app(Account::class)->remember($current->user);
                 app(Account::class)->rememberPasteis($current->pasteis());
                 app(Account::class)->rememberRemotes($current->remotes);
+                app(Account::class)->rememberTimezone($current->timezone);
             }
 
             app(Account::class)->rememberUnreadNotifications($current->unreadNotificationsCount);

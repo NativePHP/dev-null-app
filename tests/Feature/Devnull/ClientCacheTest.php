@@ -5,6 +5,7 @@ use App\Devnull\Exceptions\ApiException;
 use App\Devnull\FetchInBackground;
 use App\Devnull\RequestSigner;
 use App\Devnull\ResponseCache;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -378,3 +379,41 @@ it('leaves the cache alone when a mute or block fails, or devnull answers withou
     'a block' => ['POST /api/v1/users/ada/block', fn (Client $devnull) => $devnull->block('ada')],
     'an answer without the user' => ['POST /api/v1/users/ada/mute', fn (Client $devnull) => $devnull->unmute('ada')],
 ]);
+
+it('keeps the first page of your scheduled commits, paged by number, and lets it go when you change one', function (Closure $change) {
+    serveApi(function (Request $request) {
+        return match ($request->method().' '.$request->url()) {
+            'GET http://devnull.test/api/v1/scheduled-commits' => Http::response(scheduledPageJson([scheduledCommitJson(['id' => 's1'])], nextPage: 2)),
+            'GET http://devnull.test/api/v1/scheduled-commits?page=2' => Http::response(scheduledPageJson([scheduledCommitJson(['id' => 's0'])])),
+            'POST http://devnull.test/api/v1/scheduled-commits' => Http::response(['data' => scheduledCommitJson(['id' => 's2'])], 201),
+            'PUT http://devnull.test/api/v1/scheduled-commits/s1' => Http::response(['data' => scheduledCommitJson(['id' => 's1'])]),
+            'DELETE http://devnull.test/api/v1/scheduled-commits/s1' => Http::response(null, 204),
+            default => Http::response(['message' => 'No fake.'], 404),
+        };
+    });
+
+    $first = $this->devnull->scheduledCommits();
+
+    expect($first->nextCursor)->toBe('2')
+        ->and($this->devnull->scheduledCommits($first->nextCursor)->items[0]->id)->toBe('s0')
+        ->and(array_column(kept(Client::ScheduledCommitsPath)['data'], 'id'))->toBe(['s1'])
+        ->and(kept(Client::ScheduledCommitsPath, ['page' => '2']))->toBeNull();
+
+    $change($this->devnull);
+
+    expect(kept(Client::ScheduledCommitsPath))->toBeNull();
+})->with([
+    'scheduling one' => [fn (Client $devnull) => $devnull->scheduleCommit('Shipping later.', now()->addDay())],
+    'editing one' => [fn (Client $devnull) => $devnull->updateScheduledCommit('s1', 'Shipping later.', now()->addDay())],
+    'canceling one' => [fn (Client $devnull) => $devnull->cancelScheduledCommit('s1')],
+]);
+
+it('sends the time to schedule for in UTC, with its offset, as devnull takes it', function () {
+    serveApi(['POST /api/v1/scheduled-commits' => [['data' => scheduledCommitJson(['scheduled_at' => '2026-10-20T08:00:00Z'])], 201]]);
+
+    $scheduled = $this->devnull->scheduleCommit('Shipping this tomorrow.', CarbonImmutable::parse('2026-10-20 09:00', 'Europe/Lisbon'));
+
+    expect(Http::recorded()[0][0]->body())->toBe('{"body":"Shipping this tomorrow.","scheduled_at":"2026-10-20T08:00:00+00:00"}')
+        ->and($scheduled->scheduledAt->toIso8601ZuluString())->toBe('2026-10-20T08:00:00Z')
+        ->and($scheduled->isWaiting())->toBeTrue();
+});

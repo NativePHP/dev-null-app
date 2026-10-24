@@ -26,6 +26,7 @@ enum ErrorCode: string
     case GitHubSyncFailed = 'github_sync_failed';
     case GitHubIssueFailed = 'github_issue_failed';
     case PasteisExhausted = 'pasteis_exhausted';
+    case ScheduledCommitSubmitted = 'scheduled_commit_submitted';
 
     /**
      * What the app says for it, or null where devnull's own message says it
@@ -48,6 +49,7 @@ enum ErrorCode: string
             self::CommitUnavailable => "fatal: this commit isn't available.",
             self::GitHubSyncFailed => 'Could not sync from GitHub. Try again in a minute.',
             self::PasteisExhausted => Pasteis::Exhausted,
+            self::ScheduledCommitSubmitted => 'This commit was already submitted or canceled. Refresh to see its status.',
             self::RateLimited, self::OwnCommit, self::GitHubIssueFailed => null,
         };
     }

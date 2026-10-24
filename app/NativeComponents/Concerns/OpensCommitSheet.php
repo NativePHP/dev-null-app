@@ -5,9 +5,13 @@ namespace App\NativeComponents\Concerns;
 use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Draft;
+use App\Devnull\Data\ScheduledCommit;
 use App\Devnull\ReportReason;
 use App\Devnull\Stash;
+use App\Devnull\Timezone;
+use Carbon\CarbonImmutable;
 use Closure;
+use Native\Mobile\Facades\Dialog;
 
 /**
  * The sheet under a commit (see partials/commit-sheet). Report commit, in the
@@ -19,6 +23,11 @@ use Closure;
  * commit of your own, so you can write one without leaving where you are in
  * it. Once devnull has the commit the sheet goes, and a screen that lists
  * your new commits puts it in place (see showCommitted()).
+ *
+ * A new commit can be scheduled instead, as the web's composer schedules one:
+ * the clock button opens "Submit at" with the system's date and time picker,
+ * in the phone's timezone (see Timezone), and Commit becomes Schedule commit.
+ * Only you see it until it's due, on the Scheduled commits page it links to.
  *
  * What you write in it is stashed as you type, as on the web (see Stash): a
  * quote per commit quoted, and a new commit under the web's composer draft.
@@ -42,6 +51,16 @@ trait OpensCommitSheet
 {
     use AttachesToCommits;
     use DraftsIssues;
+
+    /**
+     * What the web says once a commit is scheduled.
+     */
+    public const string Scheduled = 'Commit scheduled. Only you can see it until it is submitted.';
+
+    /**
+     * What the web says of a time the timezone skips.
+     */
+    public const string SkippedTime = 'This time does not exist in your timezone. Choose another time.';
 
     /**
      * Whether the sheet is up, or on its way up.
@@ -82,6 +101,27 @@ trait OpensCommitSheet
      * Why devnull didn't take the report or the commit, shown in the sheet.
      */
     public ?string $sheetError = null;
+
+    /**
+     * Whether the new commit is to be scheduled for later, as the web's clock button toggles it.
+     */
+    public bool $scheduling = false;
+
+    /**
+     * When to submit it, as the picker's wall clock in the phone's timezone (`2026-10-20T09:00`), or '' until one is
+     * picked.
+     */
+    public string $scheduledAt = '';
+
+    /**
+     * Whether the time picked is one to schedule for: there is one, and the phone's timezone doesn't skip it.
+     */
+    public bool $hasScheduledTime = false;
+
+    /**
+     * Whether Scheduled commits → was tapped, so the list opens once the sheet has gone.
+     */
+    public bool $opensScheduledCommits = false;
 
     /**
      * Report commit, in the More menu of someone else's published commit.
@@ -174,6 +214,42 @@ trait OpensCommitSheet
     }
 
     /**
+     * The web's clock button, in a new commit's composer: it opens "Submit at" under the field, with no time picked,
+     * or closes it, and the commit goes now again. devnull's app API schedules a body alone, so not with photos or a
+     * poll, and those wait while it's on (see AttachesToCommits).
+     */
+    public function toggleSchedule(): void
+    {
+        if ($this->sheetView !== 'compose' || $this->sheetIssue !== null || $this->sheetImages !== [] || $this->sheetPoll !== null) {
+            return;
+        }
+
+        $this->scheduling = ! $this->scheduling;
+        $this->scheduledAt = '';
+        $this->hasScheduledTime = false;
+        $this->sheetError = null;
+    }
+
+    /**
+     * A time picked: the web says when the phone's timezone skips it, as on the night the clocks go forward.
+     */
+    public function updatedScheduledAt(): void
+    {
+        $this->hasScheduledTime = $this->scheduledTime() !== null;
+        $this->sheetError = $this->scheduledAt === '' || $this->hasScheduledTime ? null : self::SkippedTime;
+    }
+
+    /**
+     * Scheduled commits →, under "Submit at": the sheet goes, keeping the draft, and the list opens once it has.
+     * Pushed while the sheet slides away, the list comes in without its title.
+     */
+    public function openScheduledCommits(): void
+    {
+        $this->opensScheduledCommits = true;
+        $this->sheetOpen = false;
+    }
+
+    /**
      * Stashes the draft as it changes. An empty field forgets it, and isn't restored any more.
      */
     public function updatedSheetBody(): void
@@ -203,7 +279,7 @@ trait OpensCommitSheet
 
     /**
      * Commits what's written in the sheet, quoting its commit if it's a quote, or replying to it, with its photos or
-     * its poll. The sheet goes once devnull has it, or keeps the draft with why it didn't take it.
+     * its poll, or schedules it. The sheet goes once devnull has it, or keeps the draft with why it didn't take it.
      */
     public function commitFromSheet(): void
     {
@@ -213,6 +289,12 @@ trait OpensCommitSheet
         $body = trim($this->sheetBody);
 
         if (! $this->sheetOpen || $this->sheetPosting || $stashName === null || $this->sheetIssue !== null || ! Draft::canCommit($body, $this->sheetImages, $this->sheetPoll)) {
+            return;
+        }
+
+        if ($this->scheduling && $this->sheetView === 'compose') {
+            $this->scheduleFromSheet($body, $stashName);
+
             return;
         }
 
@@ -242,6 +324,21 @@ trait OpensCommitSheet
     }
 
     /**
+     * The time picked to submit at, or null until one is, or when the phone's timezone skips it, like 01:30 on the
+     * night the clocks go forward.
+     */
+    private function scheduledTime(): ?CarbonImmutable
+    {
+        if ($this->scheduledAt === '') {
+            return null;
+        }
+
+        $at = CarbonImmutable::createFromFormat('!Y-m-d\TH:i', $this->scheduledAt, app(Timezone::class)->here());
+
+        return $at instanceof CarbonImmutable && $at->format('Y-m-d\TH:i') === $this->scheduledAt ? $at : null;
+    }
+
+    /**
      * Done, after a report, and Cancel, in the composer's bar: the sheet goes. A draft in it stays stashed, as when
      * it's swiped away, so this mustn't forget it.
      */
@@ -256,9 +353,14 @@ trait OpensCommitSheet
     public function commitSheetClosed(): void
     {
         $view = $this->sheetView;
+        $opensScheduledCommits = $this->opensScheduledCommits;
 
         $this->forgetCommitSheet();
         $this->commitSheetGone($view);
+
+        if ($opensScheduledCommits) {
+            $this->openInTab('/scheduled');
+        }
     }
 
     /**
@@ -291,6 +393,34 @@ trait OpensCommitSheet
         return $viewer !== null && ! $commit->isDeleted() && $commit->isApproved() && $commit->author->id !== $viewer->id;
     }
 
+    /**
+     * Schedules what's written for the time picked. The sheet goes once devnull has it, and says so as the web does.
+     */
+    private function scheduleFromSheet(string $body, string $stashName): void
+    {
+        $at = $this->scheduledTime();
+
+        if ($at === null) {
+            return;
+        }
+
+        $this->sheetPosting = true;
+
+        try {
+            $scheduled = $this->attemptInSheet(fn (Client $devnull): ScheduledCommit => $devnull->scheduleCommit($body, $at));
+        } finally {
+            $this->sheetPosting = false;
+        }
+
+        if ($scheduled === null) {
+            return;
+        }
+
+        app(Stash::class)->put($this->me()?->id, $stashName, '');
+        $this->sheetOpen = false;
+        Dialog::toast(self::Scheduled);
+    }
+
     private function forgetCommitSheet(): void
     {
         $this->sheetOpen = false;
@@ -303,6 +433,10 @@ trait OpensCommitSheet
         $this->sheetError = null;
         $this->forgetAttachments();
         $this->forgetIssueDraft();
+        $this->scheduling = false;
+        $this->scheduledAt = '';
+        $this->hasScheduledTime = false;
+        $this->opensScheduledCommits = false;
     }
 
     /**
