@@ -698,6 +698,28 @@ function findNodes(array $node, callable $matches): array
 }
 
 /**
+ * The ids of every node from the root down to the one with the given ref. iOS and Android know a view by its id at
+ * each level, so a new id anywhere on the way down builds a new field, and the keyboard goes with the old one.
+ *
+ * @param  array<string, mixed>  $node
+ * @return list<int>|null
+ */
+function idsDownTo(array $node, string $ref): ?array
+{
+    if (($node['ref'] ?? null) === $ref) {
+        return [$node['id']];
+    }
+
+    foreach ($node['children'] ?? [] as $child) {
+        if (($ids = idsDownTo($child, $ref)) !== null) {
+            return [$node['id'], ...$ids];
+        }
+    }
+
+    return null;
+}
+
+/**
  * The rendered node with the given ref.
  *
  * @return array<string, mixed>
@@ -709,6 +731,26 @@ function nodeByRef(TestableComponent $screen, string $ref): array
     expect($node)->not->toBeNull("Nothing with ref [{$ref}] was rendered.");
 
     return $node;
+}
+
+/**
+ * Whether a round button in a sheet's bar can be tapped. A disabled one is drawn as a plain circle, not a pressable.
+ */
+function sheetButtonEnabled(TestableComponent $screen, string $ref): bool
+{
+    return nodeByRef($screen, $ref)['type'] === 'pressable';
+}
+
+/**
+ * The circle of a round button in a sheet's bar, whether it can be tapped or not.
+ *
+ * @return array<string, mixed>
+ */
+function sheetButtonCircle(TestableComponent $screen, string $ref): array
+{
+    $button = nodeByRef($screen, $ref);
+
+    return $button['type'] === 'pressable' ? $button['children'][0] : $button;
 }
 
 /**
@@ -803,6 +845,29 @@ function dayMarkers(TestableComponent $screen): array
 
         return $text['text'] ?? $text['props']['text'] ?? '';
     }, findNodes($tree, fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'day-')));
+}
+
+/**
+ * A photo as the camera or the photo library hands one over: a real image file
+ * of the given type and size, in a folder of its own outside the app's storage.
+ */
+function testPhoto(string $type = 'png', int $width = 40, int $height = 30): string
+{
+    $directory = sys_get_temp_dir().'/devnull-picked-'.bin2hex(random_bytes(6));
+    mkdir($directory);
+    $path = "{$directory}/picked.{$type}";
+
+    $image = imagecreatetruecolor($width, $height);
+    imagefill($image, 0, 0, (int) imagecolorallocate($image, 4, 171, 166));
+
+    match ($type) {
+        'jpg' => imagejpeg($image, $path),
+        'webp' => imagewebp($image, $path),
+        'gif' => imagegif($image, $path),
+        default => imagepng($image, $path),
+    };
+
+    return $path;
 }
 
 /**

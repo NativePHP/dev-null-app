@@ -7,6 +7,7 @@ use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitThread;
 use App\Devnull\Data\Page;
 use App\Devnull\Display;
+use App\Devnull\RowCache;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Lucide;
@@ -35,6 +36,10 @@ use Native\Mobile\Edge\NativeComponent;
  * The reply is stashed as you type, per commit, as on the web (see Stash), so
  * leaving the page keeps it, and it's in the reply bar again, marked as
  * restored, when you come back to the commit.
+ *
+ * The reply bar has no room for photos or a preview, so its expand button
+ * opens the reply in the composer sheet, which has them (see replyInSheet()).
+ * The draft goes with it, and back to the bar if the sheet closes unsent.
  */
 class CommitDetail extends NativeComponent
 {
@@ -103,6 +108,11 @@ class CommitDetail extends NativeComponent
      * mounts it again at the top.
      */
     public int $scrollKey = 0;
+
+    /**
+     * The replies from the last frame, so a render only builds the replies that changed, as the Log does its rows.
+     */
+    private ?RowCache $replyRows = null;
 
     /**
      * Every frame goes in full, as on the Log (see Log::$forceFullFrames). A
@@ -264,6 +274,7 @@ class CommitDetail extends NativeComponent
         $this->updatedReply();
         $this->replies = [...$this->replies, $reply];
         $this->repliesShown = true;
+        $this->openCommit($reply->id);
     }
 
     /**
@@ -285,6 +296,32 @@ class CommitDetail extends NativeComponent
     {
         $this->reply = '';
         $this->updatedReply();
+    }
+
+    /**
+     * A reply sent from the composer sheet goes under the commit, as one sent from the reply bar does.
+     */
+    protected function showCommitted(Commit $commit): void
+    {
+        if ($commit->parentId !== $this->id) {
+            return;
+        }
+
+        $this->reply = '';
+        $this->replyRestored = false;
+        $this->replies = [...$this->replies, $commit];
+        $this->repliesShown = true;
+    }
+
+    /**
+     * The reply bar takes back the draft it handed the sheet, as it was left there.
+     */
+    protected function commitSheetGone(string $view): void
+    {
+        if ($view === 'reply') {
+            $this->reply = app(Stash::class)->get($this->me()?->id, $this->replyStashName());
+            $this->replyRestored = false;
+        }
     }
 
     /**
@@ -397,8 +434,11 @@ class CommitDetail extends NativeComponent
     {
         $earlier = $this->earlierShown ? [] : $this->ancestors;
         $viewer = $this->me();
+        $this->replyRows ??= new RowCache;
+        $this->replyRows->startFrame();
 
         return view('native.commit-detail', [
+            'replyRows' => $this->replyRows,
             'myColour' => $this->myColour(),
             'viewer' => $viewer,
             'stashed' => app(Stash::class)->names($viewer?->id),

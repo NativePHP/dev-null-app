@@ -75,10 +75,11 @@ it('wears your custom colour on the tab bar and the main buttons', function () {
     signIn(['lane' => '#1a2b3c']);
     serveApi(fn (Request $request) => Http::response(pageJson([])));
 
-    $screen = Native::visit('/log', platform: 'ios')->press('composeInSheet');
-    $commit = array_map(fn (mixed $value): mixed => is_string($value) ? strtolower($value) : $value, nodeByRef($screen, 'sheet-commit')['props']);
+    $screen = Native::visit('/log', platform: 'ios')->press('composeInSheet')->input('sheet-body', 'Shipped it');
+    $check = sheetButtonCircle($screen, 'sheet-commit');
 
     expect(strtolower(findNode($screen->tree(), fn (array $node): bool => isset($node['props']['active_color']))['props']['active_color']))->toBe('#1a2b3c')
-        ->and($commit)->toMatchArray(['variant' => 'lane-1a2b3c', 'tint_color' => '#1a2b3c', 'label_color' => '#ffffff'])
-        ->and($commit)->not->toHaveKey('dark_tint_color');
+        ->and(strtolower($check['style']['bg_color']))->toBe('#1a2b3c')
+        ->and($check['props'] ?? [])->not->toHaveKey('dark_bg_color')
+        ->and(strtolower(findNode($check, fn (array $node): bool => $node['type'] === 'icon')['props']['color']))->toBe('#ffffff');
 });

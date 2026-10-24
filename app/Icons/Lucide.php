@@ -66,6 +66,12 @@ enum Lucide
     case SmilePlus;
     case Lightbulb;
     case Bug;
+    case ImagePlus;
+    case Camera;
+    case ChartBar;
+    case Eye;
+    case Plus;
+    case Maximize2;
 
     // The achievement badges, named as devnull names their icons (see forBadge()).
     case Terminal;
@@ -158,6 +164,12 @@ enum Lucide
             self::SmilePlus => 'smile-plus',
             self::Lightbulb => 'lightbulb',
             self::Bug => 'bug',
+            self::ImagePlus => 'image-plus',
+            self::Camera => 'camera',
+            self::ChartBar => 'chart-bar',
+            self::Eye => 'eye',
+            self::Plus => 'plus',
+            self::Maximize2 => 'maximize-2',
             self::Terminal => 'terminal',
             self::FileCode => 'file-code',
             self::Flame => 'flame',

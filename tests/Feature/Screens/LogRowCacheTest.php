@@ -68,10 +68,6 @@ it('draws a kept row as building it again would, whatever changed', function () 
             app(Account::class)->rememberPasteis(new Pasteis);
             $screen->call('isRanked');
         },
-        'an avatar downloaded' => function () use ($screen) {
-            File::put(ImageCache::path('https://avatars.githubusercontent.com/u/2?v=4'), 'png bytes');
-            $screen->call('isRanked');
-        },
     ];
 
     foreach ($changes as $change) {
@@ -79,6 +75,22 @@ it('draws a kept row as building it again would, whatever changed', function () 
         $change();
         expectKeptRowsToMatchFreshOnes($screen, $before);
     }
+});
+
+it('leaves a row as it was drawn when one of its images downloads', function () {
+    $built = [];
+    View::composer('native.partials.commit-row', function ($view) use (&$built) {
+        $built[] = $view->getData()['commit']->id;
+    });
+
+    $screen = Native::visit('/log');
+    $before = $screen->tree();
+    $built = [];
+
+    File::put(ImageCache::path('https://avatars.githubusercontent.com/u/2?v=4'), 'png bytes');
+
+    expect($screen->call('isRanked')->tree())->toBe($before)
+        ->and($built)->toBe([]);
 });
 
 it('only builds the rows that changed since the last frame', function () {

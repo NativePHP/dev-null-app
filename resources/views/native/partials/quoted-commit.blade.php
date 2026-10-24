@@ -4,9 +4,11 @@
     The whole box opens the quoted commit. One you may no longer see, or one that was deleted, is a dashed box in git's
     voice instead, with no author and nothing to open. Quotes embed one level only.
 
-    $static draws the card under the quote you're writing, for $quoted, the commit you're quoting. It opens nothing.
+    $static draws the card under the quote you're writing, for $quoted, the commit you're quoting, or over the reply
+    you're writing, $label 'Replying to'. It opens nothing.
 --}}
 @php($static ??= false)
+@php($label ??= 'Quoting')
 @php($quoted = $static ? $quoted : $commit->quotedCommit)
 @if ($quoted === null || $quoted->isDeleted())
     <native:column ref="quoted-{{ $commit->id }}" class="w-full mt-2">
@@ -16,7 +18,7 @@
 @else
     @php($quotedAuthor = $quoted->author)
     @if ($static)
-        <native:column ref="quote-card" class="w-full mt-2" a11y-label="Quoting {{ $quotedAuthor->name }}">
+        <native:column ref="quote-card" class="w-full mt-2" a11y-label="{{ $label }} {{ $quotedAuthor->name }}">
     @else
         <native:pressable ref="quoted-{{ $commit->id }}" @press="openCommit('{{ $quoted->id }}')" class="w-full mt-2" a11y-label="Quoting {{ $quotedAuthor->name }}">
     @endif

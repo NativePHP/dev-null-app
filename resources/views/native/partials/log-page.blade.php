@@ -7,7 +7,8 @@
     bottom, so a page only gets new rows under it when it can't have been scrolled.
 
     Only the log you're on asks for its next page: a page laid out off screen still shows its rows, and its last ones
-    would ask for more of the log you're on. Every page keeps pull to refresh, which can only be pulled on the log
+    would ask for more of the log you're on. It also says which rows are on screen as you scroll, so only the rows
+    near them are drawn (see App\Devnull\RowWindow). Every page keeps pull to refresh, which can only be pulled on the log
     you're on anyway: iOS builds a new list when a list gains or loses it, and the new one starts at the top.
 --}}
 <native:column native:key="page-{{ $page['log'] }}" class="w-full h-full bg-theme-surface">
@@ -18,6 +19,8 @@
         on-refresh="load"
         :on-end-reached="$page['showing'] ? 'loadMore' : null"
         :end-reached-buffer="5"
+        :on-visible-range="$page['showing'] ? 'showRows' : null"
+        :visible-range-step="20"
     >
         @if (! $page['loaded'] && $page['error'] === null)
             @foreach (range(1, 3) as $skeleton)
@@ -36,7 +39,7 @@
             @endif
         @endif
 
-        @include('native.partials.feed', ['rows' => $page['rows'], 'threads' => $page['threads'], 'rowCache' => $page['rowCache']])
+        @include('native.partials.feed', ['rows' => $page['rows'], 'threads' => $page['threads'], 'rowCache' => $page['rowCache'], 'rowWindow' => $page['rowWindow']])
 
         @if ($page['lastCommit'])
             @if ($page['nextCursor'] !== null)

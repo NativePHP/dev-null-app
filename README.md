@@ -16,6 +16,19 @@ The app talks to the signed `/api/v1` from [nunomaduro/dev-null.sh#130](https://
 
 To make that instance work with the app on your phone, create a tunnel (ngrok, Cloudflare etc) and set the `DEVNULL_URL` .env key to that URL before compiling the app.
 
+## Roadmap
+
+These are the next things we want in the app. If you'd like to take one on, read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+
+- A native image viewer, instead of opening images in a browser sheet
+- Styling for livestreams
+- Search
+- A notifications centre that matches the web
+- Who to follow
+- A better welcome screen, with sign up and log in that don't mention GitHub, and maybe the public feed
+- Everything Remotes does on the web, including audio recordings and image uploads
+- WebSockets
+
 ## Setup
 
 Clone the repo and:

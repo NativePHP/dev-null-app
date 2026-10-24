@@ -49,7 +49,7 @@
                     @foreach ($replies as $index => $threadReply)
                         @php($nested = $tombstoneReplies[$threadReply->id] ?? [])
                         @php($hasNext = ! $loop->last || $repliesCursor !== null)
-                        @include('native.partials.thread-reply', [
+                        @php($replyRow = [
                             'reply' => $threadReply,
                             'lane' => $commit->lane(),
                             'previousLane' => $index === 0 ? null : $replies[$index - 1]->lane(),
@@ -61,8 +61,10 @@
                             'more' => $loop->last && $nested === [] && $repliesCursor !== null ? 'loadMoreReplies' : null,
                             'last' => $loop->last && $nested === [],
                         ])
+                        @php($rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))
+                        @php($replyRows->include('reply-'.$threadReply->id, \App\Devnull\RowInputs::for($threadReply, $rowScope), 'native.partials.thread-reply', $replyRow, $rowScope))
                         @foreach ($nested as $nestedIndex => $nestedReply)
-                            @include('native.partials.thread-reply', [
+                            @php($nestedRow = [
                                 'reply' => $nestedReply,
                                 'lane' => \App\Devnull\Lane::Rail,
                                 'previousLane' => $nestedIndex === 0 ? null : $nested[$nestedIndex - 1]->lane(),
@@ -75,6 +77,8 @@
                                 'more' => $loop->last && $loop->parent->last && $repliesCursor !== null ? 'loadMoreReplies' : null,
                                 'last' => $loop->last && $loop->parent->last,
                             ])
+                            @php($rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))
+                            @php($replyRows->include('reply-'.$nestedReply->id, \App\Devnull\RowInputs::for($nestedReply, $rowScope), 'native.partials.thread-reply', $nestedRow, $rowScope))
                         @endforeach
                     @endforeach
                 @endif
@@ -106,7 +110,9 @@
         <native:bottom-bar>
             <native:column ref="reply-bar" class="w-full android:bg-theme-surface">
                 <native:column class="w-full h-[1] android:bg-theme-hairline" />
-                <native:row class="w-full px-4 py-2 gap-3 items-center">
+                <native:row class="w-full pl-2 pr-4 py-2 gap-2 items-center">
+                    {{-- The bar has no room for photos or a preview, so this opens the reply in the composer sheet, which has them. --}}
+                    @include('native.partials.composer-tool', ['ref' => 'reply-expand', 'icon' => \App\Icons\Lucide::Maximize2, 'label' => 'Reply with photos or a preview', 'press' => "replyInSheet('{$commit->id}')"])
                     {{-- EDGE sends no focus event, so a press on the field is how the page learns you're replying. --}}
                     <native:column ref="reply-field" class="flex-1 ios:px-4 ios:rounded-[18] ios:glass" @pressUp="replyTapped">
                         <native:bare-text-input

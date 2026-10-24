@@ -6,8 +6,12 @@ use App\Devnull\Data\Commit;
 
 /**
  * What a commit row and a thread reply show besides their partial's data, for
- * RowCache to keep them against: what the partials read from the screen, and
- * what they work out from the time and from the images already on the device.
+ * RowCache to keep them against: what the partials read from the screen, such
+ * as the option you picked on a poll and whether your vote is on its way, and
+ * what they work out from the time.
+ *
+ * Images aren't here: ImageCache draws each URL the same way for as long as
+ * the app runs, so a row's images only change with its commit.
  *
  * A partial that starts reading something new needs it here too, or its row
  * keeps showing what it showed before.
@@ -32,12 +36,13 @@ final class RowInputs
             'tombstones' => $scope['tombstones'] ?? false,
             'tombstoneReplies' => array_key_exists($commit->id, $scope['tombstoneReplies'] ?? []),
             'shown' => [self::changing($commit), $commit->quotedCommit === null ? null : self::changing($commit->quotedCommit)],
+            'poll' => [$scope['pollChoices'][$commit->id] ?? null, in_array($commit->id, $scope['voting'] ?? [], true)],
         ];
     }
 
     /**
-     * How a commit shows what changes without devnull saying so: its time, its
-     * poll's time left, and each image as the phone's copy once it has one.
+     * How a commit shows what changes without devnull saying so: its time and
+     * its poll's time left.
      *
      * @return list<mixed>
      */
@@ -48,9 +53,6 @@ final class RowInputs
             $commit->poll?->showsResults(),
             $commit->poll?->status(),
             $commit->poll?->summary(),
-            ImageCache::src($commit->author->avatarUrl),
-            ImageCache::src($commit->linkPreview?->imageUrl),
-            array_map(fn ($image): ?string => ImageCache::src($image->url), $commit->images),
         ];
     }
 }

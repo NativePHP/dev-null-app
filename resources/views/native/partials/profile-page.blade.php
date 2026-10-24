@@ -42,7 +42,7 @@
             @include('native.partials.commit-row', ['commit' => $page['pinnedCommit'], 'previousLane' => null, 'continuesRun' => false, 'rowKey' => 'pinned-'.$page['pinnedCommit']->id])
         @endif
 
-        @include('native.partials.feed', ['rows' => $page['rows'], 'threads' => $page['threads']])
+        @include('native.partials.feed', ['rows' => $page['rows'], 'threads' => $page['threads'], 'rowCache' => $page['rowCache']])
 
         @if (! $page['isEmpty'] || $page['pinnedCommit'])
             @if ($page['nextCursor'] !== null)

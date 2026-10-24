@@ -4,6 +4,7 @@ namespace App\NativeComponents\Concerns;
 
 use App\Devnull\Client;
 use App\Devnull\Data\Commit;
+use App\Devnull\Data\Draft;
 use App\Devnull\ReportReason;
 use App\Devnull\Stash;
 use Closure;
@@ -27,11 +28,19 @@ use Closure;
  * A new commit's draft can become a `/feature` or `/bug` issue, as on the web
  * (see DraftsIssues).
  *
+ * A commit's page can open its reply in the same composer, for the photos and
+ * the preview the reply bar has no room for (see replyInSheet()). The draft
+ * is the reply bar's, and goes back to it when the sheet closes.
+ *
+ * The composer can attach photos, a poll and show a preview, as the web's
+ * does (see AttachesToCommits).
+ *
  * The sheet keeps its commit while it slides away, so it doesn't empty on the
  * way down, and lets go of it once iOS says it's gone, however it was closed.
  */
 trait OpensCommitSheet
 {
+    use AttachesToCommits;
     use DraftsIssues;
 
     /**
@@ -45,8 +54,8 @@ trait OpensCommitSheet
     public ?Commit $sheetCommit = null;
 
     /**
-     * What the sheet shows: 'report' (the form), 'reported' (sent), 'quote', or 'compose' (a new commit, with no
-     * commit of its own).
+     * What the sheet shows: 'report' (the form), 'reported' (sent), 'quote', 'reply', or 'compose' (a new commit,
+     * with no commit of its own).
      */
     public string $sheetView = 'report';
 
@@ -134,6 +143,26 @@ trait OpensCommitSheet
     }
 
     /**
+     * The reply to a commit in the sheet, from its page's reply bar, with what was written there. The draft was just
+     * handed over, so it isn't marked as restored.
+     */
+    public function replyInSheet(string $id): void
+    {
+        $commit = $this->shownCommit($id);
+
+        if ($commit === null || $commit->isDeleted()) {
+            return;
+        }
+
+        $this->forgetCommitSheet();
+        $this->sheetCommit = $commit;
+        $this->sheetView = 'reply';
+        $this->sheetOpen = true;
+        $this->restoreSheetDraft();
+        $this->sheetRestored = false;
+    }
+
+    /**
      * A new commit in the sheet, with nothing quoted.
      */
     public function composeInSheet(): void
@@ -173,34 +202,43 @@ trait OpensCommitSheet
     }
 
     /**
-     * Commits what's written in the sheet, quoting its commit if it's a quote. The sheet goes once devnull has it,
-     * or keeps the draft with why it didn't take it.
+     * Commits what's written in the sheet, quoting its commit if it's a quote, or replying to it, with its photos or
+     * its poll. The sheet goes once devnull has it, or keeps the draft with why it didn't take it.
      */
     public function commitFromSheet(): void
     {
+        $parent = $this->sheetView === 'reply' ? $this->sheetCommit : null;
         $quoted = $this->sheetView === 'quote' ? $this->sheetCommit : null;
         $stashName = $this->sheetStashName();
         $body = trim($this->sheetBody);
 
-        if (! $this->sheetOpen || $this->sheetPosting || $stashName === null || $this->sheetIssue !== null || ! Commit::fits($body)) {
+        if (! $this->sheetOpen || $this->sheetPosting || $stashName === null || $this->sheetIssue !== null || ! Draft::canCommit($body, $this->sheetImages, $this->sheetPoll)) {
+            return;
+        }
+
+        $sent = function (Commit $commit) use ($stashName): void {
+            app(Stash::class)->put($this->me()?->id, $stashName, '');
+            $this->sheetOpen = false;
+            $this->showCommitted($commit);
+        };
+
+        if ($this->sheetImages !== []) {
+            $this->commitPhotosFromSheet($body, $parent, $quoted, $sent);
+
             return;
         }
 
         $this->sheetPosting = true;
 
         try {
-            $commit = $this->attemptInSheet(fn (Client $devnull): Commit => $devnull->createCommit($body, quotedCommitId: $quoted?->id));
+            $commit = $this->attemptInSheet(fn (Client $devnull): Commit => $devnull->createCommit($body, $parent?->id, $quoted?->id, $this->sheetPollPayload()));
         } finally {
             $this->sheetPosting = false;
         }
 
-        if ($commit === null) {
-            return;
+        if ($commit !== null) {
+            $sent($commit);
         }
-
-        app(Stash::class)->put($this->me()?->id, $stashName, '');
-        $this->sheetOpen = false;
-        $this->showCommitted($commit);
     }
 
     /**
@@ -217,13 +255,24 @@ trait OpensCommitSheet
      */
     public function commitSheetClosed(): void
     {
+        $view = $this->sheetView;
+
         $this->forgetCommitSheet();
+        $this->commitSheetGone($view);
     }
 
     /**
      * A commit you just made, for a screen to put where it lists your new ones. Most don't.
      */
     protected function showCommitted(Commit $commit): void
+    {
+        //
+    }
+
+    /**
+     * The sheet has gone, after showing $view. A screen whose own composer handed it a draft takes it back.
+     */
+    protected function commitSheetGone(string $view): void
     {
         //
     }
@@ -252,6 +301,7 @@ trait OpensCommitSheet
         $this->sheetBody = '';
         $this->sheetRestored = false;
         $this->sheetError = null;
+        $this->forgetAttachments();
         $this->forgetIssueDraft();
     }
 
@@ -263,6 +313,7 @@ trait OpensCommitSheet
         return match (true) {
             $this->sheetView === 'compose' => 'commit',
             $this->sheetView === 'quote' && $this->sheetCommit !== null => 'quote-'.$this->sheetCommit->id,
+            $this->sheetView === 'reply' && $this->sheetCommit !== null => 'reply-'.$this->sheetCommit->id,
             default => null,
         };
     }

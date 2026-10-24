@@ -112,12 +112,20 @@ trait HoldsNewCommits
 
         if ($this->newCommitsReplaceList) {
             $this->threads = [];
+            $this->replacedList();
         }
 
         $this->commits = $shown->items;
         $this->nextCursor = $shown->nextCursor;
         $this->forgetNewCommits();
     }
+
+    /**
+     * The new commits replaced the list rather than going on top of it, so its
+     * next cursor now points into a different list. A screen that holds on to
+     * anything fetched for the old one lets it go here (see Log).
+     */
+    protected function replacedList(): void {}
 
     protected function forgetNewCommits(): void
     {

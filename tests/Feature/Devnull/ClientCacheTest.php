@@ -106,7 +106,34 @@ it('answers status 0 from the background when devnull cannot be reached', functi
 
     $request = $this->devnull->signedGet('me');
 
-    expect((new FetchInBackground)->handle($request->url, $request->headers))->toBe(['status' => 0, 'json' => null, 'retry_after' => '']);
+    expect((new FetchInBackground)->handle($request->url, $request->headers))->toBe(['status' => 0, 'json' => null, 'retry_after' => '', 'from_devnull' => false]);
+});
+
+it("fails a GET that gets a 200 with something other than devnull's answer, and keeps nothing from it", function (string $body) {
+    keep('log/following', pageJson([commitJson(['id' => 'c1'])], 'page2'));
+    $kept = kept('log/following');
+    serveApi(['GET /api/v1/log/following' => [$body]]);
+
+    expect(fn () => $this->devnull->log('following'))->toThrow(ApiException::class, "fatal: unable to access 'http://devnull.test': unexpected answer (HTTP 200)")
+        ->and(kept('log/following'))->toBe($kept);
+
+    $request = $this->devnull->signedGet('log/following');
+
+    expect((new FetchInBackground)->handle($request->url, $request->headers))->toMatchArray(['status' => 200, 'from_devnull' => false]);
+})->with([
+    'a maintenance page' => ['<!DOCTYPE html><html><head><title>Maintenance - /dev/null</title></head><body>Back soon.</body></html>'],
+    'no body' => [''],
+    'an empty object' => ['{}'],
+    'a list' => ['[{"id":"c1"}]'],
+]);
+
+it('fails a write that gets a maintenance page, and leaves the cache alone', function () {
+    keep('users/ada', ['data' => userWithCountsJson(['username' => 'ada'], followers: 1), 'is_following' => false]);
+    serveApi(['POST /api/v1/users/ada/follow' => ['<html><title>Maintenance - /dev/null</title></html>']]);
+
+    expect(fn () => $this->devnull->follow('ada'))->toThrow(ApiException::class, 'unexpected answer (HTTP 200)')
+        ->and(kept('users/ada'))->toMatchArray(['is_following' => false])
+        ->and(kept('users/ada')['data']['followers_count'])->toBe(1);
 });
 
 it('keeps stars on every kept copy', function () {
@@ -143,6 +170,23 @@ it('keeps starred commits in newest-star order as you star and unstar', function
     $this->devnull->unstar('c2');
     expect(array_column(kept('starred')['data'], 'id'))->toBe(['c1', 'c9'])
         ->and(app(ResponseCache::class)->unstarredIds())->toBe(['c2']);
+});
+
+it('leaves your starred commits in their order when you pin or unpin one', function () {
+    keep('starred', pageJson([
+        commitJson(['id' => 'c2', 'starred' => true]),
+        commitJson(['id' => 'c1', 'starred' => true]),
+    ]));
+    serveApi([
+        'PUT /api/v1/commits/c1/pin' => [['data' => commitJson(['id' => 'c1', 'starred' => true, 'is_pinned' => true])]],
+        'DELETE /api/v1/commits/c1/pin' => [['data' => commitJson(['id' => 'c1', 'starred' => true, 'is_pinned' => false])]],
+    ]);
+
+    $this->devnull->pin('c1');
+    expect(array_column(kept('starred')['data'], 'id'))->toBe(['c2', 'c1']);
+
+    $this->devnull->unpin('c1');
+    expect(array_column(kept('starred')['data'], 'id'))->toBe(['c2', 'c1']);
 });
 
 it('keeps the first page of your starred commits', function () {

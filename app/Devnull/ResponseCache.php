@@ -253,6 +253,22 @@ final class ResponseCache
     }
 
     /**
+     * You voted on a commit's poll: every copy of the commit takes the poll devnull sent back, with its results.
+     *
+     * @param  array<string, mixed>  $commit
+     */
+    public function pollVoted(array $commit): void
+    {
+        $id = (string) ($commit['id'] ?? '');
+
+        if ($id === '' || ! is_array($commit['poll'] ?? null)) {
+            return;
+        }
+
+        $this->patchCommit($id, fn (array $kept): array => [...$kept, 'poll' => $commit['poll']]);
+    }
+
+    /**
      * You starred or unstarred a commit. A commit you starred is the newest,
      * so it goes on top of your starred commits; one you unstarred leaves them,
      * and is remembered for the pages of them loaded past the first.

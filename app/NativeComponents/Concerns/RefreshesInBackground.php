@@ -28,7 +28,9 @@ use Throwable;
  * When a refresh fails over something worth showing, the screen keeps it and
  * says so quietly, with a retry. Only a screen with nothing to show prints the
  * error. A 401 signs the phone out, as any request does. A server error is
- * asked once more first, signed afresh, since it's often a passing one.
+ * asked once more first, signed afresh, since it's often a passing one. A 200
+ * that isn't devnull's answer, such as a maintenance page, fails like any
+ * other refresh, and what was kept stays kept.
  */
 trait RefreshesInBackground
 {
@@ -78,12 +80,16 @@ trait RefreshesInBackground
     /**
      * Asks devnull for a GET in the background and hands $apply the JSON when it
      * lands. A refresh of the same thing already on its way isn't sent twice,
-     * unless $again says it must be. A $quiet one never says it failed.
+     * unless $again says it must be. A $quiet one never says it failed on the
+     * screen. It only tells $failed, for a caller that has something else to
+     * do then. One $withImages brings the answer's images down before it
+     * lands, rather than after in a task of their own (see FetchInBackground).
      *
      * @param  array<string, string|null>  $query
      * @param  Closure(array<string, mixed>): void  $apply
+     * @param  (Closure(): void)|null  $failed
      */
-    protected function refresh(string $path, array $query, Closure $apply, bool $again = false, bool $quiet = false, bool $retried = false): void
+    protected function refresh(string $path, array $query, Closure $apply, bool $again = false, bool $quiet = false, ?Closure $failed = null, bool $withImages = false, bool $retried = false): void
     {
         $key = ResponseCache::key('', $path, $query);
 
@@ -94,7 +100,9 @@ trait RefreshesInBackground
         try {
             $request = app(Client::class)->signedGet($path, $query);
         } catch (KeychainUnavailable $exception) {
-            if (! $quiet) {
+            if ($quiet) {
+                $failed?->__invoke();
+            } else {
                 $this->couldNotRefresh($exception->getMessage());
             }
 
@@ -103,25 +111,27 @@ trait RefreshesInBackground
 
         $this->refreshing[$key] = microtime(true);
 
-        FetchInBackground::dispatch($request->url, $request->headers)
+        FetchInBackground::dispatch($request->url, $request->headers, 'GET', '', $withImages, $withImages ? ImageCache::takePrune() : null)
             ->timeout(30)
-            ->finished(function (mixed $result) use ($key, $path, $query, $apply, $quiet, $retried): void {
+            ->finished(function (mixed $result) use ($key, $path, $query, $apply, $quiet, $failed, $withImages, $retried): void {
                 unset($this->refreshing[$key]);
 
                 $result = is_array($result) ? $result : [];
 
                 if (! $retried && (int) ($result['status'] ?? 0) >= 500) {
-                    $this->refresh($path, $query, $apply, again: true, quiet: $quiet, retried: true);
+                    $this->refresh($path, $query, $apply, again: true, quiet: $quiet, failed: $failed, withImages: $withImages, retried: true);
 
                     return;
                 }
 
-                $this->settleRefresh($result, $path, $query, $apply, $quiet);
+                $this->settleRefresh($result, $path, $query, $apply, $quiet, $failed, $withImages);
             })
-            ->failed(function (Throwable $exception) use ($key, $quiet): void {
+            ->failed(function (Throwable $exception) use ($key, $quiet, $failed): void {
                 unset($this->refreshing[$key]);
 
-                if (! $quiet) {
+                if ($quiet) {
+                    $failed?->__invoke();
+                } else {
                     $this->couldNotRefresh('fatal: '.$exception->getMessage());
                 }
             });
@@ -168,19 +178,26 @@ trait RefreshesInBackground
     }
 
     /**
-     * @param  array{status?: int, json?: mixed, retry_after?: string}  $result
+     * @param  array{status?: int, json?: mixed, retry_after?: string, from_devnull?: bool}  $result
      * @param  array<string, string|null>  $query
      * @param  Closure(array<string, mixed>): void  $apply
+     * @param  (Closure(): void)|null  $failed
      */
-    private function settleRefresh(array $result, string $path, array $query, Closure $apply, bool $quiet): void
+    private function settleRefresh(array $result, string $path, array $query, Closure $apply, bool $quiet, ?Closure $failed = null, bool $withImages = false): void
     {
         $status = (int) ($result['status'] ?? 0);
+        $successful = $status >= 200 && $status < 300;
 
-        if ($status >= 200 && $status < 300) {
+        if ($successful && ($result['from_devnull'] ?? false) === true) {
             $json = is_array($result['json'] ?? null) ? $result['json'] : [];
 
             app(ResponseCache::class)->put($path, $query, $json);
-            ImageCache::prefetch($json);
+
+            // Its images came with it. Any that didn't come in time load from their URLs.
+            if (! $withImages) {
+                ImageCache::prefetch($json);
+            }
+
             $this->refreshFailed = false;
             $this->error = null;
             $apply($json);
@@ -189,12 +206,16 @@ trait RefreshesInBackground
         }
 
         if ($quiet) {
+            $failed?->__invoke();
+
             return;
         }
 
-        $exception = $status === 0
-            ? ApiException::couldNotConnect((string) config('devnull.url'))
-            : ApiException::fromParts($status, $result['json'] ?? null, (string) ($result['retry_after'] ?? ''));
+        $exception = match (true) {
+            $status === 0 => ApiException::couldNotConnect((string) config('devnull.url')),
+            $successful => ApiException::unexpectedAnswer((string) config('devnull.url'), $status),
+            default => ApiException::fromParts($status, $result['json'] ?? null, (string) ($result['retry_after'] ?? '')),
+        };
 
         if ($exception instanceof Unauthenticated) {
             $this->signOut($exception);

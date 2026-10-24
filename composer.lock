@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "db9e34f24e114a45a188e38b4d6524f8",
+    "content-hash": "8bcaeeb71989e08fe920116ba3e08bcd",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2717,16 +2717,16 @@
         },
         {
             "name": "nativephp/mobile",
-            "version": "dev-combined/dev-null-app",
+            "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-air.git",
-                "reference": "5fa2cd2db61912ff0399ec80cdbaf580ea49db8c"
+                "reference": "2189e72363ea00965c17d35d8b127a2ae77093ad"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/5fa2cd2db61912ff0399ec80cdbaf580ea49db8c",
-                "reference": "5fa2cd2db61912ff0399ec80cdbaf580ea49db8c",
+                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/2189e72363ea00965c17d35d8b127a2ae77093ad",
+                "reference": "2189e72363ea00965c17d35d8b127a2ae77093ad",
                 "shasum": ""
             },
             "require": {
@@ -2766,6 +2766,7 @@
             "suggest": {
                 "ext-zip": "Required by native:install to validate and extract the downloaded Android PHP binary archives"
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "laravel": {
@@ -2833,23 +2834,23 @@
                 "nativephp"
             ],
             "support": {
-                "source": "https://github.com/NativePHP/mobile-air/tree/combined/dev-null-app",
+                "source": "https://github.com/NativePHP/mobile-air/tree/main",
                 "issues": "https://github.com/NativePHP/mobile-air/issues"
             },
-            "time": "2026-10-20T14:50:33+00:00"
+            "time": "2026-10-24T01:35:48+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
-            "version": "1.1.0",
+            "version": "1.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-browser.git",
-                "reference": "28de91ee6051b848dde893e70ce95752846a8c25"
+                "reference": "632cf93df3f29531e7e0b931106cc9e47d052eff"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-browser/zipball/28de91ee6051b848dde893e70ce95752846a8c25",
-                "reference": "28de91ee6051b848dde893e70ce95752846a8c25",
+                "url": "https://api.github.com/repos/NativePHP/mobile-browser/zipball/632cf93df3f29531e7e0b931106cc9e47d052eff",
+                "reference": "632cf93df3f29531e7e0b931106cc9e47d052eff",
                 "shasum": ""
             },
             "require": {
@@ -2889,9 +2890,64 @@
             "description": "Browser functionality for NativePHP Mobile - open URLs in system browser, in-app browser, and OAuth authentication",
             "support": {
                 "issues": "https://github.com/NativePHP/mobile-browser/issues",
-                "source": "https://github.com/NativePHP/mobile-browser/tree/1.1.0"
+                "source": "https://github.com/NativePHP/mobile-browser/tree/1.2.0"
             },
-            "time": "2026-09-03T18:26:19+00:00"
+            "time": "2026-10-21T16:15:09+00:00"
+        },
+        {
+            "name": "nativephp/mobile-camera",
+            "version": "1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/NativePHP/mobile-camera.git",
+                "reference": "8a7d215413fb0979cb0c86f9c8499f883a671077"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/NativePHP/mobile-camera/zipball/8a7d215413fb0979cb0c86f9c8499f883a671077",
+                "reference": "8a7d215413fb0979cb0c86f9c8499f883a671077",
+                "shasum": ""
+            },
+            "require": {
+                "nativephp/mobile": "^3.0 || ^4.0",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^2.7|^3.0|^4.0"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Native\\Mobile\\Providers\\CameraServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Native\\Mobile\\Providers\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "NativePHP",
+                    "email": "info@nativephp.com"
+                }
+            ],
+            "description": "Camera plugin for NativePHP Mobile (Photo capture, Video recording, Gallery picker)",
+            "support": {
+                "issues": "https://github.com/NativePHP/mobile-camera/issues",
+                "source": "https://github.com/NativePHP/mobile-camera/tree/1.1.0"
+            },
+            "time": "2026-10-22T15:11:58+00:00"
         },
         {
             "name": "nativephp/mobile-secure-storage",
@@ -3005,16 +3061,16 @@
         },
         {
             "name": "nativephp/mobile-ui",
-            "version": "dev-combined/dev-null-app",
+            "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-ui.git",
-                "reference": "a2e561128d5052b6f90f7e87069169372cc4cd32"
+                "reference": "0abe5d24dc6c8749ac27a651c66f6b8154459d61"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/a2e561128d5052b6f90f7e87069169372cc4cd32",
-                "reference": "a2e561128d5052b6f90f7e87069169372cc4cd32",
+                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/0abe5d24dc6c8749ac27a651c66f6b8154459d61",
+                "reference": "0abe5d24dc6c8749ac27a651c66f6b8154459d61",
                 "shasum": ""
             },
             "require": {
@@ -3026,6 +3082,7 @@
                 "orchestra/testbench": "^10.0",
                 "pestphp/pest": "^3.0"
             },
+            "default-branch": true,
             "type": "nativephp-plugin",
             "extra": {
                 "laravel": {
@@ -3064,7 +3121,7 @@
             ],
             "description": "Native SwiftUI and Jetpack Composer components for NativePHP",
             "support": {
-                "source": "https://github.com/NativePHP/mobile-ui/tree/combined/dev-null-app",
+                "source": "https://github.com/NativePHP/mobile-ui/tree/main",
                 "issues": "https://github.com/NativePHP/mobile-ui/issues"
             },
             "funding": [
@@ -3073,7 +3130,7 @@
                     "url": "https://nativephp.com/sponsor"
                 }
             ],
-            "time": "2026-10-20T20:03:24+00:00"
+            "time": "2026-10-24T01:25:19+00:00"
         },
         {
             "name": "nesbot/carbon",
@@ -11075,13 +11132,13 @@
     "aliases": [
         {
             "package": "nativephp/mobile",
-            "version": "dev-combined/dev-null-app",
+            "version": "dev-main",
             "alias": "4.6.0",
             "alias_normalized": "4.6.0.0"
         },
         {
             "package": "nativephp/mobile-ui",
-            "version": "dev-combined/dev-null-app",
+            "version": "dev-main",
             "alias": "0.8.0",
             "alias_normalized": "0.8.0.0"
         }

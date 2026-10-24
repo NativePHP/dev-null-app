@@ -241,6 +241,39 @@ it('asks once more after a server error, signed afresh, before saying it could n
     finishRefreshes($screen->firePoll('checkForNewCommits'))->assertSee("warning: couldn't refresh");
 });
 
+it('keeps the kept log, its next page and what was kept while dev-null.sh answers with a maintenance page', function (int $status, string $error) {
+    holdRefreshes();
+    keep('log/following', pageJson([commitJson(['id' => 'c2', 'body' => 'Kept newer']), commitJson(['id' => 'c1', 'body' => 'Kept older'])], 'page2'));
+    $kept = kept('log/following');
+    // Every URL, the API's included, as dev-null.sh answered on 2026-10-21.
+    serveApi(fn () => Http::response('<!DOCTYPE html><html><head><title>Maintenance - /dev/null</title></head><body>Back soon.</body></html>', $status, ['Content-Type' => 'text/html; charset=UTF-8']));
+
+    $screen = finishRefreshes(Native::visit('/log'))
+        ->assertSee('Kept newer')
+        ->assertSee("warning: couldn't refresh")
+        ->assertSet('error', null);
+
+    expect(shownCommitIds($screen))->toBe(['c2', 'c1'])
+        ->and($screen->get('nextCursor'))->toBe('page2')
+        ->and(kept('log/following'))->toBe($kept);
+
+    // The next page fails too, and the log doesn't end there.
+    $screen->call('loadMore')->assertSet('error', $error);
+
+    expect(shownCommitIds($screen))->toBe(['c2', 'c1'])
+        ->and($screen->get('nextCursor'))->toBe('page2');
+
+    // Back from maintenance, it carries on from where it was.
+    fakeFreshLog([commitJson(['id' => 'c0', 'body' => 'Next page'])]);
+
+    $screen->call('loadMore')->assertSet('error', null);
+
+    expect(shownCommitIds($screen))->toBe(['c2', 'c1', 'c0']);
+})->with([
+    'a 200' => [200, "fatal: unable to access 'http://devnull.test': unexpected answer (HTTP 200)"],
+    'a 503' => [503, 'fatal: the remote end hung up unexpectedly (HTTP 503)'],
+]);
+
 it('prints the error when there is nothing kept to show', function () {
     holdRefreshes();
     fakeOffline();

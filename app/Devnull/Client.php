@@ -6,6 +6,7 @@ use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitThread;
 use App\Devnull\Data\Connection;
 use App\Devnull\Data\CurrentUser;
+use App\Devnull\Data\DraftImage;
 use App\Devnull\Data\Notification;
 use App\Devnull\Data\Page;
 use App\Devnull\Data\Profile;
@@ -67,6 +68,11 @@ final readonly class Client
     public const string PasteisModePath = 'me/pasteis-mode';
 
     /**
+     * Where a draft is shown as the commit it would become, as the web's composer previews it.
+     */
+    public const string PreviewPath = 'commits/preview';
+
+    /**
      * Your Remotes inbox, and where Remotes are switched on and off and their settings saved, as on the web.
      */
     public const string RemotesPath = 'remotes';
@@ -86,6 +92,14 @@ final readonly class Client
     public const string IssuesPath = 'issues';
 
     public function __construct(private DeviceKey $deviceKey, private string $baseUrl, private ResponseCache $cache) {}
+
+    /**
+     * Where a vote on a commit's poll goes. devnull answers with the commit, whose poll then shows its results.
+     */
+    public static function pollVotesPath(string $id): string
+    {
+        return 'commits/'.rawurlencode($id).'/poll/votes';
+    }
 
     /**
      * Where a Remotes thread lives: with a person, by their username, or an org, by its id. Its messages are pushed
@@ -198,15 +212,55 @@ final readonly class Client
     /**
      * Commits, as a reply to $parentId or quoting $quotedCommitId, as the web's
      * composer, reply box and Quote do. devnull takes one or the other, not both.
+     * A new commit or a quote may start a poll (see PollDraft::payload()).
+     *
+     * @param  array{options: list<string>, duration: int}|null  $poll
      */
-    public function createCommit(string $body, ?string $parentId = null, ?string $quotedCommitId = null): Commit
+    public function createCommit(string $body, ?string $parentId = null, ?string $quotedCommitId = null, ?array $poll = null): Commit
     {
-        $payload = array_filter(['body' => $body, 'parent_id' => $parentId, 'quoted_commit_id' => $quotedCommitId], fn (?string $value): bool => $value !== null);
-
-        $commit = $this->data($this->send('POST', 'commits', payload: $payload));
+        $commit = $this->data($this->send('POST', 'commits', payload: self::commitPayload($body, $parentId, $quotedCommitId, poll: $poll)));
         $this->cache->commitAdded($commit);
 
         return Commit::fromArray($commit);
+    }
+
+    /**
+     * Signs a commit with images without sending it, for the background to
+     * send while the sheet says it's under way, since photos take a while to
+     * upload. devnull takes them as multipart, as from the `devnull commit`
+     * script: the JSON body goes in a payload part beside the images, and the
+     * SHA-256 of each image is signed on a line before it, so the signature
+     * covers them too. Descriptions go along when any photo has one.
+     *
+     * @param  list<DraftImage>  $images
+     */
+    public function signedCommitWithImages(string $body, array $images, ?string $parentId = null, ?string $quotedCommitId = null): SignedRequest
+    {
+        $target = $this->target('commits', []);
+        $descriptions = array_map(fn (DraftImage $image): ?string => $image->isDescribed() ? trim($image->description) : null, $images);
+        $payload = self::body(self::commitPayload($body, $parentId, $quotedCommitId, descriptions: array_filter($descriptions) === [] ? [] : $descriptions));
+        $contents = array_map(fn (DraftImage $image): string => (string) file_get_contents($image->path), $images);
+        $boundary = 'devnull-'.bin2hex(random_bytes(16));
+
+        $part = fn (string $name, string $filename, string $type, string $bytes): string => "--{$boundary}\r\n"
+            ."Content-Disposition: form-data; name=\"{$name}\"; filename=\"{$filename}\"\r\n"
+            ."Content-Type: {$type}\r\n\r\n{$bytes}\r\n";
+
+        $body = $part('payload', 'payload.json', 'application/json', $payload);
+
+        foreach ($images as $index => $image) {
+            $body .= $part('images[]', 'image-'.($index + 1).'.'.substr($image->mimeType, 6), $image->mimeType, $contents[$index]);
+        }
+
+        $hashes = implode(',', array_map(fn (string $bytes): string => hash('sha256', $bytes), $contents));
+
+        return new SignedRequest(
+            $this->origin().$target,
+            $this->sign('POST', $target, $hashes."\n".$payload, RequestSigner::ImagesNamespace),
+            'POST',
+            $body."--{$boundary}--\r\n",
+            "multipart/form-data; boundary={$boundary}",
+        );
     }
 
     public function deleteCommit(string $id): void
@@ -223,6 +277,20 @@ final readonly class Client
     public function unstar(string $id): Commit
     {
         return $this->react('DELETE', 'commits/'.rawurlencode($id).'/star');
+    }
+
+    /**
+     * Pins your commit to the top of your profile, as the web's Pin does,
+     * taking the place of any commit pinned before.
+     */
+    public function pin(string $id): Commit
+    {
+        return $this->react('PUT', 'commits/'.rawurlencode($id).'/pin', starring: false);
+    }
+
+    public function unpin(string $id): Commit
+    {
+        return $this->react('DELETE', 'commits/'.rawurlencode($id).'/pin', starring: false);
     }
 
     /**
@@ -304,7 +372,17 @@ final readonly class Client
 
     public function profile(string $username): Profile
     {
-        return Profile::fromArray($this->get('users/'.rawurlencode($username)));
+        return Profile::fromArray($this->profileJson($username));
+    }
+
+    /**
+     * Someone's profile as devnull sent it, for keeping as it is (see Account::rememberProfile()).
+     *
+     * @return array<string, mixed>
+     */
+    public function profileJson(string $username): array
+    {
+        return $this->get('users/'.rawurlencode($username));
     }
 
     /**
@@ -473,7 +551,7 @@ final readonly class Client
 
         $pending = $request->body === ''
             ? $pending->withRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withoutHeader('Content-Type'))
-            : $pending->withBody($request->body, 'application/json');
+            : $pending->withBody($request->body, $request->contentType);
 
         return $pending->send($request->method, $request->url);
     }
@@ -494,15 +572,17 @@ final readonly class Client
     }
 
     /**
-     * Stars or unstars, and gives every kept copy of the commit the new counts.
+     * Stars, unstars, pins or unpins, and gives every kept copy of the commit the new counts.
      * Starring or unstarring updates your kept starred commits too.
      */
-    private function react(string $method, string $path): Commit
+    private function react(string $method, string $path, bool $starring = true): Commit
     {
         $commit = $this->data($this->send($method, $path));
         $this->cache->commitReacted($commit);
 
-        $this->cache->commitStarred($commit);
+        if ($starring) {
+            $this->cache->commitStarred($commit);
+        }
 
         return Commit::fromArray($commit);
     }
@@ -536,7 +616,48 @@ final readonly class Client
             throw ApiException::fromResponse($response);
         }
 
+        if (! self::answeredByDevnull($response, $method)) {
+            throw ApiException::unexpectedAnswer($this->baseUrl, $response->status());
+        }
+
         return $response;
+    }
+
+    /**
+     * What a commit sends, leaving out what it doesn't have.
+     *
+     * @param  list<string|null>  $descriptions
+     * @param  array{options: list<string>, duration: int}|null  $poll
+     * @return array<string, mixed>
+     */
+    private static function commitPayload(string $body, ?string $parentId, ?string $quotedCommitId, array $descriptions = [], ?array $poll = null): array
+    {
+        return array_filter([
+            'body' => $body,
+            'parent_id' => $parentId,
+            'quoted_commit_id' => $quotedCommitId,
+            'image_descriptions' => $descriptions,
+            'poll' => $poll,
+        ], fn (mixed $value): bool => $value !== null && $value !== []);
+    }
+
+    /**
+     * Whether a successful response is devnull's API answering, and not a page
+     * served in its place, such as the HTML that dev-null.sh answers every URL
+     * with, and a 200, while it's down for maintenance. devnull answers a GET
+     * with a JSON object, never an empty one, and a write with one or with no
+     * body at all. Anything else counts as a failed request, so it's never kept
+     * over what the app had.
+     */
+    public static function answeredByDevnull(Response $response, string $method): bool
+    {
+        $json = $response->json();
+
+        if (is_array($json) && ! array_is_list($json)) {
+            return true;
+        }
+
+        return $method !== 'GET' && $response->body() === '';
     }
 
     /**
@@ -552,10 +673,10 @@ final readonly class Client
     /**
      * @return array{X-Devnull-Timestamp: string, X-Devnull-Nonce: string, X-SSH-Signature: string}
      */
-    private function sign(string $method, string $target, string $body): array
+    private function sign(string $method, string $target, string $body, string $namespace = RequestSigner::Namespace): array
     {
         return (new RequestSigner($this->deviceKey->current()))
-            ->headers($method, $target, $body, CarbonImmutable::now()->getTimestamp(), RequestSigner::nonce());
+            ->headers($method, $target, $body, CarbonImmutable::now()->getTimestamp(), RequestSigner::nonce(), $namespace);
     }
 
     /**

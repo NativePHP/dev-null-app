@@ -5,6 +5,7 @@ namespace App\NativeComponents;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Page;
 use App\Devnull\ResponseCache;
+use App\Devnull\RowCache;
 use App\Devnull\ShownTabs;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
@@ -56,6 +57,11 @@ class Starred extends NativeComponent
      * Whether the list has had commits to show, kept or fresh. Until then it shows skeleton rows.
      */
     public bool $loaded = false;
+
+    /**
+     * The rows from the last frame, so a render only builds the rows that changed, as on the Log.
+     */
+    private ?RowCache $rowCache = null;
 
     public function mount(): void
     {
@@ -235,8 +241,11 @@ class Starred extends NativeComponent
     {
         $lastCommit = $this->commits[array_key_last($this->commits) ?? -1] ?? null;
         $viewer = $this->me();
+        $this->rowCache ??= new RowCache;
+        $this->rowCache->startFrame();
 
         return view('native.starred', [
+            'rowCache' => $this->rowCache,
             'viewer' => $viewer,
             'stashed' => app(Stash::class)->names($viewer?->id),
             'myColour' => $this->myColour(),

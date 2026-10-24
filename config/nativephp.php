@@ -110,9 +110,8 @@ return [
     */
 
     'permissions' => [
-        // 'NSCameraUsageDescription' => 'Used to take a profile photo.',
-        // 'NSMicrophoneUsageDescription' => 'Used to record audio with your videos.',
-        // 'NSPhotoLibraryUsageDescription' => 'Used to select photos for your post.',
+        'NSCameraUsageDescription' => 'devnull uses the camera when you take a photo to attach to a commit.',
+        'NSPhotoLibraryUsageDescription' => 'devnull opens your photos when you pick some to attach to a commit.',
     ],
 
     /*

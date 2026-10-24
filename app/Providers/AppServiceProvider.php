@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Devnull\AppleSignIn;
 use App\Devnull\Client;
 use App\Devnull\DeviceKey;
+use App\Devnull\ImageCache;
 use App\Devnull\KeyStore;
 use App\Devnull\KeyStoreChoice;
 use App\Devnull\ResponseCache;
@@ -34,6 +35,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(DeviceKey::class);
         $this->app->singleton(SignIn::class);
         $this->app->singleton(AppleSignIn::class);
+        $this->app->singleton(ImageCache::class);
     }
 
     /**

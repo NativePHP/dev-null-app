@@ -66,6 +66,15 @@ class ApiException extends RuntimeException
     }
 
     /**
+     * What a successful status with something other than devnull's answer says,
+     * such as a maintenance page (see Client::answeredByDevnull).
+     */
+    public static function unexpectedAnswer(string $baseUrl, int $status): self
+    {
+        return new self("fatal: unable to access '{$baseUrl}': unexpected answer (HTTP {$status})", $status);
+    }
+
+    /**
      * The Retry-After header, which may be a number of seconds or a date.
      */
     private static function retryAfter(string $header): ?int

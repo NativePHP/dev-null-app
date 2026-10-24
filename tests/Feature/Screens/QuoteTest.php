@@ -50,7 +50,7 @@ function quoteSheetOnLog(?array $answer = null): TestableComponent
 
 function quoteButtonDisabled(TestableComponent $screen): bool
 {
-    return nodeByRef($screen, 'sheet-commit')['props']['disabled'] ?? false;
+    return ! sheetButtonEnabled($screen, 'sheet-commit');
 }
 
 it('makes Quote a button with a full target where the row had it', function () {

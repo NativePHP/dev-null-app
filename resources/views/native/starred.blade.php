@@ -34,7 +34,7 @@
             ])
         @endif
 
-        @include('native.partials.feed', ['rows' => $rows])
+        @include('native.partials.feed', ['rows' => $rows, 'rowCache' => $rowCache])
 
         @if ($lastCommit)
             @if ($nextCursor !== null)
