@@ -1,6 +1,7 @@
 {
     "agents": [
-        "claude_code"
+        "claude_code",
+        "codex"
     ],
     "cloud": false,
     "guidelines": true,
@@ -18,6 +19,7 @@
         "testing-best-practices",
         "nativephp-mobile",
         "nativephp-webview-to-native",
-        "nativephp-mobile-ui"
+        "nativephp-mobile-ui",
+        "ui-screenshots"
     ]
 }
