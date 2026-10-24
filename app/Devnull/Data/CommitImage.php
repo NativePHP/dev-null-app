@@ -61,4 +61,17 @@ final readonly class CommitImage
 
         return round(max(self::TallestRatio, $this->width / $this->height), 4);
     }
+
+    /**
+     * Width over height as the image really is, uncapped, for drawing it whole;
+     * null when devnull didn't send its size.
+     */
+    public function naturalRatio(): ?float
+    {
+        if ($this->width === 0 || $this->height === 0) {
+            return null;
+        }
+
+        return round($this->width / $this->height, 4);
+    }
 }

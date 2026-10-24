@@ -1,8 +1,10 @@
 {{--
     A commit's images full-screen, over everything else on the screen, sheet included (see ShowsCommits): the image
     the row tapped, whole rather than cropped as it is in the row, on black. A pinch zooms between the image's whole
-    self and four times, bounded on the phone itself so it can't be flung past it, and a drag pans it; both run on the
-    phone with no frame trip, so the picture follows a finger. The modal's own close, and Android's back, close it.
+    self and four times, around the fingers, and a drag pans it; both run on the phone with no frame trip, so the
+    picture follows a finger. Bounded by the picture's own shape, it can't be lost off screen: zoomed, its edges stop at
+    the screen's, and it stays centred on a side it fits; dragged past that it resists and springs back on release, so
+    at its whole self it always comes back to the middle. The modal's own close, and Android's back, close it.
 
     Several images in a commit move with the chevrons under the picture, which say their place among them, and each
     move puts the picture back at rest, as closing and opening another image does. An image still loading, or one that
@@ -16,7 +18,7 @@
     @if ($viewerImages !== [])
         @php($image = $viewerImages[$viewerIndex])
         <native:column class="w-full h-full bg-black safe-area-bottom">
-            <native:gesture-area ref="viewer-gestures" :pinch="$viewerZoom" pinch-min="1" pinch-max="4" :pan-x="$viewerPanX" :pan-y="$viewerPanY" class="w-full flex-1">
+            <native:gesture-area ref="viewer-gestures" :pinch="$viewerZoom" pinch-min="1" pinch-max="4" :pan-x="$viewerPanX" :pan-y="$viewerPanY" bounded :content-ratio="$image->naturalRatio()" class="w-full flex-1">
                 <native:column class="w-full h-full items-center justify-center">
                     <native:image
                         ref="viewed-image"

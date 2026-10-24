@@ -68,8 +68,9 @@ it('opens a commit\'s image full-screen in the app, not the browser', function (
         ->and($viewer['props']['on_dismiss'])->not->toBeEmpty()
         // The image whole, not cropped as it is in the row, read out by the description its author gave it.
         ->and($image['props'])->toMatchArray(['src' => 'https://img.test/1', 'fit' => 1, 'alt' => 'A cat on a keyboard'])
-        // Pinch bounded one to four, and both pans, settled on the phone against the shared values this open made.
-        ->and($gestures['props'])->toMatchArray(['pinch-min' => 1.0, 'pinch-max' => 4.0])
+        // Pinch bounded one to four, and both pans, settled on the phone against the shared values this open made,
+        // kept on screen by the image's own shape.
+        ->and($gestures['props'])->toMatchArray(['pinch-min' => 1.0, 'pinch-max' => 4.0, 'bounded' => true, 'content-ratio' => 1.0])
         ->and($gestures['props']['pinch-id'])->toBe($viewing->viewerZoom->id)
         ->and($gestures['props']['pan-x-id'])->toBe($viewing->viewerPanX->id)
         ->and($gestures['props']['pan-y-id'])->toBe($viewing->viewerPanY->id)
@@ -81,6 +82,27 @@ it('opens a commit\'s image full-screen in the app, not the browser', function (
 
     $screen->assertNativeNotCalled('Browser.OpenInApp');
 })->with(['ios', 'android']);
+
+it('keeps an image of no known size on screen by the screen\'s own shape', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson(['id' => 'c1', 'images' => [
+        ['id' => 'i1', 'url' => 'https://img.test/1'],
+    ]])]))]);
+
+    $screen = Native::visit('/log')->tap('image-i1');
+
+    expect(nodeByRef($screen, 'viewer-gestures')['props'])->toHaveKey('bounded')
+        ->not->toHaveKey('content-ratio');
+});
+
+it('bounds a wide image by its real shape, not the one the feed caps it at', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson(['id' => 'c1', 'images' => [
+        ['id' => 'i1', 'url' => 'https://img.test/1', 'width' => 300, 'height' => 1200],
+    ]])]))]);
+
+    $screen = Native::visit('/log')->tap('image-i1');
+
+    expect(nodeByRef($screen, 'viewer-gestures')['props']['content-ratio'])->toBe(0.25);
+});
 
 it('starts from the image the row tapped, with the chevrons under it for the commit\'s others', function () {
     $screen = logWithImages(3)->tap('image-i3');
