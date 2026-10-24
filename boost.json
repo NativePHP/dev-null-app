@@ -13,9 +13,11 @@
     ],
     "sail": false,
     "skills": [
+        "infer-conventions",
         "laravel-best-practices",
-        "pest-testing",
+        "testing-best-practices",
         "nativephp-mobile",
-        "nativephp-webview-to-native"
+        "nativephp-webview-to-native",
+        "nativephp-mobile-ui"
     ]
 }
