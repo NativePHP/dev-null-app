@@ -186,7 +186,7 @@ it('posts a reply, with no countdown while there is room', function () {
         ->assertSet('reply', '')
         ->assertSee('A fresh reply')
         ->assertNavigatedTo('/log/commits/r9')
-        ->assertNativeNotCalled('Dialog.Toast');
+        ->assertNativeNotCalled('ToastKit.Show');
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
         && $request->body() === '{"body":"A fresh reply","parent_id":"c2"}');
@@ -256,7 +256,7 @@ it('marks a reply waiting for approval as pending on its row', function () {
         ->input('reply-input', 'Hold on')
         ->tap('send-reply')
         ->assertSee('pending')
-        ->assertNativeNotCalled('Dialog.Toast');
+        ->assertNativeNotCalled('ToastKit.Show');
 });
 
 it('shows validation messages from the server', function () {
@@ -323,7 +323,7 @@ it('deletes your own commit after a confirm', function () {
 
     $screen->press("confirmDelete('c2')")
         ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Delete', 'id' => 'delete-commit'])
-        ->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === 'rm c2 → /dev/null')
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'rm c2 → /dev/null')
         ->assertWentBack();
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE' && $request->url() === 'http://devnull.test/api/v1/commits/c2');

@@ -190,7 +190,7 @@ it('opens the issue while the button spins, then says so with View issue, as the
         ->and(app(Stash::class)->get($this->userId, 'commit'))->toBe('')
         ->and(nodeByRef($screen, 'log')['id'])->toBe($list)
         ->and($screen->instance()->commits)->toHaveCount(1);
-    $bridge->assertNotCalled('Dialog.Toast');
+    $bridge->assertNotCalled('ToastKit.Show');
 
     $screen->tap('view-issue')
         ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://github.com/nunomaduro/dev-null.sh/issues/123');
@@ -209,7 +209,7 @@ it('says so in a toast when the sheet was swiped away before the issue opened', 
     $screen = issueSheetOnLog()->input('sheet-body', '/feature Dark mode')->tap('sheet-open-issue')->dismissSheet('sheet');
 
     finishRefreshes($screen)
-        ->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === 'Opened issue #123.');
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Opened issue #123.');
 
     expect(app(Stash::class)->get($this->userId, 'commit'))->toBe('')
         ->and(nodeByRef($screen, 'sheet')['props']['visible'])->toBeFalse();

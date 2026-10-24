@@ -52,7 +52,7 @@ function pastelAnswer(array $commit, int $remaining, int $received = 1): array
  */
 function pastelToasts(FakeBridge $bridge): array
 {
-    return array_map(fn (array $call): string => $call['params']['message'], $bridge->callsTo('Dialog.Toast'));
+    return array_map(fn (array $call): string => $call['params']['message'], $bridge->callsTo('ToastKit.Show'));
 }
 
 /**

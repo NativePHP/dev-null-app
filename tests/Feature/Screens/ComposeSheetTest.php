@@ -121,7 +121,7 @@ it('commits from the sheet and puts the commit at the top of the log, leaving th
     $screen->input('sheet-body', '  Shipped from the sheet.  ')
         ->tap('sheet-commit')
         ->assertNoNavigation()
-        ->assertNativeNotCalled('Dialog.Toast')
+        ->assertNativeNotCalled('ToastKit.Show')
         ->assertSee('Shipped from the sheet.');
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'

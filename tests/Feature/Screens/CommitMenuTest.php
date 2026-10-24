@@ -85,7 +85,7 @@ it('deletes your own commit from the log after a confirm, and lets it go', funct
 
     $screen->tap('delete-c2')
         ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Delete', 'id' => 'delete-commit'])
-        ->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === 'rm c2 → /dev/null')
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'rm c2 → /dev/null')
         ->assertNoNavigation()
         ->assertDontSee('Delete me')
         ->assertSee('Keep me');
@@ -144,7 +144,7 @@ it('deletes your reply from a commit page, staying on the page', function () {
 
     $screen->tap('delete-r1')
         ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Delete', 'id' => 'delete-commit'])
-        ->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === 'rm r1 → /dev/null')
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'rm r1 → /dev/null')
         ->assertNoNavigation()
         ->assertDontSee('Soon gone')
         ->assertSee('Ada asks');
@@ -161,7 +161,7 @@ it('keeps your commit when devnull says no, saying why', function () {
     Native::visit('/log', platform: 'ios')
         ->tap('delete-c1')
         ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Delete', 'id' => 'delete-commit'])
-        ->assertNativeNotCalled('Dialog.Toast')
+        ->assertNativeNotCalled('ToastKit.Show')
         ->assertSee('Too Many Attempts.')
         ->assertSee('Still here');
 });
@@ -190,7 +190,7 @@ it('pins your commit to the top of your profile, and unpins it', function () {
     expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'pinned'))->toBeNull();
 
     $screen->tap('pin-c2')
-        ->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === 'Commit pinned to your profile.')
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Commit pinned to your profile.')
         ->assertNoNavigation();
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'PUT' && $request->url() === 'http://devnull.test/api/v1/commits/c2/pin');
@@ -202,7 +202,7 @@ it('pins your commit to the top of your profile, and unpins it', function () {
         ->and(menuItems($screen, 'more-c2'))->toContain(['pin-c2', 'Unpin from profile', 'pin']);
 
     $screen->tap('pin-c2')
-        ->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === 'Commit unpinned.');
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Commit unpinned.');
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE' && $request->url() === 'http://devnull.test/api/v1/commits/c2/pin');
 

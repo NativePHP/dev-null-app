@@ -11,6 +11,7 @@ use App\Devnull\Data\User;
 use App\Devnull\ErrorCode;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\ResponseCache;
+use App\Devnull\Toasts;
 use Closure;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Edge\SharedValue;
@@ -179,7 +180,7 @@ trait ShowsCommits
         }
 
         if ($pasteis->left() === 0) {
-            Dialog::toast(Pasteis::Exhausted);
+            Toasts::failed(Pasteis::Exhausted);
 
             return;
         }
@@ -219,7 +220,7 @@ trait ShowsCommits
             default => $shown,
         });
 
-        Dialog::toast($fresh->isPinned ? 'Commit pinned to your profile.' : 'Commit unpinned.', 'short');
+        Toasts::say($fresh->isPinned ? 'Commit pinned to your profile.' : 'Commit unpinned.', short: true);
         $this->showPinned($commit->withPinned($fresh->isPinned));
     }
 
@@ -389,7 +390,7 @@ trait ShowsCommits
         app(Account::class)->rememberPasteis($pasteis);
 
         if ($pasteis->left() === 0) {
-            Dialog::toast(Pasteis::Exhausted);
+            Toasts::say(Pasteis::Exhausted);
         }
     }
 
@@ -412,7 +413,7 @@ trait ShowsCommits
         });
 
         if ($deleted === true) {
-            Dialog::toast('rm '.$commit->shortHash.' → /dev/null', 'short');
+            Toasts::say('rm '.$commit->shortHash.' → /dev/null', short: true);
             $this->showDeleted($id);
         }
     }
@@ -451,7 +452,7 @@ trait ShowsCommits
             app(Account::class)->rememberPasteis($exhausted ? $pasteis->exhausted() : $pasteis->afterTakingBack());
         }
 
-        Dialog::toast(match (true) {
+        Toasts::failed(match (true) {
             $exhausted => Pasteis::Exhausted,
             $exception?->is(ErrorCode::RateLimited) === true => $exception->firstError(),
             default => Pasteis::CouldNotGive,

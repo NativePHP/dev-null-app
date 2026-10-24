@@ -141,7 +141,7 @@ it('commits the quote with the id of the commit it quotes, and puts it at the to
     expect(strpos($json, '"commit-q1"'))->toBeLessThan(strpos($json, '"commit-c1"'));
 
     $screen->assertSee('This, all of it.')
-        ->assertNativeNotCalled('Dialog.Toast')
+        ->assertNativeNotCalled('ToastKit.Show')
         ->assertNoNavigation();
 
     // Once it's gone, the draft goes with it.

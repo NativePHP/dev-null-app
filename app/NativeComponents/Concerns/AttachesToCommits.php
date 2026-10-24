@@ -11,13 +11,13 @@ use App\Devnull\Exceptions\ApiException;
 use App\Devnull\Exceptions\InvalidDraftImage;
 use App\Devnull\ResponseCache;
 use App\Devnull\SignedRequest;
+use App\Devnull\Toasts;
 use Closure;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Events\Camera\PermissionDenied;
 use Native\Mobile\Events\Camera\PhotoTaken;
 use Native\Mobile\Events\Gallery\MediaSelected;
 use Native\Mobile\Facades\Camera;
-use Native\Mobile\Facades\Dialog;
 
 /**
  * What the composer sheet adds to a commit, as the web's composer does: photos,
@@ -273,7 +273,7 @@ trait AttachesToCommits
                 if ($this->isComposing()) {
                     $this->sheetError = $message;
                 } else {
-                    Dialog::toast($message);
+                    Toasts::failed($message);
                 }
             },
             self::UploadTimeout,

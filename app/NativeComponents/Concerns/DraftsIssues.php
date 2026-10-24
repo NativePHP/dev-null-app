@@ -6,9 +6,9 @@ use App\Devnull\Client;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\IssueCommand;
 use App\Devnull\Stash;
+use App\Devnull\Toasts;
 use Illuminate\Support\Facades\Cache;
 use Native\Mobile\Facades\Browser;
-use Native\Mobile\Facades\Dialog;
 
 /**
  * The web's `/feature` and `/bug` commands, in the compose sheet (see
@@ -135,7 +135,7 @@ trait DraftsIssues
 
             // Swiped away while it was on its way, so a toast says it, without View issue.
             if (! $this->sheetOpen) {
-                Dialog::toast("Opened issue #{$number}.");
+                Toasts::done("Opened issue #{$number}.");
 
                 return;
             }
