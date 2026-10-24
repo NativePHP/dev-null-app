@@ -31,12 +31,12 @@
         "laravel/boost": "^2.0",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
-        "nativephp/mobile": "dev-feat/gesture-area-bounded as 4.6.0",
+        "nativephp/mobile": "dev-main as 4.6.0",
         "nativephp/mobile-browser": "^1.2",
         "nativephp/mobile-camera": "^1.1",
         "nativephp/mobile-secure-storage": "^1.1",
         "nativephp/mobile-share": "^1.1",
-        "nativephp/mobile-ui": "dev-feat/gesture-area-bounded as 0.8.0",
+        "nativephp/mobile-ui": "dev-main as 0.8.0",
         "s2br/nativephp-mobile-splashscreen": "^1.4"
     },
     "require-dev": {
