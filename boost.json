@@ -17,6 +17,7 @@
         "infer-conventions",
         "laravel-best-practices",
         "testing-best-practices",
+        "nativephp-agent-loop",
         "nativephp-mobile",
         "nativephp-webview-to-native",
         "nativephp-mobile-ui",
