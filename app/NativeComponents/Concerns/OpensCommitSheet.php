@@ -5,8 +5,11 @@ namespace App\NativeComponents\Concerns;
 use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Draft;
+use App\Devnull\Data\PollDraft;
+use App\Devnull\Outbox;
 use App\Devnull\ReportReason;
 use App\Devnull\Stash;
+use App\Models\PendingWrite;
 use Closure;
 
 /**
@@ -17,13 +20,16 @@ use Closure;
  * Quote opens the same sheet as a composer, over the commit being quoted, as
  * the web's Quote dialog. The Log opens it with nothing to quote, for a new
  * commit of your own, so you can write one without leaving where you are in
- * it. Once devnull has the commit the sheet goes, and a screen that lists
- * your new commits puts it in place (see showCommitted()).
+ * it. Commit closes the sheet at once: the commit goes through the outbox
+ * (see SyncsOutbox), and a screen that lists your new commits puts it in
+ * place, staged, until devnull has it (see showCommitted()).
  *
  * What you write in it is stashed as you type, as on the web (see Stash): a
  * quote per commit quoted, and a new commit under the web's composer draft.
  * Opened again, it starts from the draft, marked as restored. It's forgotten
- * once it's sent.
+ * once it's sent. If devnull turns the commit down, it goes back to its
+ * draft, photos and poll too, and the screen it was written on opens the
+ * sheet with it again (see reopenFailedCommit()).
  *
  * A new commit's draft can become a `/feature` or `/bug` issue, as on the web
  * (see DraftsIssues).
@@ -42,6 +48,7 @@ trait OpensCommitSheet
 {
     use AttachesToCommits;
     use DraftsIssues;
+    use SyncsOutbox;
 
     /**
      * Whether the sheet is up, or on its way up.
@@ -70,8 +77,6 @@ trait OpensCommitSheet
      * The commit you're writing in the sheet, quoting its commit or not.
      */
     public string $sheetBody = '';
-
-    public bool $sheetPosting = false;
 
     /**
      * Whether the sheet opened on a stashed draft, which it marks until you empty it or drop it.
@@ -203,7 +208,8 @@ trait OpensCommitSheet
 
     /**
      * Commits what's written in the sheet, quoting its commit if it's a quote, or replying to it, with its photos or
-     * its poll. The sheet goes once devnull has it, or keeps the draft with why it didn't take it.
+     * its poll. The sheet goes at once, and the commit shows staged where the screen lists your new ones, while it
+     * goes to devnull from the outbox (see SyncsOutbox). The photos go with it, so closing the sheet keeps them.
      */
     public function commitFromSheet(): void
     {
@@ -211,34 +217,31 @@ trait OpensCommitSheet
         $quoted = $this->sheetView === 'quote' ? $this->sheetCommit : null;
         $stashName = $this->sheetStashName();
         $body = trim($this->sheetBody);
+        $me = $this->me();
 
-        if (! $this->sheetOpen || $this->sheetPosting || $stashName === null || $this->sheetIssue !== null || ! Draft::canCommit($body, $this->sheetImages, $this->sheetPoll)) {
+        if (! $this->sheetOpen || $me === null || $stashName === null || $this->sheetIssue !== null || ! Draft::canCommit($body, $this->sheetImages, $this->sheetPoll)) {
             return;
         }
 
-        $sent = function (Commit $commit) use ($stashName): void {
-            app(Stash::class)->put($this->me()?->id, $stashName, '');
-            $this->sheetOpen = false;
-            $this->showCommitted($commit);
-        };
+        $write = app(Outbox::class)->add(PendingWrite::Commit, $parent?->id ?? $quoted?->id, [
+            'body' => $body,
+            'parent_id' => $parent?->id,
+            'quoted_commit_id' => $quoted?->id,
+            'poll' => $this->sheetPollPayload(),
+            'images' => PendingWrite::imagePayload($this->sheetImages),
+            'stash' => $stashName,
+            'composer' => $this->sheetView,
+        ]);
 
-        if ($this->sheetImages !== []) {
-            $this->commitPhotosFromSheet($body, $parent, $quoted, $sent);
-
+        if ($write === null) {
             return;
         }
 
-        $this->sheetPosting = true;
-
-        try {
-            $commit = $this->attemptInSheet(fn (Client $devnull): Commit => $devnull->createCommit($body, $parent?->id, $quoted?->id, $this->sheetPollPayload()));
-        } finally {
-            $this->sheetPosting = false;
-        }
-
-        if ($commit !== null) {
-            $sent($commit);
-        }
+        app(Stash::class)->put($me->id, $stashName, '');
+        $this->sheetImages = [];
+        $this->sheetOpen = false;
+        $this->showCommitted($write->stagedCommit($me));
+        $this->sendFromOutbox($write);
     }
 
     /**
@@ -262,7 +265,8 @@ trait OpensCommitSheet
     }
 
     /**
-     * A commit you just made, for a screen to put where it lists your new ones. Most don't.
+     * A commit you just made, staged until devnull has it, for a screen to put where it lists your new ones. Most
+     * don't.
      */
     protected function showCommitted(Commit $commit): void
     {
@@ -277,11 +281,69 @@ trait OpensCommitSheet
         //
     }
 
+    /**
+     * A commit devnull turned down goes back into the sheet it was written in,
+     * on this screen, if the sheet's free: a new commit on the screen that
+     * opens it (see opensComposer()), and a quote or a reply in the sheet
+     * where the commit it was for is showing.
+     */
+    protected function reopenFailedCommit(PendingWrite $write): bool
+    {
+        if ($this->sheetOpen || ($write->composer() === 'compose' && ! $this->opensComposer())) {
+            return false;
+        }
+
+        return $this->openFailedCommit($write);
+    }
+
+    /**
+     * Edit, on the toast of a commit devnull turned down: its sheet, here if
+     * the commit it quotes or replies to is showing, or the commit's own page.
+     * A new commit's sheet opens anywhere it can.
+     */
+    protected function editFailedCommit(PendingWrite $write): void
+    {
+        if ($this->openFailedCommit($write)) {
+            return;
+        }
+
+        $for = $write->parentId() ?? $write->quotedCommitId();
+
+        if ($for !== null) {
+            $this->openInTab('/commits/'.$for, ['edit' => $write->id]);
+        }
+    }
+
+    /**
+     * Whether this screen has the button for a new commit, which a new commit devnull turned down goes back to.
+     */
+    protected function opensComposer(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Opens the sheet a commit devnull turned down was written in, with everything it had (see restoreSheetDraft()).
+     */
+    private function openFailedCommit(PendingWrite $write): bool
+    {
+        $for = $write->parentId() ?? $write->quotedCommitId();
+
+        match ($write->composer()) {
+            'compose' => $this->composeInSheet(),
+            'quote' => $for === null ? null : $this->quoteCommit($for),
+            'reply' => $for === null ? null : $this->replyInSheet($for),
+            default => null,
+        };
+
+        return $this->sheetOpen && $this->sheetStashName() === $write->stashName();
+    }
+
     private function canQuote(Commit $commit): bool
     {
         $viewer = $this->me();
 
-        return $viewer !== null && ! $commit->isDeleted() && ($commit->isApproved() || $commit->author->id === $viewer->id);
+        return $viewer !== null && ! $commit->isDeleted() && ! $commit->isStaged() && ($commit->isApproved() || $commit->author->id === $viewer->id);
     }
 
     private function canReport(Commit $commit): bool
@@ -318,12 +380,33 @@ trait OpensCommitSheet
         };
     }
 
+    /**
+     * The sheet starts from its stashed draft. A commit devnull turned down
+     * that was written under it comes back whole, with its photos and poll,
+     * and leaves the outbox: from here it's a draft again.
+     */
     private function restoreSheetDraft(): void
     {
         $name = $this->sheetStashName();
+        $failed = $name === null ? null : app(Outbox::class)->failedDraft($name);
+
+        if ($failed !== null) {
+            $this->takeFailedCommit($failed);
+        }
 
         $this->sheetBody = $name === null ? '' : app(Stash::class)->get($this->me()?->id, $name);
         $this->sheetRestored = $this->sheetBody !== '';
+    }
+
+    private function takeFailedCommit(PendingWrite $write): void
+    {
+        $poll = $write->poll();
+
+        app(Stash::class)->put($this->me()?->id, (string) $write->stashName(), $write->body());
+        $this->sheetImages = $write->images();
+        $this->sheetPoll = $poll === null || $this->sheetView === 'reply' ? null : $poll['options'];
+        $this->sheetPollLength = $poll === null ? PollDraft::DefaultLength : (string) (array_search($poll['duration'], PollDraft::Lengths, true) ?: PollDraft::DefaultLength);
+        app(Outbox::class)->forget($write);
     }
 
     /**

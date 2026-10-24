@@ -15,6 +15,8 @@
     avatar running down to it.
 
     A commit page draws its replies $muted, smaller and in muted ink, so the commit they answer stays the main thing.
+
+    A reply you just sent that devnull doesn't have yet is staged: dimmed, with the staged chip and no actions.
 --}}
 @php($previousLane ??= null)
 @php($muted ??= false)
@@ -70,7 +72,7 @@
                     <native:pressable @press="openProfile('{{ $reply->author->username }}')" a11y-label="{{ $reply->author->name }}'s profile">
                         @include('native.partials.rail-avatar', ['user' => $reply->author, 'lane' => $reply->lane(), 'size' => 24, 'staged' => false])
                     </native:pressable>
-                    <native:column class="flex-1 gap-1">
+                    <native:column class="flex-1 gap-1 {{ $reply->isStaged() ? 'opacity-[0.6]' : '' }}">
                         <native:row class="w-full min-h-[24] gap-[6] items-center">
                             <native:text font="semibold" class="{{ $muted ? 'text-[13px] text-theme-ink-muted' : 'text-sm text-theme-ink' }} flex-shrink" :max-lines="1">{{ $reply->author->name }}</native:text>
                             <native:text class="text-[13px] text-theme-ink-muted">·</native:text>
@@ -81,7 +83,9 @@
                         </native:row>
                         @include('native.partials.commit-body', ['size' => $muted ? 'text-sm' : 'text-[15px]'])
                         @include('native.partials.commit-media', ['withEmbeds' => false])
-                        @include('native.partials.commit-actions', ['expandable' => false, 'withQuote' => false, 'compact' => $muted])
+                        @unless ($reply->isStaged())
+                            @include('native.partials.commit-actions', ['expandable' => false, 'withQuote' => false, 'compact' => $muted])
+                        @endunless
                     </native:column>
                 </native:row>
                 @if ($more !== null)

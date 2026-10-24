@@ -111,6 +111,11 @@ trait ShowsCommits
     {
         $commit = $this->shownCommit($id);
 
+        // A staged commit has no page until devnull has it.
+        if ($commit?->isStaged() === true) {
+            return;
+        }
+
         $this->openInTab('/commits/'.$id, $commit === null ? [] : ['commit' => $commit]);
     }
 
@@ -131,6 +136,10 @@ trait ShowsCommits
     {
         $commit = $this->shownCommit($id);
 
+        if ($commit?->isStaged() === true) {
+            return;
+        }
+
         $this->openInTab('/commits/'.$id, ['reply' => true, ...($commit === null ? [] : ['commit' => $commit])]);
     }
 
@@ -145,9 +154,11 @@ trait ShowsCommits
     }
 
     /**
-     * Stars or unstars straight away, then takes the count devnull sends back,
-     * or puts the star back if it says no. Like the web, any visible commit
-     * can be starred, including your own and your pending commits.
+     * Stars or unstars straight away, here and in every kept copy, while the
+     * star goes to devnull from the outbox (see SyncsOutbox). The commit takes
+     * the count devnull sends back, or the star comes back off it if devnull
+     * says no. Like the web, any visible commit can be starred, including
+     * your own and your pending commits.
      */
     public function toggleStar(string $id): void
     {
@@ -157,9 +168,8 @@ trait ShowsCommits
             return;
         }
 
-        $this->react($commit, $commit->withStar(! $commit->starred), fn ($devnull) => $commit->starred
-            ? $devnull->unstar($id)
-            : $devnull->star($id));
+        $this->showStar($id, ! $commit->starred);
+        $this->queueStar($id, ! $commit->starred);
     }
 
     /**
@@ -311,7 +321,7 @@ trait ShowsCommits
     {
         $commit = $this->shownCommit($id);
 
-        if ($commit === null || $commit->isDeleted()) {
+        if ($commit === null || $commit->isDeleted() || $commit->isStaged()) {
             return;
         }
 
@@ -461,7 +471,7 @@ trait ShowsCommits
 
     private function canReactTo(Commit $commit): bool
     {
-        return ! $commit->isDeleted() && ($commit->isApproved() || $commit->author->id === $this->me()?->id);
+        return ! $commit->isDeleted() && ! $commit->isStaged() && ($commit->isApproved() || $commit->author->id === $this->me()?->id);
     }
 
     private function canGivePastel(Commit $commit): bool
@@ -476,19 +486,19 @@ trait ShowsCommits
 
     private function canDelete(Commit $commit): bool
     {
-        return ! $commit->isDeleted() && $commit->author->id === $this->me()?->id;
+        return ! $commit->isDeleted() && ! $commit->isStaged() && $commit->author->id === $this->me()?->id;
     }
 
     /**
-     * @param  Closure(Client): Commit  $call
+     * The commit shows your star as it now is, or with devnull's count when it answered ($fresh).
      */
-    private function react(Commit $before, Commit $optimistic, Closure $call): void
+    protected function showStar(string $id, bool $starred, ?Commit $fresh = null): void
     {
-        $this->replaceShownCommit($optimistic);
+        $shown = $this->shownCommit($id);
 
-        $fresh = $this->attempt($call);
-
-        $this->replaceShownCommit($fresh instanceof Commit ? $before->withReactionsFrom($fresh) : $before);
+        if ($shown !== null) {
+            $this->replaceShownCommit($fresh === null ? $shown->withStar($starred) : $shown->withReactionsFrom($fresh));
+        }
     }
 
     private function replaceShownCommit(Commit $replacement): void

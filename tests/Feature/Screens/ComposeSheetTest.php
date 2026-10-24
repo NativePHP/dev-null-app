@@ -1,6 +1,7 @@
 <?php
 
 use App\Devnull\Data\Commit;
+use App\Models\PendingWrite;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
@@ -100,17 +101,9 @@ it('explains the URL length limit without applying it to inline code', function 
     expect(sheetCommitDisabled($screen))->toBeFalse();
 });
 
-it('does not submit a closed composer twice and leaves a failed draft retryable', function () {
-    $screen = composeSheetOnLog()->input('sheet-body', 'a')->tap('sheet-commit')->call('commitFromSheet');
-    expect(Http::recorded(fn (Request $request): bool => $request->method() === 'POST'))->toHaveCount(1);
+it('does not submit a closed composer twice', function () {
+    composeSheetOnLog()->input('sheet-body', 'a')->tap('sheet-commit')->call('commitFromSheet');
 
-    $screen->press('composeInSheet')->input('sheet-body', 'a')->set('sheetPosting', true);
-
-    // While it posts, the check spins in its circle and can't be tapped.
-    expect(sheetButtonEnabled($screen, 'sheet-commit'))->toBeFalse()
-        ->and(findNode(nodeByRef($screen, 'sheet-commit'), fn (array $node): bool => $node['type'] === 'activity_indicator'))->not->toBeNull();
-
-    $screen->call('commitFromSheet');
     expect(Http::recorded(fn (Request $request): bool => $request->method() === 'POST'))->toHaveCount(1);
 });
 
@@ -143,18 +136,19 @@ it('commits from the sheet and puts the commit at the top of the log, leaving th
         ->sheetBody->toBe('');
 });
 
-it('shows why devnull said no in the sheet, keeping the draft', function () {
+it('says why devnull said no in a toast, and opens the sheet again on the draft', function () {
     $screen = composeSheetOnLog([['message' => 'Too Many Attempts.'], 429])
         ->input('sheet-body', 'One more')
-        ->tap('sheet-commit');
+        ->tap('sheet-commit')
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Too Many Attempts.' && $params['variant'] === 'error');
 
-    expect(nodeByRef($screen, 'sheet-error')['props']['text'])->toBe('Too Many Attempts.')
-        ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('One more')
+    expect(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('One more')
         ->and(sheetCommitDisabled($screen))->toBeFalse()
         ->and(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
+        ->and($screen->instance()->sheetView)->toBe('compose')
         ->and($screen->instance()->error)->toBeNull()
-        ->and($screen->instance()->sheetPosting)->toBeFalse()
-        ->and(array_map(fn (Commit $commit): string => $commit->id, $screen->instance()->commits))->toBe(['c1']);
+        ->and(array_map(fn (Commit $commit): string => $commit->id, $screen->instance()->commits))->toBe(['c1'])
+        ->and(PendingWrite::query()->count())->toBe(0);
 });
 
 it('keeps the draft when the sheet is swiped away, and opens on it again, marked as restored', function () {

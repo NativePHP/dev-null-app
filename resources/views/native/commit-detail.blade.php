@@ -127,7 +127,7 @@
                         />
                     </native:column>
                     @include('native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget'])
-                    <native:button ref="send-reply" :variant="$myColour" size="sm" :loading="$sendingReply" :disabled="$sendingReply || ! \App\Devnull\Data\Commit::fits($reply)" @press="sendReply">Reply</native:button>
+                    <native:button ref="send-reply" :variant="$myColour" size="sm" :disabled="! \App\Devnull\Data\Commit::fits($reply)" @press="sendReply">Reply</native:button>
                 </native:row>
                 @if (\App\Devnull\Data\CommitBody::hasOversizedUrl($reply))
                     <native:text ref="reply-link-error" class="w-full px-4 pb-2 text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>

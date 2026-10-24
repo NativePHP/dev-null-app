@@ -7,10 +7,12 @@ use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitThread;
 use App\Devnull\Data\Page;
 use App\Devnull\Display;
+use App\Devnull\Outbox;
 use App\Devnull\RowCache;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Lucide;
+use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
@@ -40,12 +42,22 @@ use Native\Mobile\Edge\NativeComponent;
  * The reply bar has no room for photos or a preview, so its expand button
  * opens the reply in the composer sheet, which has them (see replyInSheet()).
  * The draft goes with it, and back to the bar if the sheet closes unsent.
+ *
+ * A reply goes at once: the bar empties and the reply shows staged under the
+ * commit while it goes to devnull from the outbox (see SyncsOutbox), then the
+ * real one takes its place. If devnull turns it down, it leaves, and what you
+ * wrote is back in the bar, or in the sheet with its photos. Edit, on the
+ * toast of a reply or a quote turned down after you'd left, opens its commit
+ * here with it ($data['edit']).
  */
 class CommitDetail extends NativeComponent
 {
     use OpensInTab;
     use RefreshesInBackground;
-    use ShowsCommits;
+    use ShowsCommits {
+        reopenFailedCommit as private reopenFailedCommitInSheet;
+        editFailedCommit as private editFailedCommitInSheet;
+    }
     use TalksToDevnull;
 
     public string $id = '';
@@ -80,8 +92,6 @@ class CommitDetail extends NativeComponent
     public array $tombstoneReplies = [];
 
     public string $reply = '';
-
-    public bool $sendingReply = false;
 
     /**
      * Whether the reply was stashed when the page opened, which the bar marks until you empty it or drop it.
@@ -130,6 +140,7 @@ class CommitDetail extends NativeComponent
         $this->replyRestored = $this->reply !== '';
         $this->showKept();
         $this->revalidate();
+        $this->editFromData();
     }
 
     /**
@@ -247,34 +258,39 @@ class CommitDetail extends NativeComponent
 
             $this->replies = [...array_values(array_filter($this->replies, fn (Commit $reply): bool => ! isset($loaded[$reply->id]))), ...$page->items];
             $this->repliesCursor = $page->nextCursor;
+            $this->keepStagedReplies();
         }
     }
 
+    /**
+     * Sends the reply in the bar: the bar empties, and the reply shows staged
+     * under the commit, at once, while it goes from the outbox.
+     */
     public function sendReply(): void
     {
         $body = trim($this->reply);
+        $me = $this->me();
 
-        if ($this->sendingReply || ! Commit::fits($body)) {
+        if ($me === null || $this->commit === null || $this->commit->isDeleted() || ! Commit::fits($body)) {
             return;
         }
 
-        $this->sendingReply = true;
+        $write = app(Outbox::class)->add(PendingWrite::Commit, $this->id, [
+            'body' => $body,
+            'parent_id' => $this->id,
+            'stash' => $this->replyStashName(),
+            'composer' => 'bar',
+        ]);
 
-        try {
-            $reply = $this->attempt(fn ($devnull) => $devnull->createCommit($body, $this->id));
-        } finally {
-            $this->sendingReply = false;
-        }
-
-        if ($reply === null) {
+        if ($write === null) {
             return;
         }
 
         $this->reply = '';
         $this->updatedReply();
-        $this->replies = [...$this->replies, $reply];
         $this->repliesShown = true;
-        $this->openCommit($reply->id);
+        $this->keepStagedReplies();
+        $this->sendFromOutbox($write);
     }
 
     /**
@@ -299,7 +315,7 @@ class CommitDetail extends NativeComponent
     }
 
     /**
-     * A reply sent from the composer sheet goes under the commit, as one sent from the reply bar does.
+     * A reply sent from the composer sheet goes under the commit, staged, as one sent from the reply bar does.
      */
     protected function showCommitted(Commit $commit): void
     {
@@ -309,8 +325,61 @@ class CommitDetail extends NativeComponent
 
         $this->reply = '';
         $this->replyRestored = false;
-        $this->replies = [...$this->replies, $commit];
         $this->repliesShown = true;
+        $this->keepStagedReplies();
+    }
+
+    /**
+     * devnull has the reply: the real one takes the staged one's place.
+     */
+    protected function showCommitWent(PendingWrite $write, Commit $commit): void
+    {
+        $staged = PendingWrite::stagedId($write->client_id);
+
+        $this->replies = array_map(fn (Commit $reply): Commit => $reply->id === $staged ? $commit : $reply, $this->replies);
+    }
+
+    /**
+     * devnull turned the reply down: the staged one leaves.
+     */
+    protected function showCommitTurnedDown(PendingWrite $write): void
+    {
+        $this->keepStagedReplies();
+    }
+
+    /**
+     * A reply to this commit from the bar goes back into the bar, marked as
+     * restored, when the bar's free. One from the sheet opens the sheet again,
+     * with its photos.
+     */
+    protected function reopenFailedCommit(PendingWrite $write): bool
+    {
+        if ($write->composer() !== 'bar') {
+            return $this->reopenFailedCommitInSheet($write);
+        }
+
+        if ($write->parentId() !== $this->id || $this->sheetOpen || trim($this->reply) !== '') {
+            return false;
+        }
+
+        $this->takeFailedReply($write);
+
+        return true;
+    }
+
+    /**
+     * Edit, on the toast of a reply from the bar: this commit's bar, or the commit it was for.
+     */
+    protected function editFailedCommit(PendingWrite $write): void
+    {
+        if ($write->composer() !== 'bar' || $write->parentId() !== $this->id) {
+            $this->editFailedCommitInSheet($write);
+
+            return;
+        }
+
+        $this->sheetOpen = false;
+        $this->takeFailedReply($write);
     }
 
     /**
@@ -357,6 +426,44 @@ class CommitDetail extends NativeComponent
     }
 
     /**
+     * Opened by Edit on the toast of a reply or a quote devnull turned down: its composer, with what it had.
+     */
+    private function editFromData(): void
+    {
+        $id = $this->data('edit');
+        $write = is_numeric($id) ? app(Outbox::class)->find((int) $id) : null;
+
+        if ($write !== null && $write->isCommit() && $write->isFailed()) {
+            $this->editFailedCommit($write);
+        }
+    }
+
+    /**
+     * The bar takes back a reply devnull turned down, and the outbox lets it go: it's a draft again.
+     */
+    private function takeFailedReply(PendingWrite $write): void
+    {
+        $this->reply = $write->body();
+        $this->replyRestored = true;
+        $this->focusReply = true;
+        $this->updatedReply();
+        app(Outbox::class)->forget($write);
+    }
+
+    /**
+     * Your replies to this commit still on their way go after the rest,
+     * staged, oldest first. Ones that went or were turned down while the page
+     * wasn't showing leave, and come back with devnull's replies if they went.
+     */
+    private function keepStagedReplies(): void
+    {
+        $this->replies = [
+            ...array_values(array_filter($this->replies, fn (Commit $reply): bool => ! $reply->isStaged())),
+            ...array_reverse($this->stagedCommits($this->id)),
+        ];
+    }
+
+    /**
      * The commit and its replies as they were kept last time. Opened from a row
      * with nothing kept, it starts from what the row knew: the commit, and the
      * commit it replies to when the row had that too.
@@ -373,6 +480,8 @@ class CommitDetail extends NativeComponent
         if (($replies = $this->cached($this->threadPath().'/replies')) !== null) {
             $this->takeReplies($replies);
         }
+
+        $this->keepStagedReplies();
     }
 
     /**
@@ -404,6 +513,7 @@ class CommitDetail extends NativeComponent
         $this->replies = [...$page->items, ...$later];
         $this->repliesCursor = $later === [] ? $page->nextCursor : $this->repliesCursor;
         $this->repliesLoaded = true;
+        $this->keepStagedReplies();
     }
 
     private function replyStashName(): string

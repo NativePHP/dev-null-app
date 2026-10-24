@@ -1,6 +1,8 @@
 <?php
 
 use App\Devnull\Account;
+use App\Devnull\Stash;
+use App\Models\PendingWrite;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Events\Alert\ButtonPressed;
@@ -185,42 +187,43 @@ it('posts a reply, with no countdown while there is room', function () {
         ->tap('send-reply')
         ->assertSet('reply', '')
         ->assertSee('A fresh reply')
-        ->assertNavigatedTo('/log/commits/r9')
+        ->assertNoNavigation()
         ->assertNativeNotCalled('ToastKit.Show');
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
         && $request->body() === '{"body":"A fresh reply","parent_id":"c2"}');
 });
 
-it('opens a posted reply in the same tab before its refresh arrives, and goes back to the parent', function (string $tab) {
+it('shows a posted reply staged under the commit at once, then the one devnull made in its place', function () {
     holdRefreshes();
     keep('commits/c2', commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit'])));
-    keep('commits/c2/replies', pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply'])], 'page2'));
+    keep('commits/c2/replies', pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply'])]));
     fakeApi([
         'POST /api/v1/commits' => [['data' => replyJson(['id' => 'r9', 'parent_id' => 'c2', 'status' => 'pending', 'body' => 'A fresh reply'])], 201],
     ]);
 
-    $reply = Native::visit("{$tab}/commits/c2")
+    $screen = Native::visit('/log/commits/c2')
         ->input('reply-input', 'A fresh reply')
         ->tap('send-reply')
-        ->assertNavigatedTo("{$tab}/commits/r9")
-        ->follow()
-        ->assertSet('id', 'r9')
+        ->assertSet('reply', '')
+        ->assertNoNavigation()
+        ->assertSee('A fresh reply')
+        ->assertSee('staged');
+
+    $staged = $screen->instance()->replies[1]->id;
+
+    expect(childRefs($screen, 'thread-page'))->toBe(['focused-commit', 'thread-reply-r1', "thread-reply-{$staged}", 'reply-bar-clearance'])
+        ->and(PendingWrite::query()->count())->toBe(1);
+
+    finishRefreshes($screen)
         ->assertSee('A fresh reply')
         ->assertSee('pending')
-        ->assertDontSee('The focused commit');
+        ->assertDontSee('staged');
 
-    expect(childRefs($reply, 'thread-page'))->toBe(['focused-commit', 'reply-bar-clearance']);
-
-    $reply->goBack()
-        ->assertSet('id', 'c2')
-        ->assertSet('reply', '')
-        ->assertSet('replyRestored', false)
-        ->assertSee('The focused commit')
-        ->assertSee('A fresh reply');
-
-    Http::assertSentCount(1);
-})->with(['/log', '/notifications', '/remotes', '/profile']);
+    expect(childRefs($screen, 'thread-page'))->toBe(['focused-commit', 'thread-reply-r1', 'thread-reply-r9', 'reply-bar-clearance'])
+        ->and(PendingWrite::query()->count())->toBe(0)
+        ->and(collect(Http::recorded())->filter(fn (array $sent): bool => $sent[0]->method() === 'POST'))->toHaveCount(1);
+});
 
 it('shows a reply you posted once when the next page of replies has it too', function () {
     Http::fake(function (Request $request) {
@@ -241,8 +244,6 @@ it('shows a reply you posted once when the next page of replies has it too', fun
         ->tap('replies-c2')
         ->input('reply-input', 'A fresh reply')
         ->tap('send-reply')
-        ->follow()
-        ->goBack()
         ->call('loadMoreReplies')
         ->assertSet('repliesCursor', null);
 
@@ -259,15 +260,23 @@ it('marks a reply waiting for approval as pending on its row', function () {
         ->assertNativeNotCalled('ToastKit.Show');
 });
 
-it('shows validation messages from the server', function () {
+it('puts a reply devnull turned down back in the bar, and says why in a toast', function () {
     fakeThread(extra: ['POST /api/v1/commits' => [['message' => 'The body field must not be greater than 280 characters.', 'errors' => ['body' => ['The body field must not be greater than 280 characters.']]], 422]]);
 
-    Native::visit('/log/commits/c2')
+    $screen = Native::visit('/log/commits/c2')
         ->input('reply-input', 'Long enough')
         ->tap('send-reply')
-        ->assertSee('The body field must not be greater than 280 characters.')
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'The body field must not be greater than 280 characters.'
+            && $params['variant'] === 'error'
+            && ! isset($params['action']))
         ->assertSet('reply', 'Long enough')
+        ->assertSet('replyRestored', true)
+        ->assertDontSee('staged')
         ->assertNoNavigation();
+
+    expect($screen->instance()->replies)->toBe([])
+        ->and(app(Stash::class)->get(userJson()['id'], 'reply-c2'))->toBe('Long enough')
+        ->and(PendingWrite::query()->count())->toBe(0);
 });
 
 it('turns the budget red at zero and holds back a blank reply', function () {
@@ -291,7 +300,7 @@ it('accepts one-character replies and URL-aware reply budgets', function (string
     expect(nodeByRef($screen, 'send-reply')['props']['disabled'] ?? false)->toBeFalse()
         ->and(nodeByRef($screen, 'reply-input')['props']['max_length'])->toBe(40000);
 
-    $screen->tap('send-reply')->assertSet('reply', '')->assertSet('sendingReply', false);
+    $screen->tap('send-reply')->assertSet('reply', '');
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && $request['body'] === $body);
 })->with(['a', str_repeat('a', 3976).' https://example.com/'.str_repeat('x', 100)]);
 
@@ -304,10 +313,17 @@ it('explains an oversized reply URL before it is submitted', function () {
     Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
 });
 
-it('does not send a second reply while one is being submitted', function () {
-    fakeThread();
-    Native::visit('/log/commits/c2')->input('reply-input', 'a')->set('sendingReply', true)->call('sendReply');
-    Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
+it('sends a reply once, since the bar empties as it goes', function () {
+    holdRefreshes();
+    fakeThread(extra: ['POST /api/v1/commits' => [['data' => replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'a'])], 201]]);
+
+    $screen = finishRefreshes(Native::visit('/log/commits/c2'))->input('reply-input', 'a')->tap('send-reply')->call('sendReply');
+
+    expect(PendingWrite::query()->count())->toBe(1);
+
+    finishRefreshes($screen);
+
+    expect(collect(Http::recorded())->filter(fn (array $sent): bool => $sent[0]->method() === 'POST'))->toHaveCount(1);
 });
 
 it('deletes your own commit after a confirm', function () {

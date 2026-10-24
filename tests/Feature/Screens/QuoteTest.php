@@ -152,13 +152,14 @@ it('commits the quote with the id of the commit it quotes, and puts it at the to
         ->sheetBody->toBe('');
 });
 
-it('shows why devnull said no in the sheet, keeping the draft', function () {
+it('says why devnull said no in a toast, and opens the quote again on the draft', function () {
     $screen = quoteSheetOnLog([['message' => 'That commit is no longer available to quote.', 'errors' => ['quoted_commit_id' => ['That commit is no longer available to quote.']]], 422])
         ->input('sheet-body', 'This, all of it.')
-        ->tap('sheet-commit');
+        ->tap('sheet-commit')
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'That commit is no longer available to quote.');
 
-    expect(nodeByRef($screen, 'sheet-error')['props']['text'])->toBe('That commit is no longer available to quote.')
-        ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('This, all of it.')
+    expect(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('This, all of it.')
+        ->and($screen->instance()->sheetView)->toBe('quote')
         ->and(quoteButtonDisabled($screen))->toBeFalse()
         ->and(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
         ->and($screen->instance()->error)->toBeNull()

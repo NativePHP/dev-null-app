@@ -196,31 +196,37 @@ it('commits photos with a short body, or none, as multipart, then shows the comm
     'short' => ['ok', '{"body":"ok","image_descriptions":[null,"A terminal."]}'],
 ]);
 
-it('spins Commit while the photos upload, and says why devnull turned them down, keeping them', function () {
+it('shows the commit staged with its photos while they upload, and opens the sheet on them again if devnull turns them down', function () {
     holdRefreshes();
 
     $screen = photosPicked(composerOnLog([['message' => 'The images.0 field must be an image.', 'errors' => ['images.0' => ['The images.0 field must be an image.']]], 422]), [testPhoto()])
         ->input('sheet-body', 'Look at this');
+    $path = $screen->instance()->sheetImages[0]->path;
     $sent = refreshesSent($screen);
 
-    $screen->tap('sheet-commit');
+    $screen->tap('sheet-commit')->dismissSheet('sheet');
 
-    // The check turns into a spinner, and can't be tapped again.
-    expect(sheetButtonEnabled($screen, 'sheet-commit'))->toBeFalse()
-        ->and(findNode(sheetButtonCircle($screen, 'sheet-commit'), fn (array $node): bool => ($node['type'] ?? null) === 'activity_indicator'))->not->toBeNull()
-        ->and(isTool($screen, 'sheet-photos'))->toBeFalse();
+    // The sheet goes at once, and the commit shows staged with its photo, which stays on the phone while it uploads.
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeFalse()
+        ->and($screen->instance()->commits[0]->isStaged())->toBeTrue()
+        ->and($screen->instance()->commits[0]->images[0]->url)->toBe($path)
+        ->and(file_exists($path))->toBeTrue()
+        ->and(refreshesSent($screen))->toBe($sent + 1);
 
-    // Pressed again while it's on its way, nothing more goes.
+    // Pressed again once it's gone, nothing more goes.
     $screen->call('commitFromSheet');
     expect(refreshesSent($screen))->toBe($sent + 1);
 
-    finishRefreshes($screen);
+    finishRefreshes($screen)
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'The images.0 field must be an image.' && $params['variant'] === 'error');
 
-    expect(nodeByRef($screen, 'sheet-error')['props']['text'])->toBe('The images.0 field must be an image.')
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
+        ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('Look at this')
         ->and(sheetButtonEnabled($screen, 'sheet-commit'))->toBeTrue()
-        ->and(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
         ->and($screen->instance()->sheetImages)->toHaveCount(1)
-        ->and(file_exists($screen->instance()->sheetImages[0]->path))->toBeTrue();
+        ->and($screen->instance()->sheetImages[0]->path)->toBe($path)
+        ->and(file_exists($path))->toBeTrue()
+        ->and(array_filter($screen->instance()->commits, fn ($commit): bool => $commit->isStaged()))->toBe([]);
 });
 
 it('drops the photos when the sheet goes unsent, and deletes them from the phone', function () {
