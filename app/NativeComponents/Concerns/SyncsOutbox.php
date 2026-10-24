@@ -15,6 +15,7 @@ use App\Devnull\Stash;
 use App\Devnull\Toasts;
 use App\Models\PendingWrite;
 use Native\Mobile\Attributes\On;
+use Native\Mobile\Facades\Browser;
 use Throwable;
 use Victorycodedev\ToastKit\Events\ToastActionPressed;
 
@@ -168,7 +169,7 @@ trait SyncsOutbox
     }
 
     /**
-     * A toast's button, Retry or Edit, pressed on whichever screen is showing.
+     * A toast's button: Retry, Edit or View issue, pressed on whichever screen is showing.
      *
      * @param  array<string, mixed>  $data
      */
@@ -179,6 +180,7 @@ trait SyncsOutbox
             'retry-star' => $this->retryStar($data),
             'retry-message' => $this->retryMessage($data),
             'edit' => $this->editFromToast($data),
+            'view-issue' => $this->viewIssueFromToast($data),
             default => null,
         };
     }
@@ -360,6 +362,20 @@ trait SyncsOutbox
 
         if ($write !== null && $write->isCommit() && $write->isFailed()) {
             $this->editFailedCommit($write);
+        }
+    }
+
+    /**
+     * View issue on the toast of an issue that opened once its sheet had gone (see DraftsIssues).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function viewIssueFromToast(array $data): void
+    {
+        $url = $data['url'] ?? null;
+
+        if (is_string($url) && in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true)) {
+            Browser::inApp($url);
         }
     }
 
