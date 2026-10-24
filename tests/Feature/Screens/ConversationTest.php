@@ -106,6 +106,20 @@ it('polls for what came after the last message, and for reactions changed since'
         ->and(sentTo('PUT', 'remotes/@ada/read'))->toBe(['{"through":2}']);
 });
 
+it('keeps the composer the same view while messages arrive above it, so the keyboard stays up', function () {
+    serveRemoteThread(
+        threadJson([remoteMessageJson(['id' => 1, 'body' => 'first'])], ['read_through_id' => 1]),
+        threadJson([remoteMessageJson(['id' => 2, 'body' => 'second'])]),
+    );
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))->input('message-input', 'on my way');
+    $field = idsDownTo($screen->tree(), 'message-input');
+
+    finishRefreshes($screen->call('poll'))->assertSee('second');
+
+    expect(idsDownTo($screen->tree(), 'message-input'))->toBe($field);
+});
+
 it('waits longer between polls once nobody has written or typed for a minute', function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
 

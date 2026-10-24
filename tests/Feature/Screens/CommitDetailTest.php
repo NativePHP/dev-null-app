@@ -77,6 +77,26 @@ it('brings the commit back to the top when you tap into the reply bar', function
         ->and(nodeByRef($screen, 'thread-scroll')['id'])->not->toBe($before);
 });
 
+it('keeps the reply field the same view while the thread above it changes, so the keyboard stays up', function () {
+    fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'author' => userJson(['username' => 'grace', 'name' => 'Grace'])])]);
+
+    $screen = Native::visit('/log/commits/c2')->tap('earlier-commits')->input('reply-input', 'Nice');
+    $field = idsDownTo($screen->tree(), 'reply-input');
+
+    // Tapping into the bar, which folds the earlier commits away above it.
+    $screen->pressUp('reply-field')->assertDontSee('The parent commit');
+    expect(idsDownTo($screen->tree(), 'reply-input'))->toBe($field);
+
+    // More of the thread drawn above it.
+    $screen->set('repliesShown', true)->assertSee('First reply');
+    expect(idsDownTo($screen->tree(), 'reply-input'))->toBe($field);
+
+    // A refresh failing, which puts its banner at the top of the screen.
+    $screen->set('refreshFailed', true);
+    expect(nodeByRef($screen, 'refresh-failed'))->not->toBeEmpty()
+        ->and(idsDownTo($screen->tree(), 'reply-input'))->toBe($field);
+});
+
 it('runs the rail from the folded ancestors into the commit, which shows its avatar', function () {
     $ada = userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'lane' => 1]);
     fakeApi([

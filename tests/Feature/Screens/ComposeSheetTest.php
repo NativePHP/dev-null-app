@@ -214,6 +214,26 @@ it('puts the cross on glass on iOS and on a tonal circle on Android', function (
         ->and(sheetButtonCircle($android, 'sheet-cancel')['props'])->not->toHaveKey('glass');
 });
 
+it('keeps the field the same view while what is drawn above it changes, so the keyboard stays up', function () {
+    $screen = composeSheetOnLog();
+    $field = idsDownTo($screen->tree(), 'sheet-body');
+
+    // Commit turning on, which wraps its circle in a pressable.
+    $screen->input('sheet-body', 'Shipped');
+    expect(sheetCommitDisabled($screen))->toBeFalse()
+        ->and(idsDownTo($screen->tree(), 'sheet-body'))->toBe($field);
+
+    // The issue badge over the field.
+    $screen->input('sheet-body', '/feature Dark mode');
+    expect(nodeByRef($screen, 'sheet-open-issue'))->not->toBeEmpty()
+        ->and(idsDownTo($screen->tree(), 'sheet-body'))->toBe($field);
+
+    // A refresh failing behind the sheet, which puts its banner above it.
+    $screen->set('refreshFailed', true);
+    expect(nodeByRef($screen, 'refresh-failed'))->not->toBeEmpty()
+        ->and(idsDownTo($screen->tree(), 'sheet-body'))->toBe($field);
+});
+
 it('only commits from a sheet that has a composer in it', function () {
     fakeApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])]]);
 
