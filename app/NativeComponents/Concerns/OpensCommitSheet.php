@@ -84,6 +84,19 @@ trait OpensCommitSheet
     public bool $sheetRestored = false;
 
     /**
+     * Whether the sheet was closed from here and is still sliding away. iOS
+     * says when it's gone (see commitSheetClosed()), and a sheet opened before
+     * then goes with it.
+     */
+    public bool $sheetClosing = false;
+
+    /**
+     * A commit devnull turned down while the sheet was still sliding away,
+     * whose sheet opens again once it's gone (see reopenFailedCommit()).
+     */
+    public ?int $reopenAfterSheet = null;
+
+    /**
      * Why devnull didn't take the report or the commit, shown in the sheet.
      */
     public ?string $sheetError = null;
@@ -239,7 +252,7 @@ trait OpensCommitSheet
 
         app(Stash::class)->put($me->id, $stashName, '');
         $this->sheetImages = [];
-        $this->sheetOpen = false;
+        $this->closeCommitSheet();
         $this->showCommitted($write->stagedCommit($me));
         $this->sendFromOutbox($write);
     }
@@ -250,7 +263,7 @@ trait OpensCommitSheet
      */
     public function hideCommitSheet(): void
     {
-        $this->sheetOpen = false;
+        $this->closeCommitSheet();
     }
 
     /**
@@ -259,9 +272,18 @@ trait OpensCommitSheet
     public function commitSheetClosed(): void
     {
         $view = $this->sheetView;
+        $held = $this->reopenAfterSheet;
 
+        $this->sheetClosing = false;
+        $this->reopenAfterSheet = null;
         $this->forgetCommitSheet();
         $this->commitSheetGone($view);
+
+        $write = $held === null ? null : app(Outbox::class)->find($held);
+
+        if ($write !== null && $write->isCommit() && $write->isFailed()) {
+            $this->openFailedCommit($write);
+        }
     }
 
     /**
@@ -286,10 +308,22 @@ trait OpensCommitSheet
      * on this screen, if the sheet's free: a new commit on the screen that
      * opens it (see opensComposer()), and a quote or a reply in the sheet
      * where the commit it was for is showing.
+     *
+     * When devnull answers at once, as it does with no connection, the sheet
+     * the commit was sent from is still sliding away, and a sheet opened now
+     * would go with it when it's gone. So it waits until iOS says the sheet
+     * has gone (see commitSheetClosed()), and answers that it didn't open,
+     * so the toast still offers Edit.
      */
     protected function reopenFailedCommit(PendingWrite $write): bool
     {
         if ($this->sheetOpen || ($write->composer() === 'compose' && ! $this->opensComposer())) {
+            return false;
+        }
+
+        if ($this->sheetClosing) {
+            $this->reopenAfterSheet = $write->id;
+
             return false;
         }
 
@@ -312,6 +346,15 @@ trait OpensCommitSheet
         if ($for !== null) {
             $this->openInTab('/commits/'.$for, ['edit' => $write->id]);
         }
+    }
+
+    /**
+     * Closes the sheet from here. It slides away until iOS says it's gone.
+     */
+    private function closeCommitSheet(): void
+    {
+        $this->sheetClosing = $this->sheetClosing || $this->sheetOpen;
+        $this->sheetOpen = false;
     }
 
     /**

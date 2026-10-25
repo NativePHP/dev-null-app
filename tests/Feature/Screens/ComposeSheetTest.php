@@ -136,19 +136,50 @@ it('commits from the sheet and puts the commit at the top of the log, leaving th
         ->sheetBody->toBe('');
 });
 
-it('says why devnull said no in a toast, and opens the sheet again on the draft', function () {
+it('waits for the sheet to go before opening it again on a commit devnull turned down at once, and offers Edit meanwhile', function () {
     $screen = composeSheetOnLog([['message' => 'Too Many Attempts.'], 429])
         ->input('sheet-body', 'One more')
-        ->tap('sheet-commit')
-        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Too Many Attempts.' && $params['variant'] === 'error');
+        ->tap('sheet-commit');
 
-    expect(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('One more')
+    // devnull said no before the sheet finished sliding away, so it isn't opened under the one going.
+    $write = PendingWrite::query()->sole();
+    $screen->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Too Many Attempts.'
+        && $params['variant'] === 'error'
+        && $params['action'] === ['id' => 'edit', 'label' => 'Edit']
+        && $params['data'] === ['write' => $write->id]);
+
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeFalse()
+        ->and($screen->instance()->reopenAfterSheet)->toBe($write->id);
+
+    // iOS says the sheet has gone: it opens again on the draft.
+    $screen->dismissSheet('sheet');
+
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
+        ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('One more')
         ->and(sheetCommitDisabled($screen))->toBeFalse()
-        ->and(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
         ->and($screen->instance()->sheetView)->toBe('compose')
         ->and($screen->instance()->error)->toBeNull()
         ->and(array_map(fn (Commit $commit): string => $commit->id, $screen->instance()->commits))->toBe(['c1'])
         ->and(PendingWrite::query()->count())->toBe(0);
+
+    // The new sheet stays open, rather than going with the one before it.
+    expect($screen->instance()->sheetOpen)->toBeTrue()
+        ->and($screen->instance()->sheetClosing)->toBeFalse();
+});
+
+it('opens the sheet again at once on a commit devnull turned down after the sheet had gone, without Edit', function () {
+    holdRefreshes();
+    $screen = composeSheetOnLog([['message' => 'Too Many Attempts.'], 429]);
+    $screen = finishRefreshes($screen)
+        ->input('sheet-body', 'One more')
+        ->tap('sheet-commit')
+        ->dismissSheet('sheet');
+
+    finishRefreshes($screen)
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Too Many Attempts.' && ! isset($params['action']));
+
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
+        ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('One more');
 });
 
 it('keeps the draft when the sheet is swiped away, and opens on it again, marked as restored', function () {
