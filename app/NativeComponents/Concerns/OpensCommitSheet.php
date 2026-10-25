@@ -11,6 +11,7 @@ use App\Devnull\ReportReason;
 use App\Devnull\Stash;
 use App\Models\PendingWrite;
 use Closure;
+use Native\Mobile\Facades\System;
 
 /**
  * The sheet under a commit (see partials/commit-sheet). Report commit, in the
@@ -84,9 +85,15 @@ trait OpensCommitSheet
     public bool $sheetRestored = false;
 
     /**
-     * Whether the sheet was closed from here and is still sliding away. iOS
-     * says when it's gone (see commitSheetClosed()), and a sheet opened before
-     * then goes with it.
+     * Whether the sheet was closed from here and is still sliding away, on
+     * iOS. iOS says when it's gone (see commitSheetClosed()), and a sheet
+     * opened before then goes with it.
+     *
+     * Android is different on both counts, so this stays false there. Its
+     * sheet only sends @dismiss when you drag it away or press back, never
+     * when it's closed from here, so a flag waiting for that would never
+     * clear. And it keeps the sheet drawn through its hide animation, so
+     * showing it again straight away simply shows it again.
      */
     public bool $sheetClosing = false;
 
@@ -310,8 +317,8 @@ trait OpensCommitSheet
      * where the commit it was for is showing.
      *
      * When devnull answers at once, as it does with no connection, the sheet
-     * the commit was sent from is still sliding away, and a sheet opened now
-     * would go with it when it's gone. So it waits until iOS says the sheet
+     * the commit was sent from may still be sliding away on iOS, and a sheet
+     * opened now would go with it when it's gone. So it waits until iOS says the sheet
      * has gone (see commitSheetClosed()), and answers that it didn't open,
      * so the toast still offers Edit.
      */
@@ -349,11 +356,13 @@ trait OpensCommitSheet
     }
 
     /**
-     * Closes the sheet from here. It slides away until iOS says it's gone.
+     * Closes the sheet from here. On iOS it slides away until iOS says it's
+     * gone. Android never says so for a sheet closed from here (see
+     * $sheetClosing).
      */
     private function closeCommitSheet(): void
     {
-        $this->sheetClosing = $this->sheetClosing || $this->sheetOpen;
+        $this->sheetClosing = $this->sheetClosing || ($this->sheetOpen && System::isIos());
         $this->sheetOpen = false;
     }
 
