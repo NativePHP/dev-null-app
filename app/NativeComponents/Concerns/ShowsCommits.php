@@ -5,6 +5,7 @@ namespace App\NativeComponents\Concerns;
 use App\Devnull\Account;
 use App\Devnull\Client;
 use App\Devnull\Data\Commit;
+use App\Devnull\Data\CommitImage;
 use App\Devnull\Data\Pasteis;
 use App\Devnull\Data\User;
 use App\Devnull\ErrorCode;
@@ -12,6 +13,7 @@ use App\Devnull\Exceptions\ApiException;
 use App\Devnull\ResponseCache;
 use Closure;
 use Native\Mobile\Attributes\On;
+use Native\Mobile\Edge\SharedValue;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Facades\Browser;
 use Native\Mobile\Facades\Dialog;
@@ -21,8 +23,9 @@ use Native\Mobile\Facades\Share;
  * The actions under a commit: the star, the pastel in pastéis mode, Quote,
  * Reply, and the More menu's Save commit, Share link, Pin to profile, Report
  * commit and Delete commit (Quote and Report open a sheet, see
- * OpensCommitSheet), plus opening its link preview or images in the in-app
- * browser, "Show more" on a long one, and voting on its poll (see
+ * OpensCommitSheet), plus opening its link preview in the in-app browser, its
+ * images full-screen in the app (see partials/image-viewer), "Show more" on a
+ * long one, and voting on its poll (see
  * VotesOnPolls). Taps name the commit rather than a URL, so a URL is never
  * rebuilt from an attribute.
  *
@@ -48,6 +51,37 @@ trait ShowsCommits
      * The commit the delete alert is asking about.
      */
     public ?string $deleting = null;
+
+    /**
+     * Whether the image viewer is up, over everything else on the screen,
+     * sheet included.
+     */
+    public bool $viewerOpen = false;
+
+    /**
+     * The images of the commit being viewed, as they were when it opened, so
+     * the viewer keeps what it shows while it slides away even if the commit
+     * leaves the screen.
+     *
+     * @var list<CommitImage>
+     */
+    public array $viewerImages = [];
+
+    /**
+     * Which of the viewer's images is showing.
+     */
+    public int $viewerIndex = 0;
+
+    /**
+     * The zoom and pan of the image being viewed, driven on the phone by the
+     * viewer's gesture area. Fresh ones on every open and every move between
+     * images, so each starts at rest; nulled on close.
+     */
+    public ?SharedValue $viewerZoom = null;
+
+    public ?SharedValue $viewerPanX = null;
+
+    public ?SharedValue $viewerPanY = null;
 
     /**
      * Every commit the screen is showing.
@@ -194,9 +228,62 @@ trait ShowsCommits
         $this->openInBrowser($this->shownCommit($id)?->linkPreview?->url);
     }
 
+    /**
+     * Opens a commit's image full-screen in the app (see partials/image-viewer),
+     * from the one the row tapped: the image whole rather than cropped, pinch
+     * zoom between its whole self and four times, a drag to pan, and the
+     * chevrons under it to move between the commit's other images. An image the
+     * screen isn't showing, or one at no web address, opens nothing, as it did
+     * in the browser.
+     */
     public function openImage(string $id, int $index = 0): void
     {
-        $this->openInBrowser(($this->shownCommit($id)?->images[$index] ?? null)?->url);
+        $images = $this->shownCommit($id)?->images ?? [];
+        $image = $images[$index] ?? null;
+
+        if ($image === null || ! $this->isWebUrl($image->url)) {
+            return;
+        }
+
+        $this->viewerImages = $images;
+        $this->viewerIndex = $index;
+        $this->restViewerImage();
+        $this->viewerOpen = true;
+    }
+
+    /**
+     * The chevron under the viewer: the commit's next image, at rest again. At
+     * the last image there's no chevron to press, and a next at no web address
+     * goes nowhere, as an image at one never opens.
+     */
+    public function viewNextImage(): void
+    {
+        $this->showInViewedImage($this->viewerIndex + 1);
+    }
+
+    /**
+     * The chevron under the viewer: the commit's previous image, at rest
+     * again. At the first image there's no chevron to press, and a previous at
+     * no web address goes nowhere either.
+     */
+    public function viewPreviousImage(): void
+    {
+        $this->showInViewedImage($this->viewerIndex - 1);
+    }
+
+    /**
+     * The viewer's close, back or outside tap, however the phone reports it:
+     * the viewer goes and forgets the image and what its gestures left behind,
+     * so the next one opens as this one did.
+     */
+    public function closeImageViewer(): void
+    {
+        $this->viewerOpen = false;
+        $this->viewerImages = [];
+        $this->viewerIndex = 0;
+        $this->viewerZoom = null;
+        $this->viewerPanX = null;
+        $this->viewerPanY = null;
     }
 
     /**
@@ -452,8 +539,46 @@ trait ShowsCommits
 
     private function openInBrowser(?string $url): void
     {
-        if ($url !== null && in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true)) {
+        if ($this->isWebUrl($url)) {
             Browser::inApp($url);
         }
+    }
+
+    /**
+     * Only an http or https address is opened, in the browser or the viewer, so
+     * nothing else a row might carry can take the phone somewhere unexpected.
+     */
+    private function isWebUrl(?string $url): bool
+    {
+        return $url !== null && in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true);
+    }
+
+    /**
+     * Puts the viewer's image back at rest: fresh shared values, which the
+     * phone seeds at one and none, so what the last image's gestures left
+     * behind can't carry over to it.
+     */
+    private function restViewerImage(): void
+    {
+        $this->viewerZoom = SharedValue::make(1.0);
+        $this->viewerPanX = SharedValue::make();
+        $this->viewerPanY = SharedValue::make();
+    }
+
+    /**
+     * Moves the viewer to one of its commit's images by its place among them,
+     * or nowhere when there's no image there or it's at no web address, so the
+     * viewer never comes to show one the phone shouldn't be asked for.
+     */
+    private function showInViewedImage(int $index): void
+    {
+        $image = $this->viewerImages[$index] ?? null;
+
+        if (! $this->viewerOpen || $image === null || ! $this->isWebUrl($image->url)) {
+            return;
+        }
+
+        $this->viewerIndex = $index;
+        $this->restViewerImage();
     }
 }

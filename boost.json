@@ -1,6 +1,7 @@
 {
     "agents": [
-        "claude_code"
+        "claude_code",
+        "codex"
     ],
     "cloud": false,
     "guidelines": true,
@@ -13,9 +14,13 @@
     ],
     "sail": false,
     "skills": [
+        "infer-conventions",
         "laravel-best-practices",
-        "pest-testing",
+        "testing-best-practices",
+        "nativephp-agent-loop",
         "nativephp-mobile",
-        "nativephp-webview-to-native"
+        "nativephp-webview-to-native",
+        "nativephp-mobile-ui",
+        "ui-screenshots"
     ]
 }

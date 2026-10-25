@@ -14,7 +14,7 @@ If someone has claimed an item but nothing has moved for a while, ask on the iss
 
 ## Using AI
 
-You're welcome to use AI tools. The repo's `CLAUDE.md` holds the project's conventions for agents, and `.mcp.json` sets up the Laravel Boost MCP server.
+You're welcome to use AI tools. `CLAUDE.md` and `AGENTS.md` hold the project's conventions for agents, and `.mcp.json` sets up the Laravel Boost MCP server. Boost generates both files, so change the guidelines in `.ai/` and run `php artisan boost:update` rather than editing them directly.
 
 You're still the author, though. Read the whole diff before you open the PR, run the app on a simulator or phone, and be ready to answer questions about the code.
 
@@ -29,4 +29,25 @@ Don't mix a feature with refactoring, reformatting or dependency updates. If you
 - Run `php artisan test`.
 - Run `vendor/bin/pint --dirty` to format the PHP you changed.
 - Build screens with native UI, not web views.
-- In the description, say what changed and why. Add a screenshot or recording if the change is visible.
+- In the description, say what changed and why.
+- If anything visible changed, add screenshots. See below.
+
+## Screenshots
+
+If your change affects anything a user can see, the description needs before and after screenshots on iOS and Android, each in light and dark mode. If anything moves differently (an animation, a transition, a sheet, scrolling), add recordings too. If nothing visible changed, tick "No visible change" in the template. A CI check fails ready-for-review PRs that touch screens, layouts, theme, fonts, icons or animations without one or the other.
+
+Three commands do most of the work. Run the app on an iOS simulator and an Android emulator, open the screen you're changing, and before you touch any code run:
+
+```sh
+php artisan screenshots:take before
+```
+
+Make your change, get the screen back into the same state, then:
+
+```sh
+php artisan screenshots:take after
+php artisan screenshots:record after   # for animations: does each platform and appearance in turn
+php artisan screenshots:publish
+```
+
+`screenshots:publish` pushes the files to an orphan `{your-branch}-screenshots` branch and prints a table to paste into the description. If you work from a fork, pass `--remote` with your fork's remote. Don't commit screenshots to your PR branch. `--screen=settings` names the files when a PR shows more than one screen, and each command's `--help` lists the rest.

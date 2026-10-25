@@ -2721,12 +2721,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/ricardovfreixo/mobile-air.git",
-                "reference": "f06d13ccc80e597b86600e442a2dd2407ac0ab5e"
+                "reference": "cbf2eb466f85ed68dec960d5e727ca61673ddbf6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/ricardovfreixo/mobile-air/zipball/f06d13ccc80e597b86600e442a2dd2407ac0ab5e",
-                "reference": "f06d13ccc80e597b86600e442a2dd2407ac0ab5e",
+                "url": "https://api.github.com/repos/ricardovfreixo/mobile-air/zipball/cbf2eb466f85ed68dec960d5e727ca61673ddbf6",
+                "reference": "cbf2eb466f85ed68dec960d5e727ca61673ddbf6",
                 "shasum": ""
             },
             "require": {
@@ -2835,7 +2835,7 @@
             "support": {
                 "source": "https://github.com/ricardovfreixo/mobile-air/tree/fix/root-tab-reselect"
             },
-            "time": "2026-10-23T13:20:45+00:00"
+            "time": "2026-10-25T10:10:05+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
@@ -3063,12 +3063,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/ricardovfreixo/mobile-ui.git",
-                "reference": "28753b7ea337349243330c1f531ed61f386a2c6d"
+                "reference": "00e4831be6cf24fa71ce60b0c1699d4060e3966a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/ricardovfreixo/mobile-ui/zipball/28753b7ea337349243330c1f531ed61f386a2c6d",
-                "reference": "28753b7ea337349243330c1f531ed61f386a2c6d",
+                "url": "https://api.github.com/repos/ricardovfreixo/mobile-ui/zipball/00e4831be6cf24fa71ce60b0c1699d4060e3966a",
+                "reference": "00e4831be6cf24fa71ce60b0c1699d4060e3966a",
                 "shasum": ""
             },
             "require": {
@@ -3126,7 +3126,7 @@
                     "url": "https://nativephp.com/sponsor"
                 }
             ],
-            "time": "2026-10-23T12:43:42+00:00"
+            "time": "2026-10-25T09:55:32+00:00"
         },
         {
             "name": "nesbot/carbon",

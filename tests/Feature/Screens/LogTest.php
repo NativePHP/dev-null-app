@@ -205,7 +205,7 @@ it('shows inline code on a wash and keeps mentions on both sides of it', functio
     ]);
 });
 
-it('draws a standalone /dev/null as the wordmark: semibold, tight, its middle slash regular in lane-0, held on one line', function () {
+it('draws a standalone /dev/null as the wordmark: semibold, tight, its middle slash a lane-0 outline, held on one line', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson(['body' => 'Piped to /dev/null, not /dev/nullable (/dev/null)'])]))]);
 
     $screen = Native::visit('/log');
@@ -218,7 +218,7 @@ it('draws a standalone /dev/null as the wordmark: semibold, tight, its middle sl
             ["/\u{2060}dev", '/', "\u{2060}null"],
         ])
         ->and($wordmarks[0]['props'])->toMatchArray(['font_name' => 'semibold', 'font_weight' => 5])
-        ->and($slash)->toMatchArray(['font_name' => 'default', 'font_weight' => 3])
+        ->and($slash)->toMatchArray(['text_outline' => 1.0])->not->toHaveKey('font_name')
         ->and(strtolower($slash['color']))->toBe(strtolower(config('native-ui.theme.light.lane-0')))
         ->and(strtolower($slash['dark_color']))->toBe(strtolower(config('native-ui.theme.dark.lane-0')));
 });
@@ -304,7 +304,10 @@ it('holds images at their aspect ratio, so one that never loads leaves the row i
             && ($node['style']['bg_color'] ?? null) === config('native-ui.theme.light.wash'))
         ->assertElement('image', fn (array $node): bool => ($node['props']['src'] ?? null) === 'http://devnull.test/commit-images/i1')
         ->tap('image-i1')
-        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'http://devnull.test/commit-images/i1');
+        ->assertSet('viewerOpen', true)
+        ->assertElement('image', fn (array $node): bool => ($node['ref'] ?? null) === 'viewed-image'
+            && ($node['props']['src'] ?? null) === 'http://devnull.test/commit-images/i1')
+        ->assertNativeNotCalled('Browser.OpenInApp');
 });
 
 it('lays out several images in the web grid', function () {
@@ -320,7 +323,10 @@ it('lays out several images in the web grid', function () {
     Native::visit('/log')
         ->assertElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'image-i3' && ($node['a11y']['label'] ?? $node['props']['a11y_label'] ?? null) !== null)
         ->tap('image-i3')
-        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://img.test/3');
+        ->assertSet('viewerIndex', 2)
+        ->assertElement('image', fn (array $node): bool => ($node['ref'] ?? null) === 'viewed-image'
+            && ($node['props']['src'] ?? null) === 'https://img.test/3')
+        ->assertNativeNotCalled('Browser.OpenInApp');
 });
 
 it('reads each image out by the description its author gave it, as the web does with alt text', function (array $images, array $labels) {

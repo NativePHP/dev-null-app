@@ -32,6 +32,7 @@ enum Lucide
     case Trash2;
     case CornerDownRight;
     case ChevronRight;
+    case ChevronLeft;
     case ChevronDown;
     case ArrowUpRight;
     case ArrowUp;
@@ -195,6 +196,7 @@ enum Lucide
         return $this->custom($filled) ?? match ($this) {
             self::CornerDownRight => Ios::ArrowTurnDownRight,
             self::ChevronRight => Ios::ChevronRight,
+            self::ChevronLeft => Ios::ChevronLeft,
             self::ChevronDown => Ios::ChevronDown,
             self::ArrowUpRight => Ios::ArrowUpRight,
             self::Pin => Ios::Pin,
@@ -212,6 +214,7 @@ enum Lucide
         return $this->custom($filled) ?? match ($this) {
             self::CornerDownRight => AndroidOutlined::SubdirectoryArrowRight,
             self::ChevronRight => AndroidOutlined::ChevronRight,
+            self::ChevronLeft => AndroidOutlined::ChevronLeft,
             self::ChevronDown => AndroidOutlined::ExpandMore,
             self::ArrowUpRight => AndroidOutlined::ArrowOutward,
             self::Pin => AndroidOutlined::PushPin,
