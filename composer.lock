@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "53e0af74fc9e3271140e4406bff0097e",
+    "content-hash": "4c795f7f152e1855d8c1e257076e3f74",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -7445,16 +7445,16 @@
         },
         {
             "name": "victorycodedev/toastkit",
-            "version": "v1.4.0",
+            "version": "dev-fix/android-toasts-above-sheets",
             "source": {
                 "type": "git",
-                "url": "https://github.com/victorycodedev/toastkit.git",
-                "reference": "2f1ffeca2c9ff853e656311fc82dd0f238d01538"
+                "url": "https://github.com/simonhamp/toastkit.git",
+                "reference": "30f7c15d4b0f7641490eeee3e8a5213054ec9dbe"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/victorycodedev/toastkit/zipball/2f1ffeca2c9ff853e656311fc82dd0f238d01538",
-                "reference": "2f1ffeca2c9ff853e656311fc82dd0f238d01538",
+                "url": "https://api.github.com/repos/simonhamp/toastkit/zipball/30f7c15d4b0f7641490eeee3e8a5213054ec9dbe",
+                "reference": "30f7c15d4b0f7641490eeee3e8a5213054ec9dbe",
                 "shasum": ""
             },
             "require": {
@@ -7480,7 +7480,11 @@
                     "Victorycodedev\\ToastKit\\": "src/"
                 }
             },
-            "notification-url": "https://packagist.org/downloads/",
+            "scripts": {
+                "test": [
+                    "@php vendor/bin/pest --configuration phpunit.xml.dist"
+                ]
+            },
             "license": [
                 "MIT"
             ],
@@ -7502,7 +7506,7 @@
                 "issues": "https://github.com/victorycodedev/toastkit/issues",
                 "source": "https://github.com/victorycodedev/toastkit"
             },
-            "time": "2026-10-21T19:57:09+00:00"
+            "time": "2026-10-25T03:45:04+00:00"
         },
         {
             "name": "vlucas/phpdotenv",
@@ -11202,12 +11206,19 @@
             "version": "dev-main",
             "alias": "0.8.0",
             "alias_normalized": "0.8.0.0"
+        },
+        {
+            "package": "victorycodedev/toastkit",
+            "version": "dev-fix/android-toasts-above-sheets",
+            "alias": "1.4.0",
+            "alias_normalized": "1.4.0.0"
         }
     ],
     "minimum-stability": "stable",
     "stability-flags": {
         "nativephp/mobile": 20,
-        "nativephp/mobile-ui": 20
+        "nativephp/mobile-ui": 20,
+        "victorycodedev/toastkit": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,
