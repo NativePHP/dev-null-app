@@ -49,9 +49,10 @@ use Native\Mobile\Events\Async\AsyncTaskFinished;
  *
  * It opens on the log as it was last time, then asks devnull again in the
  * background, and every 30 seconds while it's showing, as the web polls.
- * A pull to refresh, and the re-tap of the Log tab that does the same, says
- * it's waiting with the chip under the pager's tabs (see
- * partials/refreshing), which those quiet asks never do. Commits newer than
+ * Only a re-tap of the Log tab says it's waiting, with the chip under the
+ * pager's tabs (see partials/refreshing): a pull to refresh has the list's
+ * own spinner in your hand, and those quiet asks never say so either.
+ * Commits newer than
  * anything showing wait at the top of the list in the new
  * commits pill (see HoldsNewCommits), which says how many devnull counted
  * since the newest one showing (?since=). Scrolled down, it pins under the tabs.
@@ -366,7 +367,7 @@ class Log extends NativeComponent
         $this->replacedList();
         $this->lastVisitAt = $this->lastVisitSeenAt();
         $this->showKept();
-        $this->open(feedback: true);
+        $this->open();
     }
 
     /**
@@ -402,19 +403,20 @@ class Log extends NativeComponent
 
     /**
      * Pull to refresh, and the re-tap of the Log tab that does the same. You're
-     * at the top, so anything new goes straight in. It says it's waiting (the
-     * refresh carries feedback), as a pull says it with the list in your hand.
+     * at the top, so anything new goes straight in. A pull stays quiet — the
+     * list's own spinner, in your hand, says it — so only the re-tap asks with
+     * $feedback, for the chip (see partials/refreshing) the pull never shows.
      */
-    public function load(): void
+    public function load(bool $feedback = false): void
     {
         if ($this->isRanked()) {
-            $this->rank(feedback: true);
+            $this->rank(feedback: $feedback);
 
             return;
         }
 
         $log = $this->log;
-        $this->refresh('log/'.$log, [], fn (array $json) => $this->takeFresh($log, $json, showNewer: true), again: true, feedback: true);
+        $this->refresh('log/'.$log, [], fn (array $json) => $this->takeFresh($log, $json, showNewer: true), again: true, feedback: $feedback);
         $this->refreshThreads();
         $this->refreshUnreadNotifications();
     }
@@ -423,11 +425,12 @@ class Log extends NativeComponent
      * A re-tap of the Log tab at the bottom, which the tab bar only sends once
      * the log you're on is back at its top (it scrolls the list there itself
      * when it isn't): pull the log to refresh, as the web's tab does. Keeps
-     * the log you're on and its list where they are.
+     * the log you're on and its list where they are. Unlike a pull, it says
+     * it's waiting (feedback), there being nothing in your hand that does.
      */
     public function refreshLog(): void
     {
-        $this->load();
+        $this->load(feedback: true);
     }
 
     /**

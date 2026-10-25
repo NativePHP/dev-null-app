@@ -1,9 +1,10 @@
 {{--
-    The refresh a re-tap of the Log tab or a pull started, still out: a quiet
-    chip in the pager's overlay that says the log is being fetched again, to
-    the eye and to a screen reader, until the answer lands or fails (the
-    refreshes that owe this are counted in RefreshesInBackground; the quiet
-    ones the poll and a resume make never show here).
+    The refresh a re-tap of the Log tab started, still out: a quiet chip in
+    the pager's overlay that says the log is being fetched again, to the eye
+    and to a screen reader, until the answer lands or fails (the refreshes
+    that owe this are counted in RefreshesInBackground; the quiet ones the
+    poll, a resume, a next page, a pull to refresh and a switch of logs make
+    never show here — the pull has the list's own spinner).
 
     Its slot is always in the overlay, hidden until there's something to
     show, so the pager and its lists keep their shape when it comes and goes

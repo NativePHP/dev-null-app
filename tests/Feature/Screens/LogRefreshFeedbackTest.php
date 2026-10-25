@@ -26,7 +26,9 @@ use Native\Mobile\Testing\TestableComponent;
 | The refresh says it's waiting: a chip under the pager's tabs (see
 | partials/refreshing) from the moment of the press until the answer lands
 | or fails, without disturbing the log, its list or where you are. The
-| quiet asks — the poll, a resume, the next page — never say so.
+| quiet asks — the poll, a resume, the next page, a pull to refresh, a
+| switch of logs — never say so: the pull has the list's own spinner in
+| your hand, and a switch's opening says itself.
 |
 | These are the PHP half of the story. What they cannot reproduce is the
 | device's own: whether Android's tab bar still sends the reselect once the
@@ -251,6 +253,118 @@ it('says the log is being refreshed, to the eye and to a screen reader, while a 
     $screen->assertSee('Retapped in')->assertSee('Kept row');
 })->with(Log::Logs);
 
+it('keeps a switch of logs quiet, its opening saying itself and never the re-tap chip', function (string $log) {
+    holdRefreshes();
+    keep("log/{$log}", feedbackPage($log, [commitJson(['id' => 'k1', 'body' => 'Kept row'])]));
+    serveFeedbackFeeds([
+        'log/following' => [
+            feedbackPage('following', [commitJson(['id' => 'c1', 'body' => 'Kept on Following'])]),
+        ],
+        "log/{$log}" => [
+            feedbackPage($log, [commitJson(['id' => 'n1', 'body' => 'Switched in']), commitJson(['id' => 'k1', 'body' => 'Kept row'])]),
+        ],
+    ]);
+
+    $screen = finishRefreshes(Native::visit('/log', platform: 'android'))->assertSee('Kept on Following');
+
+    $asks = feedbackAsks($log);
+
+    // The pager settling on another log: what was kept for it opens at once
+    // and devnull is asked again — quietly, the kept rows saying the opening
+    // as the re-tap chip never may.
+    $screen = tapLogTab($screen, $log);
+
+    expect(refreshFeedback($screen))->toBeNull('A switch of logs put up the re-tap refresh chip.')
+        ->and($screen->get('log'))->toBe($log);
+
+    $screen->assertSee('Kept row');
+
+    finishRefreshes($screen);
+
+    // The ask went out and landed quietly. Trending is ranked afresh, so its
+    // rows go straight in; a feed's newer rows wait for the pill, as ever.
+    expect(refreshFeedback($screen))->toBeNull()
+        ->and(feedbackAsks($log))->toBe($asks + 1)
+        ->and($screen->get('log'))->toBe($log);
+
+    $screen->assertSee('Kept row');
+})->with(['latest', 'trending']);
+
+it('keeps a pull to refresh quiet, the list\'s own spinner saying it instead', function (string $log) {
+    holdRefreshes();
+    serveFeedbackFeeds([
+        'log/following' => [
+            feedbackPage('following', [commitJson(['id' => 'c1', 'body' => 'Kept row'])]),
+            feedbackPage('following', [commitJson(['id' => 'c2', 'body' => 'Pulled in']), commitJson(['id' => 'c1', 'body' => 'Kept row'])]),
+        ],
+        'log/latest' => [
+            feedbackPage('latest', [commitJson(['id' => 'l1', 'body' => 'Kept row'])]),
+            feedbackPage('latest', [commitJson(['id' => 'l2', 'body' => 'Pulled in']), commitJson(['id' => 'l1', 'body' => 'Kept row'])]),
+        ],
+        'log/trending' => [
+            feedbackPage('trending', [commitJson(['id' => 't1', 'body' => 'Kept row'])]),
+            feedbackPage('trending', [commitJson(['id' => 't2', 'body' => 'Pulled in']), commitJson(['id' => 't1', 'body' => 'Kept row'])]),
+        ],
+    ]);
+
+    $screen = finishRefreshes(Native::visit('/log', platform: 'android'));
+    $screen = finishRefreshes(tapLogTab($screen, $log))->assertSee('Kept row');
+
+    $asks = feedbackAsks($log);
+
+    // The pull, as the list sends it with its own spinner in your hand: the
+    // ask still goes out, but the chip is the re-tap's alone.
+    $screen->call('load');
+
+    expect(refreshFeedback($screen))->toBeNull('A pull to refresh put up the re-tap refresh chip.');
+
+    finishRefreshes($screen);
+
+    expect(refreshFeedback($screen))->toBeNull()
+        ->and(feedbackAsks($log))->toBe($asks + 1);
+
+    $screen->assertSee('Pulled in')->assertSee('Kept row');
+})->with(Log::Logs);
+
+it('keeps the asks quiet on iOS, where the tab bar never sends a re-tap at all', function () {
+    holdRefreshes();
+    keep('log/latest', feedbackPage('latest', [commitJson(['id' => 'l1', 'body' => 'Kept on Latest'])]));
+    serveFeedbackFeeds([
+        'log/following' => [
+            feedbackPage('following', [commitJson(['id' => 'c1', 'body' => 'Kept on Following'])]),
+        ],
+        'log/latest' => [
+            feedbackPage('latest', [commitJson(['id' => 'l2', 'body' => 'Switched in']), commitJson(['id' => 'l1', 'body' => 'Kept on Latest'])]),
+            feedbackPage('latest', [commitJson(['id' => 'l3', 'body' => 'Pulled in']), commitJson(['id' => 'l2', 'body' => 'Switched in'])]),
+        ],
+    ]);
+
+    $screen = finishRefreshes(Native::visit('/log', platform: 'ios'))->assertSee('Kept on Following');
+
+    // A switch and a pull, the same asks as Android's: on the platform with
+    // no reselect to carry the chip, nothing may put it up.
+    $screen = tapLogTab($screen, 'latest');
+
+    expect(refreshFeedback($screen))->toBeNull('A switch of logs put up the re-tap refresh chip.');
+
+    finishRefreshes($screen);
+
+    // The feed's newer rows wait for the pill, as ever — quietly either way.
+    expect(refreshFeedback($screen))->toBeNull();
+
+    $screen->assertSee('Kept on Latest');
+
+    $screen->call('load');
+
+    expect(refreshFeedback($screen))->toBeNull('A pull to refresh put up the re-tap refresh chip.');
+
+    finishRefreshes($screen);
+
+    expect(refreshFeedback($screen))->toBeNull();
+
+    $screen->assertSee('Pulled in');
+});
+
 it('keeps the log, its list and its rows where they are while the re-tap refresh is answered, and lays the fresh rows in place', function () {
     holdRefreshes();
     serveFeedbackFeeds([
@@ -364,7 +478,8 @@ it('keeps the feedback for the log you switched to while the log you left is sti
             feedbackPage('following', [commitJson(['id' => 'c2', 'body' => 'Late from following'])]),
         ],
         'log/latest' => [
-            feedbackPage('latest', [commitJson(['id' => 'l1', 'body' => 'Latest landed'])]),
+            feedbackPage('latest', [commitJson(['id' => 'l1', 'body' => 'Kept on Latest'])]),
+            feedbackPage('latest', [commitJson(['id' => 'l2', 'body' => 'Latest landed']), commitJson(['id' => 'l1', 'body' => 'Kept on Latest'])]),
         ],
     ]);
 
@@ -373,9 +488,13 @@ it('keeps the feedback for the log you switched to while the log you left is sti
     // A re-tap refresh of Following, then away to Latest before it answers.
     $screen->fireEvent('refreshLog', TestableComponent::EVENT_PRESS);
 
-    expect(refreshFeedback($screen))->not->toBeNull('Nothing on the Log says a re-tap refresh is under way.');
-
+    // The switch stays quiet; a re-tap on Latest owns its own feedback while
+    // Following's earlier answer is still out.
     tapLogTab($screen, 'latest')->assertSee('Kept on Latest');
+
+    $screen->fireEvent('refreshLog', TestableComponent::EVENT_PRESS);
+
+    expect(refreshFeedback($screen))->not->toBeNull('Nothing on the Log says a re-tap refresh is under way.');
 
     // Following's answer lands first, stale now that you've left: an answer
     // for a log nobody is on must not settle the refresh that's showing.
