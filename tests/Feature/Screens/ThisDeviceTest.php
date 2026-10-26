@@ -111,7 +111,7 @@ it('deletes your account on devnull, then signs out to onboarding', function () 
     Native::visit('/profile/device')
         ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Delete', 'id' => 'delete-account'])
         ->assertNativeCalled('SecureStorage.Delete', fn (array $params): bool => $params['key'] === DeviceKey::StorageKey)
-        ->assertNativeNotCalled('Dialog.Toast')
+        ->assertNativeNotCalled('ToastKit.Show')
         ->assertReplacedWith('/onboarding');
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'

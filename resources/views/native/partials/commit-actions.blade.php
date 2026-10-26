@@ -7,8 +7,8 @@
     on Android, see CommitMenu for what's in it). Tapping More only opens the menu.
 
     Reply opens the commit with its reply composer focused. In a feed ($expandable) the replies link opens the thread in
-    place, as on the web; elsewhere it opens the commit. Like the web, someone else's commit that isn't approved gets no
-    star or Quote. Your own commits can be starred too, including ones waiting for approval.
+    place, as on the web; elsewhere it opens the commit with its replies showing. Like the web, someone else's commit
+    that isn't approved gets no star or Quote. Your own commits can be starred too, including ones waiting for approval.
 
     Quote opens a sheet to write the quote in, over the commit being quoted (see commit-sheet).
 
@@ -38,7 +38,7 @@
 @php($compact ??= false)
 @php($expandable ??= isset($threads))
 @php($isOpen = $repliesOpen ?? ($expandable && array_key_exists($commit->id, $threads)))
-@php($repliesPress = $repliesToggle ?? ($expandable ? "toggleReplies('{$commit->id}')" : "openCommit('{$commit->id}')"))
+@php($repliesPress = $repliesToggle ?? ($expandable ? "toggleReplies('{$commit->id}')" : "openReplies('{$commit->id}')"))
 @php($repliesCount ??= $commit->repliesCount)
 @php($iconSize = $compact ? 14 : 16)
 @php($labelSize = $compact ? 'text-xs' : 'text-[13px]')

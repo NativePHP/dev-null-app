@@ -40,6 +40,7 @@ class Starred extends NativeComponent
     use RefreshesInBackground;
     use ShowsCommits {
         toggleStar as private toggleShownStar;
+        showStar as private showShownStar;
     }
     use TalksToDevnull;
 
@@ -123,8 +124,9 @@ class Starred extends NativeComponent
 
     /**
      * Stars or unstars straight away, as anywhere else. A commit you unstarred
-     * leaves the list once devnull says so. When it was the last one showing
-     * and there are more, the list starts again from the top, as on the web.
+     * leaves the list at once, and comes back if devnull turns the unstar down
+     * (see showStar()). When it was the last one showing and there are more,
+     * the list starts again from the top, as on the web.
      */
     public function toggleStar(string $id): void
     {
@@ -144,6 +146,20 @@ class Starred extends NativeComponent
             $this->nextCursor = null;
             $this->loaded = false;
             $this->load();
+        }
+    }
+
+    /**
+     * An unstar devnull turned down: the commit comes back into the list, from
+     * the kept copy the star went back on, then as devnull lists it.
+     */
+    protected function showStar(string $id, bool $starred, ?Commit $fresh = null): void
+    {
+        $this->showShownStar($id, $starred, $fresh);
+
+        if ($starred && $fresh === null && $this->shownCommit($id) === null) {
+            $this->showKept();
+            $this->revalidate();
         }
     }
 

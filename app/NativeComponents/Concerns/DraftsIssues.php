@@ -6,9 +6,9 @@ use App\Devnull\Client;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\IssueCommand;
 use App\Devnull\Stash;
+use App\Devnull\Toasts;
 use Illuminate\Support\Facades\Cache;
 use Native\Mobile\Facades\Browser;
-use Native\Mobile\Facades\Dialog;
 
 /**
  * The web's `/feature` and `/bug` commands, in the compose sheet (see
@@ -37,7 +37,8 @@ use Native\Mobile\Facades\Dialog;
  * Opening the issue waits on GitHub, so it's sent in the background while the
  * button spins (see WritesInBackground). Once it's open the draft goes, and
  * the sheet says "Opened issue #123." with View issue, as the web's toast
- * does. When it isn't, the draft stays an issue, with why under it: devnull's
+ * does, or a toast does, with View issue as its button, if the sheet was
+ * swiped away by then (see SyncsOutbox::toastActionPressed()). When it isn't, the draft stays an issue, with why under it: devnull's
  * own words when it sends them, else the web's, which say to check upstream
  * when the issue might have been opened anyway.
  */
@@ -131,11 +132,12 @@ trait DraftsIssues
 
         $this->writeInBackground('POST', Client::IssuesPath, ['command' => $command->command(), 'body' => $body], function (array $json): void {
             $number = is_int($json['number'] ?? null) ? $json['number'] : null;
+            $url = is_string($json['url'] ?? null) ? $json['url'] : null;
             app(Stash::class)->put($this->me()?->id, 'commit', '');
 
-            // Swiped away while it was on its way, so a toast says it, without View issue.
+            // Swiped away while it was on its way, so a toast says it, with View issue as its button.
             if (! $this->sheetOpen) {
-                Dialog::toast("Opened issue #{$number}.");
+                Toasts::done("Opened issue #{$number}.", $url === null ? null : ['label' => 'View issue', 'id' => 'view-issue', 'data' => ['url' => $url]]);
 
                 return;
             }
@@ -144,7 +146,7 @@ trait DraftsIssues
             $this->sheetBody = '';
             $this->sheetRestored = false;
             $this->openedIssueNumber = $number;
-            $this->openedIssueUrl = is_string($json['url'] ?? null) ? $json['url'] : null;
+            $this->openedIssueUrl = $url;
             $this->sheetView = 'issued';
         }, function (string $message, ?ApiException $exception = null): void {
             $this->openingIssue = false;

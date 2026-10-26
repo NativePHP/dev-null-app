@@ -87,7 +87,7 @@ it('spins Vote while the vote goes, and says why devnull turned it down, keeping
 
     expect(nodeByRef($screen, 'poll-vote-c1')['props'])->toMatchArray(['loading' => true, 'disabled' => true]);
 
-    finishRefreshes($screen)->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === 'This poll has closed.');
+    finishRefreshes($screen)->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'This poll has closed.');
 
     expect(nodeByRef($screen, 'poll-vote-c1')['props'])->not->toHaveKey('loading')
         ->and($screen->instance()->pollChoices)->toBe(['c1' => 'o1']);

@@ -20,7 +20,6 @@ To make that instance work with the app on your phone, create a tunnel (ngrok, C
 
 These are the next things we want in the app. If you'd like to take one on, read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
-- A native image viewer, instead of opening images in a browser sheet
 - Styling for livestreams
 - Search
 - A notifications centre that matches the web

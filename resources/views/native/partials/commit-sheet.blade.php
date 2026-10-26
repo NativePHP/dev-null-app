@@ -5,7 +5,8 @@
     bar, the same on both platforms (see sheet-bar-button), 16pt in from the sheet's top and sides. On Android the bar
     sits under Material's handle strip, since mobile-ui has no way yet to draw the handle over the content. The title is
     centred.
-    Cancel closes it as a swipe does, keeping the draft. If devnull says no, why shows here and the draft stays. The
+    Cancel closes it as a swipe does, keeping the draft. Commit closes it at once, and the commit goes from the outbox
+    (see SyncsOutbox). If devnull says no, a toast says why and the draft comes back in the sheet. The
     Log's compose button opens the same composer for a new commit, without the card. A draft stashed last time comes
     back in it, with the web's stash@{0} and drop beside the counter, in the toolbar at the bottom.
 
@@ -29,8 +30,12 @@
 
     It's full height for the forms, and short for the receipts. It's always on the screen, shown or not, so iOS can
     slide it away and say when it's gone.
+
+    The sheet and its field are keyed, so nothing drawn above the field (Commit turning on, the issue badge, a banner
+    behind the sheet) gives it a new id. iOS and Android would build a new field for a new id, and the keyboard would
+    go down with the old one.
 --}}
-<native:bottom-sheet ref="sheet" :visible="$sheetOpen" :detents="in_array($sheetView, ['reported', 'issued'], true) ? '0.3' : 'large'" @dismiss="commitSheetClosed">
+<native:bottom-sheet native:key="commit-sheet" ref="sheet" :visible="$sheetOpen" :detents="in_array($sheetView, ['reported', 'issued'], true) ? '0.3' : 'large'" @dismiss="commitSheetClosed">
     @if ($sheetCommit || in_array($sheetView, ['compose', 'issued'], true))
         @if (in_array($sheetView, ['quote', 'compose', 'reply'], true))
             @php($quoting = $sheetView === 'quote')
@@ -44,7 +49,7 @@
                     @if ($issueCommand)
                         @include('native.partials.sheet-bar-button', ['ref' => 'sheet-open-issue', 'icon' => \App\Icons\Lucide::Check, 'label' => 'Open issue', 'main' => true, 'loading' => $openingIssue, 'press' => $openingIssue || ! \App\Devnull\IssueCommand::fits($sheetBody) ? null : 'openIssueFromSheet'])
                     @else
-                        @include('native.partials.sheet-bar-button', ['ref' => 'sheet-commit', 'icon' => \App\Icons\Lucide::Check, 'label' => $replying ? 'Reply' : 'Commit', 'main' => true, 'loading' => $sheetPosting, 'press' => $sheetPosting || ! $canCommit ? null : 'commitFromSheet'])
+                        @include('native.partials.sheet-bar-button', ['ref' => 'sheet-commit', 'icon' => \App\Icons\Lucide::Check, 'label' => $replying ? 'Reply' : 'Commit', 'main' => true, 'press' => $canCommit ? 'commitFromSheet' : null])
                     @endif
                 </native:row>
                 <native:column class="w-full h-[1] bg-theme-hairline" />
@@ -66,6 +71,7 @@
                             @include('native.partials.composer-preview')
                         @else
                             <native:bare-text-input
+                                native:key="sheet-body"
                                 ref="sheet-body"
                                 class="w-full text-theme-ink"
                                 :placeholder="$issueCommand?->placeholder() ?? match (true) { $quoting => 'Add your take', $replying => 'Reply to '.$sheetCommit->author->handle(), default => 'What did you ship?' }"
@@ -176,3 +182,5 @@
         @endif
     @endif
 </native:bottom-sheet>
+
+@include('native.partials.image-viewer')

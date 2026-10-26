@@ -698,6 +698,28 @@ function findNodes(array $node, callable $matches): array
 }
 
 /**
+ * The ids of every node from the root down to the one with the given ref. iOS and Android know a view by its id at
+ * each level, so a new id anywhere on the way down builds a new field, and the keyboard goes with the old one.
+ *
+ * @param  array<string, mixed>  $node
+ * @return list<int>|null
+ */
+function idsDownTo(array $node, string $ref): ?array
+{
+    if (($node['ref'] ?? null) === $ref) {
+        return [$node['id']];
+    }
+
+    foreach ($node['children'] ?? [] as $child) {
+        if (($ids = idsDownTo($child, $ref)) !== null) {
+            return [$node['id'], ...$ids];
+        }
+    }
+
+    return null;
+}
+
+/**
  * The rendered node with the given ref.
  *
  * @return array<string, mixed>

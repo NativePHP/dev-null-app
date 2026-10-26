@@ -97,6 +97,12 @@ final readonly class Client
      */
     public const string IssuesPath = 'issues';
 
+    /**
+     * How many replies the app asks for at a time. devnull sends 50 a page
+     * unless it's asked for fewer, and the app never asks for more than this.
+     */
+    public const int RepliesPerPage = 5;
+
     public function __construct(private DeviceKey $deviceKey, private string $baseUrl, private ResponseCache $cache) {}
 
     /**
@@ -233,6 +239,17 @@ final readonly class Client
         $this->cache->commitAdded($commit);
 
         return Commit::fromArray($commit);
+    }
+
+    /**
+     * Signs a commit without sending it, for the outbox to send from the
+     * background, as createCommit() would send it (see Outbox).
+     *
+     * @param  array{options: list<string>, duration: int}|null  $poll
+     */
+    public function signedCommit(string $body, ?string $parentId = null, ?string $quotedCommitId = null, ?array $poll = null): SignedRequest
+    {
+        return $this->signedWrite('POST', 'commits', self::commitPayload($body, $parentId, $quotedCommitId, poll: $poll));
     }
 
     /**
@@ -530,7 +547,7 @@ final readonly class Client
      */
     public function signedGet(string $path, array $query = []): SignedRequest
     {
-        $target = $this->target($path, $query);
+        $target = $this->target($path, self::paged($path, $query));
 
         return new SignedRequest($this->origin().$target, $this->sign('GET', $target, ''));
     }
@@ -575,7 +592,7 @@ final readonly class Client
      */
     private function get(string $path, array $query = []): array
     {
-        $json = $this->json($this->send('GET', $path, $query));
+        $json = $this->json($this->send('GET', $path, self::paged($path, $query)));
         $this->cache->put($path, $query, $json);
         ImageCache::prefetch($json);
 
@@ -688,6 +705,19 @@ final readonly class Client
     {
         return (new RequestSigner($this->deviceKey->current()))
             ->headers($method, $target, $body, CarbonImmutable::now()->getTimestamp(), RequestSigner::nonce(), $namespace);
+    }
+
+    /**
+     * A GET's query with the page size the app asks for: a page of replies
+     * holds RepliesPerPage. The size isn't part of what the answer's kept
+     * under, as every page of replies has it.
+     *
+     * @param  array<string, string|null>  $query
+     * @return array<string, string|null>
+     */
+    private static function paged(string $path, array $query): array
+    {
+        return preg_match('#^commits/[^/]+/replies$#', $path) === 1 ? [...$query, 'limit' => (string) self::RepliesPerPage] : $query;
     }
 
     /**

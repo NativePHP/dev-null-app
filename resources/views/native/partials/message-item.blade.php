@@ -63,11 +63,11 @@
                 @endif
                 @if ($message->isPending())
                     <native:column ref="bubble-{{ $key }}" class="flex-shrink px-3 py-2 rounded-2xl {{ $message->status === 'rejected' ? 'border border-theme-destructive bg-theme-surface' : 'bg-theme-'.$myColour.'/60' }}">
-                        @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour])
+                        @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour, 'quoteRule' => $message->status === 'rejected' ? 'border-theme-lane-5' : 'border-theme-on-'.$myColour])
                     </native:column>
                 @else
                     <native:column ref="bubble-{{ $key }}" class="flex-shrink px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}" @press="toggleActions({{ $message->id }})" @doubleTap="heart({{ $message->id }})" a11y-hint="Tap for React and Reply">
-                        @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary'])
+                        @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary', 'quoteRule' => $mine ? 'border-theme-on-'.$myColour : 'border-theme-lane-5'])
                     </native:column>
                 @endif
                 @if (! $mine)

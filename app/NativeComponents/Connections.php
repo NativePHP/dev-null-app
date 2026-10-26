@@ -10,6 +10,7 @@ use App\Devnull\Exceptions\ApiException;
 use App\Devnull\FreshPage;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
@@ -33,6 +34,7 @@ class Connections extends NativeComponent
 {
     use OpensInTab;
     use RefreshesInBackground;
+    use SyncsOutbox;
     use TalksToDevnull;
 
     public const array Types = ['followers', 'following'];

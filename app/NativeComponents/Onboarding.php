@@ -27,7 +27,7 @@ use SensitiveParameter;
  * shows above the buttons only after an attempt goes wrong. When a 401 or a
  * lost key sends someone here, the reason isn't shown: the buttons are enough.
  *
- * Sign in with GitHub opens dev-null.sh in the system's auth browser, which
+ * Sign in on dev-null.sh opens it in the system's auth browser, which
  * shares Safari's cookies, so someone already signed in there only taps
  * Approve. dev-null.sh sends the browser back to devnull://auth/callback with
  * a code, and the app trades it for the user with a signed request, proving
@@ -49,7 +49,7 @@ class Onboarding extends NativeComponent
 
     /**
      * Kept apart from $error, so a failed Apple sign-in doesn't turn the
-     * GitHub button into "Try again".
+     * dev-null.sh button into "Try again".
      */
     public ?string $appleError = null;
 

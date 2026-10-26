@@ -82,7 +82,7 @@ it('turns pastéis mode on at once, and every screen gives pastéis from then on
         ->and(app(Account::class)->pasteis()?->left())->toBe(8)
         ->and(kept('me')['data']['pasteis_mode'])->toBeTrue();
 
-    $bridge->assertNotCalled('Dialog.Toast');
+    $bridge->assertNotCalled('ToastKit.Show');
 });
 
 it('turns pastéis mode off, and the pastéis leave the rows', function () {

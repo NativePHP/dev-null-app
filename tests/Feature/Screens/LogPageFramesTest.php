@@ -159,6 +159,24 @@ it('draws the frame a page lands in at the time of the frame before it, so a min
     expect(treeShows(showingLog($screen->call('showRows', 10_000, 10_005)), '6m'))->toBeTrue();
 });
 
+it('keeps the frame as it was while the list moves, times and all, until it comes to rest', function () {
+    $screen = Native::visit('/log');
+    landBackgroundTasks($screen);
+
+    // Near the end, the held page goes in, and the one after it is on its way.
+    $screen->call('showRows', 10_000, 10_005);
+    $drawn = $screen->tree();
+
+    $this->travel(61)->seconds();
+
+    // Back up the list, with no page here and the rows drawn reaching well past the screen, then the poll.
+    $screen->call('showRows', 0, 5)->firePoll('checkForNewCommits');
+    $unchanged = $screen->tree() === $drawn;
+
+    expect($unchanged)->toBeTrue()
+        ->and(treeShows(showingLog($screen->call('scrollEnded', 0, 5)), '6m'))->toBeTrue();
+});
+
 it('still brings the times up to date on the poll, with nothing new to show', function () {
     $screen = Native::visit('/log');
     landBackgroundTasks($screen);

@@ -18,6 +18,12 @@ use Native\Mobile\UI\Elements\ListPlaceholder;
  * The list says which of its rows are on screen as you scroll, by position. A
  * commit coming in above moves every position, so the window holds on to the
  * timeline rows' keys instead, and finds them again in each frame.
+ *
+ * While the list is still moving, the rows drawn stay where they are until the
+ * screen comes near the end of them (see nearsEdge()), since every frame that
+ * changes costs the phone a pass over the list, and one landing mid-fling is
+ * what makes it stutter. They're drawn around the screen again when a frame
+ * goes anyway, and when the list comes to rest.
  */
 final class RowWindow
 {
@@ -38,6 +44,13 @@ final class RowWindow
     public const int Behind = 100;
 
     /**
+     * How near the end of the rows drawn the screen comes, mid-scroll, before
+     * they're drawn around it again. The list reports every 20 rows, and a
+     * fling carries on past the report while its frame is on the way.
+     */
+    public const int Reserve = 50;
+
+    /**
      * The keys of the first and last timeline rows on screen. Null is the top.
      */
     private ?string $firstShown = null;
@@ -55,6 +68,23 @@ final class RowWindow
      * Whether you last scrolled up the feed, towards newer rows.
      */
     private bool $scrollingUp = false;
+
+    /**
+     * The keys of the first and last timeline rows on screen when the rows
+     * drawn were last drawn around it, and the way you were scrolling then.
+     */
+    private ?string $drawnAroundFirst = null;
+
+    private ?string $drawnAroundLast = null;
+
+    private bool $drawnScrollingUp = false;
+
+    /**
+     * Where those rows are in this frame's timeline.
+     */
+    private int $aroundFirst = 0;
+
+    private int $aroundLast = 0;
 
     private ?int $listKey = null;
 
@@ -95,9 +125,9 @@ final class RowWindow
     {
         if ($listKey !== $this->listKey) {
             $this->listKey = $listKey;
-            $this->firstShown = $this->lastShown = null;
-            $this->first = $this->last = 0;
-            $this->scrollingUp = false;
+            $this->firstShown = $this->lastShown = $this->drawnAroundFirst = $this->drawnAroundLast = null;
+            $this->first = $this->last = $this->aroundFirst = $this->aroundLast = 0;
+            $this->scrollingUp = $this->drawnScrollingUp = false;
         }
 
         $this->keys = array_map(self::key(...), $rows);
@@ -107,6 +137,8 @@ final class RowWindow
         // A row that's gone since keeps its place.
         $this->first = min($this->firstShown === null ? 0 : $positions[$this->firstShown] ?? $this->first, $lastRow);
         $this->last = max($this->first, min($this->lastShown === null ? 0 : $positions[$this->lastShown] ?? $this->last, $lastRow));
+        $this->aroundFirst = min($this->drawnAroundFirst === null ? 0 : $positions[$this->drawnAroundFirst] ?? $this->aroundFirst, $lastRow);
+        $this->aroundLast = max($this->aroundFirst, min($this->drawnAroundLast === null ? 0 : $positions[$this->drawnAroundLast] ?? $this->aroundLast, $lastRow));
 
         $this->listRows = [];
         $this->placeholders = array_intersect_key($this->placeholders, $this->drawnPlaceholders);
@@ -124,9 +156,7 @@ final class RowWindow
     {
         array_push($this->listRows, ...array_fill(0, $listRows, $index));
 
-        return $index < self::Top
-            || ($index >= $this->first - ($this->scrollingUp ? self::Ahead : self::Behind)
-                && $index <= $this->last + ($this->scrollingUp ? self::Behind : self::Ahead));
+        return $index < self::Top || ($index >= $this->drawnFrom() && $index <= $this->drawnTo());
     }
 
     /**
@@ -140,7 +170,8 @@ final class RowWindow
     }
 
     /**
-     * The rows on screen, by their positions in the list as last drawn.
+     * The rows on screen, by their positions in the list as last drawn. The
+     * rows drawn stay where they are until drawAroundScreen().
      */
     public function show(int $first, int $last): void
     {
@@ -157,6 +188,29 @@ final class RowWindow
     }
 
     /**
+     * Draws the rows around the ones on screen, from the next frame on.
+     */
+    public function drawAroundScreen(): void
+    {
+        $this->drawnAroundFirst = $this->firstShown;
+        $this->drawnAroundLast = $this->lastShown;
+        $this->aroundFirst = $this->first;
+        $this->aroundLast = $this->last;
+        $this->drawnScrollingUp = $this->scrollingUp;
+    }
+
+    /**
+     * Whether the screen has come within Reserve rows of either end of the
+     * rows drawn, short of the top rows and the end of the feed, which are
+     * there however far it goes.
+     */
+    public function nearsEdge(): bool
+    {
+        return ($this->last > $this->drawnTo() - self::Reserve && $this->drawnTo() < count($this->keys) - 1)
+            || ($this->first < $this->drawnFrom() + self::Reserve && $this->drawnFrom() > self::Top);
+    }
+
+    /**
      * How many timeline rows sit below the last one on screen, so a screen can
      * tell how near the end you are before the list says you reached it. A
      * commit and its thread replies count as one.
@@ -164,6 +218,19 @@ final class RowWindow
     public function rowsBelowScreen(): int
     {
         return max(0, count($this->keys) - 1 - $this->last);
+    }
+
+    /**
+     * The first and last timeline rows drawn past the top ones.
+     */
+    private function drawnFrom(): int
+    {
+        return $this->aroundFirst - ($this->drawnScrollingUp ? self::Ahead : self::Behind);
+    }
+
+    private function drawnTo(): int
+    {
+        return $this->aroundLast + ($this->drawnScrollingUp ? self::Behind : self::Ahead);
     }
 
     /**
