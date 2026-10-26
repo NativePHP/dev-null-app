@@ -4,7 +4,10 @@ namespace App\Devnull\Data;
 
 /**
  * Turns a commit's `body_segments` into blocks to draw, the way the web's
- * CommitBody does.
+ * CommitBody does: prose (with URLs and mentions linked, hex colors beside a
+ * swatch, and `/dev/null` as the wordmark) and inline code flow together in
+ * paragraphs, lines that start with `>` group into quotes, and fenced code
+ * blocks stand on their own.
  *
  * Mention and color offsets count code points into the whole body, but segments aren't
  * exact slices of it: inline code loses its backticks, a block its fences, and
@@ -190,7 +193,7 @@ final class CommitBody
         $quoted = false;
 
         foreach ($runs as $run) {
-            $prose = ! $run->isMention() && ! $run->isCode && ! $run->isWordmark && $run->link === null;
+            $prose = ! $run->isMention() && ! $run->isCode && ! $run->isWordmark && $run->link === null && ! $run->isColor();
 
             $lines = $prose
                 ? array_map(fn (string $text): BodyRun => new BodyRun($text), preg_split('/(?<=\n)/', $run->text, flags: PREG_SPLIT_NO_EMPTY) ?: [])

@@ -1,7 +1,9 @@
 {{--
     A message's body, drawn from its segments as a commit's is (see partials/commit-body): prose with tappable
-    mentions, inline code, quotes, and hex colors beside their swatch, and fenced code as mono text in a box. $ink is the bubble's text colour, so a body
-    on your lane reads in that lane's label colour.
+    mentions and inline code, hex colors beside their swatch, quotes behind a rule on the left, and fenced code as
+    mono text in a box. $ink is the bubble's text colour, so a body on your lane reads in that lane's label colour,
+    and $quoteRule the quote's rule: amber, or the label colour on your lane, as the web's pale rule in your own
+    bubbles.
 --}}
 @foreach ($message->content as $block)
     @if ($block->isCode())
