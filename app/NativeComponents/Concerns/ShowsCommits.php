@@ -120,6 +120,20 @@ trait ShowsCommits
     }
 
     /**
+     * "› N replies" where they can't open in place: the commit's page, with its replies already showing.
+     */
+    public function openReplies(string $id): void
+    {
+        $commit = $this->shownCommit($id);
+
+        if ($commit?->isStaged() === true) {
+            return;
+        }
+
+        $this->openInTab('/commits/'.$id, ['replies' => true, ...($commit === null ? [] : ['commit' => $commit])]);
+    }
+
+    /**
      * Opens a profile with what a row already knows of its author.
      */
     public function openProfile(string $username): void

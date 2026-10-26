@@ -12,14 +12,15 @@
             @endif
 
             {{--
-                The commit is the main thing, at the top: larger, in full ink, with its git date and its replies behind
-                a toggle in its action row. What it replies to waits behind "↑ N earlier commits" above it, since EDGE
-                can't open the page scrolled down to it. Opened, the ancestors, the commit and the rest of its series
-                share one rail, so someone replying to themselves shows their avatar once. The replies hang under it
-                on the thread's dashed lines, with the rail ending in a dot above them. A part of a series with more
-                parts after it has its replies right under it, beside the rail running on, and the later parts follow.
-                Everything around the commit is muted, and still opens its own page. A deleted reply's own replies
-                open in place, one level in, since a deleted commit has no page.
+                The commit is the main thing, near the top: larger, in full ink, with its git date and its replies behind
+                a toggle in its action row. The commit it replies to shows above it, and what that replies to waits
+                behind "↑ N earlier commits", since EDGE can't open the page scrolled down to the commit. Opened, the
+                ancestors, the commit and the rest of its series share one rail, so someone replying to themselves shows
+                their avatar once. The replies hang under it on the thread's dashed lines, with the rail ending in a dot
+                above them, five at a time with "Show more" under the last. A part of a series with more parts after it
+                has its replies right under it, beside the rail running on, and the later parts follow. Everything
+                around the commit is muted, and still opens its own page. A deleted reply's own replies open in place,
+                one level in, five at a time too, since a deleted commit has no page.
             --}}
             @if ($earlierCount > 0)
                 @include('native.partials.earlier-commits', ['count' => $earlierCount, 'lane' => $earlierLane])
@@ -48,6 +49,7 @@
                     @php($railLane = $loop->last ? null : $commit->lane())
                     @foreach ($replies as $index => $threadReply)
                         @php($nested = $tombstoneReplies[$threadReply->id] ?? [])
+                        @php($nestedMore = ($tombstoneCursors[$threadReply->id] ?? null) !== null)
                         @php($hasNext = ! $loop->last || $repliesCursor !== null)
                         @php($replyRow = [
                             'reply' => $threadReply,
@@ -68,13 +70,18 @@
                                 'reply' => $nestedReply,
                                 'lane' => \App\Devnull\Lane::Rail,
                                 'previousLane' => $nestedIndex === 0 ? null : $nested[$nestedIndex - 1]->lane(),
-                                'hasNext' => ! $loop->last,
+                                'hasNext' => ! $loop->last || $nestedMore,
                                 'railLane' => $railLane,
                                 'indent' => 32,
                                 'spine' => $hasNext ? $threadReply->lane() : null,
                                 'muted' => true,
-                                'thread' => $commit,
-                                'more' => $loop->last && $loop->parent->last && $repliesCursor !== null ? 'loadMoreReplies' : null,
+                                'thread' => $nestedMore ? $threadReply : $commit,
+                                'more' => match (true) {
+                                    ! $loop->last => null,
+                                    $nestedMore => "loadMoreTombstoneReplies('{$threadReply->id}')",
+                                    $loop->parent->last && $repliesCursor !== null => 'loadMoreReplies',
+                                    default => null,
+                                },
                                 'last' => $loop->last && $loop->parent->last,
                             ])
                             @php($rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))

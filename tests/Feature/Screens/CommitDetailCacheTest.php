@@ -74,7 +74,6 @@ it('opens from a row on what the row knew, then fills in the replies and what it
     finishRefreshes($commit)
         ->assertSee('A compiler')
         ->assertMissingElement('row', fn (array $node): bool => ($node['ref'] ?? null) === 'loading-replies')
-        ->tap('earlier-commits')
         ->assertSee('The commit it replies to');
 });
 
@@ -144,6 +143,6 @@ it('asks for the replies of a deleted reply opened in place again', function () 
 
     $screen->call('load');
 
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/d1/replies');
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/d1/replies?limit=5');
     $screen->assertSee('Under a deleted reply');
 });

@@ -536,6 +536,26 @@ it('opens a thread in place, as the web does, and closes it again', function () 
     Native::visit('/log')->tap('replies-c2')->tap('thread-reply-r1')->assertNavigatedTo('/log/commits/r1');
 });
 
+it('opens five replies of a thread in place, and the rest on its commit page from Show more', function () {
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c2', 'replies_count' => 7])])],
+        'GET /api/v1/commits/c2/replies' => [pageJson(array_map(fn (int $n): array => replyJson(['id' => "r{$n}", 'parent_id' => 'c2', 'body' => "Reply {$n}"]), range(1, 5)), 'page2', 'http://devnull.test/api/v1/commits/c2/replies')],
+        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'replies_count' => 7]))],
+    ]);
+
+    Native::visit('/log', platform: 'ios')
+        ->tap('replies-c2')
+        ->assertNoNavigation()
+        ->assertSee('Reply 5')
+        ->tap('more-replies-c2')
+        ->assertNavigatedTo('/log/commits/c2')
+        ->follow()
+        ->assertSet('repliesShown', true)
+        ->assertSee('Reply 5');
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/c2/replies?limit=5');
+});
+
 it('closes a thread whose replies have all gone', function () {
     $repliesGone = false;
 

@@ -111,14 +111,8 @@ it('lays the series out in order on a part\'s page, the part in focus', function
     ]);
 
     $screen = Native::visit('/log/commits/p2')
-        // The earlier part waits above, the later one follows.
-        ->assertSee('1 earlier commit')
-        ->assertDontSee('Part 1 of the thread')
-        ->assertSee('Part 3 of the thread');
-
-    expect(threadRows($screen))->toBe(['focused-commit', 'commit-p3']);
-
-    $screen->tap('earlier-commits')
+        // The part before it shows above, as the commit it replies to, and the later one follows.
+        ->assertDontSee('earlier commit')
         ->assertSee('Part 1 of the thread')
         ->assertSee('Part 2 of the thread')
         ->assertSee('Part 3 of the thread')

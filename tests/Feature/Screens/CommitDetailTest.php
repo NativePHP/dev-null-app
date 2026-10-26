@@ -23,59 +23,64 @@ function fakeThread(array $commit = [], array $replies = [], array $extra = []):
     fakeApi([
         'GET /api/v1/commits/c2' => [commitPageJson(
             commitJson(['id' => 'c2', 'parent_id' => 'c1', 'body' => 'The focused commit', ...$commit]),
-            [commitJson(['id' => 'c1', 'body' => 'The parent commit', 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada'])])],
+            [
+                commitJson(['id' => 'c0', 'body' => 'The root commit', 'author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace'])]),
+                commitJson(['id' => 'c1', 'parent_id' => 'c0', 'body' => 'The parent commit', 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada'])]),
+            ],
         )],
         'GET /api/v1/commits/c2/replies' => [pageJson($replies)],
         ...$extra,
     ]);
 }
 
-it('opens on the commit, with its ancestors and replies folded away above and below it', function () {
+it('opens on the commit under its parent, with the older ancestors and the replies folded away', function () {
     fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'author' => userJson(['username' => 'grace', 'name' => 'Grace'])])]);
 
     $screen = Native::visit('/log/commits/c2')
         ->assertNavTitle('Commit')
         ->assertSee('The focused commit')
+        ->assertSee('The parent commit')
         ->assertSee('1 earlier commit')
         ->assertSee('1 reply')
-        ->assertDontSee('The parent commit')
+        ->assertDontSee('The root commit')
         ->assertDontSee('First reply')
         ->assertSee('Reply to @local_dev');
 
-    // The commit comes first, after only the row standing in for what it replies to.
-    expect(childRefs($screen, 'thread-page'))->toBe(['earlier-commits', 'focused-commit', 'reply-bar-clearance']);
+    // The commit comes after the one it replies to, and the row standing in for what that replies to.
+    expect(childRefs($screen, 'thread-page'))->toBe(['earlier-commits', 'commit-c1', 'focused-commit', 'reply-bar-clearance']);
 
     $screen->tap('earlier-commits')
-        ->assertSee('The parent commit')
+        ->assertSee('The root commit')
         ->assertDontSee('1 earlier commit');
 
-    expect(childRefs($screen, 'thread-page'))->toBe(['commit-c1', 'focused-commit', 'reply-bar-clearance']);
+    expect(childRefs($screen, 'thread-page'))->toBe(['commit-c0', 'commit-c1', 'focused-commit', 'reply-bar-clearance']);
 
     $screen->tap('replies-c2')
         ->assertSee('First reply')
         ->assertSee('Hide replies');
 
-    expect(childRefs($screen, 'thread-page'))->toBe(['commit-c1', 'focused-commit', 'thread-reply-r1', 'reply-bar-clearance']);
+    expect(childRefs($screen, 'thread-page'))->toBe(['commit-c0', 'commit-c1', 'focused-commit', 'thread-reply-r1', 'reply-bar-clearance']);
 
     $screen->tap('replies-c2')
         ->assertDontSee('First reply')
         ->assertSee('1 reply');
 });
 
-it('brings the commit back to the top when you tap into the reply bar', function () {
+it('brings the commit back up under its parent when you tap into the reply bar', function () {
     fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'author' => userJson(['username' => 'grace', 'name' => 'Grace'])])]);
 
-    $screen = Native::visit('/log/commits/c2')->tap('earlier-commits')->assertSee('The parent commit');
+    $screen = Native::visit('/log/commits/c2')->tap('earlier-commits')->assertSee('The root commit');
     $before = nodeByRef($screen, 'thread-scroll')['id'];
 
-    // EDGE can't scroll from PHP, so the ancestors fold away and the scroll view mounts again at the top.
+    // EDGE can't scroll from PHP, so the older ancestors fold away and the scroll view mounts again at the top.
     $screen->pressUp('reply-field')
         ->assertSet('earlierShown', false)
         ->assertSet('scrollKey', 1)
         ->assertSee('1 earlier commit')
-        ->assertDontSee('The parent commit');
+        ->assertSee('The parent commit')
+        ->assertDontSee('The root commit');
 
-    expect(childRefs($screen, 'thread-page'))->toBe(['earlier-commits', 'focused-commit', 'reply-bar-clearance'])
+    expect(childRefs($screen, 'thread-page'))->toBe(['earlier-commits', 'commit-c1', 'focused-commit', 'reply-bar-clearance'])
         ->and(nodeByRef($screen, 'thread-scroll')['id'])->not->toBe($before);
 });
 
@@ -86,7 +91,7 @@ it('keeps the reply field the same view while the thread above it changes, so th
     $field = idsDownTo($screen->tree(), 'reply-input');
 
     // Tapping into the bar, which folds the earlier commits away above it.
-    $screen->pressUp('reply-field')->assertDontSee('The parent commit');
+    $screen->pressUp('reply-field')->assertDontSee('The root commit');
     expect(idsDownTo($screen->tree(), 'reply-input'))->toBe($field);
 
     // More of the thread drawn above it.
@@ -99,12 +104,15 @@ it('keeps the reply field the same view while the thread above it changes, so th
         ->and(idsDownTo($screen->tree(), 'reply-input'))->toBe($field);
 });
 
-it('runs the rail from the folded ancestors into the commit, which shows its avatar', function () {
+it('runs the rail from the folded ancestors into the parent, which shows its avatar', function () {
     $ada = userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'lane' => 1]);
     fakeApi([
         'GET /api/v1/commits/c2' => [commitPageJson(
             commitJson(['id' => 'c2', 'parent_id' => 'c1', 'body' => 'Ada again', 'author' => $ada]),
-            [commitJson(['id' => 'c1', 'body' => 'Ada first', 'author' => $ada])],
+            [
+                commitJson(['id' => 'c0', 'body' => 'Ada first', 'author' => $ada]),
+                commitJson(['id' => 'c1', 'parent_id' => 'c0', 'body' => 'Ada second', 'author' => $ada]),
+            ],
         )],
         'GET /api/v1/commits/c2/replies' => [pageJson([])],
     ]);
@@ -113,9 +121,10 @@ it('runs the rail from the folded ancestors into the commit, which shows its ava
     $lane = config('native-ui.theme.light.lane-1');
     $segment = fn (array $node): bool => ($node['layout']['width'] ?? null) === 2.0 && ($node['style']['bg_color'] ?? null) === $lane;
 
-    expect(railNode($screen, 'focused-commit'))->toBe('avatar')
+    expect(railNode($screen, 'commit-c1'))->toBe('avatar')
+        ->and(railNode($screen, 'focused-commit'))->toBe('dot')
         ->and(findNode(nodeByRef($screen, 'earlier-commits'), $segment))->not->toBeNull()
-        ->and(findNode(nodeByRef($screen, 'focused-commit'), $segment))->not->toBeNull();
+        ->and(findNode(nodeByRef($screen, 'commit-c1'), $segment))->not->toBeNull();
 });
 
 it('draws the commit as the main thing, and what is around it muted', function () {
@@ -375,6 +384,82 @@ it('opens ancestors, replies and profiles', function () {
     Native::visit('/log/commits/c2')->call('openProfile', 'ada')->assertNavigatedTo('/log/users/ada');
 });
 
+it('opens with its replies showing from a replies button', function () {
+    fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'replies_count' => 1])], extra: [
+        'GET /api/v1/commits/r1' => [commitPageJson(replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'replies_count' => 1]))],
+        'GET /api/v1/commits/r1/replies' => [pageJson([replyJson(['id' => 'r2', 'parent_id' => 'r1', 'body' => 'Answering the reply'])])],
+    ]);
+
+    Native::visit('/log/commits/c2', ['replies' => true])
+        ->assertSee('First reply')
+        ->assertSee('Hide replies');
+
+    // A reply's replies don't open in place on a commit page, so its button opens its page with them showing.
+    Native::visit('/log/commits/c2')
+        ->tap('replies-c2')
+        ->tap('replies-r1')
+        ->assertNavigatedTo('/log/commits/r1')
+        ->follow()
+        ->assertSee('Answering the reply')
+        ->assertSee('Hide replies');
+});
+
+it('asks for the replies five at a time, and the next five from Show more', function () {
+    $replies = fn (int ...$numbers): array => array_map(fn (int $n): array => replyJson(['id' => "r{$n}", 'parent_id' => 'c2', 'body' => "Reply {$n}"]), $numbers);
+
+    Http::fake(fn (Request $request) => match (parse_url($request->url(), PHP_URL_PATH)) {
+        '/api/v1/commits/c2/replies' => Http::response(str_contains($request->url(), 'cursor=page2')
+            ? pageJson($replies(6))
+            : pageJson($replies(1, 2, 3, 4, 5), 'page2', 'http://devnull.test/api/v1/commits/c2/replies')),
+        default => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'replies_count' => 6]))),
+    });
+
+    $screen = Native::visit('/log/commits/c2', ['replies' => true])
+        ->assertSee('Reply 5')
+        ->assertDontSee('Reply 6')
+        ->tap('more-replies-c2')
+        ->assertSee('Reply 6')
+        ->assertDontSee('Show more');
+
+    $asked = collect(Http::recorded())->map(fn (array $sent): string => $sent[0]->url())->filter(fn (string $url): bool => str_contains($url, '/replies'));
+
+    expect($asked)->toHaveCount(2)
+        ->and($asked->every(fn (string $url): bool => str_contains($url, 'limit=5')))->toBeTrue();
+
+    // Asking again for the first five keeps the one loaded after them.
+    $screen->call('load')
+        ->assertSee('Reply 6')
+        ->assertDontSee('Show more');
+});
+
+it('opens the replies of a deleted reply five at a time too', function () {
+    $nested = fn (int ...$numbers): array => array_map(fn (int $n): array => replyJson(['id' => "n{$n}", 'parent_id' => 'r1', 'body' => "Nested {$n}"]), $numbers);
+
+    Http::fake(fn (Request $request) => match (parse_url($request->url(), PHP_URL_PATH)) {
+        '/api/v1/commits/c2/replies' => Http::response(pageJson([
+            tombstoneJson(['id' => 'r1', 'parent_id' => 'c2', 'replies_count' => 6]),
+            replyJson(['id' => 'r2', 'parent_id' => 'c2', 'body' => 'Still here']),
+        ])),
+        '/api/v1/commits/r1/replies' => Http::response(str_contains($request->url(), 'cursor=page2')
+            ? pageJson($nested(6))
+            : pageJson($nested(1, 2, 3, 4, 5), 'page2', 'http://devnull.test/api/v1/commits/r1/replies')),
+        default => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'replies_count' => 2]))),
+    });
+
+    $more = fn (array $node): bool => ($node['ref'] ?? null) === 'more-replies-r1';
+
+    Native::visit('/log/commits/c2', ['replies' => true])
+        ->tap('tombstone-replies-r1')
+        ->assertSee('Nested 5')
+        ->assertDontSee('Nested 6')
+        ->assertSee('Still here')
+        ->tap('more-replies-r1')
+        ->assertSee('Nested 6')
+        ->assertMissingElement('pressable', $more);
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/r1/replies?cursor=page2&limit=5');
+});
+
 it('keeps deleted ancestors on the rail as tombstones', function () {
     fakeApi([
         'GET /api/v1/commits/c2' => [commitPageJson(
@@ -390,7 +475,10 @@ it('keeps deleted ancestors on the rail as tombstones', function () {
     $rail = config('native-ui.theme.light.rail');
 
     $screen = Native::visit('/log/commits/c2')
-        ->assertSee('2 earlier commits')
+        // The deleted parent shows above the commit, and only the root waits behind the fold.
+        ->assertSee('1 earlier commit')
+        ->assertSee('This commit was deleted.')
+        ->assertDontSee('The root commit')
         ->tap('earlier-commits')
         ->assertSee('The root commit')
         ->assertSee('[deleted]')
@@ -573,10 +661,12 @@ it('shows your avatar once when you reply to yourself', function () {
     ]);
 
     $screen = Native::visit('/log/commits/c3')
-        ->assertSee('And one more thing');
+        ->assertSee('And one more thing')
+        ->assertSee('Replying to Ada');
 
-    // Folded away, the run above has no avatar to share, so the commit shows its own.
-    expect(railNode($screen, 'focused-commit'))->toBe('avatar');
+    // The parent shows, and it's yours, so the two share its avatar.
+    expect(railNode($screen, 'commit-c2'))->toBe('avatar')
+        ->and(railNode($screen, 'focused-commit'))->toBe('dot');
 
     $screen->tap('earlier-commits');
 
