@@ -504,6 +504,17 @@ it('opens on skeleton rows, and fills in what it kept straight after, so a tab t
     finishRefreshes($screen)->assertSet('skeletonFrame', false)->assertSee('followed you');
 });
 
+it('opens on what it kept on iOS, which puts a tab back as it was last drawn, with no spinner first', function () {
+    config(['devnull.skeleton_first' => true]);
+    holdRefreshes();
+    keep('notifications', inboxJson([notificationJson('followed')]), ['type' => null]);
+
+    $screen = Native::visit('/notifications', platform: 'ios');
+
+    $screen->assertSet('skeletonFrame', false)->assertSee('followed you');
+    expect(showsLoading(showingNotifications($screen)))->toBeFalse();
+});
+
 it('lists a group of followers when it is tapped, each with the same small follow back, and none for the group', function () {
     serveApi(function (Request $request) {
         return str_contains($request->url(), '/group')
