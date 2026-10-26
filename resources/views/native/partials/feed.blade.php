@@ -1,8 +1,8 @@
 {{--
     A feed's rows from App\Devnull\Timeline: day markers, the last-visit marker and commits on the rail. Under a commit
     hangs its thread, inside its row's hairline, as on the web: the newest reply devnull previews, with "Show more"
-    when there are others, or the replies opened in place. The commit's rail runs on past them when its author's run
-    goes on below.
+    when there are others, or the replies opened in place, with "Show more" to the commit's page when there are more
+    than they show. The commit's rail runs on past them when its author's run goes on below.
 
     Given a $rowCache (see App\Devnull\RowCache), commits and replies that haven't changed since the last frame are
     drawn from it rather than built again. Given a $rowWindow (see App\Devnull\RowWindow), rows far from the screen
@@ -35,7 +35,10 @@
             $opened = $threads[$feedCommit->id] ?? null;
             $threadReplies = $opened ?? ($feedCommit->isDeleted() ? [] : $feedCommit->replyPreview?->replies ?? []);
             $feedDraws = $rowWindow?->place($feedIndex, 1 + count($threadReplies)) ?? true;
-            $hasMoreReplies = $opened === null && ! $feedCommit->isDeleted() && ($feedCommit->replyPreview?->hasMore ?? false);
+            $hasMoreReplies = $opened === null
+                ? ! $feedCommit->isDeleted() && ($feedCommit->replyPreview?->hasMore ?? false)
+                : in_array($feedCommit->id, $threadsWithMore ?? [], true);
+            $morePress = $opened === null ? "showMoreReplies('{$feedCommit->id}')" : "openReplies('{$feedCommit->id}')";
             $railLane = $row->continuesNext ? $feedCommit->lane() : null;
             $commitRow = [
                 'commit' => $feedCommit,
@@ -66,7 +69,7 @@
                     'hasNext' => ! $loop->last || $hasMoreReplies,
                     'railLane' => $railLane,
                     'thread' => $feedCommit,
-                    'more' => $loop->last && $hasMoreReplies ? "showMoreReplies('{$feedCommit->id}')" : null,
+                    'more' => $loop->last && $hasMoreReplies ? $morePress : null,
                     'last' => $loop->last,
                 ];
             @endphp

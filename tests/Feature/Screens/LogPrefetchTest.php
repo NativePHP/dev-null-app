@@ -307,6 +307,50 @@ it('puts a next page that is already here in a little before the end of the list
         ->and($screen->get('nextCursor'))->toBe('page3');
 });
 
+it('tops the log up while it is at rest once you have scrolled, and holds what lands while it moves', function () {
+    holdRefreshes();
+    $page = fn (int $n, ?string $next): array => [pageJson(commitsWithIds(array_map(fn (int $i): string => "p{$n}-{$i}", range(1, 30))), $next)];
+    serveLogPages([
+        'log/following' => $page(1, 'page2'),
+        'log/following?cursor=page2' => $page(2, 'page3'),
+        'log/following?cursor=page3' => $page(3, 'page4'),
+        'log/following?cursor=page4' => $page(4, 'page5'),
+        'log/following?cursor=page5' => $page(5, null),
+    ]);
+
+    // Opening the log fetches one page ahead, and holds it.
+    $screen = finishRefreshes(Native::visit('/log'));
+
+    expect(logCommitIds($screen))->toHaveCount(30)
+        ->and(timesAskedFor('log/following?cursor=page3'))->toBe(0);
+
+    // At rest near the top, pages go in as they land, until 84 timeline rows are below the screen.
+    finishRefreshes($screen->call('scrollEnded', 1, 6));
+
+    expect(logCommitIds($screen))->toHaveCount(90)
+        ->and(timesAskedFor('log/following?cursor=page4'))->toBe(1)
+        ->and(timesAskedFor('log/following?cursor=page5'))->toBe(0);
+
+    // Moving, clear of the end, the page held waits for the list to stop.
+    $screen->call('showRows', 40, 45);
+
+    expect(logCommitIds($screen))->toHaveCount(90);
+
+    $screen->call('scrollEnded', 40, 45);
+
+    expect(logCommitIds($screen))->toHaveCount(120);
+
+    // And so does one that lands while it moves.
+    finishRefreshes($screen->call('showRows', 50, 55));
+
+    expect(logCommitIds($screen))->toHaveCount(120);
+
+    $screen->call('scrollEnded', 50, 55);
+
+    expect(logCommitIds($screen))->toHaveCount(150)
+        ->and($screen->get('nextCursor'))->toBeNull();
+});
+
 it('asks again for a next page dropped while another screen was on top, and puts it in if the end of the list was waiting', function () {
     holdRefreshes();
     keep('log/following', pageJson(commitsWithIds(['c2']), 'page2'));

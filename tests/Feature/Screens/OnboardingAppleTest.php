@@ -23,7 +23,7 @@ beforeEach(function () {
 
 afterEach(fn () => Platform::set(null));
 
-it('offers Sign in with Apple under GitHub on iOS, as big as it and in Apple\'s colours', function () {
+it('offers Sign in with Apple under dev-null.sh on iOS, as big as it and in Apple\'s colours', function () {
     appleBridge();
 
     $screen = Native::visit('/onboarding', platform: 'ios');
@@ -33,7 +33,7 @@ it('offers Sign in with Apple under GitHub on iOS, as big as it and in Apple\'s 
         ->and(childRefs($screen, 'actions'))->toBe(['sign-in', 'sign-in-apple'])
         ->and(shownText($screen))->toBe([])
         ->and($buttons[1]['props'])->toMatchArray(['label' => 'Sign in with Apple', 'variant' => 'accent', 'size' => 'lg', 'leading_icon' => 'apple.logo'])
-        ->and($buttons[0]['props'])->toMatchArray(['variant' => 'accent', 'size' => 'lg', 'leading_icon' => 'custom:github'])
+        ->and($buttons[0]['props'])->toMatchArray(['variant' => 'primary', 'size' => 'lg'])
         ->and($buttons[1]['layout'])->toEqual($buttons[0]['layout'])->toEqual(['width' => 'fill'])
         ->and(array_map(strtolower(...), config('native-ui.theme.light')))->toMatchArray(['accent' => '#000000', 'on-accent' => '#ffffff'])
         ->and(array_map(strtolower(...), config('native-ui.theme.dark')))->toMatchArray(['accent' => '#ffffff', 'on-accent' => '#000000']);
@@ -117,7 +117,7 @@ it('says above the buttons when no account has this Apple ID linked, going by th
         ->assertSee($message)
         ->assertSet('appleError', $message)
         ->assertSet('error', null)
-        ->assertElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'sign-in' && $node['props']['label'] === 'Sign in with GitHub');
+        ->assertElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'sign-in' && $node['props']['label'] === 'Sign in on dev-null.sh');
 
     expect(childRefs($screen, 'actions'))->toBe(['apple-error', 'sign-in', 'sign-in-apple'])
         ->and(shownText($screen))->toBe([$message]);
@@ -125,7 +125,7 @@ it('says above the buttons when no account has this Apple ID linked, going by th
     expect(app(Account::class)->user())->toBeNull();
 });
 
-it("says when devnull can't verify Apple's token, without turning GitHub into Try again", function () {
+it("says when devnull can't verify Apple's token, without turning dev-null.sh into Try again", function () {
     appleBridge();
     fakeApi(['POST /api/v1/devices' => [['message' => 'That Apple sign-in could not be verified.', 'code' => 'invalid_apple_token'], 422]]);
     $screen = Native::visit('/onboarding', platform: 'ios')->tap('sign-in-apple');
@@ -134,7 +134,7 @@ it("says when devnull can't verify Apple's token, without turning GitHub into Tr
         ->assertNoNavigation()
         ->assertSet('appleError', ErrorCode::InvalidAppleToken->message())
         ->assertSee(ErrorCode::InvalidAppleToken->message())
-        ->assertElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'sign-in' && $node['props']['label'] === 'Sign in with GitHub');
+        ->assertElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'sign-in' && $node['props']['label'] === 'Sign in on dev-null.sh');
 
     expect(app(Account::class)->user())->toBeNull();
 });

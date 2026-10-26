@@ -3,6 +3,7 @@
 namespace App\NativeComponents;
 
 use App\Devnull\Account;
+use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitThread;
 use App\Devnull\Data\Page;
@@ -29,8 +30,12 @@ use Native\Mobile\Edge\NativeComponent;
  * parts below, with its replies between, as on the web. Deleted ancestors,
  * parts and replies show as tombstones.
  *
- * The commit opens at the top, with what it replies to behind "↑ N earlier
- * commits" and its replies behind "› N replies", each opened in place.
+ * The commit opens near the top, under the commit it replies to, with the
+ * ones before that behind "↑ N earlier commits" and its replies behind
+ * "› N replies", each opened in place. Opened from a "› N replies" button
+ * ($data['replies']), its replies already show. They come five at a time
+ * (see Client::RepliesPerPage), and "Show more" under the last asks for the
+ * next five, as it does under a deleted reply's replies opened in place.
  *
  * It opens on the commit as it was last time, or opened from a row, on what
  * the row knew of it, then asks devnull for the rest behind it and fills it in.
@@ -91,6 +96,13 @@ class CommitDetail extends NativeComponent
      */
     public array $tombstoneReplies = [];
 
+    /**
+     * Where the next page of each deleted reply's replies starts, by the deleted reply's id, or null when they're all shown.
+     *
+     * @var array<string, string|null>
+     */
+    public array $tombstoneCursors = [];
+
     public string $reply = '';
 
     /**
@@ -99,7 +111,7 @@ class CommitDetail extends NativeComponent
     public bool $replyRestored = false;
 
     /**
-     * Whether the ancestors show above the commit, rather than "↑ N earlier commits".
+     * Whether the ancestors before the commit's parent show above it, rather than "↑ N earlier commits".
      */
     public bool $earlierShown = false;
 
@@ -136,6 +148,7 @@ class CommitDetail extends NativeComponent
     public function mount(): void
     {
         $this->focusReply = $this->data('reply', false) === true;
+        $this->repliesShown = $this->data('replies', false) === true;
         $this->reply = app(Stash::class)->get($this->me()?->id, $this->replyStashName());
         $this->replyRestored = $this->reply !== '';
         $this->showKept();
@@ -193,7 +206,11 @@ class CommitDetail extends NativeComponent
 
             $this->refresh('commits/'.rawurlencode($id).'/replies', [], function (array $json) use ($id): void {
                 if (array_key_exists($id, $this->tombstoneReplies)) {
-                    $this->tombstoneReplies[$id] = Page::fromArray($json, Commit::fromArray(...))->items;
+                    [$this->tombstoneReplies[$id], $this->tombstoneCursors[$id]] = self::withFirstPage(
+                        $this->tombstoneReplies[$id],
+                        $this->tombstoneCursors[$id] ?? null,
+                        Page::fromArray($json, Commit::fromArray(...)),
+                    );
                 }
             });
         }
@@ -213,8 +230,9 @@ class CommitDetail extends NativeComponent
     }
 
     /**
-     * Tapping into the reply bar brings the commit being answered to the top:
-     * the earlier commits fold away again and the page starts over from the top.
+     * Tapping into the reply bar brings the commit being answered back up, under
+     * its parent: the earlier commits fold away again and the page starts over
+     * from the top.
      */
     public function replyTapped(): void
     {
@@ -236,12 +254,31 @@ class CommitDetail extends NativeComponent
     public function toggleTombstone(string $id): void
     {
         if (array_key_exists($id, $this->tombstoneReplies)) {
-            unset($this->tombstoneReplies[$id]);
+            unset($this->tombstoneReplies[$id], $this->tombstoneCursors[$id]);
 
             return;
         }
 
         $this->loadTombstoneReplies($id);
+    }
+
+    /**
+     * "Show more" under a deleted reply's replies: its next five, in place.
+     */
+    public function loadMoreTombstoneReplies(string $id): void
+    {
+        $cursor = $this->tombstoneCursors[$id] ?? null;
+
+        if ($cursor === null) {
+            return;
+        }
+
+        $page = $this->attempt(fn ($devnull) => $devnull->replies($id, $cursor));
+
+        if ($page !== null && array_key_exists($id, $this->tombstoneReplies)) {
+            $this->tombstoneReplies[$id] = [...$this->tombstoneReplies[$id], ...$page->items];
+            $this->tombstoneCursors[$id] = $page->nextCursor;
+        }
     }
 
     public function loadMoreReplies(): void
@@ -503,17 +540,33 @@ class CommitDetail extends NativeComponent
      */
     private function takeReplies(array $json): void
     {
-        $page = Page::fromArray($json, Commit::fromArray(...));
-        $fresh = array_flip(array_map(fn (Commit $reply): string => $reply->id, $page->items));
-
-        $later = $this->repliesCursor !== null
-            ? array_values(array_filter(array_slice($this->replies, count($page->items)), fn (Commit $reply): bool => ! isset($fresh[$reply->id])))
-            : [];
-
-        $this->replies = [...$page->items, ...$later];
-        $this->repliesCursor = $later === [] ? $page->nextCursor : $this->repliesCursor;
+        [$this->replies, $this->repliesCursor] = self::withFirstPage($this->replies, $this->repliesCursor, Page::fromArray($json, Commit::fromArray(...)));
         $this->repliesLoaded = true;
         $this->keepStagedReplies();
+    }
+
+    /**
+     * A fresh first page over the replies showing, and where the next page
+     * starts. Pages loaded after the first stay, past what it holds: there's
+     * a page after it still to load, or more show than a page holds. Staged
+     * replies are left for keepStagedReplies() to put back.
+     *
+     * @param  list<Commit>  $shown
+     * @param  Page<Commit>  $page
+     * @return array{0: list<Commit>, 1: string|null}
+     */
+    private static function withFirstPage(array $shown, ?string $cursor, Page $page): array
+    {
+        $shown = array_values(array_filter($shown, fn (Commit $reply): bool => ! $reply->isStaged()));
+
+        if ($cursor === null && count($shown) <= Client::RepliesPerPage) {
+            return [$page->items, $page->nextCursor];
+        }
+
+        $fresh = array_flip(array_map(fn (Commit $reply): string => $reply->id, $page->items));
+        $later = array_values(array_filter(array_slice($shown, count($page->items)), fn (Commit $reply): bool => ! isset($fresh[$reply->id])));
+
+        return [[...$page->items, ...$later], $later === [] ? $page->nextCursor : $cursor];
     }
 
     private function replyStashName(): string
@@ -532,6 +585,7 @@ class CommitDetail extends NativeComponent
 
         if ($page !== null) {
             $this->tombstoneReplies[$id] = $page->items;
+            $this->tombstoneCursors[$id] = $page->nextCursor;
         }
     }
 
@@ -542,7 +596,8 @@ class CommitDetail extends NativeComponent
 
     public function render(): View
     {
-        $earlier = $this->earlierShown ? [] : $this->ancestors;
+        $earlier = $this->earlierShown ? [] : array_slice($this->ancestors, 0, -1);
+        $above = $this->earlierShown ? $this->ancestors : array_slice($this->ancestors, -1);
         $viewer = $this->me();
         $this->replyRows ??= new RowCache;
         $this->replyRows->startFrame();
@@ -554,7 +609,7 @@ class CommitDetail extends NativeComponent
             'stashed' => app(Stash::class)->names($viewer?->id),
             'pasteis' => app(Account::class)->pasteis(),
             'rows' => $this->commit === null ? [] : Timeline::thread(
-                [...($this->earlierShown ? $this->ancestors : []), $this->commit, ...$this->series],
+                [...$above, $this->commit, ...$this->series],
                 laneAbove: $earlier === [] ? null : end($earlier)->lane(),
             ),
             'earlierCount' => $this->commit === null ? 0 : count($earlier),
