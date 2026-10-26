@@ -1729,16 +1729,16 @@
         },
         {
             "name": "laravel/mcp",
-            "version": "v1.1.1",
+            "version": "v1.1.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/laravel/mcp.git",
-                "reference": "e77af70cd009aaa31455626bd463b0e7e39cfcf9"
+                "reference": "ab9238ce6c89095679651dd3d19d67641d73a436"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/mcp/zipball/e77af70cd009aaa31455626bd463b0e7e39cfcf9",
-                "reference": "e77af70cd009aaa31455626bd463b0e7e39cfcf9",
+                "url": "https://api.github.com/repos/laravel/mcp/zipball/ab9238ce6c89095679651dd3d19d67641d73a436",
+                "reference": "ab9238ce6c89095679651dd3d19d67641d73a436",
                 "shasum": ""
             },
             "require": {
@@ -1800,7 +1800,7 @@
                 "issues": "https://github.com/laravel/mcp/issues",
                 "source": "https://github.com/laravel/mcp"
             },
-            "time": "2026-10-21T11:50:42+00:00"
+            "time": "2026-10-26T17:48:48+00:00"
         },
         {
             "name": "laravel/prompts",
@@ -2723,12 +2723,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-air.git",
-                "reference": "49528ba3489a4bd2f2c812367a1ca14a906a87e3"
+                "reference": "54aae8174055a8a1ceb41488e02ee1fdfa7f7c4c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/49528ba3489a4bd2f2c812367a1ca14a906a87e3",
-                "reference": "49528ba3489a4bd2f2c812367a1ca14a906a87e3",
+                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/54aae8174055a8a1ceb41488e02ee1fdfa7f7c4c",
+                "reference": "54aae8174055a8a1ceb41488e02ee1fdfa7f7c4c",
                 "shasum": ""
             },
             "require": {
@@ -2839,7 +2839,7 @@
                 "source": "https://github.com/NativePHP/mobile-air/tree/main",
                 "issues": "https://github.com/NativePHP/mobile-air/issues"
             },
-            "time": "2026-10-25T15:51:00+00:00"
+            "time": "2026-10-26T17:05:50+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
@@ -3067,12 +3067,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-ui.git",
-                "reference": "86ef0e68702537e3e17fa8fd4c54f238de098053"
+                "reference": "1cad28cd3cd06cb1cd5fe7852a40d59a8cd26a2d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/86ef0e68702537e3e17fa8fd4c54f238de098053",
-                "reference": "86ef0e68702537e3e17fa8fd4c54f238de098053",
+                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/1cad28cd3cd06cb1cd5fe7852a40d59a8cd26a2d",
+                "reference": "1cad28cd3cd06cb1cd5fe7852a40d59a8cd26a2d",
                 "shasum": ""
             },
             "require": {
@@ -3132,7 +3132,7 @@
                     "url": "https://nativephp.com/sponsor"
                 }
             ],
-            "time": "2026-10-24T02:29:38+00:00"
+            "time": "2026-10-26T19:22:17+00:00"
         },
         {
             "name": "nesbot/carbon",
@@ -9627,16 +9627,16 @@
         },
         {
             "name": "phpstan/phpdoc-parser",
-            "version": "2.3.6",
+            "version": "2.3.7",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpdoc-parser.git",
-                "reference": "1427af4647235b4a73b13940b1f1258d3584f36e"
+                "reference": "3fcdcf021e840f1ec9383152e3603fc790c7c15b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/1427af4647235b4a73b13940b1f1258d3584f36e",
-                "reference": "1427af4647235b4a73b13940b1f1258d3584f36e",
+                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/3fcdcf021e840f1ec9383152e3603fc790c7c15b",
+                "reference": "3fcdcf021e840f1ec9383152e3603fc790c7c15b",
                 "shasum": ""
             },
             "require": {
@@ -9668,9 +9668,9 @@
             "description": "PHPDoc parser with support for nullable, intersection and generic types",
             "support": {
                 "issues": "https://github.com/phpstan/phpdoc-parser/issues",
-                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.6"
+                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.7"
             },
-            "time": "2026-09-27T20:07:45+00:00"
+            "time": "2026-10-26T17:24:37+00:00"
         },
         {
             "name": "phpunit/php-code-coverage",
