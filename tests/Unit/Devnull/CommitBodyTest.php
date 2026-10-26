@@ -299,3 +299,76 @@ it('keeps other GitHub links as URLs', function (string $url) {
     'https://gist.github.com/laravel/framework',
     'https://notgithub.com/laravel/framework',
 ]);
+
+/**
+ * Each block as its kind and its text, runs joined.
+ *
+ * @param  list<BodyBlock>  $blocks
+ * @return list<array{0: string, 1: string}>
+ */
+function quotesOf(array $blocks): array
+{
+    return array_map(fn (BodyBlock $block): array => [
+        match (true) {
+            $block->isCode() => 'code',
+            $block->isQuote() => 'quote',
+            default => 'paragraph',
+        },
+        $block->isCode() ? (string) $block->code : implode('', array_map(fn (BodyRun $run): string => $run->text, $block->runs)),
+    ], $blocks);
+}
+
+it('groups lines that start with > into quotes, as the web does', function () {
+    $body = "> First `code`\n> @ada https://example.com\nNormal > text\n>Last";
+
+    $blocks = CommitBody::blocks($body, [
+        ['type' => 'text', 'text' => '> First '],
+        ['type' => 'code', 'code' => 'code'],
+        ['type' => 'text', 'text' => "\n> @ada https://example.com\nNormal > text\n>Last"],
+    ], [new Mention('ada', 17, 4)]);
+
+    expect(quotesOf($blocks))->toBe([
+        ['quote', "First code\n@ada https://example.com"],
+        ['paragraph', 'Normal > text'],
+        ['quote', 'Last'],
+    ])->and(array_map(fn (BodyRun $run): array => [$run->text, $run->isCode, $run->username, $run->link?->href], $blocks[0]->runs))->toBe([
+        ['First ', false, null, null],
+        ['code', true, null, null],
+        ["\n", false, null, null],
+        ['@ada', false, 'ada', null],
+        [' ', false, null, null],
+        ['https://example.com', false, null, 'https://example.com'],
+    ]);
+});
+
+it('leaves a > that is inside code or not at the start of a line as written', function () {
+    $body = "`code`> literal\n```text\n> fenced\n```\n> quoted\n>\n> `> inline`\n\nAfter";
+
+    $blocks = CommitBody::blocks($body, [
+        ['type' => 'code', 'code' => 'code'],
+        ['type' => 'text', 'text' => '> literal'],
+        ['type' => 'block', 'language' => 'text'],
+        ['type' => 'text', 'text' => "> quoted\n>\n> "],
+        ['type' => 'code', 'code' => '> inline'],
+        ['type' => 'text', 'text' => "\n\nAfter"],
+    ]);
+
+    expect(quotesOf($blocks))->toBe([
+        ['paragraph', 'code> literal'],
+        ['code', '> fenced'],
+        ['quote', "quoted\n\n> inline"],
+        ['paragraph', "\nAfter"],
+    ]);
+});
+
+it('keeps Windows line breaks inside a quote and drops the one before the next block', function () {
+    expect(quotesOf(CommitBody::blocks("Before\r\n> one\r\n> two\r\nAfter", null)))->toBe([
+        ['paragraph', 'Before'],
+        ['quote', "one\r\ntwo"],
+        ['paragraph', 'After'],
+    ]);
+});
+
+it('quotes a line that is only the marker', function () {
+    expect(quotesOf(CommitBody::blocks('>', null)))->toBe([['quote', '']]);
+});

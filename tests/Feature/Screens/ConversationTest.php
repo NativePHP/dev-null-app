@@ -68,6 +68,23 @@ it('shows the thread with your messages on the right and theirs on the left, tit
         ->and(nodeByRef($screen, 'thread')['props']['scroll_anchor'] ?? null)->toBe('bottom');
 });
 
+it('draws quotes in messages behind a rule, amber in theirs and in the label colour in yours', function () {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => "> did you see the PR?\nnot yet"]),
+        remoteMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => "> not yet\nlooking now"]),
+    ]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))
+        ->assertSee('did you see the PR?')
+        ->assertDontSee('> did you see the PR?');
+
+    $rule = fn (string $ref): ?string => findNode(nodeByRef($screen, $ref), fn (array $node): bool => (float) ($node['props']['border_l'] ?? 0) === 2.0)['style']['border_color'] ?? null;
+
+    expect(strtolower((string) $rule('bubble-1')))->toBe(strtolower((string) theme('lane-5')))
+        ->and(strtolower((string) $rule('bubble-2')))->not->toBe(strtolower((string) theme('lane-5')))
+        ->and($rule('bubble-2'))->not->toBeNull();
+});
+
 it('marks HEAD where you left off, and pulls what is showing', function () {
     serveRemoteThread(threadJson([
         remoteMessageJson(['id' => 1, 'body' => 'first']),

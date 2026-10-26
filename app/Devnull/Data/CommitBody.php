@@ -5,8 +5,8 @@ namespace App\Devnull\Data;
 /**
  * Turns a commit's `body_segments` into blocks to draw, the way the web's
  * CommitBody does: prose (with URLs and mentions linked, and `/dev/null` as
- * the wordmark) and inline code flow together in paragraphs, and fenced code
- * blocks stand on their own.
+ * the wordmark) and inline code flow together in paragraphs, lines that start
+ * with `>` group into quotes, and fenced code blocks stand on their own.
  *
  * Mention offsets count code points into the whole body, but segments aren't
  * exact slices of it: inline code loses its backticks, a block its fences, and
@@ -146,10 +146,8 @@ final class CommitBody
 
                     break;
                 case 'block':
-                    if ($runs !== []) {
-                        $blocks[] = BodyBlock::paragraph($runs);
-                        $runs = [];
-                    }
+                    array_push($blocks, ...self::paragraphs($runs));
+                    $runs = [];
 
                     [$code, $cursor] = self::fencedCode($body, $cursor);
                     $language = $segment['language'] ?? null;
@@ -160,11 +158,94 @@ final class CommitBody
             }
         }
 
-        if ($runs !== []) {
-            $blocks[] = BodyBlock::paragraph($runs);
+        array_push($blocks, ...self::paragraphs($runs));
+
+        return $blocks;
+    }
+
+    /**
+     * Splits a paragraph's runs into paragraphs and quotes, as the web's
+     * bodyBlocks() does: prose that starts a line with `>` quotes that line,
+     * minus the marker and one space after it, and the lines next to it that
+     * do the same join it. A `>` inside code, or anywhere but a line's start,
+     * stays as written. The line break before each change is dropped, since
+     * the blocks are drawn one under the other.
+     *
+     * @param  list<BodyRun>  $runs
+     * @return list<BodyBlock>
+     */
+    private static function paragraphs(array $runs): array
+    {
+        /** @var list<array{quoted: bool, runs: list<BodyRun>}> $groups */
+        $groups = [];
+        $atLineStart = true;
+        $quoted = false;
+
+        foreach ($runs as $run) {
+            $prose = ! $run->isMention() && ! $run->isCode && ! $run->isWordmark && $run->link === null;
+
+            $lines = $prose
+                ? array_map(fn (string $text): BodyRun => new BodyRun($text), preg_split('/(?<=\n)/', $run->text, flags: PREG_SPLIT_NO_EMPTY) ?: [])
+                : [$run];
+
+            foreach ($lines as $line) {
+                if ($atLineStart) {
+                    $quoted = $prose && str_starts_with($line->text, '>');
+                }
+
+                if ($atLineStart && $quoted) {
+                    $line = new BodyRun((string) preg_replace('/^> ?/', '', $line->text));
+                }
+
+                $last = array_key_last($groups);
+
+                if ($last === null || $groups[$last]['quoted'] !== $quoted) {
+                    if ($last !== null) {
+                        $groups[$last]['runs'] = self::withoutTrailingBreak($groups[$last]['runs']);
+                    }
+
+                    $groups[] = ['quoted' => $quoted, 'runs' => []];
+                    $last = array_key_last($groups);
+                }
+
+                if ($line->text !== '') {
+                    $groups[$last]['runs'][] = $line;
+                }
+
+                $atLineStart = $prose && str_ends_with($line->text, "\n");
+            }
+        }
+
+        $blocks = [];
+
+        foreach ($groups as $group) {
+            if ($group['runs'] !== [] || $group['quoted']) {
+                $blocks[] = $group['quoted'] ? BodyBlock::quote($group['runs']) : BodyBlock::paragraph($group['runs']);
+            }
         }
 
         return $blocks;
+    }
+
+    /**
+     * @param  list<BodyRun>  $runs
+     * @return list<BodyRun>
+     */
+    private static function withoutTrailingBreak(array $runs): array
+    {
+        $last = array_pop($runs);
+
+        if ($last === null) {
+            return $runs;
+        }
+
+        $text = (string) preg_replace('/\r?\n$/', '', $last->text);
+
+        if ($text !== '') {
+            $runs[] = $last->text === $text ? $last : new BodyRun($text);
+        }
+
+        return $runs;
     }
 
     /**

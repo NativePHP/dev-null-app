@@ -448,6 +448,29 @@ it('draws code blocks as mono text in a hairline box, from the body rather than 
     $screen->press("openProfile('ada')")->assertNavigatedTo('/log/users/ada');
 });
 
+it('draws quote lines behind an amber rule, without their markers', function () {
+    $body = "> Ship it on Friday?\n> @ada said so\nNot on my watch";
+
+    fakeThread([
+        'body' => $body,
+        'body_segments' => [['type' => 'text', 'text' => $body]],
+        'mentions' => [['username' => 'ada', 'offset' => 23, 'length' => 4]],
+    ]);
+
+    $screen = Native::visit('/log/commits/c2')
+        ->assertSee('Not on my watch')
+        ->assertDontSee('> Ship it');
+
+    $quote = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'column'
+        && (float) ($node['props']['border_l'] ?? 0) === 2.0);
+
+    expect($quote)->not->toBeNull()
+        ->and($quote['props'])->toMatchArray(['border_t' => 0, 'border_r' => 0, 'border_b' => 0])
+        ->and(strtolower($quote['style']['border_color']))->toBe(strtolower((string) theme('lane-5')))
+        ->and(paragraphRuns($screen, 'Ship it'))->toBe([["Ship it on Friday?\n"], ['@ada', 'mention'], [' said so']])
+        ->and(paragraphRuns($screen, 'Not on my watch'))->toBe([['Not on my watch']]);
+});
+
 it('shows the focused commit with its media and stars', function () {
     fakeThread([
         'author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace']),
