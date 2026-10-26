@@ -36,6 +36,7 @@ it('stays on the rows that were on screen when rows come in above them', functio
     $window = new RowWindow;
     windowFrame($window, windowTimeline(300));
     $window->show(200, 205);
+    $window->drawAroundScreen();
 
     $drawn = windowFrame($window, [...windowTimeline(5, 'new'), ...windowTimeline(300)]);
 
@@ -51,6 +52,7 @@ it('keeps its place when a row that was on screen goes', function () {
     $rows = windowTimeline(300);
     windowFrame($window, $rows);
     $window->show(200, 205);
+    $window->drawAroundScreen();
 
     unset($rows[200]);
     $drawn = windowFrame($window, array_values($rows));
@@ -69,6 +71,7 @@ it('counts a commit and its replies as one row of the timeline', function () {
 
     // List rows 0 to 50 are c0 and its replies, so list row 250 is c200.
     $window->show(250, 255);
+    $window->drawAroundScreen();
     $drawn = windowFrame($window, windowTimeline(300));
 
     expect($drawn[99])->toBeFalse()
@@ -79,10 +82,12 @@ it('draws more rows the way you are scrolling', function () {
     $window = new RowWindow;
     windowFrame($window, windowTimeline(500));
     $window->show(250, 255);
+    $window->drawAroundScreen();
 
     // Scrolling down: a hundred rows above the screen.
     $down = windowFrame($window, windowTimeline(500));
     $window->show(220, 225);
+    $window->drawAroundScreen();
 
     // Scrolling up: a hundred and fifty.
     $up = windowFrame($window, windowTimeline(500));
@@ -95,6 +100,52 @@ it('draws more rows the way you are scrolling', function () {
         ->and($up[70])->toBeTrue()
         ->and($up[325])->toBeTrue()
         ->and($up[326])->toBeFalse();
+});
+
+it('leaves the rows drawn where they are as the screen moves, until it nears either end of them', function () {
+    $window = new RowWindow;
+    windowFrame($window, windowTimeline(500));
+    $window->show(200, 205);
+    $window->drawAroundScreen();
+
+    // Drawn from 100 above c200 (c100) to 150 below c205 (c355), so the screen may come within 50 of either.
+    $window->show(300, 305);
+    $drawn = windowFrame($window, windowTimeline(500));
+
+    expect($window->nearsEdge())->toBeFalse()
+        ->and($drawn[99])->toBeFalse()
+        ->and($drawn[100])->toBeTrue()
+        ->and($drawn[355])->toBeTrue()
+        ->and($drawn[356])->toBeFalse();
+
+    $window->show(301, 306);
+
+    expect($window->nearsEdge())->toBeTrue();
+
+    $window->show(150, 155);
+
+    expect($window->nearsEdge())->toBeFalse();
+
+    $window->show(149, 154);
+
+    expect($window->nearsEdge())->toBeTrue();
+});
+
+it('never nears an end of the rows drawn that is the end of the feed or the top rows', function () {
+    $window = new RowWindow;
+    windowFrame($window, windowTimeline(200));
+    $window->show(60, 65);
+    $window->drawAroundScreen();
+    windowFrame($window, windowTimeline(200));
+
+    // Drawn from the top to 150 below c65, past the end of the feed at c199.
+    $window->show(190, 199);
+
+    expect($window->nearsEdge())->toBeFalse();
+
+    $window->show(0, 5);
+
+    expect($window->nearsEdge())->toBeFalse();
 });
 
 it('counts the timeline rows below the last one on screen, a commit and its replies as one', function () {

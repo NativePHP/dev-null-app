@@ -69,19 +69,19 @@ it('draws the rows around the ones on screen as you scroll, each keeping its pla
         ->and($rows[301])->toBe('commit-c299');
 });
 
-it('draws more rows above the screen once you scroll back up', function () {
+it('draws more rows above the screen once you scroll back up and stop', function () {
     // Down to c229, then back up to c199: drawn from 150 above c199 (c49).
-    $rows = windowRows(Native::visit('/log')->call('showRows', 231, 236)->call('showRows', 200, 205));
+    $rows = windowRows(Native::visit('/log')->call('showRows', 231, 236)->call('showRows', 200, 205)->call('scrollEnded', 200, 205));
 
     expect($rows[49])->toBe('placeholder')
         ->and($rows[50])->toBe('commit-c49');
 });
 
-it('only asks the log you are on where it is scrolled to', function () {
+it('only asks the log you are on where it is scrolled to, and when it stops', function () {
     $screen = Native::visit('/log');
 
-    expect(showingLog($screen)['props'])->toHaveKey('on_visible_range')
-        ->and(nodeByRef($screen, 'log-latest')['props'] ?? [])->not->toHaveKey('on_visible_range');
+    expect(showingLog($screen)['props'])->toHaveKeys(['on_visible_range', 'on_scroll_end'])
+        ->and(nodeByRef($screen, 'log-latest')['props'] ?? [])->not->toHaveKey('on_visible_range')->not->toHaveKey('on_scroll_end');
 });
 
 it('draws the top again when the log goes back to the top of a new list', function () {
