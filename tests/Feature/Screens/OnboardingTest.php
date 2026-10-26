@@ -56,7 +56,7 @@ function openedAuthQuery(FakeBridge $bridge): array
 }
 
 /**
- * Taps Sign in with GitHub and returns the state the browser was given.
+ * Taps Sign in on dev-null.sh and returns the state the browser was given.
  */
 function tapSignIn(TestableComponent $screen, FakeBridge $bridge): string
 {
@@ -101,11 +101,12 @@ it('makes a key on first launch and shows only the logo and the button', functio
 
     $screen->assertDontSee('This phone makes its own key')
         ->assertSet('fingerprint', app(DeviceKey::class)->current()->fingerprint())
-        // Large, in the theme's accent: black in light mode, white in dark. Its GitHub mark is checked on iOS.
+        // Large, in Commit Blue as the web's primary button is, with no mark: it's dev-null.sh, not GitHub.
         ->assertElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'sign-in'
-            && $node['props']['label'] === 'Sign in with GitHub'
-            && ($node['props']['variant'] ?? null) === 'accent'
-            && ($node['props']['size'] ?? null) === 'lg');
+            && $node['props']['label'] === 'Sign in on dev-null.sh'
+            && ($node['props']['variant'] ?? null) === 'primary'
+            && ($node['props']['size'] ?? null) === 'lg'
+            && ! isset($node['props']['leading_icon']));
 
     expect(findNodes($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'button'))->toHaveCount(1)
         ->and(findNodes($screen->tree(), fn (array $node): bool => str_contains((string) ($node['type'] ?? ''), 'input')))->toBe([]);
@@ -279,7 +280,7 @@ it('says nothing when you cancel on dev-null.sh', function () {
     expect(shownText($screen))->toBe([]);
 
     $screen
-        ->assertElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'sign-in' && $node['props']['label'] === 'Sign in with GitHub');
+        ->assertElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'sign-in' && $node['props']['label'] === 'Sign in on dev-null.sh');
 
     Http::assertNothingSent();
 });
