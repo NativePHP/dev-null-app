@@ -17,6 +17,7 @@ use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Android;
 use App\Icons\Ios;
+use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
@@ -74,6 +75,12 @@ use Native\Mobile\Events\Async\AsyncTaskFinished;
  * rows' heights, so a log scrolled thousands of commits down costs what one a
  * couple of hundred down does.
  *
+ * Every frame the phone gets while the list is moving costs its main thread a
+ * pass over the list, and that's where the scrolling stutters. So while it
+ * moves, the log only sends what can't wait: rows drawn further on before the
+ * screen reaches the end of them, and the next page before the end of the
+ * list. The rest waits for the list to come to rest (see scrollEnded()).
+ *
  * The pages beside the one you're on are kept small on purpose. EDGE writes
  * each frame into a buffer of fixed size, and a frame that doesn't fit is
  * dropped without a word; the frames after it then refer to rows the phone
@@ -85,7 +92,9 @@ use Native\Mobile\Events\Async\AsyncTaskFinished;
  * waiting on devnull while the phone kept scrolling, so you reached the
  * loading row and stayed on it. Now the page goes in a little before the end
  * (see NextPageWithin), or when the end comes, so it's usually there before
- * you are. Its images come down with it. A held page only follows on from
+ * you are. Its images come down with it. Once you've scrolled, pages go in
+ * further ahead whenever the list is at rest (see NextPageAtRestWithin), so a
+ * fling rarely needs one on the way. A held page only follows on from
  * the list it was cut from, so it's let go when that list is replaced rather
  * than added to: a fresh ranking, another log, pull to refresh, or the pill
  * replacing the list. Cursor pages are never kept in the response cache.
@@ -129,14 +138,23 @@ class Log extends NativeComponent
     public const int PreviewCommits = 3;
 
     /**
-     * How near the end of the log a next page fetched ahead goes in, in
-     * timeline rows below the last one on screen. The list says which rows are
-     * on screen every 20 rows, and asks for more 5 rows from its end (see
-     * log-page), so anything under 25 could let the end come before a report
-     * does. 40 leaves room for a report that lands late. A commit's thread
-     * replies count as one timeline row, so in list rows it's never less.
+     * How near the end of the log a next page fetched ahead goes in while the
+     * list moves, in timeline rows below the last one on screen. The list says
+     * which rows are on screen every 20 rows, and asks for more 5 rows from its
+     * end (see log-page), so anything under 25 could let the end come before a
+     * report does. 40 leaves room for a report that lands late. A commit's
+     * thread replies count as one timeline row, so in list rows it's never less.
      */
     public const int NextPageWithin = 40;
+
+    /**
+     * How near the end of the log pages go in while the list is at rest, in
+     * timeline rows below the last one on screen, one after another as they
+     * land. A frame then can't make the scrolling stutter, and the rows are
+     * there for the next fling, which only needs a page on the way once it
+     * comes within NextPageWithin.
+     */
+    public const int NextPageAtRestWithin = 80;
 
     public string $log = 'following';
 
@@ -208,6 +226,13 @@ class Log extends NativeComponent
     protected bool $waitingForNextPage = false;
 
     /**
+     * Whether the list is moving: it has said which rows are on screen since
+     * it last came to rest. Null until it's first scrolled, so opening the log
+     * doesn't fetch pages ahead that you may never scroll to.
+     */
+    protected ?bool $listScrolling = null;
+
+    /**
      * Each log's rows from the last frame, so a render only builds the rows that changed.
      *
      * @var array<string, RowCache>
@@ -240,10 +265,20 @@ class Log extends NativeComponent
      */
     private bool $taskLanded = false;
 
+    /**
+     * The frame about to be drawn changes nothing on screen, mid-scroll.
+     */
+    private bool $keepsFrame = false;
+
+    /**
+     * The log is the first screen the app opens on, so it sends what was
+     * left in the outbox when the app last closed (see SyncsOutbox).
+     */
     public function mount(): void
     {
         $this->log = app(ShownTabs::class)->get($this->me()?->id, 'log', self::Logs, 'following');
         $this->lastVisitAt = $this->lastVisitSeenAt();
+        $this->sendLeftovers();
         $this->fillInAfterFirstFrame('open');
     }
 
@@ -271,6 +306,8 @@ class Log extends NativeComponent
     #[Poll(30000)]
     public function checkForNewCommits(): void
     {
+        // Times catch up when the list comes to rest instead.
+        $this->keepsFrame = $this->listScrolling === true;
         $this->revalidate();
     }
 
@@ -441,7 +478,7 @@ class Log extends NativeComponent
     protected function revalidate(): void
     {
         $log = $this->log;
-        $since = $this->isRanked() ? $this->rankedSince : ($this->commits[0]->id ?? null);
+        $since = $this->isRanked() ? $this->rankedSince : $this->newestShownId();
 
         $this->refresh('log/'.$log, ['since' => $since], fn (array $json) => $this->isRanked()
             ? $this->takeRankedUpdate($log, $json)
@@ -506,16 +543,51 @@ class Log extends NativeComponent
 
     /**
      * The list's rows on screen as you scroll, by position: the rows near them
-     * are drawn, and the rest go as placeholders. Near the end, a next page
-     * that's already here goes in, so the phone has it before you reach the
-     * end rather than when you do. This never asks devnull for one.
+     * are drawn, and the rest go as placeholders. The list is still moving, so
+     * the frame stays as it was unless the screen nears the end of the rows
+     * drawn, or the end of the list nears with a next page here to put in, so
+     * the phone has it before you reach the end rather than when you do. This
+     * never asks devnull for one.
      */
     public function showRows(int $first, int $last): void
     {
         $window = $this->rowWindow($this->log);
         $window->show($first, $last);
+        $this->listScrolling = true;
 
-        if (($held = $this->heldNextPage()) !== null && $window->rowsBelowScreen() <= self::NextPageWithin) {
+        $pageDue = $this->heldNextPage() !== null && $window->rowsBelowScreen() <= self::NextPageWithin;
+
+        if (! $pageDue && ! $window->nearsEdge()) {
+            $this->keepsFrame = true;
+
+            return;
+        }
+
+        $this->catchUp();
+    }
+
+    /**
+     * The list come to rest, with these rows on screen: what waited while it
+     * moved goes in now, when a frame can't make it stutter.
+     */
+    public function scrollEnded(int $first, int $last): void
+    {
+        $this->rowWindow($this->log)->show($first, $last);
+        $this->listScrolling = false;
+        $this->catchUp();
+    }
+
+    /**
+     * Draws the rows around the screen, and puts in a next page that's here if
+     * the end of the list is near enough. A frame is going anyway, so as much
+     * goes in it as can, and the next has further to wait.
+     */
+    private function catchUp(): void
+    {
+        $window = $this->rowWindow($this->log);
+        $window->drawAroundScreen();
+
+        if (($held = $this->heldNextPage()) !== null && $window->rowsBelowScreen() <= self::NextPageAtRestWithin) {
             $this->appendPage($held);
         }
     }
@@ -596,7 +668,8 @@ class Log extends NativeComponent
     /**
      * The next page landing. A page for a cursor or a list that's gone since
      * is let go. Otherwise it's held for the end of the list, or goes straight
-     * in if the end of the list is waiting for it.
+     * in if the end of the list is waiting for it, or if the list has come to
+     * rest near enough the end to be topped up.
      *
      * @param  array<string, mixed>  $json
      */
@@ -611,7 +684,8 @@ class Log extends NativeComponent
         $this->fetchingNextPage = null;
         $this->heldPage = ['log' => $log, 'cursor' => $cursor, 'generation' => $generation, 'page' => $page];
 
-        if ($this->waitingForNextPage) {
+        if ($this->waitingForNextPage
+            || ($this->listScrolling === false && $this->rowWindow($log)->rowsBelowScreen() <= self::NextPageAtRestWithin)) {
             $this->appendPage($page);
         }
     }
@@ -681,6 +755,7 @@ class Log extends NativeComponent
         $this->heldPage = null;
         $this->fetchingNextPage = null;
         $this->waitingForNextPage = false;
+        $this->listScrolling = null;
     }
 
     /**
@@ -713,22 +788,88 @@ class Log extends NativeComponent
     }
 
     /**
-     * Puts a commit you just made in the compose sheet at the top of the log.
+     * Puts a commit you just made in the compose sheet at the top of the log,
+     * staged until devnull has it (see SyncsOutbox).
      */
     protected function showCommitted(Commit $commit): void
     {
         $this->madeHere[] = $commit->id;
         $this->loaded = true;
+        $this->keepStagedOnTop();
 
         // Trending has no top to put it on, so it goes above the ranking, as on the web.
         if ($this->isRanked()) {
-            $this->latestCommits = [$commit, ...$this->latestCommits];
             $this->listKey++;
+        }
+    }
+
+    /**
+     * devnull has the commit: the real one takes the staged one's place.
+     */
+    protected function showCommitWent(PendingWrite $write, Commit $commit): void
+    {
+        $staged = PendingWrite::stagedId($write->client_id);
+        $swap = fn (Commit $shown): Commit => $shown->id === $staged ? $commit : $shown;
+
+        $this->madeHere[] = $commit->id;
+        $this->commits = array_map($swap, $this->commits);
+        $this->latestCommits = array_map($swap, $this->latestCommits);
+    }
+
+    /**
+     * devnull turned the commit down: the staged one leaves the log.
+     */
+    protected function showCommitTurnedDown(PendingWrite $write): void
+    {
+        $this->keepStagedOnTop();
+    }
+
+    /**
+     * The compose button is the log's, so a new commit devnull turned down opens here again.
+     */
+    protected function opensComposer(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Your commits still on their way stay at the top of the log you're on,
+     * or above Trending's ranking, newest first, through every fresh page, and
+     * when you come back to the log. Ones that went or were turned down while
+     * the log wasn't showing leave it, and a commit that went comes in with
+     * the log's next answer.
+     */
+    private function keepStagedOnTop(): void
+    {
+        $staged = $this->stagedCommits(null);
+        $settled = fn (Commit $commit): bool => ! $commit->isStaged();
+
+        foreach ($staged as $commit) {
+            $this->madeHere[] = $commit->id;
+        }
+
+        if ($this->isRanked()) {
+            $this->latestCommits = [...$staged, ...array_values(array_filter($this->latestCommits, $settled))];
+            $this->commits = array_values(array_filter($this->commits, $settled));
 
             return;
         }
 
-        $this->commits = [$commit, ...$this->commits];
+        $this->commits = [...$staged, ...array_values(array_filter($this->commits, $settled))];
+    }
+
+    /**
+     * The newest commit showing that devnull has, which it's asked what came after.
+     */
+    private function newestShownId(): ?string
+    {
+        foreach ($this->commits as $commit) {
+            if (! $commit->isStaged()) {
+                return $commit->id;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -794,6 +935,7 @@ class Log extends NativeComponent
         $this->threads = [];
         $this->rankedSince = is_string($json['newest_commit_id'] ?? null) ? $json['newest_commit_id'] : null;
         $this->forgetNewCommits();
+        $this->keepStagedOnTop();
         $this->loaded = true;
 
         if ($prefetch) {
@@ -933,6 +1075,7 @@ class Log extends NativeComponent
         }
 
         $this->layFreshCommits($json, showNewer: $showNewer || ! $this->loaded);
+        $this->keepStagedOnTop();
         $this->suggestions = array_values(array_map(Commit::fromArray(...), array_filter(is_array($json['suggestions'] ?? null) ? $json['suggestions'] : [], is_array(...))));
         $this->loaded = true;
         $this->rememberLastVisit();
@@ -984,12 +1127,14 @@ class Log extends NativeComponent
      * on screen that happened often, and every frame the phone gets costs its
      * main thread a pass over the whole list. A scroll, a tap or the poll
      * every 30 seconds draws at the time it happens, so times stay as fresh
-     * as they were.
+     * as they were. While the list moves, a report of the rows on screen or
+     * the poll that changes nothing else keeps the time too, and the times
+     * catch up when it comes to rest.
      */
     public function render(): Element
     {
-        $this->drawnAt = $this->taskLanded && $this->drawnAt !== null ? $this->drawnAt : CarbonImmutable::now();
-        $this->taskLanded = false;
+        $this->drawnAt = ($this->taskLanded || $this->keepsFrame) && $this->drawnAt !== null ? $this->drawnAt : CarbonImmutable::now();
+        $this->taskLanded = $this->keepsFrame = false;
 
         return CarbonImmutable::withTestNow($this->drawnAt, fn (): Element => $this->fromView($this->frame()));
     }

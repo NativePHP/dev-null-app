@@ -5,7 +5,7 @@
 
 {{--
     Laid out like the web's profile settings: a section each, with its heading, on the surface. The full-width buttons
-    are large, as Sign in with GitHub is, and the main ones wear your colour.
+    are large, as Sign in on dev-null.sh is, and the main ones wear your colour.
 --}}
 <native:column class="w-full h-full bg-theme-surface">
     @include('native.partials.colour-sheet')

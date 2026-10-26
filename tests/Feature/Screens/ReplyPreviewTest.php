@@ -120,7 +120,7 @@ it('opens the rest of the thread in place, newest first, from Show more', functi
     expect(dashColours(nodeByRef($screen, 'thread-reply-r2')))->toContain(config('native-ui.theme.light.lane-4'))
         ->and(findNode(nodeByRef($screen, 'thread-reply-r2'), fn (array $node): bool => ($node['ref'] ?? null) === 'thread-elbow'))->toBeNull();
 
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/c1/replies');
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/c1/replies?limit=5');
 });
 
 it('opens Show more at once from the thread kept last time, and refreshes it behind', function () {
@@ -138,13 +138,18 @@ it('opens Show more at once from the thread kept last time, and refreshes it beh
         ->and(refreshesSent($screen))->toBeGreaterThan(1);
 });
 
-it('opens the commit instead when its thread is longer than a page', function () {
+it('opens the commit with its replies showing instead when its thread is longer than a page', function () {
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([previewedJson([replyJson(['id' => 'r60', 'parent_id' => 'c1'])], more: true)])],
-        'GET /api/v1/commits/c1/replies' => [pageJson(array_map(fn (int $n): array => replyJson(['id' => "r{$n}", 'parent_id' => 'c1']), range(1, 50)), 'page2')],
+        'GET /api/v1/commits/c1/replies' => [pageJson(array_map(fn (int $n): array => replyJson(['id' => "r{$n}", 'parent_id' => 'c1']), range(1, 5)), 'page2')],
+        'GET /api/v1/commits/c1' => [commitPageJson(previewedJson([], more: true))],
     ]);
 
-    Native::visit('/log', platform: 'ios')->tap('more-replies-c1')->assertNavigatedTo('/log/commits/c1');
+    Native::visit('/log', platform: 'ios')
+        ->tap('more-replies-c1')
+        ->assertNavigatedTo('/log/commits/c1')
+        ->follow()
+        ->assertSet('repliesShown', true);
 });
 
 it('stars a reply in the thread in place', function () {

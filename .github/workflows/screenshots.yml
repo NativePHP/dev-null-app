@@ -1,0 +1,50 @@
+name: Screenshots
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  screenshots:
+    # Drafts are skipped until they're ready for review.
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+
+    steps:
+      # A PR that changes what the app looks like needs screenshots in its description, or a
+      # ticked "No visible change". The body comes from the event, so this works for forks too.
+      - name: Check visible changes come with screenshots
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          visible=$(gh api "repos/$REPO/pulls/$NUMBER/files" --paginate --jq '.[].filename' \
+            | grep -E '^(app/NativeComponents/|resources/(views/native|animations|fonts|icons)/|config/native-ui\.php$)' || true)
+
+          if [ -z "$visible" ]; then
+            echo "Nothing visible changed."
+            exit 0
+          fi
+
+          if printf '%s\n' "$BODY" | grep -qiE '^\s*[-*] \[x\] No visible change'; then
+            echo "The description says nothing visible changed."
+            exit 0
+          fi
+
+          images=$(printf '%s\n' "$BODY" | grep -oiE '<img |!\[' | wc -l)
+
+          if [ "$images" -ge 4 ]; then
+            echo "Found $images screenshots."
+            exit 0
+          fi
+
+          echo "These files change what the app looks like:"
+          echo "$visible"
+          echo "::error::Add before and after screenshots for iOS and Android in light and dark mode to the description (php artisan screenshots:take, then screenshots:publish), or tick \"No visible change\"."
+          exit 1

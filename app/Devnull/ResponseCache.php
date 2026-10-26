@@ -288,8 +288,63 @@ final class ResponseCache
             ? self::prepend($json, $commit)
             : [...$json, 'data' => self::without($json['data'] ?? [], $id)]);
 
-        $unstarred = array_diff($this->unstarredIds(), [$id]);
-        $this->store()->forever("{$userId} unstarred", array_slice($commit['starred'] ? $unstarred : [$id, ...$unstarred], 0, self::RememberedUnstars));
+        $this->rememberUnstarred($id, ! $commit['starred']);
+    }
+
+    /**
+     * Remembers a commit as unstarred on this phone, or forgets it was once it's starred again.
+     */
+    private function rememberUnstarred(string $id, bool $unstarred): void
+    {
+        $userId = $this->userId();
+
+        if ($userId === null) {
+            return;
+        }
+
+        $others = array_diff($this->unstarredIds(), [$id]);
+        $this->store()->forever("{$userId} unstarred", array_slice($unstarred ? [$id, ...$others] : $others, 0, self::RememberedUnstars));
+    }
+
+    /**
+     * You starred or unstarred a commit, before devnull has said so, or it
+     * turned that down and the star goes back. Every copy of the commit flips
+     * its star and moves its count to match, as the screen does (see
+     * Commit::withStar()), and your starred commits take it on top or let it
+     * go, as for devnull's answer. A commit starred with no copy kept anywhere
+     * but $copy, as one taken off your starred commits had before, waits for
+     * devnull's answer to go on top of them.
+     *
+     * @param  array<string, mixed>|null  $copy
+     */
+    public function starChanged(string $id, bool $starred, ?array $copy = null): void
+    {
+        $kept = $this->findCommit($id) ?? $copy;
+        $change = fn (array $commit): array => ($commit['starred'] ?? false) === $starred ? $commit : [
+            ...$commit,
+            'starred' => $starred,
+            'stars_count' => max(0, (int) ($commit['stars_count'] ?? 0) + ($starred ? 1 : -1)),
+        ];
+
+        $this->patchCommit($id, $change);
+
+        if ($starred && $kept === null) {
+            $this->rememberUnstarred($id, false);
+
+            return;
+        }
+
+        $this->commitStarred($change([...($kept ?? []), 'id' => $id]));
+    }
+
+    /**
+     * Any kept copy of a commit, as devnull last sent it.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function keptCommit(string $id): ?array
+    {
+        return $this->findCommit($id);
     }
 
     /**

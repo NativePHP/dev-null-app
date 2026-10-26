@@ -5,8 +5,8 @@ namespace App\NativeComponents\Concerns;
 use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\ResponseCache;
+use App\Devnull\Toasts;
 use Closure;
-use Native\Mobile\Facades\Dialog;
 
 /**
  * Votes on the polls a screen shows, as the web's CommitPoll does: tap an
@@ -64,7 +64,7 @@ trait VotesOnPolls
         }, function (string $message) use ($id): void {
             $this->voting = array_values(array_diff($this->voting, [$id]));
 
-            Dialog::toast($message);
+            Toasts::failed($message);
         });
     }
 

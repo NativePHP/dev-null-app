@@ -4,6 +4,7 @@ namespace App\NativeComponents;
 
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\SearchesPeople;
+use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
@@ -17,6 +18,7 @@ class NewRemote extends NativeComponent
 {
     use OpensInTab;
     use SearchesPeople;
+    use SyncsOutbox;
     use TalksToDevnull;
 
     public function navTitle(): string

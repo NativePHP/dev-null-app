@@ -4,12 +4,17 @@
     The runs inside a paragraph sit flush left with no blank lines between them on purpose: under whitespace-pre-wrap
     any whitespace between those tags would print. Each line ends in a tag or a directive, whose newline PHP drops.
 
-    A standalone /dev/null is the wordmark, in semibold with tighter tracking like the web's. The web outlines its
-    middle slash in lane-0; EDGE text runs can't stroke a glyph, so that slash is solid lane-0 instead, in the regular
-    weight, which is nearer the outline's thin lines than a solid semibold slash or a faded one. iOS breaks lines
-    after a slash, so a word joiner (U+2060) after each one keeps the wordmark on one line. It never breaks before a
+    A standalone /dev/null is the wordmark, in semibold with tighter tracking like the web's, its middle slash a
+    hollow lane-0 outline. text-outline's 1pt is the web's max(1px, 0.035em) at body sizes. iOS breaks lines after a
+    slash, so a word joiner (U+2060) after each one keeps the wordmark on one line. It never breaks before a
     slash, even after a space, so a zero-width space (U+200B) after a space lets the line break there as a browser
     would; without it, a few wordmarks in a row can't wrap at all. VoiceOver skips both and still reads "/dev/null".
+
+    A hex color has a square of that color before it, as the web's swatch, held to it by a narrow no-break space so
+    they wrap together.
+
+    A quote, lines that start with ">", sits behind an amber rule on the left like the web's blockquote, its
+    runs drawn as a paragraph's.
 
     A link is Commit Blue and opens on a tap, numbered by its place among the body's links. Like the web, a URL shows
     shortened, and a dev/null commit or a GitHub repository, issue or pull request shows as a mono name with the owner
@@ -33,6 +38,9 @@
             <native:text :text="$block->code" font="mono" class="w-full px-3 py-2 text-[13px] leading-snug {{ $ink }} whitespace-pre-wrap select-text" />
         </native:column>
     @else
+@if ($block->isQuote())
+<native:column class="w-full my-1 pl-3 border-l-2 border-theme-lane-5">
+@endif
 <native:text class="w-full {{ $size }} leading-relaxed {{ $ink }} whitespace-pre-wrap">@foreach ($block->runs as $run)
 @if ($run->isMention())
 <native:text :text="$run->text" font="semibold" class="font-semibold text-theme-primary" @press="openProfile('{{ $run->username }}')" />
@@ -42,14 +50,19 @@
 <native:text font="mono" class="text-[13px] text-theme-primary" @press="openLink('{{ $commit->id }}', {{ $linkIndex++ }})"><native:text :text="$run->link->prefix" class="text-theme-ink-muted" />&#x2060;<native:text :text="$run->link->shown" /></native:text>
 @elseif ($run->link)
 <native:text :text="$run->link->shown" class="text-theme-primary" @press="openLink('{{ $commit->id }}', {{ $linkIndex++ }})" />
+@elseif ($run->isColor())
+<native:text><native:text text="■" class="text-[#{{ $run->color }}] dark:text-[#{{ $run->color }}]" />&#x202F;<native:text :text="$run->text" /></native:text>
 @elseif ($run->isWordmark)
 @php($afterSpace = $loop->index > 0 && ctype_space(substr($block->runs[$loop->index - 1]->text, -1)))
-<native:text font="semibold" class="font-semibold tracking-tight">@if ($afterSpace)&#x200B;@endif/&#x2060;dev<native:text text="/" font="default" class="font-normal text-theme-lane-0" />&#x2060;null</native:text>
+<native:text font="semibold" class="font-semibold tracking-tight">@if ($afterSpace)&#x200B;@endif/&#x2060;dev<native:text text="/" class="text-outline text-theme-lane-0" />&#x2060;null</native:text>
 @else
 <native:text :text="$run->text" />
 @endif
 @endforeach
 </native:text>
+@if ($block->isQuote())
+</native:column>
+@endif
     @endif
 @endforeach
 @if ($folded)

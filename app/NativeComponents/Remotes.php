@@ -11,6 +11,7 @@ use App\Icons\Lucide;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Layouts\TabsLayout;
 use Illuminate\View\View;
@@ -45,6 +46,7 @@ class Remotes extends NativeComponent
     use DrawsSkeletonFirst;
     use OpensInTab;
     use RefreshesInBackground;
+    use SyncsOutbox;
     use TalksToDevnull;
 
     /**

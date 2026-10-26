@@ -15,6 +15,7 @@ use App\Devnull\Lane;
 use App\Devnull\ResponseCache;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SignsInWithApple;
+use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Concerns\WritesInBackground;
 use Illuminate\View\View;
@@ -45,6 +46,7 @@ class ThisDevice extends NativeComponent
 {
     use RefreshesInBackground;
     use SignsInWithApple;
+    use SyncsOutbox;
     use TalksToDevnull;
     use WritesInBackground;
 

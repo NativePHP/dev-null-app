@@ -205,7 +205,7 @@ it('shows inline code on a wash and keeps mentions on both sides of it', functio
     ]);
 });
 
-it('draws a standalone /dev/null as the wordmark: semibold, tight, its middle slash regular in lane-0, held on one line', function () {
+it('draws a standalone /dev/null as the wordmark: semibold, tight, its middle slash a lane-0 outline, held on one line', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson(['body' => 'Piped to /dev/null, not /dev/nullable (/dev/null)'])]))]);
 
     $screen = Native::visit('/log');
@@ -218,7 +218,7 @@ it('draws a standalone /dev/null as the wordmark: semibold, tight, its middle sl
             ["/\u{2060}dev", '/', "\u{2060}null"],
         ])
         ->and($wordmarks[0]['props'])->toMatchArray(['font_name' => 'semibold', 'font_weight' => 5])
-        ->and($slash)->toMatchArray(['font_name' => 'default', 'font_weight' => 3])
+        ->and($slash)->toMatchArray(['text_outline' => 1.0])->not->toHaveKey('font_name')
         ->and(strtolower($slash['color']))->toBe(strtolower(config('native-ui.theme.light.lane-0')))
         ->and(strtolower($slash['dark_color']))->toBe(strtolower(config('native-ui.theme.dark.lane-0')));
 });
@@ -304,7 +304,10 @@ it('holds images at their aspect ratio, so one that never loads leaves the row i
             && ($node['style']['bg_color'] ?? null) === config('native-ui.theme.light.wash'))
         ->assertElement('image', fn (array $node): bool => ($node['props']['src'] ?? null) === 'http://devnull.test/commit-images/i1')
         ->tap('image-i1')
-        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'http://devnull.test/commit-images/i1');
+        ->assertSet('viewerOpen', true)
+        ->assertElement('image', fn (array $node): bool => ($node['ref'] ?? null) === 'viewed-image'
+            && ($node['props']['src'] ?? null) === 'http://devnull.test/commit-images/i1')
+        ->assertNativeNotCalled('Browser.OpenInApp');
 });
 
 it('lays out several images in the web grid', function () {
@@ -320,7 +323,10 @@ it('lays out several images in the web grid', function () {
     Native::visit('/log')
         ->assertElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'image-i3' && ($node['a11y']['label'] ?? $node['props']['a11y_label'] ?? null) !== null)
         ->tap('image-i3')
-        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://img.test/3');
+        ->assertSet('viewerIndex', 2)
+        ->assertElement('image', fn (array $node): bool => ($node['ref'] ?? null) === 'viewed-image'
+            && ($node['props']['src'] ?? null) === 'https://img.test/3')
+        ->assertNativeNotCalled('Browser.OpenInApp');
 });
 
 it('reads each image out by the description its author gave it, as the web does with alt text', function (array $images, array $labels) {
@@ -462,10 +468,17 @@ it('puts the star back when devnull says no', function () {
         'POST /api/v1/commits/c1/star' => [['message' => 'Too Many Attempts.'], 429],
     ]);
 
-    $screen = Native::visit('/log')->tap('star-c1')->assertSee('Too Many Attempts.');
+    $screen = Native::visit('/log')
+        ->tap('star-c1')
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Too Many Attempts.'
+            && $params['variant'] === 'error'
+            && $params['action'] === ['id' => 'retry-star', 'label' => 'Retry']
+            && $params['data'] === ['commit' => 'c1', 'starred' => true]);
 
     expect($screen->instance()->commits[0]->starred)->toBeFalse()
-        ->and($screen->instance()->commits[0]->starsCount)->toBe(1);
+        ->and($screen->instance()->commits[0]->starsCount)->toBe(1)
+        ->and(kept('log/following')['data'][0])->toMatchArray(['starred' => false, 'stars_count' => 1])
+        ->and($screen->instance()->error)->toBeNull();
 });
 
 it('leaves bookmarks out of More even when an old cached commit has bookmark state', function () {
@@ -520,6 +533,26 @@ it('opens a thread in place, as the web does, and closes it again', function () 
     $screen->tap('replies-c2')->assertDontSee('First reply in place')->assertSee('2 replies');
 
     Native::visit('/log')->tap('replies-c2')->tap('thread-reply-r1')->assertNavigatedTo('/log/commits/r1');
+});
+
+it('opens five replies of a thread in place, and the rest on its commit page from Show more', function () {
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c2', 'replies_count' => 7])])],
+        'GET /api/v1/commits/c2/replies' => [pageJson(array_map(fn (int $n): array => replyJson(['id' => "r{$n}", 'parent_id' => 'c2', 'body' => "Reply {$n}"]), range(1, 5)), 'page2', 'http://devnull.test/api/v1/commits/c2/replies')],
+        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'replies_count' => 7]))],
+    ]);
+
+    Native::visit('/log', platform: 'ios')
+        ->tap('replies-c2')
+        ->assertNoNavigation()
+        ->assertSee('Reply 5')
+        ->tap('more-replies-c2')
+        ->assertNavigatedTo('/log/commits/c2')
+        ->follow()
+        ->assertSet('repliesShown', true)
+        ->assertSee('Reply 5');
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/c2/replies?limit=5');
 });
 
 it('closes a thread whose replies have all gone', function () {
