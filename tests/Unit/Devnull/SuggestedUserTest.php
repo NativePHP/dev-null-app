@@ -7,7 +7,7 @@ use App\Devnull\Data\SuggestedUser;
  */
 function suggestedUser(array $overrides = []): SuggestedUser
 {
-    return SuggestedUser::fromArray(['id' => 'u2', 'username' => 'ada', 'followers_count' => 0, 'followed_by_following_count' => 0, ...$overrides]);
+    return SuggestedUser::fromArray(['id' => 'u2', 'handle' => 'ada', 'followers_count' => 0, 'followed_by_following_count' => 0, ...$overrides]);
 }
 
 it('says why someone is suggested as the web does', function (array $counts, ?string $reason) {
@@ -26,5 +26,5 @@ it('reads whether you follow them and whether they follow you', function () {
         ->and($suggested->followsYou)->toBeTrue()
         ->and($suggested->isFollowed)->toBeFalse()
         ->and($suggested->withFollowed(true)->isFollowed)->toBeTrue()
-        ->and(SuggestedUser::fromArray(['id' => 'u3', 'username' => 'grace', 'followers_count' => 'many'])->followersCount)->toBe(0);
+        ->and(SuggestedUser::fromArray(['id' => 'u3', 'handle' => 'grace', 'followers_count' => 'many'])->followersCount)->toBe(0);
 });

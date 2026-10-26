@@ -20,7 +20,7 @@ beforeEach(function () {
 function suggestedJson(string $username, array $overrides = []): array
 {
     return [
-        ...userJson(['id' => 'id-'.$username, 'username' => $username, 'name' => ucfirst($username), 'bio' => null, 'lane' => 1]),
+        ...userJson(['id' => 'id-'.$username, 'handle' => $username, 'name' => ucfirst($username), 'bio' => null, 'lane' => 1]),
         'followers_count' => 0,
         'followed_by_following_count' => 0,
         'follows_you' => false,
