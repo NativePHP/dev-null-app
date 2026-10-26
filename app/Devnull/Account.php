@@ -160,6 +160,7 @@ final class Account
     {
         app(ResponseCache::class)->flush();
         app(Stash::class)->forget($this->user()?->id);
+        app(Outbox::class)->forgetAll($this->user()?->id);
 
         Cache::forget(self::CacheKey);
         Cache::forget(self::UnreadKey);

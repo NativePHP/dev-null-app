@@ -2,6 +2,7 @@
 
 namespace App\Devnull;
 
+use App\Devnull\Exceptions\ApiException;
 use Illuminate\Http\Client\ConnectionException;
 use Native\Mobile\AsyncTask;
 
@@ -31,6 +32,36 @@ final class FetchInBackground extends AsyncTask
      * Any not down by then load from their URLs, as before they're kept.
      */
     public const int ImagesWithin = 5;
+
+    /**
+     * What went wrong with a write this task sent, as the API would have
+     * thrown it on the UI thread, or null when devnull took it. A phone that
+     * couldn't reach devnull reads as not connecting, and an answer that
+     * isn't devnull's, such as a captive portal's page, as unexpected.
+     */
+    public static function failureOf(mixed $result): ?ApiException
+    {
+        $result = is_array($result) ? $result : [];
+        $status = (int) ($result['status'] ?? 0);
+        $successful = $status >= 200 && $status < 300;
+
+        return match (true) {
+            $successful && ($result['from_devnull'] ?? false) === true => null,
+            $status === 0 => ApiException::couldNotConnect((string) config('devnull.url')),
+            $successful => ApiException::unexpectedAnswer((string) config('devnull.url'), $status),
+            default => ApiException::fromParts($status, $result['json'] ?? null, (string) ($result['retry_after'] ?? '')),
+        };
+    }
+
+    /**
+     * The JSON devnull answered a write with, or an empty array for a write it answered with nothing.
+     *
+     * @return array<string, mixed>
+     */
+    public static function jsonOf(mixed $result): array
+    {
+        return is_array($result) && is_array($result['json'] ?? null) ? $result['json'] : [];
+    }
 
     /**
      * @param  array<string, string>  $headers

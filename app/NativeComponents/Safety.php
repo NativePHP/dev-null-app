@@ -7,6 +7,7 @@ use App\Devnull\Data\Page;
 use App\Devnull\Data\User;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Closure;
 use Illuminate\View\View;
@@ -27,6 +28,7 @@ class Safety extends NativeComponent
 {
     use OpensInTab;
     use RefreshesInBackground;
+    use SyncsOutbox;
     use TalksToDevnull;
 
     /**

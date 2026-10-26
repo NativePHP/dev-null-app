@@ -17,6 +17,7 @@ use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Android;
 use App\Icons\Ios;
+use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
@@ -240,10 +241,15 @@ class Log extends NativeComponent
      */
     private bool $taskLanded = false;
 
+    /**
+     * The log is the first screen the app opens on, so it sends what was
+     * left in the outbox when the app last closed (see SyncsOutbox).
+     */
     public function mount(): void
     {
         $this->log = app(ShownTabs::class)->get($this->me()?->id, 'log', self::Logs, 'following');
         $this->lastVisitAt = $this->lastVisitSeenAt();
+        $this->sendLeftovers();
         $this->fillInAfterFirstFrame('open');
     }
 
@@ -441,7 +447,7 @@ class Log extends NativeComponent
     protected function revalidate(): void
     {
         $log = $this->log;
-        $since = $this->isRanked() ? $this->rankedSince : ($this->commits[0]->id ?? null);
+        $since = $this->isRanked() ? $this->rankedSince : $this->newestShownId();
 
         $this->refresh('log/'.$log, ['since' => $since], fn (array $json) => $this->isRanked()
             ? $this->takeRankedUpdate($log, $json)
@@ -713,22 +719,88 @@ class Log extends NativeComponent
     }
 
     /**
-     * Puts a commit you just made in the compose sheet at the top of the log.
+     * Puts a commit you just made in the compose sheet at the top of the log,
+     * staged until devnull has it (see SyncsOutbox).
      */
     protected function showCommitted(Commit $commit): void
     {
         $this->madeHere[] = $commit->id;
         $this->loaded = true;
+        $this->keepStagedOnTop();
 
         // Trending has no top to put it on, so it goes above the ranking, as on the web.
         if ($this->isRanked()) {
-            $this->latestCommits = [$commit, ...$this->latestCommits];
             $this->listKey++;
+        }
+    }
+
+    /**
+     * devnull has the commit: the real one takes the staged one's place.
+     */
+    protected function showCommitWent(PendingWrite $write, Commit $commit): void
+    {
+        $staged = PendingWrite::stagedId($write->client_id);
+        $swap = fn (Commit $shown): Commit => $shown->id === $staged ? $commit : $shown;
+
+        $this->madeHere[] = $commit->id;
+        $this->commits = array_map($swap, $this->commits);
+        $this->latestCommits = array_map($swap, $this->latestCommits);
+    }
+
+    /**
+     * devnull turned the commit down: the staged one leaves the log.
+     */
+    protected function showCommitTurnedDown(PendingWrite $write): void
+    {
+        $this->keepStagedOnTop();
+    }
+
+    /**
+     * The compose button is the log's, so a new commit devnull turned down opens here again.
+     */
+    protected function opensComposer(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Your commits still on their way stay at the top of the log you're on,
+     * or above Trending's ranking, newest first, through every fresh page, and
+     * when you come back to the log. Ones that went or were turned down while
+     * the log wasn't showing leave it, and a commit that went comes in with
+     * the log's next answer.
+     */
+    private function keepStagedOnTop(): void
+    {
+        $staged = $this->stagedCommits(null);
+        $settled = fn (Commit $commit): bool => ! $commit->isStaged();
+
+        foreach ($staged as $commit) {
+            $this->madeHere[] = $commit->id;
+        }
+
+        if ($this->isRanked()) {
+            $this->latestCommits = [...$staged, ...array_values(array_filter($this->latestCommits, $settled))];
+            $this->commits = array_values(array_filter($this->commits, $settled));
 
             return;
         }
 
-        $this->commits = [$commit, ...$this->commits];
+        $this->commits = [...$staged, ...array_values(array_filter($this->commits, $settled))];
+    }
+
+    /**
+     * The newest commit showing that devnull has, which it's asked what came after.
+     */
+    private function newestShownId(): ?string
+    {
+        foreach ($this->commits as $commit) {
+            if (! $commit->isStaged()) {
+                return $commit->id;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -794,6 +866,7 @@ class Log extends NativeComponent
         $this->threads = [];
         $this->rankedSince = is_string($json['newest_commit_id'] ?? null) ? $json['newest_commit_id'] : null;
         $this->forgetNewCommits();
+        $this->keepStagedOnTop();
         $this->loaded = true;
 
         if ($prefetch) {
@@ -933,6 +1006,7 @@ class Log extends NativeComponent
         }
 
         $this->layFreshCommits($json, showNewer: $showNewer || ! $this->loaded);
+        $this->keepStagedOnTop();
         $this->suggestions = array_values(array_map(Commit::fromArray(...), array_filter(is_array($json['suggestions'] ?? null) ? $json['suggestions'] : [], is_array(...))));
         $this->loaded = true;
         $this->rememberLastVisit();

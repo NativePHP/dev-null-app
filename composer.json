@@ -20,6 +20,10 @@
             "url": "https://github.com/NativePHP/mobile-ui"
         },
         {
+            "type": "vcs",
+            "url": "https://github.com/simonhamp/toastkit"
+        },
+        {
             "name": "nativephp-plugins",
             "type": "composer",
             "url": "https://plugins.nativephp.com"
@@ -37,7 +41,8 @@
         "nativephp/mobile-secure-storage": "^1.1",
         "nativephp/mobile-share": "^1.1",
         "nativephp/mobile-ui": "dev-main as 0.8.0",
-        "s2br/nativephp-mobile-splashscreen": "^1.4"
+        "s2br/nativephp-mobile-splashscreen": "^1.4",
+        "victorycodedev/toastkit": "dev-fix/android-toasts-above-sheets as 1.4.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

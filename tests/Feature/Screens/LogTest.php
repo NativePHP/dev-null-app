@@ -468,10 +468,17 @@ it('puts the star back when devnull says no', function () {
         'POST /api/v1/commits/c1/star' => [['message' => 'Too Many Attempts.'], 429],
     ]);
 
-    $screen = Native::visit('/log')->tap('star-c1')->assertSee('Too Many Attempts.');
+    $screen = Native::visit('/log')
+        ->tap('star-c1')
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Too Many Attempts.'
+            && $params['variant'] === 'error'
+            && $params['action'] === ['id' => 'retry-star', 'label' => 'Retry']
+            && $params['data'] === ['commit' => 'c1', 'starred' => true]);
 
     expect($screen->instance()->commits[0]->starred)->toBeFalse()
-        ->and($screen->instance()->commits[0]->starsCount)->toBe(1);
+        ->and($screen->instance()->commits[0]->starsCount)->toBe(1)
+        ->and(kept('log/following')['data'][0])->toMatchArray(['starred' => false, 'stars_count' => 1])
+        ->and($screen->instance()->error)->toBeNull();
 });
 
 it('leaves bookmarks out of More even when an old cached commit has bookmark state', function () {

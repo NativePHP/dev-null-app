@@ -219,7 +219,7 @@ it('deletes your own starred commit from its menu and lets its row go', function
     $screen = finishRefreshes(Native::visit('/profile/starred', platform: 'ios'))
         ->tap('delete-s2')
         ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Delete', 'id' => 'delete-commit'])
-        ->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === 'rm s2 → /dev/null')
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'rm s2 → /dev/null')
         ->assertNoNavigation()->assertDontSee('Delete me');
     expect(starredIds(finishRefreshes($screen)))->toBe(['s1'])
         ->and(array_column(kept('starred')['data'], 'id'))->toBe(['s1']);

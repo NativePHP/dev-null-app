@@ -137,7 +137,7 @@ it('sends the reason and details, then says the report was received, until Done 
 
     $screen->assertSee('Report received. Moderators will review it privately.')
         ->assertDontSee('Send report')
-        ->assertNativeNotCalled('Dialog.Toast');
+        ->assertNativeNotCalled('ToastKit.Show');
 
     expect(sheetProps($screen))->toMatchArray(['visible' => true, 'detents' => '0.3']);
 

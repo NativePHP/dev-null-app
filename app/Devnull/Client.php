@@ -225,6 +225,17 @@ final readonly class Client
     }
 
     /**
+     * Signs a commit without sending it, for the outbox to send from the
+     * background, as createCommit() would send it (see Outbox).
+     *
+     * @param  array{options: list<string>, duration: int}|null  $poll
+     */
+    public function signedCommit(string $body, ?string $parentId = null, ?string $quotedCommitId = null, ?array $poll = null): SignedRequest
+    {
+        return $this->signedWrite('POST', 'commits', self::commitPayload($body, $parentId, $quotedCommitId, poll: $poll));
+    }
+
+    /**
      * Signs a commit with images without sending it, for the background to
      * send while the sheet says it's under way, since photos take a while to
      * upload. devnull takes them as multipart, as from the `devnull commit`

@@ -13,6 +13,9 @@
     A hex color has a square of that color before it, as the web's swatch, held to it by a narrow no-break space so
     they wrap together.
 
+    A quote, lines that start with ">", sits behind an amber rule on the left like the web's blockquote, its
+    runs drawn as a paragraph's.
+
     A link is Commit Blue and opens on a tap, numbered by its place among the body's links. Like the web, a URL shows
     shortened, and a dev/null commit or a GitHub repository, issue or pull request shows as a mono name with the owner
     muted, held on one line by a word joiner after its slash. The web's dev/null and GitHub marks before those are icons,
@@ -35,6 +38,9 @@
             <native:text :text="$block->code" font="mono" class="w-full px-3 py-2 text-[13px] leading-snug {{ $ink }} whitespace-pre-wrap select-text" />
         </native:column>
     @else
+@if ($block->isQuote())
+<native:column class="w-full my-1 pl-3 border-l-2 border-theme-lane-5">
+@endif
 <native:text class="w-full {{ $size }} leading-relaxed {{ $ink }} whitespace-pre-wrap">@foreach ($block->runs as $run)
 @if ($run->isMention())
 <native:text :text="$run->text" font="semibold" class="font-semibold text-theme-primary" @press="openProfile('{{ $run->username }}')" />
@@ -54,6 +60,9 @@
 @endif
 @endforeach
 </native:text>
+@if ($block->isQuote())
+</native:column>
+@endif
     @endif
 @endforeach
 @if ($folded)

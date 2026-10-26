@@ -8,9 +8,12 @@ use App\Devnull\Data\Message;
 use App\Devnull\Data\Thread;
 use App\Devnull\Data\User;
 use App\Devnull\Display;
+use App\Devnull\Outbox;
 use App\Icons\Lucide;
+use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Concerns\WritesInBackground;
 use Carbon\CarbonImmutable;
@@ -37,7 +40,11 @@ use Native\Mobile\Facades\Browser;
  *
  * A message you push shows staged at once, then pushed once devnull has it,
  * or rejected with a retry, which sends it again under the same client id so
- * it's never stored twice. A long press on a message opens its reactions and
+ * it's never stored twice. It goes through the outbox (see SyncsOutbox), so
+ * it's still staged or rejected when you come back to the thread, and one
+ * still on its way when the app closed goes again when it next opens. A
+ * toast says why devnull didn't take one, wherever you are by then, with a
+ * Retry of its own. A long press on a message opens its reactions and
  * Reply, and a double tap toggles a heart, as on the web's phone layout.
  *
  * When the composer can't push (a request to merge, your own request waiting,
@@ -48,6 +55,7 @@ class Conversation extends NativeComponent
 {
     use OpensInTab;
     use RefreshesInBackground;
+    use SyncsOutbox;
     use TalksToDevnull;
     use WritesInBackground;
 
@@ -96,7 +104,7 @@ class Conversation extends NativeComponent
     public array $messages = [];
 
     /**
-     * Messages you pushed that devnull hasn't taken yet, staged or rejected, after the rest.
+     * Messages you pushed that devnull hasn't taken yet, staged or rejected, after the rest, as the outbox has them.
      *
      * @var list<Message>
      */
@@ -192,6 +200,7 @@ class Conversation extends NativeComponent
         $row = $this->data('conversation');
         $this->row = $row instanceof ConversationData ? $row : null;
         $this->showKept();
+        $this->showPending();
         $this->revalidate();
         $this->refresh('remotes/reactions', [], fn (array $json) => $this->usage = self::usageFrom($json), quiet: true);
     }
@@ -200,6 +209,7 @@ class Conversation extends NativeComponent
     {
         $this->forgetRefreshes();
         $this->showKept();
+        $this->showPending();
         $this->revalidate();
     }
 
@@ -279,6 +289,11 @@ class Conversation extends NativeComponent
         }
 
         $message = Message::staged($me->id, (string) Str::uuid(), $body, $this->findMessage($this->replyToId));
+        $write = app(Outbox::class)->add(PendingWrite::Message, $this->threadPath(), ['body' => $body, 'reply_to_id' => $message->replyToId], $message->clientId);
+
+        if ($write === null) {
+            return;
+        }
 
         $this->pending[] = $message;
         $this->draft = '';
@@ -286,7 +301,7 @@ class Conversation extends NativeComponent
         $this->lastActivityAt = self::now();
         $this->lastTypingAt = 0;
 
-        $this->push($message);
+        $this->sendFromOutbox($write);
     }
 
     /**
@@ -294,11 +309,10 @@ class Conversation extends NativeComponent
      */
     public function retry(string $clientId): void
     {
-        foreach ($this->pending as $index => $message) {
-            if ($message->clientId === $clientId && $message->status === Message::Rejected) {
-                $this->pending[$index] = $message->withStatus(Message::Staged);
-                $this->push($this->pending[$index]);
-            }
+        $write = app(Outbox::class)->findByClientId($clientId);
+
+        if ($write !== null) {
+            $this->resendMessage($write);
         }
     }
 
@@ -510,31 +524,65 @@ class Conversation extends NativeComponent
         });
     }
 
-    private function push(Message $message): void
+    /**
+     * A message you pushed to this thread went, with devnull's answer: the
+     * real one shows in its place. Or it didn't, or it's going again, and it
+     * shows as the outbox has it now: rejected, or staged.
+     *
+     * @param  array<string, mixed>|null  $json
+     */
+    protected function showMessage(PendingWrite $write, ?array $json): void
     {
-        $payload = ['body' => $message->body, 'client_id' => $message->clientId];
-
-        if ($message->replyToId !== null) {
-            $payload['reply_to_id'] = $message->replyToId;
+        if ($write->target !== $this->threadPath()) {
+            return;
         }
 
-        $this->writeInBackground('POST', $this->messagesPath(), $payload, function (array $json) use ($message): void {
-            $pushed = Message::fromArray(is_array($json['data'] ?? null) ? $json['data'] : []);
-
-            $this->pending = array_values(array_filter($this->pending, fn (Message $pending): bool => $pending->clientId !== $message->clientId));
-
-            if ($pushed->id > 0) {
-                $this->messages = self::merged($this->messages, [$pushed]);
-                $this->readThroughId = max($this->readThroughId, $pushed->id);
-            }
-
-            $this->lastActivityAt = self::now();
-        }, function () use ($message): void {
+        if ($json === null) {
+            $status = $write->isFailed() ? Message::Rejected : Message::Staged;
             $this->pending = array_map(
-                fn (Message $pending): Message => $pending->clientId === $message->clientId ? $pending->withStatus(Message::Rejected) : $pending,
+                fn (Message $pending): Message => $pending->clientId === $write->client_id ? $pending->withStatus($status) : $pending,
                 $this->pending,
             );
-        });
+
+            return;
+        }
+
+        $pushed = Message::fromArray(is_array($json['data'] ?? null) ? $json['data'] : []);
+
+        $this->pending = array_values(array_filter($this->pending, fn (Message $pending): bool => $pending->clientId !== $write->client_id));
+
+        if ($pushed->id > 0) {
+            $this->messages = self::merged($this->messages, [$pushed]);
+            $this->readThroughId = max($this->readThroughId, $pushed->id);
+        }
+
+        $this->lastActivityAt = self::now();
+    }
+
+    /**
+     * The messages you pushed to this thread that devnull hasn't taken, from
+     * the outbox: staged while they're on their way, rejected once devnull
+     * turned them down. Ones devnull has sent back already show as pushed.
+     */
+    private function showPending(): void
+    {
+        $me = $this->me();
+
+        if ($me === null) {
+            return;
+        }
+
+        $this->pending = app(Outbox::class)->pending(PendingWrite::Message, $this->threadPath(), withFailed: true)
+            ->map(function (PendingWrite $write) use ($me): Message {
+                $replyTo = $write->payload['reply_to_id'] ?? null;
+                $message = Message::staged($me->id, $write->client_id, $write->body(), is_int($replyTo) ? $this->findMessage($replyTo) : null);
+
+                return $write->isFailed() ? $message->withStatus(Message::Rejected) : $message;
+            })
+            ->values()
+            ->all();
+
+        $this->dropPushed();
     }
 
     /**

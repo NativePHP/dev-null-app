@@ -1,6 +1,7 @@
 <?php
 
 use App\Devnull\Data\Commit;
+use App\Models\PendingWrite;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
@@ -16,14 +17,14 @@ beforeEach(function () {
  *
  * @param  array{0: mixed, 1?: int}|null  $answer
  */
-function composeSheetOnLog(?array $answer = null): TestableComponent
+function composeSheetOnLog(?array $answer = null, string $platform = 'ios'): TestableComponent
 {
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'An older commit', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])],
         'POST /api/v1/commits' => $answer ?? [['data' => commitJson(['id' => '0199e5c4-2222-7000-8000-00000000cafe', 'body' => 'Shipped from the sheet.'])], 201],
     ]);
 
-    return Native::visit('/log', platform: 'ios')->press('composeInSheet');
+    return Native::visit('/log', platform: $platform)->press('composeInSheet');
 }
 
 function sheetCommitDisabled(TestableComponent $screen): bool
@@ -100,17 +101,9 @@ it('explains the URL length limit without applying it to inline code', function 
     expect(sheetCommitDisabled($screen))->toBeFalse();
 });
 
-it('does not submit a closed composer twice and leaves a failed draft retryable', function () {
-    $screen = composeSheetOnLog()->input('sheet-body', 'a')->tap('sheet-commit')->call('commitFromSheet');
-    expect(Http::recorded(fn (Request $request): bool => $request->method() === 'POST'))->toHaveCount(1);
+it('does not submit a closed composer twice', function () {
+    composeSheetOnLog()->input('sheet-body', 'a')->tap('sheet-commit')->call('commitFromSheet');
 
-    $screen->press('composeInSheet')->input('sheet-body', 'a')->set('sheetPosting', true);
-
-    // While it posts, the check spins in its circle and can't be tapped.
-    expect(sheetButtonEnabled($screen, 'sheet-commit'))->toBeFalse()
-        ->and(findNode(nodeByRef($screen, 'sheet-commit'), fn (array $node): bool => $node['type'] === 'activity_indicator'))->not->toBeNull();
-
-    $screen->call('commitFromSheet');
     expect(Http::recorded(fn (Request $request): bool => $request->method() === 'POST'))->toHaveCount(1);
 });
 
@@ -121,7 +114,7 @@ it('commits from the sheet and puts the commit at the top of the log, leaving th
     $screen->input('sheet-body', '  Shipped from the sheet.  ')
         ->tap('sheet-commit')
         ->assertNoNavigation()
-        ->assertNativeNotCalled('Dialog.Toast')
+        ->assertNativeNotCalled('ToastKit.Show')
         ->assertSee('Shipped from the sheet.');
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
@@ -143,18 +136,72 @@ it('commits from the sheet and puts the commit at the top of the log, leaving th
         ->sheetBody->toBe('');
 });
 
-it('shows why devnull said no in the sheet, keeping the draft', function () {
+it('waits for the sheet to go before opening it again on a commit devnull turned down at once, and offers Edit meanwhile', function () {
     $screen = composeSheetOnLog([['message' => 'Too Many Attempts.'], 429])
         ->input('sheet-body', 'One more')
         ->tap('sheet-commit');
 
-    expect(nodeByRef($screen, 'sheet-error')['props']['text'])->toBe('Too Many Attempts.')
+    // devnull said no before the sheet finished sliding away, so it isn't opened under the one going.
+    $write = PendingWrite::query()->sole();
+    $screen->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Too Many Attempts.'
+        && $params['variant'] === 'error'
+        && $params['action'] === ['id' => 'edit', 'label' => 'Edit']
+        && $params['data'] === ['write' => $write->id]);
+
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeFalse()
+        ->and($screen->instance()->reopenAfterSheet)->toBe($write->id);
+
+    // iOS says the sheet has gone: it opens again on the draft.
+    $screen->dismissSheet('sheet');
+
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
         ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('One more')
         ->and(sheetCommitDisabled($screen))->toBeFalse()
-        ->and(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
+        ->and($screen->instance()->sheetView)->toBe('compose')
         ->and($screen->instance()->error)->toBeNull()
-        ->and($screen->instance()->sheetPosting)->toBeFalse()
-        ->and(array_map(fn (Commit $commit): string => $commit->id, $screen->instance()->commits))->toBe(['c1']);
+        ->and(array_map(fn (Commit $commit): string => $commit->id, $screen->instance()->commits))->toBe(['c1'])
+        ->and(PendingWrite::query()->count())->toBe(0);
+
+    // The new sheet stays open, rather than going with the one before it.
+    expect($screen->instance()->sheetOpen)->toBeTrue()
+        ->and($screen->instance()->sheetClosing)->toBeFalse();
+});
+
+it('opens the sheet again at once on Android, whose sheet never says it has gone after a close from here', function () {
+    $screen = composeSheetOnLog([['message' => 'Too Many Attempts.'], 429], platform: 'android')
+        ->input('sheet-body', 'One more')
+        ->tap('sheet-commit')
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Too Many Attempts.' && ! isset($params['action']));
+
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
+        ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('One more')
+        ->and($screen->instance()->sheetClosing)->toBeFalse()
+        ->and($screen->instance()->reopenAfterSheet)->toBeNull()
+        ->and(PendingWrite::query()->count())->toBe(0);
+
+    // Cancel closes it with no word from Android either, and the next one devnull turns down still opens again.
+    $screen->tap('sheet-cancel');
+    expect($screen->instance()->sheetClosing)->toBeFalse();
+
+    $screen->press('composeInSheet')->input('sheet-body', 'Once more')->tap('sheet-commit');
+
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
+        ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('Once more');
+});
+
+it('opens the sheet again at once on a commit devnull turned down after the sheet had gone, without Edit', function () {
+    holdRefreshes();
+    $screen = composeSheetOnLog([['message' => 'Too Many Attempts.'], 429]);
+    $screen = finishRefreshes($screen)
+        ->input('sheet-body', 'One more')
+        ->tap('sheet-commit')
+        ->dismissSheet('sheet');
+
+    finishRefreshes($screen)
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Too Many Attempts.' && ! isset($params['action']));
+
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
+        ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('One more');
 });
 
 it('keeps the draft when the sheet is swiped away, and opens on it again, marked as restored', function () {

@@ -144,7 +144,7 @@ it('saves the colour, then the tab bar and your profile take it at once', functi
     Http::assertSent(fn (Request $request): bool => $request->method() === 'PUT'
         && $request->url() === 'http://devnull.test/api/v1/'.Client::LanePath
         && $request->hasHeader('X-SSH-Signature'));
-    $bridge->assertNotCalled('Dialog.Toast');
+    $bridge->assertNotCalled('ToastKit.Show');
 
     // Your profile wears it as soon as you go back to it.
     $profile = Native::visit('/profile');

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
+use Victorycodedev\ToastKit\Events\ToastActionPressed;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -190,7 +191,7 @@ it('opens the issue while the button spins, then says so with View issue, as the
         ->and(app(Stash::class)->get($this->userId, 'commit'))->toBe('')
         ->and(nodeByRef($screen, 'log')['id'])->toBe($list)
         ->and($screen->instance()->commits)->toHaveCount(1);
-    $bridge->assertNotCalled('Dialog.Toast');
+    $bridge->assertNotCalled('ToastKit.Show');
 
     $screen->tap('view-issue')
         ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://github.com/nunomaduro/dev-null.sh/issues/123');
@@ -204,15 +205,21 @@ it('opens the issue while the button spins, then says so with View issue, as the
         ->and(hasRef($screen, 'sheet-commit'))->toBeTrue();
 });
 
-it('says so in a toast when the sheet was swiped away before the issue opened', function () {
+it('says so in a toast with View issue when the sheet was swiped away before the issue opened', function () {
     holdRefreshes();
     $screen = issueSheetOnLog()->input('sheet-body', '/feature Dark mode')->tap('sheet-open-issue')->dismissSheet('sheet');
 
     finishRefreshes($screen)
-        ->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === 'Opened issue #123.');
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Opened issue #123.'
+            && $params['variant'] === 'success'
+            && $params['action'] === ['id' => 'view-issue', 'label' => 'View issue']
+            && $params['data'] === ['url' => 'https://github.com/nunomaduro/dev-null.sh/issues/123']);
 
     expect(app(Stash::class)->get($this->userId, 'commit'))->toBe('')
         ->and(nodeByRef($screen, 'sheet')['props']['visible'])->toBeFalse();
+
+    $screen->emitNative(ToastActionPressed::class, ['toastId' => 'toast-1', 'actionId' => 'view-issue', 'data' => ['url' => 'https://github.com/nunomaduro/dev-null.sh/issues/123']])
+        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://github.com/nunomaduro/dev-null.sh/issues/123');
 });
 
 it('keeps the issue draft with why when devnull or GitHub says no', function (array $answer, string $message) {

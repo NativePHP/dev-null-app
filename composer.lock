@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8bcaeeb71989e08fe920116ba3e08bcd",
+    "content-hash": "4c795f7f152e1855d8c1e257076e3f74",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -7444,6 +7444,71 @@
             "time": "2025-12-02T11:56:42+00:00"
         },
         {
+            "name": "victorycodedev/toastkit",
+            "version": "dev-fix/android-toasts-above-sheets",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/simonhamp/toastkit.git",
+                "reference": "30f7c15d4b0f7641490eeee3e8a5213054ec9dbe"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/simonhamp/toastkit/zipball/30f7c15d4b0f7641490eeee3e8a5213054ec9dbe",
+                "reference": "30f7c15d4b0f7641490eeee3e8a5213054ec9dbe",
+                "shasum": ""
+            },
+            "require": {
+                "nativephp/mobile": "^4.1",
+                "php": "^8.4"
+            },
+            "require-dev": {
+                "pestphp/pest": "^4.0"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Victorycodedev\\ToastKit\\ToastKitServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Victorycodedev\\ToastKit\\": "src/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "@php vendor/bin/pest --configuration phpunit.xml.dist"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Victory Efekpogua"
+                }
+            ],
+            "description": "Rich, customizable native toast notifications for NativePHP Mobile.",
+            "homepage": "https://github.com/victorycodedev/toastkit",
+            "keywords": [
+                "mobile",
+                "nativephp",
+                "nativephp-plugin",
+                "notifications",
+                "toast"
+            ],
+            "support": {
+                "issues": "https://github.com/victorycodedev/toastkit/issues",
+                "source": "https://github.com/victorycodedev/toastkit"
+            },
+            "time": "2026-10-25T03:45:04+00:00"
+        },
+        {
             "name": "vlucas/phpdotenv",
             "version": "v5.7.0",
             "source": {
@@ -11141,12 +11206,19 @@
             "version": "dev-main",
             "alias": "0.8.0",
             "alias_normalized": "0.8.0.0"
+        },
+        {
+            "package": "victorycodedev/toastkit",
+            "version": "dev-fix/android-toasts-above-sheets",
+            "alias": "1.4.0",
+            "alias_normalized": "1.4.0.0"
         }
     ],
     "minimum-stability": "stable",
     "stability-flags": {
         "nativephp/mobile": 20,
-        "nativephp/mobile-ui": 20
+        "nativephp/mobile-ui": 20,
+        "victorycodedev/toastkit": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,

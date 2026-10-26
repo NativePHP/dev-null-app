@@ -3,21 +3,17 @@
 namespace App\NativeComponents\Concerns;
 
 use App\Devnull\Client;
-use App\Devnull\Data\Commit;
 use App\Devnull\Data\DraftImage;
 use App\Devnull\Data\PollDraft;
 use App\Devnull\DraftImages;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\Exceptions\InvalidDraftImage;
-use App\Devnull\ResponseCache;
-use App\Devnull\SignedRequest;
 use Closure;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Events\Camera\PermissionDenied;
 use Native\Mobile\Events\Camera\PhotoTaken;
 use Native\Mobile\Events\Gallery\MediaSelected;
 use Native\Mobile\Facades\Camera;
-use Native\Mobile\Facades\Dialog;
 
 /**
  * What the composer sheet adds to a commit, as the web's composer does: photos,
@@ -31,18 +27,13 @@ use Native\Mobile\Facades\Dialog;
  * Preview shows the draft as the commit it would become, by you, at once, and
  * takes the body devnull sends back, with its code and mentions, when it comes.
  *
- * A commit with photos goes from the background, since photos take a while to
- * upload, and Commit spins until devnull has it. Photos and a poll go with the
- * sheet: closing it drops them, and deletes the photos from the phone, as
- * sending them does.
+ * A commit with photos goes through the outbox like any other, given longer
+ * to upload (see SyncsOutbox). The photos go with it, and are deleted from
+ * the phone once devnull has them. Otherwise photos and a poll go with the
+ * sheet: closing it drops them, and deletes the photos from the phone.
  */
 trait AttachesToCommits
 {
-    /**
-     * Photos take longer than a usual write to upload over a slow connection.
-     */
-    public const int UploadTimeout = 120;
-
     /**
      * @var list<DraftImage>
      */
@@ -76,13 +67,6 @@ trait AttachesToCommits
      * @var array<string, mixed>|null
      */
     public ?array $sheetPreview = null;
-
-    /**
-     * @param  Closure(Client): SignedRequest  $sign
-     * @param  Closure(array<string, mixed>): void  $done
-     * @param  Closure(string, ?ApiException): void  $failed
-     */
-    abstract protected function sendInBackground(Closure $sign, Closure $done, Closure $failed, int $timeout = 30): void;
 
     /**
      * @param  array<string, mixed>|null  $payload
@@ -136,7 +120,7 @@ trait AttachesToCommits
      */
     public function removePhoto(int $index): void
     {
-        if (! isset($this->sheetImages[$index]) || $this->sheetPosting) {
+        if (! isset($this->sheetImages[$index])) {
             return;
         }
 
@@ -247,48 +231,12 @@ trait AttachesToCommits
     }
 
     /**
-     * Sends a commit with photos from the background. The sheet goes once devnull has it, as for any commit, or says
-     * why it didn't take it, keeping the photos. Should the sheet have gone by then, a toast says so instead.
-     *
-     * @param  Closure(Commit): void  $sent
-     */
-    protected function commitPhotosFromSheet(string $body, ?Commit $parent, ?Commit $quoted, Closure $sent): void
-    {
-        $images = $this->sheetImages;
-        $this->sheetPosting = true;
-        $this->sheetError = null;
-
-        $this->sendInBackground(
-            fn (Client $devnull): SignedRequest => $devnull->signedCommitWithImages($body, $images, $parent?->id, $quoted?->id),
-            function (array $json) use ($sent): void {
-                $this->sheetPosting = false;
-                $commit = is_array($json['data'] ?? null) ? $json['data'] : [];
-
-                app(ResponseCache::class)->commitAdded($commit);
-                $sent(Commit::fromArray($commit));
-            },
-            function (string $message): void {
-                $this->sheetPosting = false;
-
-                if ($this->isComposing()) {
-                    $this->sheetError = $message;
-                } else {
-                    Dialog::toast($message);
-                }
-            },
-            self::UploadTimeout,
-        );
-    }
-
-    /**
-     * Lets go of the photos, the poll and the preview. Photos still on the phone are deleted, unless they're on
-     * their way to devnull.
+     * Lets go of the photos, the poll and the preview. Photos still on the phone are deleted. Ones on their way to
+     * devnull have left the sheet by then.
      */
     protected function forgetAttachments(): void
     {
-        if (! $this->sheetPosting) {
-            app(DraftImages::class)->discard($this->sheetImages);
-        }
+        app(DraftImages::class)->discard($this->sheetImages);
 
         $this->sheetImages = [];
         $this->describing = null;
@@ -300,7 +248,7 @@ trait AttachesToCommits
 
     private function canAttachPhotos(): bool
     {
-        return $this->isComposing() && $this->sheetPoll === null && ! $this->sheetPosting && count($this->sheetImages) < DraftImages::MaxImages;
+        return $this->isComposing() && $this->sheetPoll === null && count($this->sheetImages) < DraftImages::MaxImages;
     }
 
     /**
