@@ -299,3 +299,77 @@ it('keeps other GitHub links as URLs', function (string $url) {
     'https://gist.github.com/laravel/framework',
     'https://notgithub.com/laravel/framework',
 ]);
+
+/**
+ * The colors in a body that is all prose, as written and as their digits.
+ *
+ * @return list<array{0: string, 1: string}>
+ */
+function colorsOf(string $body): array
+{
+    $colors = [];
+
+    foreach (CommitBody::blocks($body, null) as $block) {
+        foreach ($block->runs as $run) {
+            if ($run->isColor()) {
+                $colors[] = [$run->text, (string) $run->color];
+            }
+        }
+    }
+
+    return $colors;
+}
+
+it('shows hex colors with their swatch, as the web does', function () {
+    expect(colorsOf('Brand orange is #ff8a4c, white is #fff, and #ff8a4c80 or #fffa'))->toBe([
+        ['#ff8a4c', 'ff8a4c'],
+        ['#fff', 'fff'],
+        ['#ff8a4c80', 'ff8a4c80'],
+        ['#fffa', 'fffa'],
+    ])->and(runsOf(CommitBody::blocks('Brand orange is #ff8a4c, ok', null)))->toBe([
+        ['Brand orange is '],
+        ['#ff8a4c'],
+        [', ok'],
+    ]);
+});
+
+it('leaves digit-only issue numbers alone but counts digits with a leading zero or six of them', function () {
+    expect(colorsOf('Fixes #123 and #333, in #000 and #000000 and #333333'))->toBe([
+        ['#000', '000'],
+        ['#000000', '000000'],
+        ['#333333', '333333'],
+    ]);
+});
+
+it('only counts a color that is a whole word', function () {
+    expect(colorsOf('#fff. and #fff-x and #ff8a4c.com and (#fff) and a#fff and #ff and #fffff'))->toBe([
+        ['#fff', 'fff'],
+    ]);
+});
+
+it('counts a color at the start of a quoted line', function () {
+    expect(colorsOf(">#fff\n> #000"))->toBe([['#fff', 'fff'], ['#000', '000']]);
+});
+
+it('leaves colors in code as written, and places colors after code and mentions by where they are in the body', function () {
+    $body = 'Use `#fff` with @ada on #ff8a4c';
+
+    $blocks = CommitBody::blocks($body, [
+        ['type' => 'text', 'text' => 'Use '],
+        ['type' => 'code', 'code' => '#fff'],
+        ['type' => 'text', 'text' => ' with @ada on #ff8a4c'],
+    ], [new Mention('ada', 16, 4)]);
+
+    expect(array_map(fn (BodyRun $run): array => [$run->text, $run->isCode, $run->username, $run->color], $blocks[0]->runs))->toBe([
+        ['Use ', false, null, null],
+        ['#fff', true, null, null],
+        [' with ', false, null, null],
+        ['@ada', false, 'ada', null],
+        [' on ', false, null, null],
+        ['#ff8a4c', false, null, 'ff8a4c'],
+    ]);
+});
+
+it('does not take a URL fragment for a color', function () {
+    expect(colorsOf('See https://example.com/#fff for #abc'))->toBe([['#abc', 'abc']]);
+});

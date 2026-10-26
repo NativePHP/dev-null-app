@@ -448,6 +448,24 @@ it('draws code blocks as mono text in a hairline box, from the body rather than 
     $screen->press("openProfile('ada')")->assertNavigatedTo('/log/users/ada');
 });
 
+it('draws a hex color after a square of that color, in light and dark mode alike', function () {
+    $body = 'Brand orange is #ff8a4c, not #123';
+
+    fakeThread([
+        'body' => $body,
+        'body_segments' => [['type' => 'text', 'text' => $body]],
+    ]);
+
+    $screen = Native::visit('/log/commits/c2')->assertSee('#ff8a4c');
+
+    $swatches = findNodes($screen->tree(), fn (array $node): bool => ($node['props']['text'] ?? null) === '■');
+
+    expect($swatches)->toHaveCount(1)
+        ->and($swatches[0]['props']['color'] ?? null)->toBe('#FF8A4C')
+        // The paragraph's dark ink would otherwise draw the square in dark mode.
+        ->and($swatches[0]['props']['dark_color'] ?? null)->toBe('#FF8A4C');
+});
+
 it('shows the focused commit with its media and stars', function () {
     fakeThread([
         'author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace']),
