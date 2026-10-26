@@ -31,7 +31,7 @@ final readonly class Mention
      */
     public static function fromArray(array $data): ?self
     {
-        $username = $data['username'] ?? null;
+        $username = $data['handle'] ?? null;
         $offset = $data['offset'] ?? null;
         $length = $data['length'] ?? null;
 

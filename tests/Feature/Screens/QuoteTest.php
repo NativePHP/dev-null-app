@@ -18,7 +18,7 @@ beforeEach(function () {
  */
 function quoteAda(): array
 {
-    return userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']);
+    return userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']);
 }
 
 /**

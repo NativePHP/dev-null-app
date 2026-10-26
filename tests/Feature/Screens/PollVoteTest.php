@@ -42,7 +42,7 @@ function openPollJson(array $overrides = [], bool $results = false): array
  */
 function pollOnLog(array $commit = [], ?array $answer = null): TestableComponent
 {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada']);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada']);
 
     serveApi([
         'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'Tabs or spaces?', 'author' => $ada, 'poll' => openPollJson(), ...$commit])])],

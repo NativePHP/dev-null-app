@@ -377,7 +377,7 @@ it('shows an org with who wrote what, its events, and who is typing', function (
         'org' => ['id' => 'org-1', 'name' => 'dev/null core'],
         'messages' => [
             remoteMessageJson(['id' => 1, 'user_id' => RemotesViewerId, 'body' => 'dev/null core', 'event' => 'created', 'user' => userJson()]),
-            remoteMessageJson(['id' => 2, 'body' => 'hello org', 'user' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace'])]),
+            remoteMessageJson(['id' => 2, 'body' => 'hello org', 'user' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace'])]),
         ],
         'has_older' => false,
         'reactions_version' => 0,
@@ -385,7 +385,7 @@ it('shows an org with who wrote what, its events, and who is typing', function (
         'read_through_id' => 2,
         'members' => [
             ['user' => userJson(), 'role' => 'maintainer', 'read_through_id' => 2],
-            ['user' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace']), 'role' => 'contributor', 'read_through_id' => 2],
+            ['user' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace']), 'role' => 'contributor', 'read_through_id' => 2],
         ],
         'typing' => ['ada'],
         'is_archived' => false,
@@ -404,14 +404,14 @@ it('shows an org with who wrote what, its events, and who is typing', function (
 it("opens an org member's profile from the name above their messages", function () {
     serveApi(fn (Request $request) => Http::response(str_contains($request->url(), 'orgs/org-1/messages') ? ['data' => [
         'org' => ['id' => 'org-1', 'name' => 'dev/null core'],
-        'messages' => [remoteMessageJson(['id' => 2, 'body' => 'hello org', 'user' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace'])])],
+        'messages' => [remoteMessageJson(['id' => 2, 'body' => 'hello org', 'user' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace'])])],
         'has_older' => false,
         'reactions_version' => 0,
         'reaction_changes' => [],
         'read_through_id' => 2,
         'members' => [
             ['user' => userJson(), 'role' => 'maintainer', 'read_through_id' => 2],
-            ['user' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace']), 'role' => 'contributor', 'read_through_id' => 2],
+            ['user' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace']), 'role' => 'contributor', 'read_through_id' => 2],
         ],
         'typing' => [],
         'is_archived' => false,

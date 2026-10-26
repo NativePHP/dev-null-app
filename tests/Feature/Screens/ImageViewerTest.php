@@ -252,13 +252,13 @@ it('hangs the viewer over every screen that shows commits', function (string $pa
     ]],
     'a profile' => ['/log/users/ada', [
         'GET /api/v1/users/ada' => [[
-            'data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada'], commits: 1),
+            'data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada'], commits: 1),
             'is_following' => false,
             'activity' => ['scale' => 'week', 'buckets' => []],
             'streaks' => ['longest' => 0, 'current' => 0],
             'pinned_commit' => null,
         ]],
-        'GET /api/v1/users/ada/commits' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'username' => 'ada']), 'images' => imagedCommitImages()])])],
+        'GET /api/v1/users/ada/commits' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada']), 'images' => imagedCommitImages()])])],
     ]],
     'the starred page' => ['/profile/starred', [
         'GET /api/v1/starred' => [pageJson([commitJson(['id' => 'c1', 'starred' => true, 'images' => imagedCommitImages()])], path: 'http://devnull.test/api/v1/starred')],

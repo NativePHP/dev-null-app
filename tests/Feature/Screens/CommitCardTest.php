@@ -39,7 +39,7 @@ function votedPollJson(array $overrides = []): array
 function logOf(array $commits): TestableComponent
 {
     Http::fake(['devnull.test/*' => Http::response(pageJson(array_map(
-        fn (array $commit): array => commitJson(['author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']), ...$commit]),
+        fn (array $commit): array => commitJson(['author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']), ...$commit]),
         $commits,
     )))]);
 
@@ -162,7 +162,7 @@ it('embeds the commit a commit quotes as the web card, which opens it', function
         'quoted_commit' => array_diff_key(commitJson([
             'id' => 'q1',
             'body' => 'The original take',
-            'author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace']),
+            'author' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace']),
             'created_at' => now()->subHours(2)->toIso8601ZuluString(),
             'poll' => votedPollJson(),
         ]), array_flip(['stars_count', 'replies_count', 'starred'])),

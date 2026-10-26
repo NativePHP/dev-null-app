@@ -62,7 +62,7 @@ function trendingJson(array $commits, string $newest, ?array $latest = null, int
 
 function ada(): array
 {
-    return userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'lane' => 2]);
+    return userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 2]);
 }
 
 it('has the web\'s three logs, each asked for by name, and no Everyone', function () {

@@ -11,7 +11,7 @@ beforeEach(function () {
 
 function grace(): array
 {
-    return userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace', 'lane' => 4]);
+    return userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace', 'lane' => 4]);
 }
 
 /**
@@ -27,7 +27,7 @@ function previewedJson(array $replies, bool $more = false, array $overrides = []
         'id' => 'c1',
         'body' => 'Ship it?',
         'replies_count' => count($replies) + ($more ? 2 : 0),
-        'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'lane' => 1]),
+        'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 1]),
         'reply_preview' => ['data' => $replies, 'next_cursor' => $more ? 'eyJjcmVhdGVkX2F0IjoiMjAyNiJ9' : null],
         ...$overrides,
     ]);
@@ -165,7 +165,7 @@ it('stars a reply in the thread in place', function () {
 });
 
 it("runs the commit's rail on past its thread when the author's run carries on below", function () {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'lane' => 1]);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 1]);
 
     Http::fake(['devnull.test/*' => Http::response(pageJson([
         previewedJson([replyJson(['id' => 'r1', 'parent_id' => 'c1', 'author' => grace()])], overrides: ['id' => 'c2', 'author' => $ada]),
@@ -182,7 +182,7 @@ it("runs the commit's rail on past its thread when the author's run carries on b
 });
 
 it('ends a commit alone in its run with a dot, and joins a run of one author', function () {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada', 'lane' => 1]);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada', 'lane' => 1]);
 
     Http::fake(['devnull.test/*' => Http::response(pageJson([
         commitJson(['id' => 'c3', 'author' => $ada]),

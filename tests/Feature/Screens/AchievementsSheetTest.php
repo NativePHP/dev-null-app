@@ -16,7 +16,7 @@ beforeEach(function () {
 function achievementsProfileJson(): array
 {
     return [
-        'data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1], commits: 12),
+        'data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1], commits: 12),
         'is_following' => false,
         'follows_you' => false,
         'is_muting' => false,

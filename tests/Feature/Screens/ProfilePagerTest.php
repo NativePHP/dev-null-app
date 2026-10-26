@@ -18,7 +18,7 @@ beforeEach(function () {
 function pagerProfileJson(string $username = 'ada', ?array $pinned = null): array
 {
     return [
-        'data' => userWithCountsJson(['id' => $username === 'local_dev' ? userJson()['id'] : 'u2', 'username' => $username, 'name' => 'Ada Lovelace', 'lane' => 1], commits: 1, followers: 5, following: 2),
+        'data' => userWithCountsJson(['id' => $username === 'local_dev' ? userJson()['id'] : 'u2', 'handle' => $username, 'name' => 'Ada Lovelace', 'lane' => 1], commits: 1, followers: 5, following: 2),
         'is_following' => false,
         'activity' => null,
         'streaks' => ['longest' => 0, 'current' => 0],

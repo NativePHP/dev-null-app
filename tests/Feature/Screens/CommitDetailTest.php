@@ -24,8 +24,8 @@ function fakeThread(array $commit = [], array $replies = [], array $extra = []):
         'GET /api/v1/commits/c2' => [commitPageJson(
             commitJson(['id' => 'c2', 'parent_id' => 'c1', 'body' => 'The focused commit', ...$commit]),
             [
-                commitJson(['id' => 'c0', 'body' => 'The root commit', 'author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace'])]),
-                commitJson(['id' => 'c1', 'parent_id' => 'c0', 'body' => 'The parent commit', 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada'])]),
+                commitJson(['id' => 'c0', 'body' => 'The root commit', 'author' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace'])]),
+                commitJson(['id' => 'c1', 'parent_id' => 'c0', 'body' => 'The parent commit', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])]),
             ],
         )],
         'GET /api/v1/commits/c2/replies' => [pageJson($replies)],
@@ -34,7 +34,7 @@ function fakeThread(array $commit = [], array $replies = [], array $extra = []):
 }
 
 it('opens on the commit under its parent, with the older ancestors and the replies folded away', function () {
-    fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'author' => userJson(['username' => 'grace', 'name' => 'Grace'])])]);
+    fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'author' => userJson(['handle' => 'grace', 'name' => 'Grace'])])]);
 
     $screen = Native::visit('/log/commits/c2')
         ->assertNavTitle('Commit')
@@ -67,7 +67,7 @@ it('opens on the commit under its parent, with the older ancestors and the repli
 });
 
 it('brings the commit back up under its parent when you tap into the reply bar', function () {
-    fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'author' => userJson(['username' => 'grace', 'name' => 'Grace'])])]);
+    fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'author' => userJson(['handle' => 'grace', 'name' => 'Grace'])])]);
 
     $screen = Native::visit('/log/commits/c2')->tap('earlier-commits')->assertSee('The root commit');
     $before = nodeByRef($screen, 'thread-scroll')['id'];
@@ -85,7 +85,7 @@ it('brings the commit back up under its parent when you tap into the reply bar',
 });
 
 it('keeps the reply field the same view while the thread above it changes, so the keyboard stays up', function () {
-    fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'author' => userJson(['username' => 'grace', 'name' => 'Grace'])])]);
+    fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'author' => userJson(['handle' => 'grace', 'name' => 'Grace'])])]);
 
     $screen = Native::visit('/log/commits/c2')->tap('earlier-commits')->input('reply-input', 'Nice');
     $field = idsDownTo($screen->tree(), 'reply-input');
@@ -105,7 +105,7 @@ it('keeps the reply field the same view while the thread above it changes, so th
 });
 
 it('runs the rail from the folded ancestors into the parent, which shows its avatar', function () {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'lane' => 1]);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 1]);
     fakeApi([
         'GET /api/v1/commits/c2' => [commitPageJson(
             commitJson(['id' => 'c2', 'parent_id' => 'c1', 'body' => 'Ada again', 'author' => $ada]),
@@ -159,7 +159,7 @@ it('draws the commit as the main thing, and what is around it muted', function (
 
 it("hangs the replies under the commit on the web's thread, the rail ending in a dot above them", function () {
     fakeThread(replies: [
-        replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace', 'lane' => 4])]),
+        replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'author' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace', 'lane' => 4])]),
         replyJson(['id' => 'r2', 'parent_id' => 'c2', 'body' => 'Second reply']),
     ]);
 
@@ -364,7 +364,7 @@ it('draws the delete action with the web\'s trash icon', function (string $platf
 })->with(['ios', 'android']);
 
 it('offers delete only on your own commits', function () {
-    fakeThread(['author' => userJson(['id' => 'u2', 'username' => 'ada'])], extra: ['DELETE /api/v1/commits/c2' => [null, 204]]);
+    fakeThread(['author' => userJson(['id' => 'u2', 'handle' => 'ada'])], extra: ['DELETE /api/v1/commits/c2' => [null, 204]]);
 
     Native::visit('/log/commits/c2')
         ->assertMissingElement('top_bar_action', fn (array $node): bool => ($node['props']['id'] ?? null) === 'delete')
@@ -465,7 +465,7 @@ it('keeps deleted ancestors on the rail as tombstones', function () {
         'GET /api/v1/commits/c2' => [commitPageJson(
             commitJson(['id' => 'c2', 'parent_id' => 'c1', 'body' => 'The focused commit']),
             [
-                commitJson(['id' => 'c0', 'body' => 'The root commit', 'author' => userJson(['username' => 'ada', 'lane' => 1])]),
+                commitJson(['id' => 'c0', 'body' => 'The root commit', 'author' => userJson(['handle' => 'ada', 'lane' => 1])]),
                 tombstoneJson(['id' => 'c1', 'parent_id' => 'c0']),
             ],
         )],
@@ -536,7 +536,7 @@ it('draws code blocks as mono text in a hairline box, from the body rather than 
             ['type' => 'block', 'language' => 'php', 'html' => '<span class="hl-keyword">return</span> $a &lt;=&gt; $b;'],
             ['type' => 'text', 'text' => 'Ship it'],
         ],
-        'mentions' => [['username' => 'ada', 'offset' => 10, 'length' => 4]],
+        'mentions' => [['handle' => 'ada', 'offset' => 10, 'length' => 4]],
     ]);
 
     $screen = Native::visit('/log/commits/c2')
@@ -576,7 +576,7 @@ it('draws quote lines behind an amber rule, without their markers', function () 
     fakeThread([
         'body' => $body,
         'body_segments' => [['type' => 'text', 'text' => $body]],
-        'mentions' => [['username' => 'ada', 'offset' => 23, 'length' => 4]],
+        'mentions' => [['handle' => 'ada', 'offset' => 23, 'length' => 4]],
     ]);
 
     $screen = Native::visit('/log/commits/c2')
@@ -595,7 +595,7 @@ it('draws quote lines behind an amber rule, without their markers', function () 
 
 it('shows the focused commit with its media and stars', function () {
     fakeThread([
-        'author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace']),
+        'author' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace']),
         'stars_count' => 2,
         'link_preview' => ['url' => 'https://nativephp.com', 'title' => 'NativePHP', 'description' => null, 'image_url' => null, 'site_name' => 'NativePHP'],
     ]);
@@ -653,7 +653,7 @@ it('shows your avatar once when you reply to yourself', function () {
         'GET /api/v1/commits/c3' => [commitPageJson(
             commitJson(['id' => 'c3', 'parent_id' => 'c2', 'body' => 'And one more thing']),
             [
-                commitJson(['id' => 'c1', 'body' => 'Started it', 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada'])]),
+                commitJson(['id' => 'c1', 'body' => 'Started it', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])]),
                 commitJson(['id' => 'c2', 'parent_id' => 'c1', 'body' => 'Replying to Ada']),
             ],
         )],
@@ -685,7 +685,7 @@ it('focuses the reply composer when opened from a Reply action', function () {
 });
 
 it('stars the focused commit and its replies in place', function () {
-    fakeThread(['author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace'])], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2'])], extra: [
+    fakeThread(['author' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace'])], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2'])], extra: [
         'POST /api/v1/commits/c2/star' => [['data' => commitJson(['id' => 'c2', 'stars_count' => 1, 'starred' => true])]],
         'POST /api/v1/commits/r1/star' => [['data' => commitJson(['id' => 'r1', 'starred' => true])]],
     ]);

@@ -18,7 +18,7 @@ beforeEach(function () {
  */
 function starredCommit(string $id, array $overrides = []): array
 {
-    return commitJson(['id' => $id, 'body' => "Starred {$id}", 'starred' => true, 'stars_count' => 1, 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'lane' => 1]), ...$overrides]);
+    return commitJson(['id' => $id, 'body' => "Starred {$id}", 'starred' => true, 'stars_count' => 1, 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'lane' => 1]), ...$overrides]);
 }
 
 /**
@@ -158,7 +158,7 @@ it('lays a fresh first page over the list keeping the pages below it', function 
 ]);
 
 it('shows a commit starred elsewhere next time it opens and leaves out one unstarred there', function () {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada', 'lane' => 1]);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada', 'lane' => 1]);
     keep('starred', starredPage([starredCommit('s1')]));
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'Worth keeping', 'author' => $ada]), starredCommit('s1')])],

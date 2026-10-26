@@ -16,13 +16,13 @@ beforeEach(function () {
     File::ensureDirectoryExists(ImageCache::directory());
     signIn();
 
-    $grace = userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace']);
+    $grace = userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace']);
     $long = str_repeat('A commit long enough to fold. ', 12).'The very end.';
 
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([
             commitJson(['id' => 'c3', 'body' => $long, 'preview_segments' => [['type' => 'text', 'text' => substr($long, 0, 270).'…']]]),
-            commitJson(['id' => 'c2', 'replies_count' => 1, 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'avatar_url' => 'https://avatars.githubusercontent.com/u/2?v=4'])]),
+            commitJson(['id' => 'c2', 'replies_count' => 1, 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'avatar_url' => 'https://avatars.githubusercontent.com/u/2?v=4'])]),
             commitJson(['id' => 'c1', 'body' => 'The oldest commit', 'author' => $grace]),
         ])],
         'GET /api/v1/commits/c2/replies' => [pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'A reply in place'])])],

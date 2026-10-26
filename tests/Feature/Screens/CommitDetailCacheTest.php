@@ -17,14 +17,14 @@ beforeEach(function () {
  */
 function graceRepliedTo(array $overrides = []): array
 {
-    return commitJson(['id' => 'c1', 'body' => 'What should I build next?', 'replies_count' => 1, 'stars_count' => 3, 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace']), ...$overrides]);
+    return commitJson(['id' => 'c1', 'body' => 'What should I build next?', 'replies_count' => 1, 'stars_count' => 3, 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace']), ...$overrides]);
 }
 
 function serveThread(): void
 {
     serveApi([
         'GET /api/v1/commits/c1' => [commitPageJson(graceRepliedTo(), [commitJson(['id' => 'c0', 'body' => 'The commit it replies to'])])],
-        'GET /api/v1/commits/c1/replies' => [pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c1', 'body' => 'A compiler', 'author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace'])])])],
+        'GET /api/v1/commits/c1/replies' => [pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c1', 'body' => 'A compiler', 'author' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace'])])])],
         'GET /api/v1/log/following' => [pageJson([graceRepliedTo()])],
         'GET /api/v1/me' => [['data' => userWithCountsJson(), 'unread_notifications_count' => 0]],
         'POST /api/v1/commits' => [['data' => commitJson(['id' => 'r2', 'parent_id' => 'c1', 'body' => 'A spreadsheet'])], 201],

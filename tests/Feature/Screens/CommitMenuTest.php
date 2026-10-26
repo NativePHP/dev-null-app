@@ -11,7 +11,7 @@ beforeEach(function () {
 });
 
 it('fills More with what you can do to the commit', function (string $platform) {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada']);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada']);
 
     serveApi(fn () => Http::response(pageJson([
         commitJson(['id' => 'c4', 'starred' => true, 'author' => $ada]),
@@ -129,7 +129,7 @@ it('deletes your reply from a commit page, staying on the page', function () {
             'DELETE /api/v1/commits/r1' => tap(Http::response(null, 204), function () use (&$deleted): void {
                 $deleted = true;
             }),
-            'GET /api/v1/commits/c2' => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'Ada asks', 'replies_count' => $deleted ? 0 : 1, 'author' => userJson(['id' => 'u2', 'username' => 'ada'])]))),
+            'GET /api/v1/commits/c2' => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'Ada asks', 'replies_count' => $deleted ? 0 : 1, 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]))),
             'GET /api/v1/commits/c2/replies' => Http::response(pageJson($deleted ? [] : [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'Soon gone'])])),
             default => Http::response(['message' => 'No fake.'], 404),
         };
@@ -214,7 +214,7 @@ it('pins your commit to the top of your profile, and unpins it', function () {
 
 it("leaves Pin to profile off a reply, and off someone else's commit", function () {
     serveApi(fn (Request $request) => match (parse_url($request->url(), PHP_URL_PATH)) {
-        '/api/v1/commits/c2' => Http::response(commitPageJson(commitJson(['id' => 'c2', 'replies_count' => 1, 'author' => userJson(['id' => 'u2', 'username' => 'ada'])]))),
+        '/api/v1/commits/c2' => Http::response(commitPageJson(commitJson(['id' => 'c2', 'replies_count' => 1, 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]))),
         '/api/v1/commits/c2/replies' => Http::response(pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c2'])])),
         default => Http::response(['message' => 'No fake.'], 404),
     });

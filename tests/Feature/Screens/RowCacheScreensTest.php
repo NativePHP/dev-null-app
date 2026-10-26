@@ -44,9 +44,9 @@ function expectKeptRowsMatchFreshOnes(TestableComponent $screen, string $class, 
 }
 
 it("keeps a profile's unchanged rows between renders, on both its tabs", function () {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']);
     fakeApi([
-        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']), 'is_following' => false]],
+        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']), 'is_following' => false]],
         'GET /api/v1/users/ada/commits' => [pageJson([commitJson(['id' => 'a2', 'author' => $ada]), commitJson(['id' => 'a1', 'body' => 'Older', 'author' => $ada])])],
         'POST /api/v1/commits/a1/star' => [['data' => commitJson(['id' => 'a1', 'body' => 'Older', 'author' => $ada, 'stars_count' => 1, 'starred' => true])]],
     ]);

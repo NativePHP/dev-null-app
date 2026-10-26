@@ -15,7 +15,7 @@ function windowTimeline(int $count, string $prefix = 'c'): array
         'id' => $prefix.$n,
         'body' => "Commit {$n}",
         'created_at' => '2026-10-15T12:00:00Z',
-        'author' => ['id' => 'ada', 'username' => 'ada', 'name' => 'Ada', 'lane' => 1],
+        'author' => ['id' => 'ada', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 1],
     ]), null), range(0, $count - 1));
 }
 

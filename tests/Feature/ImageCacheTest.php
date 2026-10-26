@@ -177,7 +177,7 @@ it('draws the Log\'s avatars from the device from the launch after a refresh bro
     $avatar = 'https://avatars.githubusercontent.com/u/2?v=4';
     // Before serveApi(), whose fake answers every other URL.
     Http::fake(['avatars.githubusercontent.com/*' => Http::response('png bytes', 200, ['Content-Type' => 'image/png'])]);
-    serveApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'avatar_url' => $avatar])])])]]);
+    serveApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'avatar_url' => $avatar])])])]]);
 
     $imageSources = fn ($screen): array => array_map(
         fn (array $node): string => $node['props']['src'] ?? '',

@@ -370,11 +370,11 @@ it('never replaces a key it cannot read', function () {
 it('reads commits, threads, profiles and notifications into data objects', function () {
     Http::fake([
         'devnull.test/api/v1/commits/c1' => Http::response(commitPageJson(
-            commitJson(['id' => 'c1', 'parent_id' => 'p1', 'author' => ['id' => 'u9', 'username' => 'ada', 'name' => null]]),
+            commitJson(['id' => 'c1', 'parent_id' => 'p1', 'author' => ['id' => 'u9', 'handle' => 'ada', 'name' => null]]),
             [commitJson(['id' => 'p1'])],
         )),
         'devnull.test/api/v1/users/ada' => Http::response([
-            'data' => userWithCountsJson(['username' => 'ada', 'lane' => 4], commits: 3, followers: 5, following: 1),
+            'data' => userWithCountsJson(['handle' => 'ada', 'lane' => 4], commits: 3, followers: 5, following: 1),
             'is_following' => true,
             'activity' => ['scale' => 'day', 'buckets' => [['date' => '2026-10-15T09:00:00Z', 'count' => 2]]],
             'streaks' => ['longest' => 4, 'current' => 1],
@@ -413,7 +413,7 @@ it('reads commits, threads, profiles and notifications into data objects', funct
 });
 
 it('tolerates missing optional fields', function () {
-    $commit = Commit::fromArray(['id' => 'c1', 'body' => 'Hello', 'author' => ['username' => 'ada']]);
+    $commit = Commit::fromArray(['id' => 'c1', 'body' => 'Hello', 'author' => ['handle' => 'ada']]);
 
     expect($commit->status)->toBe('approved')
         ->and($commit->createdAt)->toBeNull()
@@ -473,7 +473,7 @@ it('reads what the web shows on a commit', function () {
 it('reads a commit\'s author, and its parent\'s, as full users', function () {
     $ada = userJson([
         'id' => 'u2',
-        'username' => 'ada',
+        'handle' => 'ada',
         'name' => 'Ada Lovelace',
         'bio' => null,
         'company' => 'Analytical Engines',

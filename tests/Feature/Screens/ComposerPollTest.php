@@ -19,7 +19,7 @@ afterEach(function () {
 function pollComposerOnLog(): TestableComponent
 {
     fakeApi([
-        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])],
+        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])])],
         'POST /api/v1/commits' => [['data' => commitJson(['id' => 'p1', 'body' => 'Tabs or spaces?', 'status' => 'pending', 'poll' => [
             'id' => 'poll1', 'closes_at' => null, 'is_closed' => false, 'has_voted' => false, 'total_votes' => null,
             'options' => [['id' => 'o1', 'label' => 'Tabs', 'votes_count' => null, 'voted' => false, 'percentage' => null], ['id' => 'o2', 'label' => 'Spaces', 'votes_count' => null, 'voted' => false, 'percentage' => null]],
@@ -115,7 +115,7 @@ it('offers no poll once there are photos', function () {
 
 it('quotes with a poll, as the web lets you', function () {
     fakeApi([
-        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])],
+        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])])],
         'POST /api/v1/commits' => [['data' => commitJson(['id' => 'q1', 'quoted_commit_id' => 'c1'])], 201],
     ]);
 

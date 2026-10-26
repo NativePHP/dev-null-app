@@ -96,7 +96,7 @@ final class ResponseCache
      * What every copy of a user has of their profile, as a commit's author, a
      * notification's actor or a profile's header.
      */
-    private const array ProfileFields = ['username', 'name', 'avatar_url', 'bio', 'company', 'location', 'website', 'github_url', 'html_url', 'feed_url', 'lane'];
+    private const array ProfileFields = ['handle', 'name', 'avatar_url', 'bio', 'company', 'location', 'website', 'github_url', 'html_url', 'feed_url', 'lane'];
 
     /**
      * Whether a GET of $path with $query is kept: a known path, and a first page.
@@ -376,8 +376,8 @@ final class ResponseCache
 
         $this->commitReacted($commit);
 
-        if (is_string($author['username'] ?? null) && is_int($json['author_pasteis_received'] ?? null)) {
-            $this->patch('users/'.rawurlencode($author['username']), [], fn (array $kept): array => [...$kept, 'pasteis_received' => $json['author_pasteis_received']]);
+        if (is_string($author['handle'] ?? null) && is_int($json['author_pasteis_received'] ?? null)) {
+            $this->patch('users/'.rawurlencode($author['handle']), [], fn (array $kept): array => [...$kept, 'pasteis_received' => $json['author_pasteis_received']]);
         }
 
         if (is_int($json['pasteis_remaining'] ?? null)) {
@@ -516,7 +516,7 @@ final class ResponseCache
             return;
         }
 
-        $this->patch('users/'.rawurlencode($user['username']), [], fn (array $kept): array => [...$kept, 'is_muting' => $muting]);
+        $this->patch('users/'.rawurlencode($user['handle']), [], fn (array $kept): array => [...$kept, 'is_muting' => $muting]);
         $this->patch(Client::MutedPath, [], fn (array $kept): array => self::listed($kept, $user, $muting));
 
         $this->rememberHidden($user['id'], $muting);
@@ -551,7 +551,7 @@ final class ResponseCache
             return;
         }
 
-        $path = 'users/'.rawurlencode($user['username']);
+        $path = 'users/'.rawurlencode($user['handle']);
         $profile = $this->get($path);
 
         if ($profile !== null && ($me = $this->username()) !== null) {
@@ -578,7 +578,7 @@ final class ResponseCache
     {
         $user = is_array($json['data'] ?? null) ? $json['data'] : [];
 
-        if (! is_string($user['id'] ?? null) || $user['id'] === '' || ! is_string($user['username'] ?? null) || $user['username'] === '') {
+        if (! is_string($user['id'] ?? null) || $user['id'] === '' || ! is_string($user['handle'] ?? null) || $user['handle'] === '') {
             return [null, false];
         }
 
@@ -957,7 +957,7 @@ final class ResponseCache
             return $node;
         }
 
-        if (($node['id'] ?? null) === $id && array_key_exists('username', $node)) {
+        if (($node['id'] ?? null) === $id && array_key_exists('handle', $node)) {
             $node = [...$node, ...array_intersect_key($profile, $node)];
         }
 
@@ -990,7 +990,7 @@ final class ResponseCache
             return $node;
         }
 
-        if (($node['username'] ?? null) === $username && array_key_exists('is_followed', $node)) {
+        if (($node['handle'] ?? null) === $username && array_key_exists('is_followed', $node)) {
             $node['is_followed'] = $following;
         }
 

@@ -32,7 +32,7 @@ final readonly class User
      */
     public static function fromArray(array $data): self
     {
-        $username = (string) ($data['username'] ?? '');
+        $username = (string) ($data['handle'] ?? '');
         $id = $data['id'] ?? null;
         $name = $data['name'] ?? null;
 
@@ -56,13 +56,13 @@ final readonly class User
     /**
      * The user in the API's shape, so it can be kept and read back.
      *
-     * @return array{id: string, username: string, name: string, avatar_url: ?string, bio: ?string, lane: int|string|null, company: ?string, location: ?string, website: ?string, github_url: ?string, html_url: ?string, feed_url: ?string, created_at: ?string}
+     * @return array{id: string, handle: string, name: string, avatar_url: ?string, bio: ?string, lane: int|string|null, company: ?string, location: ?string, website: ?string, github_url: ?string, html_url: ?string, feed_url: ?string, created_at: ?string}
      */
     public function toArray(): array
     {
         return [
             'id' => $this->id,
-            'username' => $this->username,
+            'handle' => $this->username,
             'name' => $this->name,
             'avatar_url' => $this->avatarUrl,
             'bio' => $this->bio,

@@ -99,8 +99,8 @@ it('holds new commits in a pill with the right count, and puts them on top witho
     holdRefreshes();
     keep('log/following', pageJson([commitJson(['id' => 'c1', 'body' => 'Seen before'])]));
     fakeFreshLog([
-        commitJson(['id' => 'c3', 'body' => 'Newest', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])]),
-        commitJson(['id' => 'c2', 'body' => 'Newer', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])]),
+        commitJson(['id' => 'c3', 'body' => 'Newest', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]),
+        commitJson(['id' => 'c2', 'body' => 'Newer', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]),
         commitJson(['id' => 'c1', 'body' => 'Seen before']),
     ]);
 
@@ -133,7 +133,7 @@ it('says one new commit, and puts the last-visit marker under it once shown', fu
     Native::visit('/log');
 
     holdRefreshes();
-    fakeFreshLog([commitJson(['id' => 'c2', 'body' => 'Just in', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])]), $seen]);
+    fakeFreshLog([commitJson(['id' => 'c2', 'body' => 'Just in', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]), $seen]);
 
     finishRefreshes(Native::visit('/log'))
         ->assertSee('1 new commit')
@@ -346,7 +346,7 @@ it('keeps your new commit, so the log opens with it next time', function () {
 
 it('shows a star made on a commit as soon as you come back to the log', function () {
     holdRefreshes();
-    $ada = userJson(['id' => 'u2', 'username' => 'ada']);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada']);
     keep('log/following', pageJson([commitJson(['id' => 'c1', 'body' => 'Star me', 'stars_count' => 0, 'author' => $ada])]));
     keep('commits/c1', commitPageJson(commitJson(['id' => 'c1', 'body' => 'Star me', 'stars_count' => 0, 'author' => $ada])));
     keep('commits/c1/replies', pageJson([]));

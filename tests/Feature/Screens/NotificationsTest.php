@@ -31,7 +31,7 @@ function stackedAvatars(TestableComponent $screen, string $id): array
  */
 function personJson(string $username, string $name, int $lane = 2, array $overrides = []): array
 {
-    return userJson(['id' => 'u-'.$username, 'username' => $username, 'name' => $name, 'avatar_url' => "https://avatars.test/{$username}", 'lane' => $lane, ...$overrides]);
+    return userJson(['id' => 'u-'.$username, 'handle' => $username, 'name' => $name, 'avatar_url' => "https://avatars.test/{$username}", 'lane' => $lane, ...$overrides]);
 }
 
 /**

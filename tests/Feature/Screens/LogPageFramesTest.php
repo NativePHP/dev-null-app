@@ -53,7 +53,7 @@ function logPageCommits(int $page): array
     return array_map(fn (int $n): array => commitJson([
         'id' => "p{$page}-{$n}",
         'created_at' => '2026-10-21T11:55:00Z',
-        'author' => userJson(['id' => "u{$page}-{$n}", 'username' => "author{$page}x{$n}", 'avatar_url' => "https://avatars.githubusercontent.com/u/{$page}0{$n}?v=4"]),
+        'author' => userJson(['id' => "u{$page}-{$n}", 'handle' => "author{$page}x{$n}", 'avatar_url' => "https://avatars.githubusercontent.com/u/{$page}0{$n}?v=4"]),
         'images' => $n === 1 ? [['id' => "i{$page}", 'url' => "https://dev-null.sh/commit-images/i{$page}", 'width' => 10, 'height' => 10]] : [],
     ]), range(1, 20));
 }

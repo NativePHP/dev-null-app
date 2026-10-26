@@ -27,7 +27,7 @@ beforeEach(function () {
 function issueSheetOnLog(?array $answer = null): TestableComponent
 {
     serveApi([
-        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'An older commit', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])],
+        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'An older commit', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])])],
         'POST /api/v1/issues' => $answer ?? [['number' => 123, 'url' => 'https://github.com/nunomaduro/dev-null.sh/issues/123'], 201],
     ]);
 
@@ -136,7 +136,7 @@ it('goes back to a commit from the badge, keeping what you wrote', function () {
 });
 
 it('only turns a new commit into an issue, never a quote', function () {
-    serveApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])]]);
+    serveApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])])]]);
 
     $screen = Native::visit('/log', platform: 'ios')->tap('quote-c1')->input('sheet-body', '/bug ');
 

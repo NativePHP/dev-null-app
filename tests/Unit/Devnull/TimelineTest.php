@@ -15,7 +15,7 @@ function timelineCommit(string $id, string $userId, string $createdAt, array $ov
         'id' => $id,
         'body' => "Commit {$id}",
         'created_at' => $createdAt,
-        'author' => ['id' => $userId, 'username' => $userId, 'name' => ucfirst($userId), 'lane' => $userId === 'ada' ? 1 : 2],
+        'author' => ['id' => $userId, 'handle' => $userId, 'name' => ucfirst($userId), 'lane' => $userId === 'ada' ? 1 : 2],
         ...$overrides,
     ]);
 }

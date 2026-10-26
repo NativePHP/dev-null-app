@@ -401,11 +401,11 @@ function signIn(array $user = []): FakeBridge
  */
 function userJson(array $overrides = []): array
 {
-    $username = $overrides['username'] ?? 'local_dev';
+    $username = $overrides['handle'] ?? 'local_dev';
 
     return [
         'id' => '0199e5c4-0000-7000-8000-000000000001',
-        'username' => $username,
+        'handle' => $username,
         'name' => 'Local Dev',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/1?v=4',
         'bio' => 'Ships things.',
@@ -473,7 +473,7 @@ function commitJson(array $overrides = []): array
         'short_hash' => substr(str_replace('-', '', $id), -7),
         'body' => $body,
         'parent_id' => null,
-        'html_url' => 'http://devnull.test/@'.($author['username'] ?? '').'/commits/'.$id,
+        'html_url' => 'http://devnull.test/@'.($author['handle'] ?? '').'/commits/'.$id,
         'created_at' => now()->subMinutes(5)->toIso8601ZuluString(),
         'stars_count' => 0,
         'replies_count' => 0,
@@ -546,7 +546,7 @@ function notificationCommitJson(array $overrides = [], bool $withParent = true):
 function notificationJson(string $type, array $overrides = []): array
 {
     $isModeration = in_array($type, ['approved', 'rejected'], true);
-    $actor = $overrides['actor'] ?? ($isModeration ? userJson() : userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'lane' => 2]));
+    $actor = $overrides['actor'] ?? ($isModeration ? userJson() : userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 2]));
     $yours = notificationCommitJson(['id' => 'c-yours', 'body' => 'Shipped the app.'], withParent: false);
 
     $commit = match ($type) {
@@ -912,7 +912,7 @@ function conversationJson(array $overrides = []): array
         'id' => 'conv-1',
         'kind' => 'direct',
         'name' => null,
-        'partner' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]),
+        'partner' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]),
         'members' => null,
         'last_message' => remoteMessageJson(),
         'last_message_at' => '2026-10-19T15:00:00.000000Z',
@@ -945,7 +945,7 @@ function remotesInboxJson(array $conversations, bool $hasMore = false, int $unre
 function threadJson(array $messages, array $overrides = []): array
 {
     return ['data' => [
-        'partner' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]),
+        'partner' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]),
         'messages' => $messages,
         'has_older' => false,
         'reactions_version' => 0,

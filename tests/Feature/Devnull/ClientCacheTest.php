@@ -32,7 +32,7 @@ it('keeps the first page of what it fetches, and never a later one', function ()
 
 it("keeps the first page of someone's followers and following", function () {
     serveApi([
-        'GET /api/v1/users/ada/followers' => [pageJson([userJson(['id' => 'g1', 'username' => 'grace', 'is_followed' => true, 'follows_you' => false])], 'page2')],
+        'GET /api/v1/users/ada/followers' => [pageJson([userJson(['id' => 'g1', 'handle' => 'grace', 'is_followed' => true, 'follows_you' => false])], 'page2')],
         'GET /api/v1/users/ada/following' => [pageJson([])],
     ]);
 
@@ -44,7 +44,7 @@ it("keeps the first page of someone's followers and following", function () {
         ->and($followers->items[0]->isFollowed)->toBeTrue()
         ->and($followers->items[0]->followsYou)->toBeFalse()
         ->and($followers->nextCursor)->toBe('page2')
-        ->and(kept('users/ada/followers')['data'][0]['username'])->toBe('grace')
+        ->and(kept('users/ada/followers')['data'][0]['handle'])->toBe('grace')
         ->and(kept('users/ada/followers', ['cursor' => 'page2']))->toBeNull()
         ->and(kept('users/ada/following'))->toBe(pageJson([]));
 });
@@ -128,7 +128,7 @@ it("fails a GET that gets a 200 with something other than devnull's answer, and 
 ]);
 
 it('fails a write that gets a maintenance page, and leaves the cache alone', function () {
-    keep('users/ada', ['data' => userWithCountsJson(['username' => 'ada'], followers: 1), 'is_following' => false]);
+    keep('users/ada', ['data' => userWithCountsJson(['handle' => 'ada'], followers: 1), 'is_following' => false]);
     serveApi(['POST /api/v1/users/ada/follow' => ['<html><title>Maintenance - /dev/null</title></html>']]);
 
     expect(fn () => $this->devnull->follow('ada'))->toThrow(ApiException::class, 'unexpected answer (HTTP 200)')
@@ -229,7 +229,7 @@ it('drops a deleted commit from every kept list', function () {
 });
 
 it('keeps follows and unfollows on the kept profile', function () {
-    keep('users/ada', ['data' => userWithCountsJson(['username' => 'ada'], followers: 1), 'is_following' => false]);
+    keep('users/ada', ['data' => userWithCountsJson(['handle' => 'ada'], followers: 1), 'is_following' => false]);
     serveApi([
         'POST /api/v1/users/ada/follow' => [null, 204],
         'DELETE /api/v1/users/ada/follow' => [null, 204],
@@ -268,10 +268,10 @@ it('leaves the cache alone when a write fails', function () {
 });
 
 it('keeps mutes on the kept profile and the people you mute, and takes their commits out of the kept logs', function () {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace']);
-    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada']), 'is_muting' => false]);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace']);
+    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada']), 'is_muting' => false]);
     keep('users/ada/commits', pageJson([commitJson(['id' => 'c2', 'author' => $ada])]));
-    keep('me/muted', pageJson([userJson(['id' => 'u3', 'username' => 'grace'])]));
+    keep('me/muted', pageJson([userJson(['id' => 'u3', 'handle' => 'grace'])]));
     keep('log/following', [...pageJson([commitJson(['id' => 'c2', 'author' => $ada]), commitJson(['id' => 'c1'])]), 'suggestions' => [commitJson(['id' => 'c4', 'author' => $ada])]]);
     keep('log/trending', [...pageJson([commitJson(['id' => 'c3', 'author' => $ada])]), 'is_ranked' => true]);
     serveApi([
@@ -282,7 +282,7 @@ it('keeps mutes on the kept profile and the people you mute, and takes their com
     $this->devnull->mute('ada');
 
     expect(kept('users/ada')['is_muting'])->toBeTrue()
-        ->and(array_column(kept('me/muted')['data'], 'username'))->toBe(['ada', 'grace'])
+        ->and(array_column(kept('me/muted')['data'], 'handle'))->toBe(['ada', 'grace'])
         ->and(array_column(kept('log/following')['data'], 'id'))->toBe(['c1'])
         ->and(kept('log/following')['suggestions'])->toBe([])
         ->and(kept('log/trending')['data'])->toBe([])
@@ -292,15 +292,15 @@ it('keeps mutes on the kept profile and the people you mute, and takes their com
     $this->devnull->unmute('ada');
 
     expect(kept('users/ada')['is_muting'])->toBeFalse()
-        ->and(array_column(kept('me/muted')['data'], 'username'))->toBe(['grace']);
+        ->and(array_column(kept('me/muted')['data'], 'handle'))->toBe(['grace']);
 });
 
 it('keeps blocks on the people you block, and drops their profile, their commits and the follows a block ends', function () {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace']);
-    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada']), 'is_following' => true, 'follows_you' => true]);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace']);
+    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada']), 'is_following' => true, 'follows_you' => true]);
     keep('users/ada/commits', pageJson([commitJson(['id' => 'c2', 'author' => $ada])]));
     keep('users/ada/commits', pageJson([commitJson(['id' => 'r1', 'author' => $ada])]), ['replies' => '1']);
-    keep('users/local_dev', ['data' => userWithCountsJson(['username' => 'local_dev'], followers: 3, following: 2)]);
+    keep('users/local_dev', ['data' => userWithCountsJson(['handle' => 'local_dev'], followers: 3, following: 2)]);
     keep('me/blocked', pageJson([]));
     keep('log/latest', pageJson([commitJson(['id' => 'c2', 'author' => $ada]), commitJson(['id' => 'c1'])]));
     serveApi([
@@ -314,7 +314,7 @@ it('keeps blocks on the people you block, and drops their profile, their commits
         ->and(kept('users/ada/commits'))->toBeNull()
         ->and(kept('users/ada/commits', ['replies' => '1']))->toBeNull()
         ->and(kept('users/local_dev')['data'])->toMatchArray(['followers_count' => 2, 'following_count' => 1])
-        ->and(array_column(kept('me/blocked')['data'], 'username'))->toBe(['ada'])
+        ->and(array_column(kept('me/blocked')['data'], 'handle'))->toBe(['ada'])
         ->and(array_column(kept('log/latest')['data'], 'id'))->toBe(['c1']);
 
     $this->devnull->unblock('ada');
@@ -325,9 +325,9 @@ it('keeps blocks on the people you block, and drops their profile, their commits
 });
 
 it('keeps your counts when you block someone with no follows between you', function () {
-    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada']), 'is_following' => false, 'follows_you' => false]);
-    keep('users/local_dev', ['data' => userWithCountsJson(['username' => 'local_dev'], followers: 3, following: 2)]);
-    serveApi(['POST /api/v1/users/ada/block' => [['data' => userJson(['id' => 'u2', 'username' => 'ada']), 'is_blocking' => true]]]);
+    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada']), 'is_following' => false, 'follows_you' => false]);
+    keep('users/local_dev', ['data' => userWithCountsJson(['handle' => 'local_dev'], followers: 3, following: 2)]);
+    serveApi(['POST /api/v1/users/ada/block' => [['data' => userJson(['id' => 'u2', 'handle' => 'ada']), 'is_blocking' => true]]]);
 
     $this->devnull->block('ada');
 
@@ -336,8 +336,8 @@ it('keeps your counts when you block someone with no follows between you', funct
 
 it('lists the people you mute and block, and keeps their first pages', function () {
     serveApi([
-        'GET /api/v1/me/muted' => [pageJson([userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace'])], 'next')],
-        'GET /api/v1/me/blocked' => [pageJson([userJson(['id' => 'u3', 'username' => 'grace'])])],
+        'GET /api/v1/me/muted' => [pageJson([userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace'])], 'next')],
+        'GET /api/v1/me/blocked' => [pageJson([userJson(['id' => 'u3', 'handle' => 'grace'])])],
     ]);
 
     $muted = $this->devnull->muted();
@@ -348,8 +348,8 @@ it('lists the people you mute and block, and keeps their first pages', function 
         ->and($muted->nextCursor)->toBe('next')
         ->and(array_map(fn ($user): string => $user->username, $blocked->items))->toBe(['grace'])
         ->and($blocked->nextCursor)->toBeNull()
-        ->and(kept('me/muted')['data'][0]['username'])->toBe('ada')
-        ->and(kept('me/blocked')['data'][0]['username'])->toBe('grace');
+        ->and(kept('me/muted')['data'][0]['handle'])->toBe('ada')
+        ->and(kept('me/blocked')['data'][0]['handle'])->toBe('grace');
 
     $this->devnull->muted('next');
 
@@ -357,9 +357,9 @@ it('lists the people you mute and block, and keeps their first pages', function 
 });
 
 it('leaves the cache alone when a mute or block fails, or devnull answers without the user', function (string $route, Closure $call) {
-    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada']), 'is_muting' => false]);
+    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada']), 'is_muting' => false]);
     keep('me/blocked', pageJson([]));
-    keep('log/latest', pageJson([commitJson(['id' => 'c2', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])]));
+    keep('log/latest', pageJson([commitJson(['id' => 'c2', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])]));
     serveApi([
         $route => [['message' => 'Too Many Attempts.'], 429],
         'DELETE /api/v1/users/ada/mute' => [['is_muting' => false]],

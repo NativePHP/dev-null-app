@@ -21,7 +21,7 @@ beforeEach(function () {
  */
 function safetyAdaJson(): array
 {
-    return userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]);
+    return userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]);
 }
 
 /**
@@ -33,7 +33,7 @@ function safetyAdaJson(): array
 function safetyProfileJson(array $extra = []): array
 {
     return [
-        'data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1], commits: 1, followers: 5, following: 2),
+        'data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1], commits: 1, followers: 5, following: 2),
         'is_following' => true,
         'follows_you' => false,
         'is_muting' => false,
@@ -101,7 +101,7 @@ it('offers Unmute on a profile you mute', function () {
 
 it('has no safety menu on your own profile, on one that blocked you, or before devnull says whether you mute them', function () {
     fakeApi([
-        'GET /api/v1/users/local_dev' => [safetyProfileJson(['data' => userWithCountsJson(['username' => 'local_dev'])])],
+        'GET /api/v1/users/local_dev' => [safetyProfileJson(['data' => userWithCountsJson(['handle' => 'local_dev'])])],
         'GET /api/v1/users/local_dev/commits' => [pageJson([])],
         'GET /api/v1/users/grace' => [['message' => "This profile isn't available.", 'code' => 'user_unavailable'], 403],
         'GET /api/v1/users/grace/commits' => [['message' => "This profile isn't available.", 'code' => 'user_unavailable'], 403],

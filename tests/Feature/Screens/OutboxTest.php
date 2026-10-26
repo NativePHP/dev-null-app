@@ -25,7 +25,7 @@ beforeEach(function () {
  */
 function adasCommit(array $overrides = []): array
 {
-    return commitJson(['id' => 'c1', 'body' => 'Shipped it.', 'stars_count' => 1, 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']), ...$overrides]);
+    return commitJson(['id' => 'c1', 'body' => 'Shipped it.', 'stars_count' => 1, 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']), ...$overrides]);
 }
 
 /**
@@ -182,7 +182,7 @@ it('brings back the photos and poll of a commit devnull turned down when its com
 
 it("hears a reply devnull turned down after you've left its commit, and Edit takes you back to it", function () {
     holdRefreshes();
-    keep('commits/c2', commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])));
+    keep('commits/c2', commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])));
     keep('commits/c2/replies', pageJson([]));
     fakeApi(['POST /api/v1/commits' => [['message' => 'Too Many Attempts.', 'code' => 'rate_limited'], 429]]);
 

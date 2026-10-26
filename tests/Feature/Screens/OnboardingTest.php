@@ -202,7 +202,7 @@ it('follows the deep link back, redeems the code with the verifier and signs in'
 
     // Your profile is kept as you sign in, so it shows when devnull can't be reached.
     expect(app(Account::class)->user()?->username)->toBe('local_dev')
-        ->and(app(Account::class)->profile()['data']['username'] ?? null)->toBe('local_dev');
+        ->and(app(Account::class)->profile()['data']['handle'] ?? null)->toBe('local_dev');
 
     Http::assertSentCount(2);
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'

@@ -20,7 +20,7 @@ beforeEach(function () {
 function standingJson(array $extra = []): array
 {
     return [
-        'data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1], commits: 12),
+        'data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1], commits: 12),
         'is_following' => false,
         'follows_you' => true,
         'is_muting' => false,
@@ -141,7 +141,7 @@ it('says you blocked them, by devnull\'s user_blocked code, in the web\'s words'
         'GET /api/v1/users/ada/commits' => [['message' => 'Whatever /dev/null says about it.', 'code' => 'user_blocked'], 403],
     ]);
 
-    $screen = Native::visit('/log/users/ada', data: ['user' => User::fromArray(userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace']))])
+    $screen = Native::visit('/log/users/ada', data: ['user' => User::fromArray(userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace']))])
         ->assertSet('unavailable', ErrorCode::UserBlocked->value)
         ->assertSee('fatal: @ada is blocked')
         ->assertSee("You blocked Ada Lovelace. Neither of you can follow, reply to, or star the other, or see each other's commits.")
@@ -171,7 +171,7 @@ it("says only that it isn't available when they blocked you, by devnull's user_u
 it('drops a kept profile once devnull refuses it across a block, and shows it again once the block is gone', function () {
     holdRefreshes();
     keep('users/ada', standingJson());
-    keep('users/ada/commits', pageJson([commitJson(['id' => 'c1', 'body' => 'Kept commit', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])]));
+    keep('users/ada/commits', pageJson([commitJson(['id' => 'c1', 'body' => 'Kept commit', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])]));
     serveApi([
         'GET /api/v1/users/ada' => [['message' => 'Blocked.', 'code' => 'user_unavailable'], 403],
         'GET /api/v1/users/ada/commits' => [['message' => 'Blocked.', 'code' => 'user_unavailable'], 403],

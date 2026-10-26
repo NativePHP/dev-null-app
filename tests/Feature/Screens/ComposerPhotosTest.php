@@ -30,7 +30,7 @@ afterEach(function () {
 function composerOnLog(?array $answer = null): TestableComponent
 {
     serveApi([
-        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'An older commit', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])],
+        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'An older commit', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])])],
         'POST /api/v1/commits' => $answer ?? [['data' => commitJson(['id' => 'n1', 'body' => 'Look at this', 'status' => 'pending', 'images' => [['id' => 'i1', 'url' => 'http://devnull.test/commit-images/i1?expires=1&signature=abc', 'width' => 40, 'height' => 30, 'description' => null]]])], 201],
     ]);
 
@@ -246,7 +246,7 @@ it('drops the photos when the sheet goes unsent, and deletes them from the phone
 
 it('opens a commit\'s reply in the sheet with what the reply bar had, and replies with photos', function () {
     serveApi([
-        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada'])]))],
+        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])]))],
         'GET /api/v1/commits/c2/replies' => [pageJson([])],
         'POST /api/v1/commits' => [['data' => replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'Here it is'])], 201],
     ]);
@@ -277,7 +277,7 @@ it('opens a commit\'s reply in the sheet with what the reply bar had, and replie
 
 it('hands the reply back to the reply bar when the sheet goes unsent', function () {
     serveApi([
-        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])]))],
+        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]))],
         'GET /api/v1/commits/c2/replies' => [pageJson([])],
     ]);
 

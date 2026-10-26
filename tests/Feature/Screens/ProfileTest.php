@@ -20,7 +20,7 @@ beforeEach(function () {
 function profileJson(bool $isFollowing = false, array $user = [], array $extra = []): array
 {
     return [
-        'data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'bio' => 'Wrote the first program.', 'lane' => 1, ...$user], commits: 1, followers: 5, following: 2),
+        'data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'bio' => 'Wrote the first program.', 'lane' => 1, ...$user], commits: 1, followers: 5, following: 2),
         'is_following' => $isFollowing,
         'activity' => ['scale' => 'week', 'buckets' => array_map(fn (int $day): array => ['date' => now()->subDays(6 - $day)->toDateString(), 'count' => 0], range(0, 6))],
         'streaks' => ['longest' => 0, 'current' => 0],
@@ -35,13 +35,13 @@ function profileJson(bool $isFollowing = false, array $user = [], array $extra =
  */
 function adaCommitJson(array $overrides = []): array
 {
-    return commitJson(['author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]), ...$overrides]);
+    return commitJson(['author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]), ...$overrides]);
 }
 
 it('shows who they are, their counts and their commits', function () {
     fakeApi([
         'GET /api/v1/users/ada' => [profileJson()],
-        'GET /api/v1/users/ada/commits' => [pageJson([commitJson(['body' => 'Notes on the engine', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])],
+        'GET /api/v1/users/ada/commits' => [pageJson([commitJson(['body' => 'Notes on the engine', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])])],
     ]);
 
     Native::visit('/log/users/ada')
@@ -158,7 +158,7 @@ it('puts the follow back when the server refuses', function () {
 
 it('has no follow button on your own profile', function () {
     fakeApi([
-        'GET /api/v1/users/local_dev' => [profileJson(user: ['username' => 'local_dev'])],
+        'GET /api/v1/users/local_dev' => [profileJson(user: ['handle' => 'local_dev'])],
         'GET /api/v1/users/local_dev/commits' => [pageJson([])],
     ]);
 
@@ -241,7 +241,7 @@ it('switches between commits and replies like the web profile', function () {
                 'id' => 'r1',
                 'parent_id' => 'c9',
                 'body' => 'Agreed',
-                'parent' => commitJson(['id' => 'c9', 'author' => userJson(['username' => 'grace'])]),
+                'parent' => commitJson(['id' => 'c9', 'author' => userJson(['handle' => 'grace'])]),
             ])])),
             default => Http::response(pageJson([adaCommitJson(['id' => 'c1', 'body' => 'A top-level commit'])])),
         };
@@ -289,7 +289,7 @@ it('speaks git when there are no replies yet', function () {
     fakeApi([
         'GET /api/v1/users/ada' => [profileJson()],
         'GET /api/v1/users/ada/commits' => [pageJson([])],
-        'GET /api/v1/users/local_dev' => [profileJson(user: ['username' => 'local_dev'])],
+        'GET /api/v1/users/local_dev' => [profileJson(user: ['handle' => 'local_dev'])],
         'GET /api/v1/users/local_dev/commits' => [pageJson([])],
     ]);
 
@@ -364,7 +364,7 @@ it('says no commits yet over an empty strip and leaves out the streaks', functio
 
 it('shows your own profile on the Profile tab', function () {
     fakeApi([
-        'GET /api/v1/users/local_dev' => [profileJson(user: ['id' => userJson()['id'], 'username' => 'local_dev', 'name' => 'Local Dev'])],
+        'GET /api/v1/users/local_dev' => [profileJson(user: ['id' => userJson()['id'], 'handle' => 'local_dev', 'name' => 'Local Dev'])],
         'GET /api/v1/users/local_dev/commits' => [pageJson([commitJson(['body' => 'My own commit'])])],
     ]);
 
@@ -385,7 +385,7 @@ it('shows your own profile on the Profile tab', function () {
 
 it('leads from your own profile to your account with the Settings2 icon', function () {
     fakeApi([
-        'GET /api/v1/users/local_dev' => [profileJson(user: ['username' => 'local_dev'])],
+        'GET /api/v1/users/local_dev' => [profileJson(user: ['handle' => 'local_dev'])],
         'GET /api/v1/users/local_dev/commits' => [pageJson([])],
         'GET /api/v1/users/ada' => [profileJson()],
         'GET /api/v1/users/ada/commits' => [pageJson([])],

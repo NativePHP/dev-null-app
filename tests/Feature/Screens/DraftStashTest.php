@@ -23,7 +23,7 @@ beforeEach(function () {
  */
 function stashAda(): array
 {
-    return userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']);
+    return userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']);
 }
 
 /**
@@ -182,7 +182,7 @@ it('keeps a quote that devnull said no to', function () {
 
 it('marks Quote on a profile with a stashed quote', function () {
     fakeApi([
-        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada']), 'is_following' => false, 'activity' => ['scale' => 'week', 'buckets' => []], 'streaks' => ['longest' => 0, 'current' => 0], 'pinned_commit' => null]],
+        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada']), 'is_following' => false, 'activity' => ['scale' => 'week', 'buckets' => []], 'streaks' => ['longest' => 0, 'current' => 0], 'pinned_commit' => null]],
         'GET /api/v1/users/ada/commits' => [pageJson([commitJson(['id' => 'c1', 'author' => stashAda()])])],
     ]);
     stash('quote-c1', 'This, all of it.');
