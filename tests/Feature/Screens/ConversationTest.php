@@ -254,8 +254,15 @@ it('puts the actions away with a swipe back or a tap anywhere in the thread', fu
     ], ['read_through_id' => 2]));
 
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+    $rowTakesTaps = fn (): bool => (nodeByRef($screen, 'message-2')['on_press'] ?? 0) > 0;
 
-    $screen->swipe('swipe-1', 'right')->swipe('swipe-1', 'left');
+    // Until some message's actions show, the rows take no tap, so a tap beside a bubble draws no ripple on Android.
+    expect($rowTakesTaps())->toBeFalse();
+
+    $screen->swipe('swipe-1', 'right');
+    expect($rowTakesTaps())->toBeTrue();
+
+    $screen->swipe('swipe-1', 'left');
     expect(showsActions($screen, '1'))->toBeFalse();
 
     $screen->swipe('swipe-1', 'right')->tap($tap);

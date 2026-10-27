@@ -17,7 +17,12 @@
 @php($replyLane = $message->replyTo === null ? 'primary' : \App\Devnull\Lane::token(($authors[$message->replyTo['user_id']] ?? null)?->lane()))
 @php($replyable = ($canPush ?? false) && ! $message->isPending())
 @php($showsActions = $replyable && $actionsForId === $message->id)
+{{-- The row only takes a tap while some message's actions show, so a tap beside a bubble draws no ripple otherwise. --}}
+@if ($actionsForId !== null)
 <native:row native:key="message-{{ $key }}" ref="message-{{ $key }}" class="w-full px-3 {{ $startsRun ? 'pt-3' : 'pt-[3]' }}" @press="hideActions">
+@else
+<native:row native:key="message-{{ $key }}" ref="message-{{ $key }}" class="w-full px-3 {{ $startsRun ? 'pt-3' : 'pt-[3]' }}">
+@endif
     @if ($replyable)
         <native:gesture-area ref="swipe-{{ $key }}" @swipe="swipedMessage({{ $message->id }})" class="flex-1">
     @endif
