@@ -17,28 +17,31 @@
             </native:pressable>
         @endif
         <native:text font="mono" class="flex-1 text-[11px] text-theme-ink-muted" :max-lines="1">{{ $message->createdAt === null ? '' : \App\Devnull\Display::dayLabel($message->createdAt).' · '.$message->time() }}</native:text>
-        @if ($canPush)
-            @foreach (['reply', 'react'] as $action)
-                @php($icon = $action === 'reply' ? \App\Icons\Lucide::Reply : \App\Icons\Lucide::SmilePlus)
-                <native:pressable ref="{{ $key }}-{{ $action }}" @press="{{ $action === 'reply' ? 'reply' : 'openReactions' }}({{ $message->id }})" a11y-label="{{ $action === 'reply' ? 'Reply' : 'React' }}">
-                    <native:stack :width="36" :height="36" center>
-                        <native:icon :ios="$icon->ios()" :android="$icon->android()" :size="16" class="text-theme-ink-muted" />
+        {{-- Side by side with no gap, so the time keeps its room: each is a 32-point target around a 16-point icon. --}}
+        <native:row ref="{{ $key }}-actions" class="flex-shrink-0 items-center">
+            @if ($canPush)
+                @foreach (['reply', 'react'] as $action)
+                    @php($icon = $action === 'reply' ? \App\Icons\Lucide::Reply : \App\Icons\Lucide::SmilePlus)
+                    <native:pressable ref="{{ $key }}-{{ $action }}" @press="{{ $action === 'reply' ? 'reply' : 'openReactions' }}({{ $message->id }})" a11y-label="{{ $action === 'reply' ? 'Reply' : 'React' }}">
+                        <native:stack :width="32" :height="32" center>
+                            <native:icon :ios="$icon->ios()" :android="$icon->android()" :size="16" class="text-theme-ink-muted" />
+                        </native:stack>
+                    </native:pressable>
+                @endforeach
+            @endif
+            @if ($canPin)
+                <native:pressable ref="{{ $key }}-unpin" @press="unpin({{ $message->id }})" a11y-label="Unpin message">
+                    <native:stack :width="32" :height="32" center>
+                        <native:icon :ios="\App\Icons\Lucide::PinOff->ios()" :android="\App\Icons\Lucide::PinOff->android()" :size="16" class="text-theme-ink-muted" />
                     </native:stack>
                 </native:pressable>
-            @endforeach
-        @endif
-        @if ($canPin)
-            <native:pressable ref="{{ $key }}-unpin" @press="unpin({{ $message->id }})" a11y-label="Unpin message">
-                <native:stack :width="36" :height="36" center>
-                    <native:icon :ios="\App\Icons\Lucide::PinOff->ios()" :android="\App\Icons\Lucide::PinOff->android()" :size="16" class="text-theme-ink-muted" />
-                </native:stack>
-            </native:pressable>
-        @endif
+            @endif
+        </native:row>
     </native:row>
 
     @if ($message->body !== '')
         @if ($isLong && ! $isExpanded)
-            <native:text :text="$message->body" class="w-full text-[15px] leading-snug text-theme-ink" :max-lines="\App\NativeComponents\Conversation::PinnedLines" />
+            <native:text :text="$message->body" class="w-full text-[15px] leading-snug text-theme-ink whitespace-pre-wrap" :max-lines="\App\NativeComponents\Conversation::PinnedLines" />
         @else
             <native:column class="w-full">
                 @include('native.partials.message-body', ['ink' => 'text-theme-ink', 'mentionInk' => 'text-theme-primary', 'quoteRule' => 'border-theme-lane-5'])

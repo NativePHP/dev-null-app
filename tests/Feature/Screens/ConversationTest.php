@@ -645,7 +645,7 @@ it('asks before pinning for the whole org, then pins at once and takes the pinne
 
     // Pin message pins it straight away, with its pin beside it, and takes devnull's list once it answers.
     $screen->swipe('swipe-1', 'right')->tap('pin-1')
-        ->emitNative(ButtonPressed::class, ['index' => 2, 'label' => Conversation::PinMessage, 'id' => Conversation::PinAlert])
+        ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => Conversation::PinMessage, 'id' => Conversation::PinAlert])
         ->assertSee('pinned · 1');
 
     expect(rendersRef($screen, 'pinned-1'))->toBeTrue()
@@ -666,7 +666,7 @@ it('stops asking before pinning once you say not to ask again', function () {
     $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))
         ->swipe('swipe-1', 'right')
         ->tap('pin-1')
-        ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => Conversation::PinWithoutAsking, 'id' => Conversation::PinAlert]);
+        ->emitNative(ButtonPressed::class, ['index' => 2, 'label' => Conversation::PinWithoutAsking, 'id' => Conversation::PinAlert]);
 
     finishRefreshes($screen->swipe('swipe-2', 'right')->tap('pin-2'));
 

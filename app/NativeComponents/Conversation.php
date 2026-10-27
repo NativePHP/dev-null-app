@@ -550,8 +550,8 @@ class Conversation extends NativeComponent
 
         Dialog::alert('Pin for the whole org?', "Everyone in the org sees pinned messages, including people added without Share history, who can't read anything pushed before they joined.", [
             ['label' => 'Cancel', 'style' => 'cancel'],
-            ['label' => self::PinWithoutAsking],
             ['label' => self::PinMessage],
+            ['label' => self::PinWithoutAsking],
         ])->id(self::PinAlert);
     }
 
