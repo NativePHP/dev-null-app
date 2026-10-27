@@ -24,6 +24,10 @@
             "url": "https://github.com/simonhamp/toastkit"
         },
         {
+            "type": "path",
+            "url": "packages/devnull/ios-data-protection"
+        },
+        {
             "name": "nativephp-plugins",
             "type": "composer",
             "url": "https://plugins.nativephp.com"
@@ -32,6 +36,7 @@
     "require": {
         "php": "^8.3",
         "codingwithrk/nativephp-social-auth": "^1.0",
+        "devnull/ios-data-protection": "^1.0",
         "laravel/boost": "^2.0",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",

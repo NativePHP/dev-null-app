@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "4c795f7f152e1855d8c1e257076e3f74",
+    "content-hash": "556a39822c265deb93c912a5f8d74b58",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -390,6 +390,42 @@
                 "source": "https://github.com/DASPRiD/Enum/tree/1.0.7"
             },
             "time": "2025-09-16T12:23:56+00:00"
+        },
+        {
+            "name": "devnull/ios-data-protection",
+            "version": "1.0.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/devnull/ios-data-protection",
+                "reference": "6e60de9d3d51a40f60af266d5ed3cd354cde5191"
+            },
+            "require": {
+                "nativephp/mobile": "^4.0",
+                "php": "^8.3"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Devnull\\IosDataProtection\\DataProtectionServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Devnull\\IosDataProtection\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Keeps the app's database and storage out of iCloud and Finder backups, and unreadable while the phone is locked.",
+            "transport-options": {
+                "relative": true
+            }
         },
         {
             "name": "dflydev/dot-access-data",

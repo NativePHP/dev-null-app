@@ -1,0 +1,20 @@
+{
+    "name": "devnull/ios-data-protection",
+    "version": "1.0.0",
+    "description": "Keeps the app's database and storage out of iCloud and Finder backups, and unreadable while the phone is locked.",
+    "namespace": "DataProtection",
+    "category": "security",
+    "license": "MIT",
+    "platforms": [
+        "ios"
+    ],
+    "bridge_functions": [],
+    "ios": {
+        "init_function": "protectAppData",
+        "entitlements": {
+            "com.apple.developer.default-data-protection": "NSFileProtectionCompleteUnlessOpen"
+        }
+    },
+    "events": [],
+    "service_provider": "Devnull\\IosDataProtection\\DataProtectionServiceProvider"
+}

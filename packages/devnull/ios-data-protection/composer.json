@@ -1,0 +1,26 @@
+{
+    "name": "devnull/ios-data-protection",
+    "description": "Keeps the app's database and storage out of iCloud and Finder backups, and unreadable while the phone is locked.",
+    "version": "1.0.0",
+    "type": "nativephp-plugin",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "nativephp/mobile": "^4.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Devnull\\IosDataProtection\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Devnull\\IosDataProtection\\DataProtectionServiceProvider"
+            ]
+        },
+        "nativephp": {
+            "manifest": "nativephp.json"
+        }
+    }
+}
