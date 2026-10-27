@@ -104,6 +104,18 @@ it('keeps the reply field the same view while the thread above it changes, so th
         ->and(idsDownTo($screen->tree(), 'reply-input'))->toBe($field);
 });
 
+it('puts the expand button inside the reply field on iOS, and ahead of it on Android', function (string $platform, array $row, array $plate) {
+    fakeThread();
+
+    $screen = Native::visit('/log/commits/c2', platform: $platform);
+
+    expect(childRefs($screen, 'reply-row'))->toBe($row)
+        ->and(childRefs($screen, 'reply-plate'))->toBe($plate);
+})->with([
+    'iOS' => ['ios', ['reply-plate', 'send-reply'], ['reply-field', 'reply-expand']],
+    'Android' => ['android', ['reply-expand', 'reply-plate', 'send-reply'], ['reply-field']],
+]);
+
 it('runs the rail from the folded ancestors into the parent, which shows its avatar', function () {
     $ada = userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 1]);
     fakeApi([
@@ -718,7 +730,7 @@ it('paints the reply bar solid on Android, with its hairline, so the replies nev
         ->and($bar['children'][0]['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
         ->and($bar['children'][0]['props']['dark_bg_color'] ?? null)->toBe(config('native-ui.theme.dark.surface'))
         ->and($bar['children'][0]['children'][0]['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.hairline'))
-        ->and(nodeByRef($screen, 'reply-field')['props']['glass'] ?? null)->toBeNull();
+        ->and(nodeByRef($screen, 'reply-plate')['props']['glass'] ?? null)->toBeNull();
 });
 
 it('leaves the reply bar bare on iOS and floats the field on Liquid Glass', function () {
@@ -730,7 +742,7 @@ it('leaves the reply bar bare on iOS and floats the field on Liquid Glass', func
     expect($bar['children'][0]['ref'] ?? null)->toBe('reply-bar')
         ->and($bar['children'][0]['style']['bg_color'] ?? null)->toBeNull()
         ->and($bar['children'][0]['children'][0]['style']['bg_color'] ?? null)->toBeNull()
-        ->and(nodeByRef($screen, 'reply-field')['props']['glass'] ?? null)->toBe(1);
+        ->and(nodeByRef($screen, 'reply-plate')['props']['glass'] ?? null)->toBe(1);
 });
 
 it('ends the page above the reply bar, and further as the draft grows', function () {

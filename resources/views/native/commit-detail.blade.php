@@ -113,26 +113,40 @@
             the surface and the hairline above it belong to this column, or the replies show through. On iOS the bar
             is bare and the field is a Liquid Glass plate instead, the way the HIG floats controls over content; the
             hairline stays as a clear 1pt so the bar keeps the height Display::ReplyBarHeight counts on.
+
+            The expand button opens the reply in the composer sheet, which has the photos and preview the bar has no
+            room for. On iOS it sits inside the plate at its trailing edge, where iOS puts a field's own controls, and
+            stays at the bottom as the field grows. On Android it leads the bar, ahead of the field.
         --}}
+        @php($expandInField = \Native\Mobile\Platform::isIos())
         <native:bottom-bar>
             <native:column ref="reply-bar" class="w-full android:bg-theme-surface">
                 <native:column class="w-full h-[1] android:bg-theme-hairline" />
-                <native:row class="w-full pl-2 pr-4 py-2 gap-2 items-center">
-                    {{-- The bar has no room for photos or a preview, so this opens the reply in the composer sheet, which has them. --}}
-                    @include('native.partials.composer-tool', ['ref' => 'reply-expand', 'icon' => \App\Icons\Lucide::Maximize2, 'label' => 'Reply with photos or a preview', 'press' => "replyInSheet('{$commit->id}')"])
-                    {{-- EDGE sends no focus event, so a press on the field is how the page learns you're replying. --}}
-                    <native:column ref="reply-field" class="flex-1 ios:px-4 ios:rounded-[18] ios:glass" @pressUp="replyTapped">
-                        <native:bare-text-input
-                            ref="reply-input"
-                            class="w-full py-2 text-theme-ink"
-                            placeholder="Reply to {{ $commit->author->handle() }}"
-                            native:model.debounce.150ms="reply"
-                            :autofocus="$focusReply"
-                            multiline
-                            :max-lines="5"
-                            :max-length="\App\Devnull\Data\Commit::MaxRawLength"
-                        />
-                    </native:column>
+                <native:row ref="reply-row" class="w-full {{ $expandInField ? 'pl-4' : 'pl-2' }} pr-4 py-2 gap-2 items-center">
+                    @unless ($expandInField)
+                        @include('native.partials.composer-tool', ['ref' => 'reply-expand', 'icon' => \App\Icons\Lucide::Maximize2, 'label' => 'Reply with photos or a preview', 'press' => "replyInSheet('{$commit->id}')"])
+                    @endunless
+                    <native:row ref="reply-plate" class="flex-1 items-end ios:pr-1 ios:rounded-[18] ios:glass">
+                        {{--
+                            EDGE sends no focus event, so a press on the field is how the page learns you're replying.
+                            The expand button is beside it rather than in it, so pressing it doesn't count.
+                        --}}
+                        <native:column ref="reply-field" class="flex-1 ios:pl-4" @pressUp="replyTapped">
+                            <native:bare-text-input
+                                ref="reply-input"
+                                class="w-full py-2 text-theme-ink"
+                                placeholder="Reply to {{ $commit->author->handle() }}"
+                                native:model.debounce.150ms="reply"
+                                :autofocus="$focusReply"
+                                multiline
+                                :max-lines="5"
+                                :max-length="\App\Devnull\Data\Commit::MaxRawLength"
+                            />
+                        </native:column>
+                        @if ($expandInField)
+                            @include('native.partials.composer-tool', ['ref' => 'reply-expand', 'icon' => \App\Icons\Lucide::Maximize2, 'label' => 'Reply with photos or a preview', 'press' => "replyInSheet('{$commit->id}')"])
+                        @endif
+                    </native:row>
                     @include('native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget'])
                     <native:button ref="send-reply" :variant="$myColour" size="sm" :disabled="! \App\Devnull\Data\Commit::fits($reply)" @press="sendReply">Reply</native:button>
                 </native:row>
