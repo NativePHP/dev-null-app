@@ -9,6 +9,7 @@ use App\Devnull\Data\Thread;
 use App\Devnull\Data\User;
 use App\Devnull\Display;
 use App\Devnull\Outbox;
+use App\Devnull\ResponseCache;
 use App\Devnull\SiteLink;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
@@ -208,6 +209,13 @@ class Conversation extends NativeComponent
 
     public function onResume(): void
     {
+        // You left the org from its members: back to the inbox, which no longer lists it.
+        if ($this->isOrg() && app(ResponseCache::class)->takeLeftOrg($this->org)) {
+            $this->back();
+
+            return;
+        }
+
         $this->forgetRefreshes();
         $this->showKept();
         $this->showPending();
@@ -229,9 +237,9 @@ class Conversation extends NativeComponent
 
         $items = [];
 
-        if (! $this->isOrg()) {
-            $items[] = NavAction::make('view-profile')->label('View profile')->icon(ios: Lucide::UserRound->ios(), android: Lucide::UserRound->android())->press('viewProfile');
-        }
+        $items[] = $this->isOrg()
+            ? NavAction::make('members')->label('Members')->icon(ios: Lucide::UsersRound->ios(), android: Lucide::UsersRound->android())->press('viewMembers')
+            : NavAction::make('view-profile')->label('View profile')->icon(ios: Lucide::UserRound->ios(), android: Lucide::UserRound->android())->press('viewProfile');
 
         $items[] = $this->thread->isArchived
             ? NavAction::make('pop')->label('Pop')->icon(ios: Lucide::ArchiveRestore->ios(), android: Lucide::ArchiveRestore->android())->press('pop')
@@ -491,6 +499,16 @@ class Conversation extends NativeComponent
     {
         if ($this->username !== '') {
             $this->openInTab('/users/'.rawurlencode($this->username), $this->thread?->partner === null ? [] : ['user' => $this->thread->partner]);
+        }
+    }
+
+    /**
+     * The org's members, where a maintainer manages them and anyone can leave.
+     */
+    public function viewMembers(): void
+    {
+        if ($this->isOrg()) {
+            $this->openInTab('/orgs/'.rawurlencode($this->org).'/members');
         }
     }
 
