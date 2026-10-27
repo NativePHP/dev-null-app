@@ -97,6 +97,55 @@ it('lets the last of several quick taps on a star have the last word', function 
         ->and(PendingWrite::query()->count())->toBe(0);
 });
 
+it('sends a quick unstar only once the star before it has gone, so devnull ends up where the last tap left it', function () {
+    holdRefreshes();
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([adasCommit()])],
+        'POST /api/v1/commits/c1/star' => [['data' => adasCommit(['starred' => true, 'stars_count' => 2])]],
+        'DELETE /api/v1/commits/c1/star' => [['data' => adasCommit(['starred' => false, 'stars_count' => 1])]],
+    ]);
+
+    $screen = finishRefreshes(Native::visit('/log'))->tap('star-c1')->tap('star-c1');
+
+    finishRefreshes($screen, newestFirst: true);
+
+    expect($screen->instance()->commits[0])->starred->toBeFalse()->starsCount->toBe(1)
+        ->and(kept('log/following')['data'][0])->toMatchArray(['starred' => false, 'stars_count' => 1])
+        ->and(collect(Http::recorded())->map(fn (array $sent): string => $sent[0]->method())->filter(fn (string $method): bool => $method !== 'GET')->values()->all())->toBe(['POST', 'DELETE'])
+        ->and(PendingWrite::query()->count())->toBe(0);
+});
+
+it('still sends a quick unstar when devnull turns down the star before it', function () {
+    holdRefreshes();
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([adasCommit()])],
+        'POST /api/v1/commits/c1/star' => [['message' => 'Server Error'], 500],
+        'DELETE /api/v1/commits/c1/star' => [['data' => adasCommit(['starred' => false, 'stars_count' => 1])]],
+    ]);
+
+    $screen = finishRefreshes(finishRefreshes(Native::visit('/log'))->tap('star-c1')->tap('star-c1'));
+
+    expect($screen->instance()->commits[0])->starred->toBeFalse()->starsCount->toBe(1)
+        ->and(sentTo('DELETE', 'commits/c1/star'))->toHaveCount(1)
+        ->and(PendingWrite::query()->count())->toBe(0);
+});
+
+it('sends a star and an unstar of one commit left over from when the app closed one after the other', function () {
+    leftover(PendingWrite::Star, 'c1');
+    leftover(PendingWrite::Unstar, 'c1');
+    holdRefreshes();
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([adasCommit()])],
+        'POST /api/v1/commits/c1/star' => [['data' => adasCommit(['starred' => true, 'stars_count' => 2])]],
+        'DELETE /api/v1/commits/c1/star' => [['data' => adasCommit(['starred' => false, 'stars_count' => 1])]],
+    ]);
+
+    finishRefreshes(Native::visit('/log'), newestFirst: true);
+
+    expect(collect(Http::recorded())->map(fn (array $sent): string => $sent[0]->method())->filter(fn (string $method): bool => $method !== 'GET')->values()->all())->toBe(['POST', 'DELETE'])
+        ->and(PendingWrite::query()->count())->toBe(0);
+});
+
 it('puts a star devnull turned down back, and stars again from Retry on its toast', function () {
     serveApi([
         'GET /api/v1/log/following' => [pageJson([adasCommit()])],

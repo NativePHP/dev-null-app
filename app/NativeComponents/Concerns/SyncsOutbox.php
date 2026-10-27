@@ -57,19 +57,34 @@ trait SyncsOutbox
 {
     /**
      * Stars or unstars a commit: every kept copy shows it at once, and devnull
-     * is told from the background. The screen showing it flips its own.
+     * is told from the background, once any star or unstar of it before this
+     * one has gone (see Outbox::starOnItsWay()). The screen showing it flips
+     * its own.
      */
     protected function queueStar(string $id, bool $starred): void
     {
         $cache = app(ResponseCache::class);
+        $outbox = app(Outbox::class);
 
         // An unstar takes the commit off your kept starred commits, so it keeps a copy to put back if devnull says no.
-        $write = app(Outbox::class)->add($starred ? PendingWrite::Star : PendingWrite::Unstar, $id, $starred ? [] : ['kept' => $cache->keptCommit($id)]);
+        $write = $outbox->add($starred ? PendingWrite::Star : PendingWrite::Unstar, $id, $starred ? [] : ['kept' => $cache->keptCommit($id)]);
 
         $cache->starChanged($id, $starred);
 
-        if ($write !== null) {
+        if ($write !== null && ! $outbox->starOnItsWay($id)) {
             $this->sendFromOutbox($write);
+        }
+    }
+
+    /**
+     * Sends the star or unstar of the commit that was waiting for $write to go.
+     */
+    private function sendNextStar(PendingWrite $write): void
+    {
+        $next = app(Outbox::class)->nextStar((string) $write->target);
+
+        if ($next !== null) {
+            $this->sendFromOutbox($next);
         }
     }
 
@@ -137,11 +152,18 @@ trait SyncsOutbox
      * What was left in the outbox when the app last closed. Stars and
      * messages go again, since devnull can't do either twice. A commit might
      * have reached devnull, and has nothing it could be known by, so it's
-     * turned down with why, for you to check and send again yourself.
+     * turned down with why, for you to check and send again yourself. A star
+     * or an unstar of a commit with one already on its way waits for it.
      */
     protected function sendLeftovers(): void
     {
-        foreach (app(Outbox::class)->leftovers() as $write) {
+        $outbox = app(Outbox::class);
+
+        foreach ($outbox->leftovers() as $write) {
+            if ($write->isStar() && $outbox->starOnItsWay((string) $write->target)) {
+                continue;
+            }
+
             $write->canBeSentAgain()
                 ? $this->sendFromOutbox($write)
                 : $this->writeTurnedDown($write, Outbox::ClosedBeforeAnswer, reopen: false);
@@ -200,6 +222,7 @@ trait SyncsOutbox
         if ($write->isStar()) {
             $later = $outbox->starsAfter($write);
             $outbox->forget($write);
+            $this->sendNextStar($write);
 
             if (! $later && $data !== []) {
                 app(ResponseCache::class)->commitReacted($data);
@@ -233,6 +256,7 @@ trait SyncsOutbox
         if ($write->isStar()) {
             $later = $outbox->starsAfter($write);
             $outbox->forget($write);
+            $this->sendNextStar($write);
             $starred = $write->kind === PendingWrite::Star;
 
             if ($later) {

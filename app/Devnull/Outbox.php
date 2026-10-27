@@ -160,6 +160,37 @@ final class Outbox
     }
 
     /**
+     * Whether a star or an unstar of the commit is on its way from this run of
+     * the app. The next one waits for its answer, since the background lane
+     * runs a few at once and devnull would take them in whatever order they
+     * land, so a quick unstar could reach it before the star it undoes.
+     */
+    public function starOnItsWay(string $target): bool
+    {
+        return $this->mine()
+            ->whereIn('kind', [PendingWrite::Star, PendingWrite::Unstar])
+            ->where('target', $target)
+            ->where('status', PendingWrite::Sending)
+            ->get()
+            ->contains(fn (PendingWrite $write): bool => $write->task_id !== null && AsyncTaskRegistry::scope($write->task_id) !== null);
+    }
+
+    /**
+     * The oldest star or unstar of the commit waiting for the one before it,
+     * or left over from when the app closed, to go next.
+     */
+    public function nextStar(string $target): ?PendingWrite
+    {
+        return $this->mine()
+            ->whereIn('kind', [PendingWrite::Star, PendingWrite::Unstar])
+            ->where('target', $target)
+            ->whereIn('status', [PendingWrite::Queued, PendingWrite::Sending])
+            ->orderBy('id')
+            ->get()
+            ->first(fn (PendingWrite $write): bool => $write->task_id === null || AsyncTaskRegistry::scope($write->task_id) === null);
+    }
+
+    /**
      * The commit devnull last turned down that was written under the draft $stashName, for its composer to have back.
      */
     public function failedDraft(string $stashName): ?PendingWrite
