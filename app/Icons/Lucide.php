@@ -88,6 +88,9 @@ enum Lucide
     case GitMerge;
     case Maximize;
     case Key;
+    case PinOff;
+    case BellOff;
+    case LogOut;
 
     /**
      * The icon the web's inbox draws for a kind of notification.
@@ -187,6 +190,10 @@ enum Lucide
             self::GitMerge => 'git-merge',
             self::Maximize => 'maximize',
             self::Key => 'key',
+            self::Pin => 'pin',
+            self::PinOff => 'pin-off',
+            self::BellOff => 'bell-off',
+            self::LogOut => 'log-out',
             default => null,
         };
 
@@ -201,7 +208,6 @@ enum Lucide
             self::ChevronLeft => Ios::ChevronLeft,
             self::ChevronDown => Ios::ChevronDown,
             self::ArrowUpRight => Ios::ArrowUpRight,
-            self::Pin => Ios::Pin,
             self::ListOrdered => Ios::ListNumber,
             self::Building2 => Ios::Building2,
             self::MapPin => Ios::Mappin,
@@ -219,7 +225,6 @@ enum Lucide
             self::ChevronLeft => AndroidOutlined::ChevronLeft,
             self::ChevronDown => AndroidOutlined::ExpandMore,
             self::ArrowUpRight => AndroidOutlined::ArrowOutward,
-            self::Pin => AndroidOutlined::PushPin,
             self::ListOrdered => AndroidOutlined::FormatListNumbered,
             self::Building2 => AndroidOutlined::Business,
             self::MapPin => AndroidOutlined::LocationOn,

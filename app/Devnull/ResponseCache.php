@@ -53,6 +53,11 @@ final class ResponseCache
     ];
 
     /**
+     * The queries of the inbox's tabs, Open, Fetched and Stashed, as the Remotes screen asks for them.
+     */
+    private const array InboxTabs = [[], ['tab' => 'fetched'], ['tab' => 'stashed']];
+
+    /**
      * The kept answers that list people with whether you follow each one.
      */
     private const array FollowedPeople = [
@@ -566,6 +571,85 @@ final class ResponseCache
         $this->forget("{$path}/commits");
         $this->forget("{$path}/commits", ['replies' => '1']);
         $this->dropFromLogs($user['id']);
+    }
+
+    /**
+     * You pinned, unpinned, muted or unmuted a conversation or an org: every
+     * kept inbox tab with it takes the new fields, in devnull's words
+     * (`pinned_at`, `muted_until_at`), and sorts again as devnull does,
+     * pinned first.
+     *
+     * @param  array<string, mixed>  $fields
+     */
+    public function conversationChanged(string $id, array $fields): void
+    {
+        foreach (self::InboxTabs as $query) {
+            $this->patch(Client::RemotesPath, $query, fn (array $json): array => self::inbox(
+                $json,
+                array_map(fn (array $row): array => ($row['id'] ?? null) === $id ? [...$row, ...$fields] : $row, self::rows($json)),
+            ));
+        }
+    }
+
+    /**
+     * You stashed or popped a conversation or an org: it leaves the tab it
+     * was on and joins Stashed, or Open, in its place there.
+     */
+    public function conversationStashed(string $id, bool $stashed): void
+    {
+        $row = null;
+
+        foreach (self::InboxTabs as $query) {
+            $row ??= collect(self::rows($this->get(Client::RemotesPath, $query) ?? []))->firstWhere('id', $id);
+        }
+
+        $this->conversationGone($id);
+
+        if ($row !== null) {
+            $this->patch(Client::RemotesPath, $stashed ? ['tab' => 'stashed'] : [], fn (array $json): array => self::inbox(
+                $json,
+                [...self::rows($json), [...$row, 'is_archived' => $stashed]],
+            ));
+        }
+    }
+
+    /**
+     * You blocked the partner of a conversation, or left an org: it leaves every kept inbox tab.
+     */
+    public function conversationGone(string $id): void
+    {
+        foreach (self::InboxTabs as $query) {
+            $this->patch(Client::RemotesPath, $query, fn (array $json): array => self::inbox(
+                $json,
+                array_values(array_filter(self::rows($json), fn (array $row): bool => ($row['id'] ?? null) !== $id)),
+            ));
+        }
+    }
+
+    /**
+     * A kept inbox page's rows.
+     *
+     * @param  array<string, mixed>  $json
+     * @return list<array<string, mixed>>
+     */
+    private static function rows(array $json): array
+    {
+        return array_values(array_filter(is_array($json['data'] ?? null) ? $json['data'] : [], is_array(...)));
+    }
+
+    /**
+     * A kept inbox page with these rows, in devnull's order: pinned first, then the latest message first.
+     *
+     * @param  array<string, mixed>  $json
+     * @param  list<array<string, mixed>>  $rows
+     * @return array<string, mixed>
+     */
+    private static function inbox(array $json, array $rows): array
+    {
+        usort($rows, fn (array $a, array $b): int => [isset($b['pinned_at']), (string) ($b['last_message_at'] ?? ''), (string) ($b['id'] ?? '')]
+            <=> [isset($a['pinned_at']), (string) ($a['last_message_at'] ?? ''), (string) ($a['id'] ?? '')]);
+
+        return [...$json, 'data' => $rows];
     }
 
     /**
