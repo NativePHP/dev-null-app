@@ -153,12 +153,13 @@ final class Account
     }
 
     /**
-     * Signs this phone out: who it was, the badges, its pastéis and Remotes, every answer kept for a quick start,
-     * and your unsent drafts.
+     * Signs this phone out: who it was, the badges, its pastéis and Remotes, every answer and image kept for a
+     * quick start, and your unsent drafts.
      */
     public function forget(): void
     {
         app(ResponseCache::class)->flush();
+        ImageCache::clear();
         app(Stash::class)->forget($this->user()?->id);
         app(Outbox::class)->forgetAll($this->user()?->id);
 
