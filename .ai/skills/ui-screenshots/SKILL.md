@@ -19,6 +19,8 @@ Files go in `storage/app/screenshots/{branch}/`, named like `log-ios-dark-after.
 
 1. Create the pull request branch first. The commands file everything under the current branch and refuse to run on `main`.
 2. The app has to be running on an iOS simulator and an Android emulator. Start it on both yourself. Find the devices with `xcrun simctl list devices booted` and `adb devices`, then run `php artisan native:run ios <UDID> --watch --no-tty -n` and `php artisan native:run android <SERIAL> --watch --no-tty -n` in the background. `--watch` makes later changes hot reload, and it never exits, so stop both when the screenshots are published. If no simulator or emulator is booted, say so and give the person the commands.
+
+   When other simulators or emulators are running too, as they are when other sessions work alongside you, pass your own to every `screenshots:take` and `screenshots:record` with `--ios=<UDID> --android=<SERIAL>`, the same ones you gave `native:run`. Without them the commands use the first booted simulator and the first emulator, which may be showing another session's app. They stop with an error if the device you name isn't running.
 3. Ask the person you're working with to open the screen you're about to change, in the state that shows it (scrolled, sheet open, signed in, and so on). Both devices should show the same thing.
 4. Take the before shots: `php artisan screenshots:take before --screen=log`. Give `--screen` a short name whenever the PR touches more than one screen, and repeat for each one.
 
