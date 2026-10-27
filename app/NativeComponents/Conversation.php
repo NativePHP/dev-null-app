@@ -102,6 +102,11 @@ class Conversation extends NativeComponent
     public const string PinnedSheet = 'pinned';
 
     /**
+     * How long after a swipe brings a message's actions up a tap is taken as part of the swipe (see $actionsShownAt).
+     */
+    public const float SwipeTapWindow = 0.75;
+
+    /**
      * The alert that asks before pinning, as the web's does, and its answers.
      */
     public const string PinAlert = 'pin-warning';
@@ -193,6 +198,13 @@ class Conversation extends NativeComponent
      * them, and a swipe back, a tap anywhere in the thread, or a swipe on another message puts them away.
      */
     public ?int $actionsForId = null;
+
+    /**
+     * When a swipe last brought a message's actions up. On Android a swipe that ends inside the bubble or its row also
+     * lands as a tap on them, a moment later once the double tap has had its chance, which would put the actions
+     * straight away again; a tap that close behind the swipe is the swipe's own.
+     */
+    public float $actionsShownAt = 0;
 
     /**
      * What the sheet shows, which stays as it was while the sheet slides away.
@@ -451,6 +463,7 @@ class Conversation extends NativeComponent
 
         if ($direction === $away) {
             $this->actionsForId = $id;
+            $this->actionsShownAt = self::now();
         } elseif ($direction === ($away === 'left' ? 'right' : 'left') && $this->actionsForId === $id) {
             $this->actionsForId = null;
         }
@@ -461,6 +474,10 @@ class Conversation extends NativeComponent
      */
     public function hideActions(): void
     {
+        if (self::now() - $this->actionsShownAt < self::SwipeTapWindow) {
+            return;
+        }
+
         $this->actionsForId = null;
     }
 
