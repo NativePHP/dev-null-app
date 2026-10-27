@@ -514,7 +514,7 @@ class Conversation extends NativeComponent
             return;
         }
 
-        if ($url !== null) {
+        if (SiteLink::isWebUrl($url)) {
             Browser::inApp($url);
         }
     }

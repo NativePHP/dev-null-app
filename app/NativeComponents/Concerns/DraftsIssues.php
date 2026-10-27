@@ -7,6 +7,7 @@ use App\Devnull\Data\StashedDraft;
 use App\Devnull\DraftImages;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\IssueCommand;
+use App\Devnull\SiteLink;
 use App\Devnull\Stash;
 use App\Devnull\Toasts;
 use Illuminate\Support\Facades\Cache;
@@ -169,7 +170,7 @@ trait DraftsIssues
      */
     public function viewOpenedIssue(): void
     {
-        if ($this->openedIssueUrl !== null) {
+        if (SiteLink::isWebUrl($this->openedIssueUrl)) {
             Browser::inApp($this->openedIssueUrl);
         }
     }

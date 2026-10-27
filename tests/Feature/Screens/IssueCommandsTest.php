@@ -206,6 +206,14 @@ it('opens the issue while the button spins, then says so with View issue, as the
         ->and(hasRef($screen, 'sheet-commit'))->toBeTrue();
 });
 
+it('opens no issue link that is not a web page', function () {
+    $screen = issueSheetOnLog([['number' => 123, 'url' => 'javascript:alert(1)'], 201])->input('sheet-body', '/bug Broken.')->tap('sheet-open-issue');
+
+    $screen->tap('view-issue')
+        ->emitNative(ToastActionPressed::class, ['toastId' => 'toast-1', 'actionId' => 'view-issue', 'data' => ['url' => 'file:///etc/passwd']])
+        ->assertNativeNotCalled('Browser.OpenInApp');
+});
+
 it('says so in a toast with View issue when the sheet was swiped away before the issue opened', function () {
     holdRefreshes();
     $screen = issueSheetOnLog()->input('sheet-body', '/feature Dark mode')->tap('sheet-open-issue')->dismissSheet('sheet');

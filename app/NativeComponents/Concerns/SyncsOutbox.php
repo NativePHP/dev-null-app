@@ -12,6 +12,7 @@ use App\Devnull\FetchInBackground;
 use App\Devnull\Outbox;
 use App\Devnull\ResponseCache;
 use App\Devnull\SignedRequest;
+use App\Devnull\SiteLink;
 use App\Devnull\Stash;
 use App\Devnull\Toasts;
 use App\Models\PendingWrite;
@@ -375,7 +376,7 @@ trait SyncsOutbox
     {
         $url = $data['url'] ?? null;
 
-        if (is_string($url) && in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true)) {
+        if (is_string($url) && SiteLink::isWebUrl($url)) {
             Browser::inApp($url);
         }
     }

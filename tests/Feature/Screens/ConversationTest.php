@@ -460,6 +460,17 @@ it('opens a link preview of a page on dev/null here, in the tab it is in, and an
         ->assertNativeCalledTimes('Browser.OpenInApp', 1);
 });
 
+it('opens no link preview that is not a web page', function () {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => 'Tap me', 'link_preview' => ['url' => 'javascript:alert(1)', 'title' => 'Tap me']]),
+    ], ['read_through_id' => 1]));
+
+    finishRefreshes(Native::visit('/remotes/conversations/ada'))
+        ->tap('link-1')
+        ->assertNoNavigation()
+        ->assertNativeNotCalled('Browser.OpenInApp');
+});
+
 it('pads the end of the thread for the composer bar alone, and for the reply bar while replying', function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
 

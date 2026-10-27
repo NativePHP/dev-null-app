@@ -12,6 +12,7 @@ use App\Devnull\ErrorCode;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\RowCache;
 use App\Devnull\ShownTabs;
+use App\Devnull\SiteLink;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Lucide;
@@ -564,8 +565,10 @@ class Profile extends NativeComponent
 
     public function openGitHubProfile(): void
     {
-        if ($this->profile !== null) {
-            Browser::inApp($this->profile->user->gitHubProfileUrl());
+        $url = $this->profile?->user->gitHubProfileUrl();
+
+        if (SiteLink::isWebUrl($url)) {
+            Browser::inApp($url);
         }
     }
 
