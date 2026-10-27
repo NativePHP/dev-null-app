@@ -263,7 +263,8 @@ trait SyncsOutbox
             $this->sendNextStar($write, $write->wasStarred());
             $starred = $write->kind === PendingWrite::Star;
 
-            if ($later) {
+            // A later star or unstar has the last word, and one devnull already had as you left it has nothing to put back.
+            if ($later || $write->wasStarred() === $starred) {
                 return;
             }
 

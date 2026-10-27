@@ -140,6 +140,35 @@ it('still sends a quick unstar when devnull turns down the star before it', func
         ->and(PendingWrite::query()->count())->toBe(0);
 });
 
+it('puts the star back when devnull took it but turned down the quick unstar after it', function () {
+    holdRefreshes();
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([adasCommit()])],
+        'POST /api/v1/commits/c1/star' => [['data' => adasCommit(['starred' => true, 'stars_count' => 2])]],
+        'DELETE /api/v1/commits/c1/star' => [['message' => 'Server Error'], 500],
+    ]);
+
+    $screen = finishRefreshes(finishRefreshes(Native::visit('/log'))->tap('star-c1')->tap('star-c1'));
+
+    expect($screen->instance()->commits[0])->starred->toBeTrue()->starsCount->toBe(2)
+        ->and(kept('log/following')['data'][0])->toMatchArray(['starred' => true, 'stars_count' => 2])
+        ->and(PendingWrite::query()->count())->toBe(0);
+});
+
+it('says nothing when devnull turns down a quick unstar and the star after it, as it still has the star', function () {
+    holdRefreshes();
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([adasCommit(['starred' => true, 'stars_count' => 2])])],
+        'POST /api/v1/commits/c1/star' => [['message' => 'Server Error'], 500],
+        'DELETE /api/v1/commits/c1/star' => [['message' => 'Server Error'], 500],
+    ]);
+
+    $screen = finishRefreshes(finishRefreshes(Native::visit('/log'))->tap('star-c1')->tap('star-c1'))->assertNativeNotCalled('ToastKit.Show');
+
+    expect($screen->instance()->commits[0])->starred->toBeTrue()->starsCount->toBe(2)
+        ->and(PendingWrite::query()->count())->toBe(0);
+});
+
 it('leaves a commit as devnull has it when a quick star and the unstar after it are both turned down', function () {
     holdRefreshes();
     fakeApi([
