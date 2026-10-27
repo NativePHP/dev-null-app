@@ -39,7 +39,7 @@ it('fills More with what you can do to the commit', function (string $platform) 
     // Your own published one: share it, pin it to your profile, or delete it.
     expect(menuItems($screen, 'more-c2'))->toBe([
         ['share-c2', 'Share link', 'custom:link'],
-        ['pin-c2', 'Pin to profile', $platform === 'ios' ? 'pin' : 'push_pin'],
+        ['pin-c2', 'Pin to profile', 'custom:pin'],
         'divider',
         ['delete-c2', 'Delete commit', 'custom:trash-2'],
     ])
@@ -199,7 +199,7 @@ it('pins your commit to the top of your profile, and unpins it', function () {
     expect($screen->instance()->pinnedCommit()?->id)->toBe('c2')
         ->and(array_column($screen->instance()->commits, 'id'))->toBe(['c1'])
         ->and(nodeByRef($screen, 'pinned'))->not->toBeEmpty()
-        ->and(menuItems($screen, 'more-c2'))->toContain(['pin-c2', 'Unpin from profile', 'pin']);
+        ->and(menuItems($screen, 'more-c2'))->toContain(['pin-c2', 'Unpin from profile', 'custom:pin']);
 
     $screen->tap('pin-c2')
         ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Commit unpinned.');
@@ -209,7 +209,7 @@ it('pins your commit to the top of your profile, and unpins it', function () {
     // Back in your commits, in order, with Pin to profile again.
     expect($screen->instance()->pinnedCommit())->toBeNull()
         ->and(array_column($screen->instance()->commits, 'id'))->toBe(['c2', 'c1'])
-        ->and(menuItems($screen, 'more-c2'))->toContain(['pin-c2', 'Pin to profile', 'pin']);
+        ->and(menuItems($screen, 'more-c2'))->toContain(['pin-c2', 'Pin to profile', 'custom:pin']);
 });
 
 it("leaves Pin to profile off a reply, and off someone else's commit", function () {

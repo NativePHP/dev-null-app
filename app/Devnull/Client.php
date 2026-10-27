@@ -130,6 +130,14 @@ final readonly class Client
     }
 
     /**
+     * Where an org's maintainer pins a message for everyone in it, and unpins it.
+     */
+    public static function pinPath(int $messageId): string
+    {
+        return 'remotes/messages/'.$messageId.'/pin';
+    }
+
+    /**
      * Where a pastel is given to a commit, one per request.
      */
     public static function pastelPath(string $id): string

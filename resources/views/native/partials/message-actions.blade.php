@@ -1,9 +1,21 @@
 {{--
-    React and Reply for the message you tapped, right beside its bubble as the web shows them on hover: Reply nearest
-    it, React past it, with the web's icons. Every message keeps them, faded out and tucked a few points toward the
-    bubble, so a tap fades and slides them into place, and the slot never changes width. Faded out, they take no taps.
+    React, Reply and Pin for the message you swiped, right beside its bubble as the web shows them on hover: Pin nearest
+    it, then Reply, then React, with the web's icons. Every message keeps them, faded out and tucked a few points toward
+    the bubble, so a swipe fades and slides them into place, and the slot never changes width. In an org the slot keeps
+    room for Pin whether it shows or not, as the web's does, so a pin arriving never rewraps a bubble. Faded out, they
+    take no taps.
+
+    A pinned message's pin shows all the time, nearest the bubble, so the others come in beyond it without moving it.
+    For an org's maintainers it turns into Unpin, in the primary colour, while the others show; for everyone else it
+    only marks the message, as the web's does.
 --}}
-<native:row ref="actions-{{ $key }}" class="w-[64] flex-shrink-0 items-center {{ $mine ? 'justify-end' : 'justify-start' }}">
+@php($isPinned = isset($pinnedIds[$message->id]))
+@php($pinsHere = ! $isPinned && $canPin)
+@php($fading = $mine ? ['react', 'reply', ...($pinsHere ? ['pin'] : [])] : [...($pinsHere ? ['pin'] : []), 'reply', 'react'])
+<native:row ref="actions-{{ $key }}" class="{{ $isOrg ? 'w-[98]' : 'w-[64]' }} flex-shrink-0 gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}">
+    @if ($isPinned && ! $mine)
+        @include('native.partials.message-pin')
+    @endif
     <native:row
         native:key="actions-{{ $key }}-buttons"
         ref="actions-{{ $key }}-buttons"
@@ -12,13 +24,17 @@
         animate-duration="180"
         animate-easing="ease-out"
     >
-        @foreach ($mine ? ['react', 'reply'] : ['reply', 'react'] as $action)
-            <native:pressable ref="{{ $action }}-{{ $key }}" @press="{{ $action === 'reply' ? 'reply' : 'openReactions' }}({{ $message->id }})" a11y-label="{{ $action === 'reply' ? 'Reply' : 'React' }}">
+        @foreach ($fading as $action)
+            @php($press = match ($action) { 'reply' => 'reply', 'react' => 'openReactions', 'pin' => 'togglePin' })
+            @php($icon = match ($action) { 'reply' => \App\Icons\Lucide::Reply, 'react' => \App\Icons\Lucide::SmilePlus, 'pin' => \App\Icons\Lucide::Pin })
+            <native:pressable ref="{{ $action }}-{{ $key }}" @press="{{ $press }}({{ $message->id }})" a11y-label="{{ match ($action) { 'reply' => 'Reply', 'react' => 'React', 'pin' => 'Pin message' } }}">
                 <native:stack :width="30" :height="30" center class="rounded-full bg-theme-wash">
-                    @php($icon = $action === 'reply' ? \App\Icons\Lucide::Reply : \App\Icons\Lucide::SmilePlus)
                     <native:icon :ios="$icon->ios()" :android="$icon->android()" :size="16" class="text-theme-ink-muted" />
                 </native:stack>
             </native:pressable>
         @endforeach
     </native:row>
+    @if ($isPinned && $mine)
+        @include('native.partials.message-pin')
+    @endif
 </native:row>

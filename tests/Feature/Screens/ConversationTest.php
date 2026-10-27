@@ -5,13 +5,15 @@ use App\Devnull\Data\Remotes;
 use App\NativeComponents\Conversation;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
+use Native\Mobile\Testing\TestableComponent;
 
 const RemotesViewerId = '0199e5c4-0000-7000-8000-000000000001';
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
-    signIn();
+    $this->bridge = signIn();
     $this->travelTo('2026-10-19 15:30:00');
 });
 
@@ -203,7 +205,17 @@ it('says a message devnull refused was rejected, and retries it under the same c
     expect(array_map(fn (string $body): string => json_decode($body, true)['client_id'], sentTo('POST', 'remotes/@ada/messages')))->toBe([$clientId, $clientId]);
 });
 
-it('shows React and Reply beside a tapped message, as the web shows them on hover', function () {
+/**
+ * Whether a message's React and Reply show: faded in and slid into place, or faded out and tucked toward the bubble.
+ */
+function showsActions(TestableComponent $screen, string $key): bool
+{
+    $buttons = nodeByRef($screen, "actions-{$key}-buttons");
+
+    return $buttons['style']['opacity'] == 1 && $buttons['props']['translate-x'] == 0;
+}
+
+it('shows React and Reply beside a message swiped away from its edge, as the web shows them on hover', function () {
     serveRemoteThread(threadJson([
         remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?']),
         remoteMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => 'which one?']),
@@ -212,32 +224,61 @@ it('shows React and Reply beside a tapped message, as the web shows them on hove
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
     $buttons = fn (int $id): array => nodeByRef($screen, "actions-{$id}-buttons");
 
-    // Reply sits nearest the bubble: after theirs, before yours. Until a tap they're faded out, tucked toward it.
+    // Reply sits nearest the bubble: after theirs, before yours. Until a swipe they're faded out, tucked toward it.
     expect(childRefs($screen, 'actions-1-buttons'))->toBe(['reply-1', 'react-1'])
         ->and(childRefs($screen, 'actions-2-buttons'))->toBe(['react-2', 'reply-2'])
         ->and($buttons(1)['style']['opacity'])->toEqual(0)
         ->and($buttons(1)['props'])->toMatchArray(['translate-x' => -8.0, 'animate-duration' => 180.0])
         ->and($buttons(2)['props']['translate-x'])->toEqual(8);
 
-    // A tap fades and slides them into place.
-    $screen->tap('bubble-1');
-    expect($buttons(1)['style']['opacity'])->toEqual(1)
-        ->and($buttons(1)['props']['translate-x'])->toEqual(0);
+    // A tap no longer shows them, and neither does a swipe toward the message's edge or a flick while scrolling.
+    $screen->tap('bubble-1')->swipe('swipe-1', 'left')->swipe('swipe-1', 'up');
+    expect(showsActions($screen, '1'))->toBeFalse();
 
-    $screen->tap('bubble-2');
-    expect($buttons(1)['style']['opacity'])->toEqual(0)
-        ->and($buttons(2)['style']['opacity'])->toEqual(1);
+    // Theirs goes right, into the room beside it, and they fade and slide into place.
+    $screen->swipe('swipe-1', 'right');
+    expect(showsActions($screen, '1'))->toBeTrue();
 
-    // A second tap puts them away.
-    $screen->tap('bubble-2');
-    expect($buttons(2)['style']['opacity'])->toEqual(0);
+    // Yours goes left, and they move there.
+    $screen->swipe('swipe-2', 'right');
+    expect(showsActions($screen, '1'))->toBeTrue()->and(showsActions($screen, '2'))->toBeFalse();
+
+    $screen->swipe('swipe-2', 'left');
+    expect(showsActions($screen, '1'))->toBeFalse()->and(showsActions($screen, '2'))->toBeTrue();
+});
+
+it('puts the actions away with a swipe back or a tap anywhere in the thread', function (string $tap) {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?']),
+        remoteMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => 'which one?']),
+    ], ['read_through_id' => 2]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+
+    $screen->swipe('swipe-1', 'right')->swipe('swipe-1', 'left');
+    expect(showsActions($screen, '1'))->toBeFalse();
+
+    $screen->swipe('swipe-1', 'right')->tap($tap);
+    expect(showsActions($screen, '1'))->toBeFalse();
+})->with(['its bubble' => 'bubble-1', 'another bubble' => 'bubble-2', 'beside another message' => 'message-2']);
+
+it("shows an image-only message's actions beside its images", function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => '', 'body_segments' => [], 'images' => [['id' => 7, 'width' => 400, 'height' => 300, 'description' => null, 'url' => 'http://devnull.test/i/7.png']]])], ['read_through_id' => 1]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))->swipe('swipe-1', 'right');
+
+    expect(childRefs($screen, 'content-1'))->toBe([null, 'actions-1'])
+        ->and(showsActions($screen, '1'))->toBeTrue();
+
+    $screen->tap('image-1-0');
+    expect(showsActions($screen, '1'))->toBeFalse();
 });
 
 it('opens the reactions from React, without Reply in them', function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
 
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))
-        ->tap('bubble-1')
+        ->swipe('swipe-1', 'right')
         ->tap('react-1')
         ->assertSet('sheetOpen', true)
         ->assertSet('actionsForId', null);
@@ -246,23 +287,7 @@ it('opens the reactions from React, without Reply in them', function () {
         ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'reply'))->toBeNull();
 });
 
-it('replies to a message from its Reply button', function () {
-    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?'])], ['read_through_id' => 1]));
-
-    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))
-        ->tap('bubble-1')
-        ->tap('reply-1')
-        ->assertSee('Replying to Ada Lovelace')
-        ->assertSet('actionsForId', null)
-        ->set('draft', 'yes')
-        ->call('send');
-
-    finishRefreshes($screen);
-
-    expect(json_decode(sentTo('POST', 'remotes/@ada/messages')[0], true)['reply_to_id'])->toBe(1);
-});
-
-it('replies to a message swiped away from its edge, as the web does on a touch screen, and raises the keyboard', function () {
+it('replies to a message from its Reply button, and raises the keyboard', function () {
     serveRemoteThread(threadJson([
         remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?']),
         remoteMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => 'which one?']),
@@ -272,20 +297,32 @@ it('replies to a message swiped away from its edge, as the web does on a touch s
 
     expect(nodeByRef($screen, 'message-input')['props'])->not->toHaveKey('autofocus');
 
-    // Theirs goes right; a swipe the other way, or a flick while scrolling, does nothing.
-    $screen->swipe('swipe-1', 'left')->swipe('swipe-1', 'up')->assertSet('replyToId', null);
-    $screen->swipe('swipe-1', 'right')->assertSet('replyToId', 1)->assertSee('Replying to Ada Lovelace');
+    // A swipe no longer replies on its own: it brings up Reply.
+    $screen->swipe('swipe-1', 'right')->assertSet('replyToId', null);
+    $screen->tap('reply-1')
+        ->assertSee('Replying to Ada Lovelace')
+        ->assertSet('actionsForId', null);
 
     expect(nodeByRef($screen, 'message-input')['props']['autofocus'] ?? null)->toBeTrue();
 
-    // Yours goes left.
-    $screen->swipe('swipe-2', 'right')->assertSet('replyToId', 1);
-    $screen->swipe('swipe-2', 'left')->assertSet('replyToId', 2)->assertSee('Replying to yourself');
+    $screen->swipe('swipe-2', 'left')->tap('reply-2')->assertSee('Replying to yourself');
+    $screen->swipe('swipe-1', 'right')->tap('reply-1')->set('draft', 'yes')->call('send');
+
+    finishRefreshes($screen);
+
+    expect(json_decode(sentTo('POST', 'remotes/@ada/messages')[0], true)['reply_to_id'])->toBe(1);
 });
 
-it('takes no swipe to reply while the thread cannot take a message', function () {
-    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1, 'access' => 'request']));
+it('takes no swipe on a message still being pushed, or while the thread cannot take a message', function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
+    holdRefreshes();
 
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))->set('draft', 'on it')->call('send');
+    $staged = $screen->instance()->pending[0]->clientId;
+
+    expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'swipe-'.$staged))->toBeNull();
+
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1, 'access' => 'request']));
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
 
     expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'swipe-1'))->toBeNull();
@@ -472,4 +509,363 @@ it('pads the end of the thread for the composer bar alone, and for the reply bar
     $screen->tap('bubble-1')->tap('reply-1');
 
     expect($clearance())->toEqual(Conversation::ComposerBarHeight + Conversation::ReplyingBarHeight + 8);
+});
+
+// ── Pins ────────────────────────────────
+
+/**
+ * Ada, in the org.
+ *
+ * @return array<string, mixed>
+ */
+function orgAda(): array
+{
+    return userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace']);
+}
+
+/**
+ * A message in the org, by Ada unless a test says otherwise.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function orgMessageJson(array $overrides = []): array
+{
+    return remoteMessageJson(['user' => ($overrides['user_id'] ?? 'u2') === RemotesViewerId ? userJson() : orgAda(), ...$overrides]);
+}
+
+/**
+ * dev/null core as devnull answers it, its first page or a poll: you and Ada in it, you a maintainer unless a test says
+ * otherwise, and what it pinned.
+ *
+ * @param  list<array<string, mixed>>  $messages
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function orgThreadJson(array $messages, array $overrides = []): array
+{
+    return ['data' => [
+        'org' => ['id' => 'org-1', 'name' => 'dev/null core'],
+        'messages' => $messages,
+        'has_older' => false,
+        'reactions_version' => 3,
+        'reaction_changes' => [],
+        'pinned' => [],
+        'read_through_id' => $messages === [] ? 0 : $messages[array_key_last($messages)]['id'],
+        'members' => [
+            ['user' => userJson(), 'role' => 'maintainer', 'read_through_id' => 0],
+            ['user' => orgAda(), 'role' => 'contributor', 'read_through_id' => 0],
+        ],
+        'typing' => [],
+        'is_archived' => false,
+        'role' => 'maintainer',
+        'access' => 'open',
+        ...$overrides,
+    ]];
+}
+
+/**
+ * devnull answering for dev/null core: its first page, whatever a poll asks for, and pins. Unless a test answers pins
+ * itself, a pin answers with just that message pinned and an unpin with none.
+ *
+ * @param  array<string, mixed>  $thread
+ * @param  array<string, mixed>|null  $poll
+ * @param  (Closure(Request): mixed)|null  $pins
+ */
+function serveOrgThread(array $thread, ?array $poll = null, ?Closure $pins = null): void
+{
+    serveApi(function (Request $request) use ($thread, $poll, $pins) {
+        $path = (string) parse_url($request->url(), PHP_URL_PATH);
+        $query = (string) parse_url($request->url(), PHP_URL_QUERY);
+
+        return match (true) {
+            $request->method() === 'GET' && $path === '/api/v1/remotes/orgs/org-1/messages' => Http::response(str_contains($query, 'after=') ? ($poll ?? orgThreadJson([], ['pinned' => null])) : $thread),
+            str_ends_with($path, '/pin') => $pins !== null ? $pins($request) : Http::response([
+                'pinned' => $request->method() === 'PUT' ? [orgMessageJson(['id' => (int) explode('/', $path)[5]])] : [],
+                'reactions_version' => 4,
+            ]),
+            $path === '/api/v1/me' => Http::response(currentUserJson()),
+            str_ends_with($path, '/reactions') && $request->method() === 'POST' => Http::response(['reactions' => [['user_id' => RemotesViewerId, 'emoji' => json_decode($request->body(), true)['emoji']]]]),
+            default => Http::response(['usage' => []], $request->method() === 'GET' ? 200 : 204),
+        };
+    });
+}
+
+function rendersRef(TestableComponent $screen, string $ref): bool
+{
+    return findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === $ref) !== null;
+}
+
+it("gives an org's maintainers Pin beside a message, nearest the bubble, and keeps room for it in any org", function () {
+    $messages = [
+        orgMessageJson(['id' => 1, 'body' => 'standup in 10?']),
+        orgMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => 'on my way']),
+    ];
+    serveOrgThread(orgThreadJson($messages));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'));
+
+    expect(childRefs($screen, 'actions-1-buttons'))->toBe(['pin-1', 'reply-1', 'react-1'])
+        ->and(childRefs($screen, 'actions-2-buttons'))->toBe(['react-2', 'reply-2', 'pin-2'])
+        ->and(nodeByRef($screen, 'actions-1')['layout']['width'])->toEqual(98);
+
+    // A contributor gets no Pin, but the slot keeps its room, so a pin arriving never rewraps a bubble.
+    serveOrgThread(orgThreadJson($messages, ['role' => 'contributor']));
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'));
+
+    expect(childRefs($screen, 'actions-1-buttons'))->toBe(['reply-1', 'react-1'])
+        ->and(nodeByRef($screen, 'actions-1')['layout']['width'])->toEqual(98);
+
+    // Nothing pins with one person.
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+
+    expect(childRefs($screen, 'actions-1-buttons'))->toBe(['reply-1', 'react-1'])
+        ->and(nodeByRef($screen, 'actions-1')['layout']['width'])->toEqual(64);
+});
+
+it('asks before pinning for the whole org, then pins at once and takes the pinned messages devnull answers with', function () {
+    serveOrgThread(
+        orgThreadJson([orgMessageJson(['id' => 1, 'body' => 'standup in 10?'])]),
+        pins: fn () => Http::response(['pinned' => [orgMessageJson(['id' => 1, 'body' => 'standup in 10?']), orgMessageJson(['id' => 9, 'body' => 'from before you joined'])], 'reactions_version' => 5]),
+    );
+    holdRefreshes();
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))
+        ->swipe('swipe-1', 'right')
+        ->tap('pin-1')
+        ->assertNativeCalled('Dialog.Alert', fn (array $params): bool => $params['title'] === 'Pin for the whole org?'
+            && str_contains($params['message'], 'including people added without Share history'))
+        ->assertSet('actionsForId', null);
+
+    // Cancel leaves it be.
+    $screen->emitNative(ButtonPressed::class, ['index' => 0, 'label' => 'Cancel', 'id' => Conversation::PinAlert]);
+    expect(rendersRef($screen, 'pinned-bar'))->toBeFalse()
+        ->and(sentTo('PUT', 'remotes/messages/1/pin'))->toBe([]);
+
+    // Pin message pins it straight away, with its pin beside it, and takes devnull's list once it answers.
+    $screen->swipe('swipe-1', 'right')->tap('pin-1')
+        ->emitNative(ButtonPressed::class, ['index' => 2, 'label' => Conversation::PinMessage, 'id' => Conversation::PinAlert])
+        ->assertSee('pinned · 1');
+
+    expect(rendersRef($screen, 'pinned-1'))->toBeTrue()
+        ->and(childRefs($screen, 'actions-1'))->toBe(['pinned-1', 'actions-1-buttons'])
+        ->and(childRefs($screen, 'actions-1-buttons'))->toBe(['reply-1', 'react-1']);
+
+    finishRefreshes($screen)->assertSee('pinned · 2');
+
+    expect(sentTo('PUT', 'remotes/messages/1/pin'))->toHaveCount(1);
+});
+
+it('stops asking before pinning once you say not to ask again', function () {
+    serveOrgThread(orgThreadJson([
+        orgMessageJson(['id' => 1, 'body' => 'standup in 10?']),
+        orgMessageJson(['id' => 2, 'body' => 'release checklist']),
+    ]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))
+        ->swipe('swipe-1', 'right')
+        ->tap('pin-1')
+        ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => Conversation::PinWithoutAsking, 'id' => Conversation::PinAlert]);
+
+    finishRefreshes($screen->swipe('swipe-2', 'right')->tap('pin-2'));
+
+    expect($this->bridge->callsTo('Dialog.Alert'))->toHaveCount(1)
+        ->and(sentTo('PUT', 'remotes/messages/1/pin'))->toHaveCount(1)
+        ->and(sentTo('PUT', 'remotes/messages/2/pin'))->toHaveCount(1);
+});
+
+it('marks a pinned message with a pin beside it, which only a maintainer can press, and only while its actions show', function () {
+    $thread = fn (string $role): array => orgThreadJson([orgMessageJson(['id' => 1, 'body' => 'standup in 10?'])], [
+        'role' => $role,
+        'pinned' => [orgMessageJson(['id' => 1, 'body' => 'standup in 10?'])],
+    ]);
+    serveOrgThread($thread('contributor'));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))->swipe('swipe-1', 'right');
+
+    expect(nodeByRef($screen, 'pinned-1')['type'])->toBe('stack')
+        ->and(rendersRef($screen, 'unpin-1'))->toBeFalse();
+
+    serveOrgThread($thread('maintainer'));
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'));
+
+    expect(rendersRef($screen, 'pinned-1'))->toBeTrue()->and(rendersRef($screen, 'unpin-1'))->toBeFalse();
+
+    $screen->swipe('swipe-1', 'right');
+
+    expect(rendersRef($screen, 'unpin-1'))->toBeTrue()->and(rendersRef($screen, 'pinned-1'))->toBeFalse();
+});
+
+it('unpins at once, beside the message or in the pinned sheet, which closes once nothing is left in it', function () {
+    serveOrgThread(orgThreadJson([
+        orgMessageJson(['id' => 1, 'body' => 'standup in 10?']),
+        orgMessageJson(['id' => 2, 'body' => 'release checklist']),
+    ], ['pinned' => [orgMessageJson(['id' => 2, 'body' => 'release checklist']), orgMessageJson(['id' => 1, 'body' => 'standup in 10?'])]]));
+    holdRefreshes();
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))
+        ->assertSee('pinned · 2')
+        ->swipe('swipe-1', 'right')
+        ->tap('unpin-1')
+        ->assertSee('pinned · 1');
+
+    expect(rendersRef($screen, 'pinned-1'))->toBeFalse()
+        ->and($this->bridge->callsTo('Dialog.Alert'))->toBe([]);
+
+    finishRefreshes($screen->tap('pinned-bar')->tap('pin-2-unpin'))->assertSet('sheetOpen', false);
+
+    expect(rendersRef($screen, 'pinned-bar'))->toBeFalse()
+        ->and(sentTo('DELETE', 'remotes/messages/1/pin'))->toHaveCount(1)
+        ->and(sentTo('DELETE', 'remotes/messages/2/pin'))->toHaveCount(1);
+});
+
+it("puts a pin back when devnull doesn't take it, and says why", function (int $status, array $answer, string $toast) {
+    serveOrgThread(
+        orgThreadJson([orgMessageJson(['id' => 1, 'body' => 'standup in 10?'])]),
+        pins: fn () => Http::response($answer, $status),
+    );
+    app(Account::class)->rememberSkipsPinWarning();
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1')->swipe('swipe-1', 'right')->tap('pin-1'));
+
+    expect(rendersRef($screen, 'pinned-bar'))->toBeFalse()
+        ->and(array_column(array_column($this->bridge->callsTo('ToastKit.Show'), 'params'), 'message'))->toBe([$toast]);
+})->with([
+    'in devnull\'s words when it says no' => [403, ['message' => 'An org can pin up to 25 messages. Unpin one first.'], 'An org can pin up to 25 messages. Unpin one first.'],
+    'when it goes wrong' => [500, ['message' => 'Server Error'], 'Could not pin. Try again.'],
+    'when another maintainer took the last place first' => [200, ['pinned' => [], 'reactions_version' => 5], 'Could not pin. Try again.'],
+]);
+
+it("puts an unpinned message back where it was when devnull doesn't take it", function () {
+    serveOrgThread(
+        orgThreadJson([orgMessageJson(['id' => 1, 'body' => 'standup in 10?'])], ['pinned' => [
+            orgMessageJson(['id' => 2, 'body' => 'release checklist']),
+            orgMessageJson(['id' => 1, 'body' => 'standup in 10?']),
+            orgMessageJson(['id' => 3, 'body' => 'office hours']),
+        ]]),
+        pins: fn () => Http::response(['message' => 'Server Error'], 500),
+    );
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1')->swipe('swipe-1', 'right')->tap('unpin-1'));
+
+    expect(array_map(fn ($message): int => $message->id, $screen->instance()->pinned))->toBe([2, 1, 3])
+        ->and(array_column(array_column($this->bridge->callsTo('ToastKit.Show'), 'params'), 'message'))->toBe(['Could not unpin. Try again.']);
+});
+
+it("shows the others' pins when a poll brings them, and keeps them when a poll says nothing changed", function () {
+    serveOrgThread(
+        orgThreadJson([orgMessageJson(['id' => 1, 'body' => 'standup in 10?']), orgMessageJson(['id' => 2, 'body' => 'release checklist'])]),
+        orgThreadJson([], ['reactions_version' => 4, 'pinned' => [orgMessageJson(['id' => 2, 'body' => 'release checklist'])]]),
+    );
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'));
+
+    expect(rendersRef($screen, 'pinned-bar'))->toBeFalse();
+
+    finishRefreshes($screen->call('poll'))->assertSee('pinned · 1');
+
+    expect(rendersRef($screen, 'pinned-2'))->toBeTrue();
+
+    serveOrgThread(orgThreadJson([]), orgThreadJson([], ['reactions_version' => 4, 'pinned' => null]));
+    $this->travel(5)->seconds();
+    finishRefreshes($screen->call('poll'))->assertSee('pinned · 1');
+
+    $polls = collect(Http::recorded())->map(fn (array $sent): string => (string) parse_url($sent[0]->url(), PHP_URL_QUERY))->filter(fn (string $query): bool => str_contains($query, 'after='))->values();
+
+    expect($polls->all())->toBe(['after=2&reactions_after=3', 'after=2&reactions_after=4']);
+});
+
+it("doesn't let a poll undo a pin of yours still on its way, and asks for the pins again after", function () {
+    serveOrgThread(
+        orgThreadJson([orgMessageJson(['id' => 1, 'body' => 'standup in 10?'])]),
+        orgThreadJson([], ['reactions_version' => 6, 'pinned' => [orgMessageJson(['id' => 7, 'body' => 'office hours']), orgMessageJson(['id' => 1, 'body' => 'standup in 10?'])]]),
+        pins: fn () => Http::response(['pinned' => [orgMessageJson(['id' => 1, 'body' => 'standup in 10?'])], 'reactions_version' => 5]),
+    );
+    app(Account::class)->rememberSkipsPinWarning();
+    holdRefreshes();
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'));
+
+    // The poll goes first, but answers while the pin is still out, so the pin's own answer wins.
+    finishRefreshes($screen->call('poll')->swipe('swipe-1', 'right')->tap('pin-1'))->assertSee('pinned · 1');
+
+    expect(array_map(fn ($message): int => $message->id, $screen->instance()->pinned))->toBe([1]);
+
+    // The next poll asks from the pins' version, not the poll's, so it brings the pin it left aside.
+    $this->travel(5)->seconds();
+    finishRefreshes($screen->call('poll'))->assertSee('pinned · 2');
+
+    $polls = collect(Http::recorded())->map(fn (array $sent): string => (string) parse_url($sent[0]->url(), PHP_URL_QUERY))->filter(fn (string $query): bool => str_contains($query, 'after='))->values();
+
+    expect($polls->last())->toBe('after=1&reactions_after=5');
+});
+
+it('shows the latest pinned message in a bar over the thread, which opens them all in a sheet', function () {
+    serveOrgThread(orgThreadJson([orgMessageJson(['id' => 2, 'body' => 'release checklist'])], ['pinned' => [
+        orgMessageJson(['id' => 2, 'body' => 'release checklist']),
+        orgMessageJson(['id' => 1, 'body' => 'standup in 10?', 'created_at' => '2026-10-18T10:02:00Z']),
+    ]]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))
+        ->assertSee('pinned · 2')
+        ->assertSee(' release checklist');
+
+    // It lies over the thread, which clears it at the top.
+    expect(childRefs($screen, 'thread-stack'))->toBe(['thread', 'pinned-bar'])
+        ->and(childRefs($screen, 'thread')[0])->toBe('pinned-clearance')
+        ->and(nodeByRef($screen, 'pinned-bar')['props']['a11y_label'] ?? null)->toBe('2 pinned messages. Latest from Ada Lovelace: release checklist');
+
+    $screen->tap('pinned-bar')
+        ->assertSet('sheetOpen', true)
+        ->assertSet('sheet', Conversation::PinnedSheet)
+        ->assertSee('Pinned messages')
+        ->assertSee('Yesterday · 10:02');
+
+    expect(childRefs($screen, 'pinned-list'))->toBe(['pin-2', 'pin-1'])
+        ->and(rendersRef($screen, 'pin-1-unpin'))->toBeTrue();
+});
+
+it('replies and reacts to a pinned message from the sheet, even one from before your history', function () {
+    serveOrgThread(orgThreadJson([orgMessageJson(['id' => 5, 'body' => 'hello org'])], ['pinned' => [
+        orgMessageJson(['id' => 1, 'body' => 'standup in 10?']),
+    ]]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))->tap('pinned-bar');
+
+    // React shows the reactions in the sheet, and reacting goes back to the pinned messages.
+    $screen->tap('pin-1-react')->assertSet('sheet', Conversation::ReactionsSheet);
+    finishRefreshes($screen->tap('quick-0'))
+        ->assertSet('sheet', Conversation::PinnedSheet)
+        ->assertSet('sheetOpen', true);
+
+    expect(sentTo('POST', 'remotes/messages/1/reactions'))->toHaveCount(1)
+        ->and(rendersRef($screen, 'chip-pin-1-0'))->toBeTrue();
+
+    $screen->tap('pin-1-reply')
+        ->assertSet('sheetOpen', false)
+        ->assertSee('Replying to Ada Lovelace')
+        ->set('draft', 'on it')
+        ->call('send');
+
+    finishRefreshes($screen);
+
+    expect(json_decode(sentTo('POST', 'remotes/orgs/org-1/messages')[0], true)['reply_to_id'])->toBe(1);
+});
+
+it('shows three lines of a long pinned message, and the rest with Show more', function () {
+    $long = implode("\n", ['release checklist for today:', '1. tag 2.4', '2. post the changelog', '3. ping the mobile folks']);
+    serveOrgThread(orgThreadJson([orgMessageJson(['id' => 2, 'body' => 'short'])], ['pinned' => [
+        orgMessageJson(['id' => 1, 'body' => $long]),
+        orgMessageJson(['id' => 2, 'body' => 'short']),
+    ]]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))->tap('pinned-bar');
+
+    expect(rendersRef($screen, 'pin-2-more'))->toBeFalse()
+        ->and(findNode(nodeByRef($screen, 'pin-1'), fn (array $node): bool => ($node['props']['max_lines'] ?? null) === 3))->not->toBeNull();
+
+    $screen->tap('pin-1-more')->assertSee('Show less');
+
+    expect(findNode(nodeByRef($screen, 'pin-1'), fn (array $node): bool => ($node['props']['max_lines'] ?? null) === 3))->toBeNull();
 });

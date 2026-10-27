@@ -2,14 +2,17 @@
 
 namespace App\NativeComponents;
 
+use App\Devnull\Account;
 use App\Devnull\Client;
 use App\Devnull\Data\Conversation as ConversationData;
 use App\Devnull\Data\Message;
 use App\Devnull\Data\Thread;
 use App\Devnull\Data\User;
 use App\Devnull\Display;
+use App\Devnull\Exceptions\ApiException;
 use App\Devnull\Outbox;
 use App\Devnull\SiteLink;
+use App\Devnull\Toasts;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\OpensInTab;
@@ -20,11 +23,14 @@ use App\NativeComponents\Concerns\WritesInBackground;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Native\Mobile\Attributes\On;
 use Native\Mobile\Attributes\Poll;
 use Native\Mobile\Edge\Layouts\Builders\NavAction;
 use Native\Mobile\Edge\Layouts\Builders\NavBarOptions;
 use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Facades\Browser;
+use Native\Mobile\Facades\Dialog;
 
 /**
  * A Remotes thread, with a person or an org, as the web's thread shows it:
@@ -45,8 +51,13 @@ use Native\Mobile\Facades\Browser;
  * it's still staged or rejected when you come back to the thread, and one
  * still on its way when the app closed goes again when it next opens. A
  * toast says why devnull didn't take one, wherever you are by then, with a
- * Retry of its own. A long press on a message opens its reactions and
- * Reply, and a double tap toggles a heart, as on the web's phone layout.
+ * Retry of its own. A swipe on a message brings up React and Reply beside
+ * it, and Pin for an org's maintainers, and a double tap toggles a heart.
+ *
+ * An org's pinned messages show as the web shows them: the latest in a bar
+ * over the top of the thread, which opens them all in a sheet, and a pin
+ * beside each one in the thread. Pinning and unpinning show at once and go
+ * back if devnull says no, and pins from the others come with the polls.
  *
  * When the composer can't push (a request to merge, your own request waiting,
  * someone who doesn't follow you, or has Remotes off), the bar says so in the
@@ -74,7 +85,7 @@ class Conversation extends NativeComponent
     public const int TypingPing = 3;
 
     /**
-     * The reactions a long press offers first, before any you use more, as the web's quick bar.
+     * The reactions React offers first, before any you use more, as the web's quick bar.
      */
     public const array QuickReactions = ['😂', '✅', '❤️'];
 
@@ -82,6 +93,30 @@ class Conversation extends NativeComponent
      * The rest the sheet offers, every one of them in devnull's shortcode set.
      */
     public const array MoreReactions = ['👍', '👀', '🔥', '🎉', '🚀', '💯', '🙏', '🤔', '👏', '😅', '😮', '😢', '🙌', '💀', '✨', '🤝'];
+
+    /**
+     * What the sheet shows: React's reactions for a message, or the org's pinned messages.
+     */
+    public const string ReactionsSheet = 'reactions';
+
+    public const string PinnedSheet = 'pinned';
+
+    /**
+     * The alert that asks before pinning, as the web's does, and its answers.
+     */
+    public const string PinAlert = 'pin-warning';
+
+    public const string PinMessage = 'Pin message';
+
+    public const string PinWithoutAsking = "Pin, and don't ask again";
+
+    /**
+     * About how many characters of a pinned message fit on a line of the pinned sheet, to tell whether it runs past the
+     * three lines the sheet shows of it, as the web's does.
+     */
+    public const int PinnedCharactersPerLine = 42;
+
+    public const int PinnedLines = 3;
 
     /**
      * Every frame goes in full, as on the Log (see Log::$forceFullFrames): messages come in at the bottom and their
@@ -154,10 +189,15 @@ class Conversation extends NativeComponent
     public const int ReplyingBarHeight = 44;
 
     /**
-     * The message whose React and Reply show beside it, as the web shows them on hover. A tap on a message shows them,
-     * and a tap on it again, or on another message, moves them.
+     * The message whose React, Reply and Pin show beside it, as the web shows them on hover. A swipe on a message shows
+     * them, and a swipe back, a tap anywhere in the thread, or a swipe on another message puts them away.
      */
     public ?int $actionsForId = null;
+
+    /**
+     * What the sheet shows, which stays as it was while the sheet slides away.
+     */
+    public string $sheet = self::ReactionsSheet;
 
     /**
      * The message React opened the reactions sheet for.
@@ -165,6 +205,43 @@ class Conversation extends NativeComponent
     public ?int $sheetMessageId = null;
 
     public bool $sheetOpen = false;
+
+    /**
+     * React in the pinned sheet shows the reactions in its place, and reacting goes back to the pinned messages, as the
+     * web keeps its panel open behind the reactions.
+     */
+    public bool $reactsFromPinned = false;
+
+    /**
+     * The org's pinned messages, latest pinned first, which everyone in it sees whatever history they were given.
+     *
+     * @var list<Message>
+     */
+    public array $pinned = [];
+
+    /**
+     * The reactions version the pinned messages are current with. Pinning and unpinning move it, so a list devnull sent
+     * with an older one is from before a change the thread already shows.
+     */
+    public ?int $pinnedVersion = null;
+
+    /**
+     * Pins and unpins devnull hasn't answered yet. Until it has answered them all, the pinned messages showing are
+     * newer than any a poll brings.
+     */
+    public int $pinning = 0;
+
+    /**
+     * The message the pin warning is asking about.
+     */
+    public ?int $pinAskedId = null;
+
+    /**
+     * The pinned messages opened past their first three lines with Show more.
+     *
+     * @var list<int>
+     */
+    public array $expandedPins = [];
 
     /**
      * The messages whose reaction you changed and devnull hasn't answered for yet, which a poll leaves alone.
@@ -260,9 +337,12 @@ class Conversation extends NativeComponent
 
         $this->lastPolledAt = $now;
 
+        // Once a poll's pinned messages were left aside for a pin of yours, they're behind the thread, so the next poll
+        // asks from their version and gets them again. Reactions sent twice are whole lists, so taking them again is
+        // harmless.
         $this->refresh($this->messagesPath(), [
             'after' => (string) $this->polledThroughId,
-            'reactions_after' => (string) $this->reactionsVersion,
+            'reactions_after' => (string) min($this->reactionsVersion, $this->pinnedVersion ?? $this->reactionsVersion),
         ], fn (array $json) => $this->takePoll($json), quiet: true);
     }
 
@@ -355,21 +435,37 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * A tap on a message shows its React and Reply beside it, or hides them if they were showing.
+     * Swiping a message away from its edge brings up its React, Reply and Pin beside it, in the room it pulls toward:
+     * someone else's to the right, your own to the left, the way the web pulls a message to reply. Swiping it back puts
+     * them away, and swiping another message moves them there. Any other swipe, as a flick while scrolling, does nothing.
      */
-    public function toggleActions(int $id): void
+    public function swipedMessage(int $id, string $direction): void
     {
         $message = $this->findMessage($id);
 
-        if ($message === null || $message->isEvent() || $message->isPending()) {
+        if ($message === null || ! $this->takesActions($message)) {
             return;
         }
 
-        $this->actionsForId = $this->actionsForId === $id ? null : $id;
+        $away = $message->userId === $this->me()?->id ? 'left' : 'right';
+
+        if ($direction === $away) {
+            $this->actionsForId = $id;
+        } elseif ($direction === ($away === 'left' ? 'right' : 'left') && $this->actionsForId === $id) {
+            $this->actionsForId = null;
+        }
     }
 
     /**
-     * React: the web's reactions for the message, in a sheet.
+     * A tap anywhere in the thread puts away the actions showing beside a message.
+     */
+    public function hideActions(): void
+    {
+        $this->actionsForId = null;
+    }
+
+    /**
+     * React: the web's reactions for the message, in a sheet. From the pinned sheet, they take its place.
      */
     public function openReactions(int $id): void
     {
@@ -377,14 +473,32 @@ class Conversation extends NativeComponent
             return;
         }
 
+        $this->reactsFromPinned = $this->sheetOpen && $this->sheet === self::PinnedSheet;
         $this->actionsForId = null;
+        $this->sheet = self::ReactionsSheet;
         $this->sheetMessageId = $id;
+        $this->sheetOpen = true;
+    }
+
+    /**
+     * The bar over the thread opens the org's pinned messages in the sheet.
+     */
+    public function openPinned(): void
+    {
+        if ($this->pinned === []) {
+            return;
+        }
+
+        $this->actionsForId = null;
+        $this->reactsFromPinned = false;
+        $this->sheet = self::PinnedSheet;
         $this->sheetOpen = true;
     }
 
     public function messageSheetClosed(): void
     {
         $this->sheetOpen = false;
+        $this->reactsFromPinned = false;
     }
 
     public function reply(int $id): void
@@ -392,24 +506,91 @@ class Conversation extends NativeComponent
         $this->replyToId = $id;
         $this->actionsForId = null;
         $this->sheetOpen = false;
+        $this->reactsFromPinned = false;
         $this->composerKey++;
     }
 
     /**
-     * Swiping a message sideways replies to it, as on the web's touch screens: someone else's to the right, away from
-     * its edge, and your own to the left. Any other swipe, as a flick while scrolling, does nothing.
+     * Show more and Show less, on a pinned message longer than the sheet's three lines.
      */
-    public function swipedMessage(int $id, string $direction): void
+    public function togglePinnedText(int $id): void
+    {
+        $this->expandedPins = in_array($id, $this->expandedPins, true)
+            ? array_values(array_diff($this->expandedPins, [$id]))
+            : [...$this->expandedPins, $id];
+    }
+
+    /**
+     * Pin or Unpin beside a message, for an org's maintainers. Pinning asks first, as the web does, since everyone in
+     * the org sees what's pinned, whatever history they were given, until you say not to ask again.
+     */
+    public function togglePin(int $id): void
     {
         $message = $this->findMessage($id);
 
-        if ($message === null || $message->isEvent() || $message->isPending()) {
+        if ($message === null || ! $this->canPin() || ! $this->takesActions($message)) {
             return;
         }
 
-        if ($direction === ($message->userId === $this->me()?->id ? 'left' : 'right')) {
-            $this->reply($id);
+        $this->actionsForId = null;
+
+        if ($this->isPinned($id)) {
+            $this->unpin($id);
+
+            return;
         }
+
+        if (app(Account::class)->skipsPinWarning()) {
+            $this->pin($id);
+
+            return;
+        }
+
+        $this->pinAskedId = $id;
+
+        Dialog::alert('Pin for the whole org?', "Everyone in the org sees pinned messages, including people added without Share history, who can't read anything pushed before they joined.", [
+            ['label' => 'Cancel', 'style' => 'cancel'],
+            ['label' => self::PinWithoutAsking],
+            ['label' => self::PinMessage],
+        ])->id(self::PinAlert);
+    }
+
+    #[On(ButtonPressed::class)]
+    public function onAlertButton(string $label = '', ?string $id = null): void
+    {
+        if ($id !== self::PinAlert || $this->pinAskedId === null) {
+            return;
+        }
+
+        $message = $this->pinAskedId;
+        $this->pinAskedId = null;
+
+        if ($label === self::PinWithoutAsking) {
+            app(Account::class)->rememberSkipsPinWarning();
+        }
+
+        if (in_array($label, [self::PinMessage, self::PinWithoutAsking], true)) {
+            $this->pin($message);
+        }
+    }
+
+    /**
+     * Unpin, beside a pinned message in the thread or in the pinned sheet. The sheet closes once nothing is left in it.
+     */
+    public function unpin(int $id): void
+    {
+        if (! $this->canPin() || ! $this->isPinned($id)) {
+            return;
+        }
+
+        $before = $this->pinned;
+        $this->pinned = array_values(array_filter($this->pinned, fn (Message $pinned): bool => $pinned->id !== $id));
+
+        if ($this->pinned === [] && $this->sheet === self::PinnedSheet) {
+            $this->sheetOpen = false;
+        }
+
+        $this->sendPin($id, false, $before);
     }
 
     public function cancelReply(): void
@@ -426,13 +607,19 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * Leaves the emoji on the message, or takes it back, at once. If devnull says no, it goes back as it was.
+     * Leaves the emoji on the message, or takes it back, at once. If devnull says no, it goes back as it was. Picked in
+     * the reactions sheet, the sheet closes, or goes back to the pinned messages it was opened from.
      */
     public function toggleReaction(int $id, string $emoji): void
     {
         $message = $this->findMessage($id);
         $me = $this->me();
-        $this->sheetOpen = false;
+
+        if ($this->sheet === self::ReactionsSheet) {
+            $this->sheet = $this->reactsFromPinned ? self::PinnedSheet : self::ReactionsSheet;
+            $this->sheetOpen = $this->sheetOpen && $this->reactsFromPinned;
+            $this->reactsFromPinned = false;
+        }
 
         if ($message === null || $message->isPending() || $message->isEvent() || $me === null || $this->thread?->access !== Thread::Open) {
             return;
@@ -516,6 +703,103 @@ class Conversation extends NativeComponent
 
         if ($url !== null) {
             Browser::inApp($url);
+        }
+    }
+
+    /**
+     * Pins the message at once, first in the list as the latest pinned, as the web does.
+     */
+    private function pin(int $id): void
+    {
+        $message = $this->findMessage($id);
+
+        if ($message === null || $this->isPinned($id)) {
+            return;
+        }
+
+        $before = $this->pinned;
+        $this->pinned = [$message, ...$this->pinned];
+
+        $this->sendPin($id, true, $before);
+    }
+
+    /**
+     * Sends a pin or an unpin, with the pinned messages as they were before it, to go back to if devnull says no. Its
+     * answer is the org's pinned messages as they are now, which the thread takes once no other pin is on its way. When
+     * two maintainers take the org's last place at once, devnull answers the one it turned away without their message,
+     * which counts as a no too, as on the web. A refusal says why in devnull's words, as the web's toast does.
+     *
+     * @param  list<Message>  $before
+     */
+    private function sendPin(int $id, bool $pinning, array $before): void
+    {
+        $this->pinning++;
+        $this->lastActivityAt = self::now();
+        $refused = function (?string $message = null) use ($id, $pinning, $before): void {
+            $this->putPinBack($id, $pinning, $before);
+            Toasts::failed($message ?? ($pinning ? 'Could not pin. Try again.' : 'Could not unpin. Try again.'));
+        };
+
+        $this->writeInBackground($pinning ? 'PUT' : 'DELETE', Client::pinPath($id), null, function (array $json) use ($id, $pinning, $refused): void {
+            $this->pinning = max(0, $this->pinning - 1);
+            $pinned = Thread::fromArray(['data' => ['pinned' => is_array($json['pinned'] ?? null) ? $json['pinned'] : []]])->pinned ?? [];
+
+            if ($pinning && ! in_array($id, array_map(fn (Message $message): int => $message->id, $pinned), true)) {
+                $refused();
+
+                return;
+            }
+
+            $this->takePinned($pinned, is_int($json['reactions_version'] ?? null) ? $json['reactions_version'] : $this->reactionsVersion);
+        }, function (string $message, ?ApiException $exception = null) use ($refused): void {
+            $this->pinning = max(0, $this->pinning - 1);
+            $refused($exception?->status === 403 ? $message : null);
+        });
+    }
+
+    /**
+     * Puts one message back as it was before a pin or unpin devnull refused, leaving any other change since alone:
+     * a pin comes out again, an unpin goes back where it was.
+     *
+     * @param  list<Message>  $before
+     */
+    private function putPinBack(int $id, bool $pinning, array $before): void
+    {
+        if ($pinning) {
+            $this->pinned = array_values(array_filter($this->pinned, fn (Message $pinned): bool => $pinned->id !== $id));
+
+            return;
+        }
+
+        foreach ($before as $index => $message) {
+            if ($message->id === $id && ! $this->isPinned($id)) {
+                array_splice($this->pinned, min($index, count($this->pinned)), 0, [$message]);
+            }
+        }
+    }
+
+    /**
+     * The org's pinned messages as devnull sent them, with the reactions version it read just before, unless a pin of
+     * yours is still on its way, whose answer is fresher, or they're older than the ones showing. Reactions you're
+     * still changing stay as they show.
+     *
+     * @param  list<Message>  $pinned
+     */
+    private function takePinned(array $pinned, int $version): void
+    {
+        if ($this->pinning > 0 || ($this->pinnedVersion !== null && $version < $this->pinnedVersion)) {
+            return;
+        }
+
+        $this->pinned = array_map(function (Message $message): Message {
+            $shown = isset($this->reacting[$message->id]) ? $this->findMessage($message->id) : null;
+
+            return $shown === null ? $message : $message->withReactions($shown->reactions);
+        }, $pinned);
+        $this->pinnedVersion = $version;
+
+        if ($this->pinned === [] && $this->sheet === self::PinnedSheet) {
+            $this->sheetOpen = false;
         }
     }
 
@@ -617,6 +901,11 @@ class Conversation extends NativeComponent
         $this->thread = $thread;
         $this->messages = self::merged($older, $thread->messages);
         $this->hasOlder = $older === [] ? $thread->hasOlder : $this->hasOlder;
+
+        if ($thread->pinned !== null) {
+            $this->takePinned($thread->pinned, $thread->reactionsVersion);
+        }
+
         $this->reactionsVersion = max($this->reactionsVersion, $thread->reactionsVersion);
         $this->readThroughId = max($this->readThroughId, $thread->readThroughId);
         $this->polledThroughId = max($this->polledThroughId, $thread->messages[array_key_last($thread->messages) ?? -1]->id ?? 0);
@@ -637,8 +926,9 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * What a poll brought: messages after the last one, reactions changed since the version seen, and the rest of the
-     * thread as it is now. New messages, or someone typing, keep the poll quick for another minute.
+     * What a poll brought: messages after the last one, reactions changed since the version seen, an org's pinned
+     * messages if they changed, and the rest of the thread as it is now. New messages, or someone typing, keep the poll
+     * quick for another minute.
      *
      * @param  array<string, mixed>  $json
      */
@@ -654,7 +944,11 @@ class Conversation extends NativeComponent
             }
         }
 
-        $this->thread = new Thread(...[...get_object_vars($poll), 'messages' => [], 'reactionChanges' => [], 'hasOlder' => $this->hasOlder]);
+        if ($poll->pinned !== null) {
+            $this->takePinned($poll->pinned, $poll->reactionsVersion);
+        }
+
+        $this->thread = new Thread(...[...get_object_vars($poll), 'messages' => [], 'reactionChanges' => [], 'hasOlder' => $this->hasOlder, 'pinned' => null]);
         $this->messages = self::merged($this->messages, $new);
         $this->reactionsVersion = max($this->reactionsVersion, $poll->reactionsVersion);
         $this->polledThroughId = max($this->polledThroughId, $poll->messages[array_key_last($poll->messages) ?? -1]->id ?? 0);
@@ -720,9 +1014,13 @@ class Conversation extends NativeComponent
         return $this->messages[array_key_last($this->messages) ?? -1]->id ?? 0;
     }
 
+    /**
+     * A message in the thread, or one the org pinned from before the history you were given, which you can still reply
+     * and react to.
+     */
     private function findMessage(?int $id): ?Message
     {
-        foreach ($this->messages as $message) {
+        foreach ([...$this->messages, ...$this->pinned] as $message) {
             if ($message->id === $id) {
                 return $message;
             }
@@ -733,7 +1031,37 @@ class Conversation extends NativeComponent
 
     private function replaceMessage(Message $replacement): void
     {
-        $this->messages = array_map(fn (Message $message): Message => $message->id === $replacement->id ? $replacement : $message, $this->messages);
+        $replace = fn (Message $message): Message => $message->id === $replacement->id ? $replacement : $message;
+
+        $this->messages = array_map($replace, $this->messages);
+        $this->pinned = array_map($replace, $this->pinned);
+    }
+
+    private function isPinned(int $id): bool
+    {
+        foreach ($this->pinned as $message) {
+            if ($message->id === $id) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Only an org's maintainers pin, as devnull allows, and only while the thread takes messages.
+     */
+    private function canPin(): bool
+    {
+        return $this->isOrg() && $this->thread?->role === 'maintainer' && $this->thread->access === Thread::Open;
+    }
+
+    /**
+     * React, Reply and Pin are for messages devnull has, not an org's events, while the thread takes messages.
+     */
+    private function takesActions(Message $message): bool
+    {
+        return ! $message->isEvent() && ! $message->isPending() && $this->thread?->access === Thread::Open;
     }
 
     /**
@@ -873,8 +1201,29 @@ class Conversation extends NativeComponent
             'quickReactions' => $this->quickReactions(),
             'moreReactions' => self::MoreReactions,
             'canPush' => $thread !== null && $thread->access === Thread::Open,
+            'canPin' => $this->canPin(),
+            'pinnedIds' => array_flip(array_map(fn (Message $message): int => $message->id, $this->pinned)),
+            'longPins' => $this->longPins(),
             'placeholder' => $this->isOrg() ? 'Message '.($thread->orgName ?? 'the org') : 'Message @'.$this->username,
         ]);
+    }
+
+    /**
+     * The pinned messages that run past the three lines the sheet shows of them, which get Show more.
+     *
+     * @return array<int, true>
+     */
+    private function longPins(): array
+    {
+        $long = [];
+
+        foreach ($this->pinned as $message) {
+            if (Display::lineCount($message->body, self::PinnedCharactersPerLine) > self::PinnedLines) {
+                $long[$message->id] = true;
+            }
+        }
+
+        return $long;
     }
 
     /**

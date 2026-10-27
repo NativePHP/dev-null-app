@@ -238,18 +238,27 @@ final readonly class Message
      */
     public function replySnippet(): string
     {
-        if ($this->replyTo === null) {
-            return '';
-        }
+        return $this->replyTo === null ? '' : self::snippetOf($this->replyTo['body'], $this->replyTo['images_count']);
+    }
 
-        $text = (string) preg_replace('/```[\s\S]*?```/', ' code ', $this->replyTo['body']);
+    /**
+     * The message itself in one line, as the ghost of a reply shows it, for the pinned bar over an org's thread.
+     */
+    public function snippet(): string
+    {
+        return self::snippetOf($this->body, count($this->images));
+    }
+
+    private static function snippetOf(string $body, int $images): string
+    {
+        $text = (string) preg_replace('/```[\s\S]*?```/', ' code ', $body);
         $text = trim((string) preg_replace('/\s+/', ' ', (string) preg_replace(['/`/', '#https?://#i'], '', $text)));
 
         if ($text !== '') {
             return $text;
         }
 
-        return $this->replyTo['images_count'] > 1 ? $this->replyTo['images_count'].' images' : 'Image';
+        return $images > 1 ? $images.' images' : 'Image';
     }
 
     /**

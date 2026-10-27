@@ -514,7 +514,7 @@ it('leaves bookmarks out of More even when an old cached commit has bookmark sta
     $screen = Native::visit('/log', platform: 'ios');
     expect(menuItems($screen, 'more-c1'))->toBe([
         ['share-c1', 'Share link', 'custom:link'],
-        ['pin-c1', 'Pin to profile', 'pin'],
+        ['pin-c1', 'Pin to profile', 'custom:pin'],
         'divider',
         ['delete-c1', 'Delete commit', 'custom:trash-2'],
     ])
