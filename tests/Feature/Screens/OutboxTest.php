@@ -148,7 +148,7 @@ it('never sends a commit left over from when the app closed, and offers it back 
     // It isn't opened on you as the app opens. It waits for Edit, with its draft back in the stash.
     expect(sentTo('POST', 'commits'))->toBe([])
         ->and($commit->fresh())->status->toBe(PendingWrite::Failed)->error->toBe(Outbox::ClosedBeforeAnswer)
-        ->and(app(Stash::class)->get($this->userId, 'commit'))->toBe('Lost in transit')
+        ->and(app(Stash::class)->get($this->userId, 'commit')->body)->toBe('Lost in transit')
         ->and($screen->instance()->sheetOpen)->toBeFalse()
         ->and(array_map(fn ($shown): string => $shown->id, $screen->instance()->commits))->toBe(['c1']);
 
@@ -196,7 +196,7 @@ it("hears a reply devnull turned down after you've left its commit, and Edit tak
             && $params['data'] === ['write' => $write->id]);
 
     expect($write->fresh()->status)->toBe(PendingWrite::Failed)
-        ->and(app(Stash::class)->get($this->userId, 'reply-c2'))->toBe('Hold on');
+        ->and(app(Stash::class)->get($this->userId, 'reply-c2')->body)->toBe('Hold on');
 
     pressToastAction($elsewhere, 'edit', ['write' => $write->id])
         ->assertNavigatedTo('/notifications/commits/c2');

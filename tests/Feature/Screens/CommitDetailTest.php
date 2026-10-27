@@ -284,7 +284,7 @@ it('puts a reply devnull turned down back in the bar, and says why in a toast', 
         ->assertNoNavigation();
 
     expect($screen->instance()->replies)->toBe([])
-        ->and(app(Stash::class)->get(userJson()['id'], 'reply-c2'))->toBe('Long enough')
+        ->and(app(Stash::class)->get(userJson()['id'], 'reply-c2')->body)->toBe('Long enough')
         ->and(PendingWrite::query()->count())->toBe(0);
 });
 

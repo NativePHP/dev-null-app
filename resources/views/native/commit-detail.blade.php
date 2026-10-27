@@ -102,7 +102,7 @@
                 Display::replyBarClearance): the last reply and its actions end above the bar, keyboard up or down.
             --}}
             @if ($commit)
-                <native:column ref="reply-bar-clearance" class="w-full h-[{{ 24 + \App\Devnull\Display::replyBarClearance($reply, $replyRestored) }}]" />
+                <native:column ref="reply-bar-clearance" class="w-full h-[{{ 24 + \App\Devnull\Display::replyBarClearance($reply, $replyRestored || $replyImages !== []) }}]" />
             @endif
         </native:column>
     </native:scroll-view>
@@ -134,15 +134,31 @@
                         />
                     </native:column>
                     @include('native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget'])
-                    <native:button ref="send-reply" :variant="$myColour" size="sm" :disabled="! \App\Devnull\Data\Commit::fits($reply)" @press="sendReply">Reply</native:button>
+                    <native:button ref="send-reply" :variant="$myColour" size="sm" :disabled="! \App\Devnull\Data\Draft::canCommit($reply, $replyImages)" @press="sendReply">Reply</native:button>
                 </native:row>
                 @if (\App\Devnull\Data\CommitBody::hasOversizedUrl($reply))
                     <native:text ref="reply-link-error" class="w-full px-4 pb-2 text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
                 @endif
-                {{-- A reply stashed when you left the commit comes back with the web's stash@{0} and drop under it. --}}
-                @if ($replyRestored)
-                    <native:row class="w-full px-4 -mt-2">
-                        @include('native.partials.stash-label', ['ref' => 'reply-stash', 'drop' => 'dropReplyStash', 'size' => 'text-xs'])
+                {{--
+                    A reply stashed when you left the commit comes back with the web's stash@{0} and drop under it.
+                    Photos attached in the sheet show as a count on the left, which opens the sheet on them, and Reply
+                    sends them.
+                --}}
+                @if ($replyRestored || $replyImages !== [])
+                    <native:row class="w-full px-4 -mt-2 items-center">
+                        @if ($replyImages !== [])
+                            @php($photoCount = \App\Devnull\Display::count(count($replyImages), 'photo', 'photos'))
+                            <native:pressable ref="reply-photos" @press="replyInSheet('{{ $commit->id }}')" a11y-label="{{ $photoCount }} attached" a11y-hint="Opens the reply with its photos">
+                                <native:row class="h-[36] gap-1 items-center">
+                                    <native:icon :ios="\App\Icons\Lucide::ImagePlus->ios()" :android="\App\Icons\Lucide::ImagePlus->android()" :size="14" class="text-theme-ink-muted" />
+                                    <native:text class="text-xs text-theme-ink-muted">{{ $photoCount }}</native:text>
+                                </native:row>
+                            </native:pressable>
+                            <native:spacer />
+                        @endif
+                        @if ($replyRestored)
+                            @include('native.partials.stash-label', ['ref' => 'reply-stash', 'drop' => 'dropReplyStash', 'size' => 'text-xs'])
+                        @endif
                     </native:row>
                 @endif
             </native:column>

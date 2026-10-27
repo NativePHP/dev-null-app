@@ -148,21 +148,15 @@ class PendingWrite extends Model
     }
 
     /**
-     * The commit's photos still on the phone. Photos of a draft are deleted after a day (see DraftImages).
+     * The commit's photos still on the phone. Photos nothing holds any more are deleted after a day (see DraftImages).
      *
      * @return list<DraftImage>
      */
     public function images(): array
     {
-        $images = [];
+        $images = is_array($this->payload['images'] ?? null) ? $this->payload['images'] : [];
 
-        foreach (is_array($this->payload['images'] ?? null) ? $this->payload['images'] : [] as $image) {
-            if (is_array($image) && is_string($image['path'] ?? null) && is_file($image['path'])) {
-                $images[] = new DraftImage($image['path'], (string) ($image['mime_type'] ?? ''), (int) ($image['width'] ?? 0), (int) ($image['height'] ?? 0), (string) ($image['description'] ?? ''));
-            }
-        }
-
-        return $images;
+        return array_values(array_filter(array_map(DraftImage::fromArray(...), $images)));
     }
 
     /**
@@ -171,13 +165,7 @@ class PendingWrite extends Model
      */
     public static function imagePayload(array $images): array
     {
-        return array_map(fn (DraftImage $image): array => [
-            'path' => $image->path,
-            'mime_type' => $image->mimeType,
-            'width' => $image->width,
-            'height' => $image->height,
-            'description' => $image->description,
-        ], $images);
+        return array_map(fn (DraftImage $image): array => $image->toArray(), $images);
     }
 
     /**

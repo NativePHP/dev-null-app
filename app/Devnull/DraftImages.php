@@ -4,6 +4,7 @@ namespace App\Devnull;
 
 use App\Devnull\Data\DraftImage;
 use App\Devnull\Exceptions\InvalidDraftImage;
+use App\Models\PendingWrite;
 
 /**
  * The photos attached to the commits you're writing, taken with the camera or
@@ -16,7 +17,8 @@ use App\Devnull\Exceptions\InvalidDraftImage;
  *
  * The camera and the library hand over copies made for the app, so a photo is
  * moved here, and one that won't do is deleted, so none are left lying about.
- * Photos left behind by a draft that was never sent go after a day.
+ * A photo stays as long as a stashed draft or a commit in the outbox holds
+ * it. One nothing holds any more goes after a day.
  */
 final class DraftImages
 {
@@ -45,7 +47,7 @@ final class DraftImages
     public const string CameraDenied = "devnull can't use the camera or your photos. Allow it in Settings.";
 
     /**
-     * How long a photo of a draft that was never sent is kept.
+     * How long a photo nothing holds any more is kept.
      */
     private const int KeptForSeconds = 86_400;
 
@@ -125,10 +127,27 @@ final class DraftImages
 
     private function prune(): void
     {
+        $held = array_flip($this->held());
+
         foreach (glob($this->directory().'/*') ?: [] as $file) {
-            if (filemtime($file) < time() - self::KeptForSeconds) {
+            if (! isset($held[$file]) && filemtime($file) < time() - self::KeptForSeconds) {
                 @unlink($file);
             }
         }
+    }
+
+    /**
+     * The paths of the photos your stashed drafts and the commits in the outbox hold.
+     *
+     * @return list<string>
+     */
+    private function held(): array
+    {
+        $images = [
+            ...app(Stash::class)->images(app(Account::class)->user()?->id),
+            ...app(Outbox::class)->pending(PendingWrite::Commit, withFailed: true)->flatMap(fn (PendingWrite $write): array => $write->images())->all(),
+        ];
+
+        return array_map(fn (DraftImage $image): string => $image->path, $images);
     }
 }

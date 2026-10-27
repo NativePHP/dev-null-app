@@ -3,6 +3,8 @@
 namespace App\NativeComponents\Concerns;
 
 use App\Devnull\Client;
+use App\Devnull\Data\StashedDraft;
+use App\Devnull\DraftImages;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\IssueCommand;
 use App\Devnull\Stash;
@@ -35,12 +37,13 @@ use Native\Mobile\Facades\Browser;
  * on this phone, as the web's stops them in that browser.
  *
  * Opening the issue waits on GitHub, so it's sent in the background while the
- * button spins (see WritesInBackground). Once it's open the draft goes, and
- * the sheet says "Opened issue #123." with View issue, as the web's toast
- * does, or a toast does, with View issue as its button, if the sheet was
- * swiped away by then (see SyncsOutbox::toastActionPressed()). When it isn't, the draft stays an issue, with why under it: devnull's
- * own words when it sends them, else the web's, which say to check upstream
- * when the issue might have been opened anyway.
+ * button spins (see WritesInBackground). Once it's open the draft goes, with
+ * any photos it had, and the sheet says "Opened issue #123." with View issue,
+ * as the web's toast does, or a toast does, with View issue as its button, if
+ * the sheet was swiped away by then (see SyncsOutbox::toastActionPressed()).
+ * When it isn't, the draft stays an issue, with why under it: devnull's own
+ * words when it sends them, else the web's, which say to check upstream when
+ * the issue might have been opened anyway.
  */
 trait DraftsIssues
 {
@@ -133,7 +136,9 @@ trait DraftsIssues
         $this->writeInBackground('POST', Client::IssuesPath, ['command' => $command->command(), 'body' => $body], function (array $json): void {
             $number = is_int($json['number'] ?? null) ? $json['number'] : null;
             $url = is_string($json['url'] ?? null) ? $json['url'] : null;
-            app(Stash::class)->put($this->me()?->id, 'commit', '');
+            $stash = app(Stash::class);
+            app(DraftImages::class)->discard($stash->get($this->me()?->id, 'commit')->images);
+            $stash->put($this->me()?->id, 'commit', new StashedDraft);
 
             // Swiped away while it was on its way, so a toast says it, with View issue as its button.
             if (! $this->sheetOpen) {

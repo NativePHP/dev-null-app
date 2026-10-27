@@ -29,8 +29,9 @@ use Native\Mobile\Facades\Camera;
  *
  * A commit with photos goes through the outbox like any other, given longer
  * to upload (see SyncsOutbox). The photos go with it, and are deleted from
- * the phone once devnull has them. Otherwise photos and a poll go with the
- * sheet: closing it drops them, and deletes the photos from the phone.
+ * the phone once devnull has them. Until it's sent, the photos and the poll
+ * are stashed with the draft (see Stash), so closing the sheet keeps them for
+ * next time. Drop throws them away with it, deleting the photos.
  */
 trait AttachesToCommits
 {
@@ -74,6 +75,11 @@ trait AttachesToCommits
      * @param  Closure(string, ?ApiException): void  $failed
      */
     abstract protected function writeInBackground(string $method, string $path, ?array $payload, Closure $done, Closure $failed): void;
+
+    /**
+     * Keeps the draft in the stash as it is now, its photos and poll with it.
+     */
+    abstract protected function stashSheetDraft(): void;
 
     /**
      * The web's image button: the photo library, for as many photos as there's still room for.
@@ -127,6 +133,7 @@ trait AttachesToCommits
         app(DraftImages::class)->discard([$this->sheetImages[$index]]);
         array_splice($this->sheetImages, $index, 1);
         $this->describing = null;
+        $this->stashSheetDraft();
     }
 
     /**
@@ -143,6 +150,7 @@ trait AttachesToCommits
     {
         if (isset($this->sheetImages[$index])) {
             $this->sheetImages[$index] = $this->sheetImages[$index]->withDescription($description);
+            $this->stashSheetDraft();
         }
     }
 
@@ -155,18 +163,21 @@ trait AttachesToCommits
         if ($this->isComposing() && $this->sheetView !== 'reply' && $this->sheetImages === [] && $this->sheetPoll === null) {
             $this->sheetPoll = PollDraft::start();
             $this->sheetPollLength = PollDraft::DefaultLength;
+            $this->stashSheetDraft();
         }
     }
 
     public function removePoll(): void
     {
         $this->sheetPoll = null;
+        $this->stashSheetDraft();
     }
 
     public function addPollOption(): void
     {
         if ($this->sheetPoll !== null && count($this->sheetPoll) < PollDraft::MaxOptions) {
             $this->sheetPoll[] = '';
+            $this->stashSheetDraft();
         }
     }
 
@@ -177,6 +188,7 @@ trait AttachesToCommits
     {
         if ($this->sheetPoll !== null && $index >= PollDraft::MinOptions && isset($this->sheetPoll[$index])) {
             array_splice($this->sheetPoll, $index, 1);
+            $this->stashSheetDraft();
         }
     }
 
@@ -184,7 +196,13 @@ trait AttachesToCommits
     {
         if ($this->sheetPoll !== null && isset($this->sheetPoll[$index])) {
             $this->sheetPoll[$index] = mb_substr($option, 0, PollDraft::MaxOptionLength);
+            $this->stashSheetDraft();
         }
+    }
+
+    public function updatedSheetPollLength(): void
+    {
+        $this->stashSheetDraft();
     }
 
     /**
@@ -231,12 +249,14 @@ trait AttachesToCommits
     }
 
     /**
-     * Lets go of the photos, the poll and the preview. Photos still on the phone are deleted. Ones on their way to
-     * devnull have left the sheet by then.
+     * Lets go of the photos, the poll and the preview. The photos stay on the phone for the stashed draft, unless
+     * they're thrown away with it ($discardPhotos).
      */
-    protected function forgetAttachments(): void
+    protected function forgetAttachments(bool $discardPhotos = false): void
     {
-        app(DraftImages::class)->discard($this->sheetImages);
+        if ($discardPhotos) {
+            app(DraftImages::class)->discard($this->sheetImages);
+        }
 
         $this->sheetImages = [];
         $this->describing = null;
@@ -280,5 +300,7 @@ trait AttachesToCommits
                 $this->sheetError = $exception->getMessage();
             }
         }
+
+        $this->stashSheetDraft();
     }
 }

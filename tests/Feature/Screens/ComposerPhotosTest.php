@@ -190,7 +190,7 @@ it('commits photos with a short body, or none, as multipart, then shows the comm
         ->and($screen->instance()->commits[0]->images[0]->url)->toBe('http://devnull.test/commit-images/i1?expires=1&signature=abc')
         ->and($screen->instance()->sheetImages)->toBe([])
         ->and(array_filter($paths, file_exists(...)))->toBe([])
-        ->and(app(Stash::class)->get(app(Account::class)->user()?->id, 'commit'))->toBe('');
+        ->and(app(Stash::class)->get(app(Account::class)->user()?->id, 'commit')->body)->toBe('');
 })->with([
     'none' => ['', '{"body":"","image_descriptions":[null,"A terminal."]}'],
     'short' => ['ok', '{"body":"ok","image_descriptions":[null,"A terminal."]}'],
@@ -229,19 +229,36 @@ it('shows the commit staged with its photos while they upload, and opens the she
         ->and(array_filter($screen->instance()->commits, fn ($commit): bool => $commit->isStaged()))->toBe([]);
 });
 
-it('drops the photos when the sheet goes unsent, and deletes them from the phone', function () {
-    $screen = photosPicked(composerOnLog(), [testPhoto()]);
+it('keeps the photos with the draft when the sheet goes unsent, and deletes them once it\'s dropped', function () {
+    $screen = photosPicked(composerOnLog(), [testPhoto()])
+        ->tap('sheet-image-0-alt')
+        ->input('sheet-image-description-input', 'The cabin at sunrise.');
     $path = $screen->instance()->sheetImages[0]->path;
 
     $screen->dismissSheet('sheet');
 
-    expect(file_exists($path))->toBeFalse()
+    expect(file_exists($path))->toBeTrue()
         ->and($screen->instance()->sheetImages)->toBe([]);
 
     // A photo that arrives once the sheet has gone attaches to nothing.
     photosPicked($screen, [testPhoto()]);
 
     expect($screen->instance()->sheetImages)->toBe([]);
+
+    $screen->press('composeInSheet');
+
+    expect($screen->instance()->sheetImages)->toHaveCount(1)
+        ->and($screen->instance()->sheetImages[0]->path)->toBe($path)
+        ->and($screen->instance()->sheetImages[0]->description)->toBe('The cabin at sunrise.')
+        ->and(nodeByRef($screen, 'sheet-image-0')['type'])->toBe('column')
+        ->and(sheetButtonEnabled($screen, 'sheet-commit'))->toBeTrue()
+        ->and(nodeByRef($screen, 'sheet-stash'))->not->toBeNull();
+
+    $screen->tap('sheet-stash-drop');
+
+    expect(file_exists($path))->toBeFalse()
+        ->and($screen->instance()->sheetImages)->toBe([])
+        ->and(app(Stash::class)->names(app(Account::class)->user()?->id))->toBe([]);
 });
 
 it('opens a commit\'s reply in the sheet with what the reply bar had, and replies with photos', function () {
@@ -288,7 +305,61 @@ it('hands the reply back to the reply bar when the sheet goes unsent', function 
         ->dismissSheet('sheet');
 
     expect(nodeByRef($screen, 'reply-input')['props']['value'])->toBe('Half a reply')
-        ->and(app(Stash::class)->get(app(Account::class)->user()?->id, 'reply-c2'))->toBe('Half a reply');
+        ->and(app(Stash::class)->get(app(Account::class)->user()?->id, 'reply-c2')->body)->toBe('Half a reply');
 
     Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
+});
+
+it('hands the reply\'s photos back to the reply bar too, which counts them, keeps them and replies with them', function () {
+    serveApi([
+        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]))],
+        'GET /api/v1/commits/c2/replies' => [pageJson([])],
+        'POST /api/v1/commits' => [['data' => replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'Look'])], 201],
+    ]);
+
+    $screen = photosPicked(Native::visit('/log/commits/c2')->input('reply-input', 'Look')->tap('reply-expand'), [testPhoto()])
+        ->dismissSheet('sheet');
+    $path = $screen->instance()->replyImages[0]->path;
+
+    expect(treeShows(nodeByRef($screen, 'reply-photos'), '1 photo'))->toBeTrue()
+        ->and(nodeByRef($screen, 'reply-photos')['props']['a11y_label'] ?? null)->toBe('1 photo attached');
+
+    // Coming back to the commit, the bar has them still.
+    $screen = Native::visit('/log/commits/c2');
+
+    expect($screen->instance()->reply)->toBe('Look')
+        ->and($screen->instance()->replyImages)->toHaveCount(1)
+        ->and(nodeByRef($screen, 'reply-stash'))->not->toBeNull();
+
+    // The count opens the sheet on them.
+    $screen->tap('reply-photos');
+
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
+        ->and($screen->instance()->sheetImages[0]->path)->toBe($path);
+
+    $screen->dismissSheet('sheet')->tap('send-reply')->assertSee('Look');
+
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+        && multipartParts($request)[0]['contents'] === '{"body":"Look","parent_id":"c2"}'
+        && multipartParts($request)[1]['name'] === 'images[]');
+
+    expect($screen->instance()->replyImages)->toBe([])
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'reply-photos'))->toBeNull()
+        ->and(file_exists($path))->toBeFalse()
+        ->and(app(Stash::class)->names(app(Account::class)->user()?->id))->toBe([]);
+});
+
+it('hands the reply and its photos back to the reply bar when Cancel closes the sheet on Android, which never says it has gone', function () {
+    serveApi([
+        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]))],
+        'GET /api/v1/commits/c2/replies' => [pageJson([])],
+    ]);
+
+    $screen = photosPicked(Native::visit('/log/commits/c2', platform: 'android')->input('reply-input', 'Half')->tap('reply-expand'), [testPhoto()])
+        ->input('sheet-body', 'Half a reply')
+        ->tap('sheet-cancel')
+        ->input('reply-input', 'Half a reply, and more');
+
+    expect($screen->instance()->replyImages)->toHaveCount(1)
+        ->and(app(Stash::class)->get(app(Account::class)->user()?->id, 'reply-c2')->images)->toHaveCount(1);
 });

@@ -6,6 +6,7 @@ use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Draft;
 use App\Devnull\Data\PollDraft;
+use App\Devnull\Data\StashedDraft;
 use App\Devnull\Outbox;
 use App\Devnull\ReportReason;
 use App\Devnull\Stash;
@@ -25,12 +26,12 @@ use Native\Mobile\Facades\System;
  * (see SyncsOutbox), and a screen that lists your new commits puts it in
  * place, staged, until devnull has it (see showCommitted()).
  *
- * What you write in it is stashed as you type, as on the web (see Stash): a
- * quote per commit quoted, and a new commit under the web's composer draft.
- * Opened again, it starts from the draft, marked as restored. It's forgotten
- * once it's sent. If devnull turns the commit down, it goes back to its
- * draft, photos and poll too, and the screen it was written on opens the
- * sheet with it again (see reopenFailedCommit()).
+ * What you write in it is stashed as you go, as on the web (see Stash): a
+ * quote per commit quoted, and a new commit under the web's composer draft,
+ * with its photos and its poll. Opened again, it starts from the draft,
+ * marked as restored. It's forgotten once it's sent. If devnull turns the
+ * commit down, it goes back to its draft, photos and poll too, and the screen
+ * it was written on opens the sheet with it again (see reopenFailedCommit()).
  *
  * A new commit's draft can become a `/feature` or `/bug` issue, as on the web
  * (see DraftsIssues).
@@ -199,31 +200,23 @@ trait OpensCommitSheet
     }
 
     /**
-     * Stashes the draft as it changes. An empty field forgets it, and isn't restored any more.
+     * Stashes the draft as it changes (see stashSheetDraft()).
      */
     public function updatedSheetBody(): void
     {
         $this->typeIssueCommand();
-        $name = $this->sheetStashName();
-
-        if (! $this->sheetOpen || $name === null) {
-            return;
-        }
-
-        app(Stash::class)->put($this->me()?->id, $name, $this->sheetBody);
-
-        if ($this->sheetBody === '') {
-            $this->sheetRestored = false;
-        }
+        $this->stashSheetDraft();
     }
 
     /**
-     * The web's drop, beside a restored draft: it's thrown away, and the field starts again empty.
+     * The web's drop, beside a restored draft: it's thrown away, photos and poll too, and the sheet starts again
+     * empty.
      */
     public function dropSheetStash(): void
     {
         $this->sheetBody = '';
-        $this->updatedSheetBody();
+        $this->forgetAttachments(discardPhotos: true);
+        $this->stashSheetDraft();
     }
 
     /**
@@ -257,7 +250,7 @@ trait OpensCommitSheet
             return;
         }
 
-        app(Stash::class)->put($me->id, $stashName, '');
+        app(Stash::class)->put($me->id, $stashName, new StashedDraft);
         $this->sheetImages = [];
         $this->closeCommitSheet();
         $this->showCommitted($write->stagedCommit($me));
@@ -266,11 +259,13 @@ trait OpensCommitSheet
 
     /**
      * Done, after a report, and Cancel, in the composer's bar: the sheet goes. A draft in it stays stashed, as when
-     * it's swiped away, so this mustn't forget it.
+     * it's swiped away, so this mustn't forget it. A screen whose composer handed it the draft takes it back now,
+     * since Android never says when a sheet closed from here has gone (see $sheetClosing).
      */
     public function hideCommitSheet(): void
     {
         $this->closeCommitSheet();
+        $this->commitSheetGone($this->sheetView);
     }
 
     /**
@@ -433,8 +428,29 @@ trait OpensCommitSheet
     }
 
     /**
-     * The sheet starts from its stashed draft. A commit devnull turned down
-     * that was written under it comes back whole, with its photos and poll,
+     * Stashes the draft as it changes: what's written, its photos and its
+     * poll. With nothing left in it, it's forgotten, and isn't marked as
+     * restored any more.
+     */
+    protected function stashSheetDraft(): void
+    {
+        $name = $this->sheetStashName();
+
+        if (! $this->sheetOpen || $name === null) {
+            return;
+        }
+
+        $draft = new StashedDraft($this->sheetBody, $this->sheetImages, $this->sheetView === 'reply' ? null : $this->sheetPoll, $this->sheetPollLength);
+        app(Stash::class)->put($this->me()?->id, $name, $draft);
+
+        if ($draft->isEmpty()) {
+            $this->sheetRestored = false;
+        }
+    }
+
+    /**
+     * The sheet starts from its stashed draft, with its photos and poll. A
+     * commit devnull turned down that was written under it comes back whole,
      * and leaves the outbox: from here it's a draft again.
      */
     private function restoreSheetDraft(): void
@@ -446,18 +462,25 @@ trait OpensCommitSheet
             $this->takeFailedCommit($failed);
         }
 
-        $this->sheetBody = $name === null ? '' : app(Stash::class)->get($this->me()?->id, $name);
-        $this->sheetRestored = $this->sheetBody !== '';
+        $draft = $name === null ? new StashedDraft : app(Stash::class)->get($this->me()?->id, $name);
+
+        $this->sheetBody = $draft->body;
+        $this->sheetImages = $draft->images;
+        $this->sheetPoll = $this->sheetView === 'reply' ? null : $draft->poll;
+        $this->sheetPollLength = $draft->pollLength;
+        $this->sheetRestored = ! $draft->isEmpty();
     }
 
     private function takeFailedCommit(PendingWrite $write): void
     {
         $poll = $write->poll();
 
-        app(Stash::class)->put($this->me()?->id, (string) $write->stashName(), $write->body());
-        $this->sheetImages = $write->images();
-        $this->sheetPoll = $poll === null || $this->sheetView === 'reply' ? null : $poll['options'];
-        $this->sheetPollLength = $poll === null ? PollDraft::DefaultLength : (string) (array_search($poll['duration'], PollDraft::Lengths, true) ?: PollDraft::DefaultLength);
+        app(Stash::class)->put($this->me()?->id, (string) $write->stashName(), new StashedDraft(
+            $write->body(),
+            $write->images(),
+            $poll === null || $this->sheetView === 'reply' ? null : $poll['options'],
+            $poll === null ? PollDraft::DefaultLength : (string) (array_search($poll['duration'], PollDraft::Lengths, true) ?: PollDraft::DefaultLength),
+        ));
         app(Outbox::class)->forget($write);
     }
 

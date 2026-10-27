@@ -4,6 +4,7 @@ namespace App\NativeComponents\Concerns;
 
 use App\Devnull\Client;
 use App\Devnull\Data\Commit;
+use App\Devnull\Data\StashedDraft;
 use App\Devnull\DraftImages;
 use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Exceptions\Unauthenticated;
@@ -271,8 +272,8 @@ trait SyncsOutbox
         $name = $write->stashName();
         $stash = app(Stash::class);
 
-        if ($name !== null && $stash->get($this->me()?->id, $name) === '') {
-            $stash->put($this->me()?->id, $name, $write->body());
+        if ($name !== null && $stash->get($this->me()?->id, $name)->isEmpty()) {
+            $stash->put($this->me()?->id, $name, new StashedDraft($write->body()));
         }
 
         $this->showCommitTurnedDown($write);
