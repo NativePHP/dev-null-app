@@ -111,6 +111,18 @@ it('leaves out what GitHub does not say, and opens a website given without its s
         ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://ada.example');
 });
 
+it('opens a website on dev/null here rather than in the browser', function () {
+    fakeApi([
+        'GET /api/v1/users/ada' => [profileJson(user: ['website' => 'https://dev-null.sh/@grace'])],
+        'GET /api/v1/users/ada/commits' => [pageJson([])],
+    ]);
+
+    Native::visit('/log/users/ada')
+        ->tap('profile-website')
+        ->assertNavigatedTo('/log/users/grace')
+        ->assertNativeNotCalled('Browser.OpenInApp');
+});
+
 it('rings the avatar in the author lane', function () {
     fakeApi([
         'GET /api/v1/users/ada' => [profileJson(user: ['lane' => 5])],

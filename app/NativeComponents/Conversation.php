@@ -9,6 +9,7 @@ use App\Devnull\Data\Thread;
 use App\Devnull\Data\User;
 use App\Devnull\Display;
 use App\Devnull\Outbox;
+use App\Devnull\SiteLink;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\OpensInTab;
@@ -498,9 +499,20 @@ class Conversation extends NativeComponent
         $this->openInTab('/users/'.rawurlencode($username));
     }
 
+    /**
+     * Opens a message's link preview: a page on dev/null the app has a screen
+     * for here in the app, in this tab, and anything else in the browser.
+     */
     public function openLink(int $id): void
     {
         $url = $this->findMessage($id)?->linkPreview?->url;
+        $screen = SiteLink::screen($url);
+
+        if ($screen !== null) {
+            $this->openInTab($screen);
+
+            return;
+        }
 
         if ($url !== null) {
             Browser::inApp($url);

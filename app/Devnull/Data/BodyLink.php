@@ -8,7 +8,8 @@ namespace App\Devnull\Data;
  * request as GitHub writes it, and anything else shortened the way X does.
  *
  * The rules are the web's, from linkified-text.tsx and app/Services/Urls.php.
- * A commit opens in the app, and everything else in the browser.
+ * A commit opens in the app, and so does any other page on dev/null the app
+ * has a screen for (see SiteLink). Everything else opens in the browser.
  */
 final readonly class BodyLink
 {

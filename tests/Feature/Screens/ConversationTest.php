@@ -445,6 +445,21 @@ it('opens the partner profile from the menu, in the tab it is in', function () {
     finishRefreshes(Native::visit('/remotes/conversations/ada'))->call('viewProfile')->assertNavigatedTo('/remotes/users/ada');
 });
 
+it('opens a link preview of a page on dev/null here, in the tab it is in, and any other in the browser', function () {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => 'https://nativephp.com', 'link_preview' => ['url' => 'https://nativephp.com', 'title' => 'NativePHP']]),
+        remoteMessageJson(['id' => 2, 'body' => 'https://dev-null.sh/@grace', 'link_preview' => ['url' => 'https://dev-null.sh/@grace', 'title' => 'Grace on dev/null']]),
+    ], ['read_through_id' => 2]));
+
+    finishRefreshes(Native::visit('/remotes/conversations/ada'))
+        ->tap('link-1')
+        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://nativephp.com')
+        ->assertNoNavigation()
+        ->tap('link-2')
+        ->assertNavigatedTo('/remotes/users/grace')
+        ->assertNativeCalledTimes('Browser.OpenInApp', 1);
+});
+
 it('pads the end of the thread for the composer bar alone, and for the reply bar while replying', function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
 

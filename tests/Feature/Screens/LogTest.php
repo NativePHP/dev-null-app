@@ -223,7 +223,7 @@ it('draws a standalone /dev/null as the wordmark: semibold, tight, its middle sl
         ->and(strtolower($slash['dark_color']))->toBe(strtolower(config('native-ui.theme.dark.lane-0')));
 });
 
-it('links URLs in Commit Blue, opening a dev/null commit here and anything else in the browser', function () {
+it('links URLs in Commit Blue, opening a dev/null commit here and other sites in the browser', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
         'id' => 'c1',
         'body' => 'Read https://www.example.com/a-long-path-to-the-release-notes, then https://dev-null.sh/@Hacksore/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8 and github.com/laravel/framework/pull/42',
@@ -256,6 +256,15 @@ it('links URLs in Commit Blue, opening a dev/null commit here and anything else 
         ->assertNavigatedTo('/log/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8');
 });
 
+it('opens a dev/null page linked in a commit here rather than in the browser', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson(['id' => 'c1', 'body' => 'Say hi to https://dev-null.sh/@ada'])]))]);
+
+    Native::visit('/log')
+        ->press("openLink('c1', 0)")
+        ->assertNavigatedTo('/log/users/ada')
+        ->assertNativeNotCalled('Browser.OpenInApp');
+});
+
 it('shows a link preview as a compact row and opens it in the browser', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
         'id' => 'c1',
@@ -277,6 +286,24 @@ it('shows a link preview as a compact row and opens it in the browser', function
         ->tap('link-preview-c1')
         ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://laravel.com/docs?a=1&b=2')
         ->assertNoNavigation();
+});
+
+it('opens a link preview of a dev/null commit here rather than in the browser', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
+        'id' => 'c1',
+        'link_preview' => [
+            'url' => 'https://dev-null.sh/@ada/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8',
+            'title' => 'Ada on dev/null',
+            'description' => null,
+            'image_url' => null,
+            'site_name' => null,
+        ],
+    ])]))]);
+
+    Native::visit('/log')
+        ->tap('link-preview-c1')
+        ->assertNavigatedTo('/log/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8')
+        ->assertNativeNotCalled('Browser.OpenInApp');
 });
 
 it('waits for a link preview to have a title, as the web does', function () {

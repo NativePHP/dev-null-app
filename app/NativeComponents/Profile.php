@@ -531,16 +531,14 @@ class Profile extends NativeComponent
     }
 
     /**
-     * The website on their GitHub profile. Taps name the link rather than carry
-     * a URL, so the URL always comes from what devnull sent.
+     * The website on their GitHub profile: a page on dev/null the app has a
+     * screen for here in the app, anything else in the browser. Taps name the
+     * link rather than carry a URL, so the URL always comes from what devnull
+     * sent.
      */
     public function openWebsite(): void
     {
-        $url = $this->profile?->user->websiteUrl();
-
-        if ($url !== null && in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true)) {
-            Browser::inApp($url);
-        }
+        $this->openUrl($this->profile?->user->websiteUrl());
     }
 
     /**

@@ -11,6 +11,7 @@ use App\Devnull\Data\User;
 use App\Devnull\ErrorCode;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\ResponseCache;
+use App\Devnull\SiteLink;
 use App\Devnull\Toasts;
 use Closure;
 use Native\Mobile\Attributes\On;
@@ -24,7 +25,8 @@ use Native\Mobile\Facades\Share;
  * The actions under a commit: the star, the pastel in pastéis mode, Quote,
  * Reply, and the More menu's Save commit, Share link, Pin to profile, Report
  * commit and Delete commit (Quote and Report open a sheet, see
- * OpensCommitSheet), plus opening its link preview in the in-app browser, its
+ * OpensCommitSheet), plus opening its link preview in the in-app browser or,
+ * for a page on dev/null, the app (see SiteLink), its
  * images full-screen in the app (see partials/image-viewer), "Show more" on a
  * long one, and voting on its poll (see
  * VotesOnPolls). Taps name the commit rather than a URL, so a URL is never
@@ -248,9 +250,13 @@ trait ShowsCommits
         $this->showPinned($commit->withPinned($fresh->isPinned));
     }
 
+    /**
+     * Opens a commit's link preview: a page on dev/null the app has a screen
+     * for here in the app, anything else in the browser.
+     */
     public function openLinkPreview(string $id): void
     {
-        $this->openInBrowser($this->shownCommit($id)?->linkPreview?->url);
+        $this->openUrl($this->shownCommit($id)?->linkPreview?->url);
     }
 
     /**
@@ -313,7 +319,8 @@ trait ShowsCommits
 
     /**
      * Opens a link in a commit's body, by its place among the body's links: a
-     * commit on dev/null here in the app, anything else in the browser.
+     * commit or another page on dev/null the app has a screen for here in the
+     * app, anything else in the browser.
      */
     public function openLink(string $id, int $index): void
     {
@@ -325,7 +332,7 @@ trait ShowsCommits
             return;
         }
 
-        $this->openInBrowser($link?->href);
+        $this->openUrl($link?->href);
     }
 
     /**
@@ -560,6 +567,23 @@ trait ShowsCommits
         }
 
         return null;
+    }
+
+    /**
+     * Opens a page on dev/null in the app's own screen for it, in this tab,
+     * and anything else in the browser (see SiteLink).
+     */
+    private function openUrl(?string $url): void
+    {
+        $screen = SiteLink::screen($url);
+
+        if ($screen !== null) {
+            $this->openInTab($screen);
+
+            return;
+        }
+
+        $this->openInBrowser($url);
     }
 
     private function openInBrowser(?string $url): void
