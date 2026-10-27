@@ -104,6 +104,17 @@ class PendingWrite extends Model
         return $this->isStar() || $this->isMessage();
     }
 
+    /**
+     * Whether devnull had the commit starred before a star or an unstar went:
+     * as it said in answer to the one before it, when that one waited ahead
+     * of it (see Outbox::starOnItsWay()), and otherwise the other way round
+     * from what this one does.
+     */
+    public function wasStarred(): bool
+    {
+        return is_bool($this->payload['was_starred'] ?? null) ? $this->payload['was_starred'] : $this->kind !== self::Star;
+    }
+
     public function body(): string
     {
         return is_string($this->payload['body'] ?? null) ? $this->payload['body'] : '';

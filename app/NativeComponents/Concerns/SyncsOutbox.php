@@ -25,7 +25,8 @@ use Victorycodedev\ToastKit\Events\ToastActionPressed;
  * written to the outbox on the phone first (see Outbox), the screen shows it
  * at once, and it goes to devnull from the background straight away, signed
  * here on the UI thread where the Keychain is, as WritesInBackground signs.
- * Nothing on the tap waits on devnull.
+ * Nothing on the tap waits on devnull. Only a star or an unstar waits, for
+ * the one before it of the same commit (see queueStar()).
  *
  * devnull's answer comes back to whichever screen is showing by then, not
  * only the one it was made on, so a commit that doesn't go is heard of even
@@ -77,13 +78,16 @@ trait SyncsOutbox
     }
 
     /**
-     * Sends the star or unstar of the commit that was waiting for $write to go.
+     * Sends the star or unstar of the commit that was waiting for $write to
+     * go, knowing whether devnull has the commit starred now, to put it back
+     * to if devnull turns this one down too.
      */
-    private function sendNextStar(PendingWrite $write): void
+    private function sendNextStar(PendingWrite $write, bool $starred): void
     {
         $next = app(Outbox::class)->nextStar((string) $write->target);
 
         if ($next !== null) {
+            $next->forceFill(['payload' => [...$next->payload, 'was_starred' => $starred]])->save();
             $this->sendFromOutbox($next);
         }
     }
@@ -222,7 +226,7 @@ trait SyncsOutbox
         if ($write->isStar()) {
             $later = $outbox->starsAfter($write);
             $outbox->forget($write);
-            $this->sendNextStar($write);
+            $this->sendNextStar($write, ($data['starred'] ?? $write->kind === PendingWrite::Star) === true);
 
             if (! $later && $data !== []) {
                 app(ResponseCache::class)->commitReacted($data);
@@ -256,15 +260,15 @@ trait SyncsOutbox
         if ($write->isStar()) {
             $later = $outbox->starsAfter($write);
             $outbox->forget($write);
-            $this->sendNextStar($write);
+            $this->sendNextStar($write, $write->wasStarred());
             $starred = $write->kind === PendingWrite::Star;
 
             if ($later) {
                 return;
             }
 
-            app(ResponseCache::class)->starChanged((string) $write->target, ! $starred, is_array($write->payload['kept'] ?? null) ? $write->payload['kept'] : null);
-            $this->showStar((string) $write->target, ! $starred);
+            app(ResponseCache::class)->starChanged((string) $write->target, $write->wasStarred(), is_array($write->payload['kept'] ?? null) ? $write->payload['kept'] : null);
+            $this->showStar((string) $write->target, $write->wasStarred());
 
             Toasts::failed($error, ['label' => 'Retry', 'id' => 'retry-star', 'data' => ['commit' => $write->target, 'starred' => $starred]]);
 

@@ -55,6 +55,16 @@ function pressToastAction(TestableComponent $screen, string $action, array $data
     return $screen->emitNative(ToastActionPressed::class, ['toastId' => 'toast-1', 'actionId' => $action, 'data' => $data]);
 }
 
+/**
+ * The methods of the writes sent to devnull so far, in the order they went.
+ *
+ * @return list<string>
+ */
+function writesSent(): array
+{
+    return collect(Http::recorded())->map(fn (array $sent): string => $sent[0]->method())->reject(fn (string $method): bool => $method === 'GET')->values()->all();
+}
+
 it('stars at once from the outbox, then takes the count devnull sends back', function () {
     holdRefreshes();
     fakeApi([
@@ -111,7 +121,7 @@ it('sends a quick unstar only once the star before it has gone, so devnull ends 
 
     expect($screen->instance()->commits[0])->starred->toBeFalse()->starsCount->toBe(1)
         ->and(kept('log/following')['data'][0])->toMatchArray(['starred' => false, 'stars_count' => 1])
-        ->and(collect(Http::recorded())->map(fn (array $sent): string => $sent[0]->method())->filter(fn (string $method): bool => $method !== 'GET')->values()->all())->toBe(['POST', 'DELETE'])
+        ->and(writesSent())->toBe(['POST', 'DELETE'])
         ->and(PendingWrite::query()->count())->toBe(0);
 });
 
@@ -130,6 +140,22 @@ it('still sends a quick unstar when devnull turns down the star before it', func
         ->and(PendingWrite::query()->count())->toBe(0);
 });
 
+it('leaves a commit as devnull has it when a quick star and the unstar after it are both turned down', function () {
+    holdRefreshes();
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([adasCommit()])],
+        'POST /api/v1/commits/c1/star' => [['message' => 'Server Error'], 500],
+        'DELETE /api/v1/commits/c1/star' => [['message' => 'Server Error'], 500],
+    ]);
+
+    $screen = finishRefreshes(finishRefreshes(Native::visit('/log'))->tap('star-c1')->tap('star-c1'));
+
+    expect($screen->instance()->commits[0])->starred->toBeFalse()->starsCount->toBe(1)
+        ->and(kept('log/following')['data'][0])->toMatchArray(['starred' => false, 'stars_count' => 1])
+        ->and(writesSent())->toBe(['POST', 'DELETE'])
+        ->and(PendingWrite::query()->count())->toBe(0);
+});
+
 it('sends a star and an unstar of one commit left over from when the app closed one after the other', function () {
     leftover(PendingWrite::Star, 'c1');
     leftover(PendingWrite::Unstar, 'c1');
@@ -142,7 +168,7 @@ it('sends a star and an unstar of one commit left over from when the app closed 
 
     finishRefreshes(Native::visit('/log'), newestFirst: true);
 
-    expect(collect(Http::recorded())->map(fn (array $sent): string => $sent[0]->method())->filter(fn (string $method): bool => $method !== 'GET')->values()->all())->toBe(['POST', 'DELETE'])
+    expect(writesSent())->toBe(['POST', 'DELETE'])
         ->and(PendingWrite::query()->count())->toBe(0);
 });
 
