@@ -538,19 +538,20 @@ function notificationCommitJson(array $overrides = [], bool $withParent = true):
  * A group of notifications as the API sends it: the newest one, the first few
  * people in the group, how many there are and how many are unread. Stars and
  * replies group on your commit (subject_id); everything else stands alone.
- * A moderation update names you as its actor, as devnull stores it.
+ * A moderation update or a level-up names you as its actor, as devnull stores it,
+ * and a level-up says which level and rank you reached.
  *
  * @param  array<string, mixed>  $overrides
  * @return array<string, mixed>
  */
 function notificationJson(string $type, array $overrides = []): array
 {
-    $isModeration = in_array($type, ['approved', 'rejected'], true);
-    $actor = $overrides['actor'] ?? ($isModeration ? userJson() : userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 2]));
+    $isYours = in_array($type, ['approved', 'rejected', 'leveled_up'], true);
+    $actor = $overrides['actor'] ?? ($isYours ? userJson() : userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 2]));
     $yours = notificationCommitJson(['id' => 'c-yours', 'body' => 'Shipped the app.'], withParent: false);
 
     $commit = match ($type) {
-        'followed' => null,
+        'followed', 'leveled_up' => null,
         'replied' => notificationCommitJson(['id' => 'c-replied', 'parent_id' => 'c-yours', 'body' => 'About replied', 'author' => $actor, 'parent' => $yours]),
         'starred' => notificationCommitJson(['id' => 'c-starred', 'body' => 'About starred']),
         'mentioned' => notificationCommitJson(['id' => 'c-mentioned', 'body' => 'About mentioned', 'author' => $actor]),
@@ -573,6 +574,7 @@ function notificationJson(string $type, array $overrides = []): array
         'actors_count' => 1,
         'unread_count' => 1,
         'commit' => $commit,
+        ...($type === 'leveled_up' ? ['level' => 5, 'rank' => 'wheel', 'rank_description' => 'Member of the trusted wheel administrative group'] : []),
         ...$overrides,
     ];
 }

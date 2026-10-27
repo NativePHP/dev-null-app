@@ -34,6 +34,7 @@ enum Lucide
     case ChevronRight;
     case ChevronLeft;
     case ChevronDown;
+    case ChevronsUp;
     case ArrowUpRight;
     case ArrowUp;
     case Pin;
@@ -95,6 +96,7 @@ enum Lucide
     {
         return match ($type) {
             'followed' => self::UserPlus,
+            'leveled_up' => self::ChevronsUp,
             'quoted' => self::Quote,
             'starred' => self::Star,
             'mentioned' => self::AtSign,
@@ -142,6 +144,7 @@ enum Lucide
             self::Bookmark => $filled ? 'bookmark-filled' : 'bookmark',
             self::Trash2 => 'trash-2',
             self::ArrowUp => 'arrow-up',
+            self::ChevronsUp => 'chevrons-up',
             self::Quote => 'quote',
             self::Check => 'check',
             self::X => 'x',

@@ -186,6 +186,36 @@ it('words moderation updates like the web, with a verdict chip and the reason fo
         ->and($verdict('n-approved'))->toBe(config('native-ui.theme.light.ink-muted'));
 });
 
+it('words a level-up like the web: nobody named, the level and rank in your lane, and what the rank means', function () {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('leveled_up')])]]);
+
+    $screen = Native::visit('/notifications', platform: 'ios')
+        ->assertSee('You reached level 5: wheel.')
+        ->assertSee('Member of the trusted wheel administrative group')
+        ->assertDontSee('Local Dev')
+        ->assertDontSee('replied to your commit')
+        ->assertMissingElement('column', fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'actors-'))
+        ->assertElement('icon', fn (array $node): bool => ($node['props']['name'] ?? null) === 'custom:chevrons-up' && ($node['props']['color'] ?? null) === config('native-ui.theme.light.lane-3'));
+
+    $chip = findNode(nodeByRef($screen, 'level-n-leveled_up'), fn (array $node): bool => ($node['type'] ?? null) === 'text');
+
+    expect($chip['props']['text'] ?? null)->toBe('Lv. 5 · wheel')
+        ->and($chip['props']['color'] ?? null)->toBe(config('native-ui.theme.light.lane-3'))
+        ->and(nodeByRef($screen, 'notification-n-leveled_up')['props']['a11y_label'] ?? null)->toBe('New. You reached level 5: wheel');
+});
+
+it('says only that you reached a new level when devnull does not say which', function () {
+    $levelUp = array_diff_key(notificationJson('leveled_up'), array_flip(['level', 'rank', 'rank_description']));
+
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([$levelUp])]]);
+
+    Native::visit('/notifications')
+        ->assertSee('You reached a new level.')
+        ->assertDontSee('replied to your commit')
+        ->assertMissingElement('column', fn (array $node): bool => ($node['ref'] ?? null) === 'level-n-leveled_up')
+        ->assertMissingElement('text', fn (array $node): bool => ($node['ref'] ?? null) === 'rank-description-n-leveled_up');
+});
+
 it('leaves out an empty reason', function () {
     fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('rejected', ['reason' => null])])]]);
 
@@ -232,6 +262,7 @@ it('opens what the web opens for each kind', function (string $type, string $des
     ['approved', '/notifications/commits/c-approved'],
     ['rejected', '/notifications/commits/c-rejected'],
     ['followed', '/notifications/users/ada'],
+    ['leveled_up', '/notifications/users/local_dev'],
 ]);
 
 it("has the web's filters, each asked for by its type, with All asked for plainly", function () {
