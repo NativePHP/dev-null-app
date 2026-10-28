@@ -63,7 +63,7 @@ function serveOrg(array $thread, array $writes = [], array $candidates = []): vo
     });
 }
 
-function writesSent(): array
+function memberWritesSent(): array
 {
     return collect(Http::recorded())
         ->filter(fn (array $sent): bool => $sent[0]->method() !== 'GET')
@@ -139,7 +139,7 @@ it('leaves a contributor to see who is in the org and leave, and nothing else', 
         ->call('addPeople')
         ->assertNoNavigation();
 
-    expect(writesSent())->toBe([]);
+    expect(memberWritesSent())->toBe([]);
 });
 
 it('renames the org at once, and takes the name away when the field is empty', function () {
@@ -195,7 +195,7 @@ it('offers a maintainer the web’s menu on everyone else, and makes a contribut
     finishRefreshes($screen);
 
     expect($screen->instance()->members[1]['role'])->toBe('maintainer')
-        ->and(writesSent())->toBe(['PUT remotes/orgs/org-1/members/ada'])
+        ->and(memberWritesSent())->toBe(['PUT remotes/orgs/org-1/members/ada'])
         ->and(json_decode(sentTo('PUT', 'remotes/orgs/org-1/members/ada')[0], true))->toBe(['role' => 'maintainer']);
 })->with(['ios', 'android']);
 
@@ -226,7 +226,7 @@ it('never leaves an org without a maintainer', function () {
     $screen->call('makeContributor', 'grace')
         ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'An org needs at least one maintainer.');
 
-    expect(writesSent())->toBe([]);
+    expect(memberWritesSent())->toBe([]);
 });
 
 it('asks before removing someone, and removes them only once you say so', function () {
@@ -240,7 +240,7 @@ it('asks before removing someone, and removes them only once you say so', functi
         ->emitNative(ButtonPressed::class, ['index' => 0, 'label' => 'Cancel', 'id' => 'remove-member:org-1:ada'])
         ->assertSee('Ada Lovelace');
 
-    expect(writesSent())->toBe([]);
+    expect(memberWritesSent())->toBe([]);
 
     $screen->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Remove', 'id' => 'remove-member:org-1:ada'])
         ->assertDontSee('Ada Lovelace');
@@ -248,7 +248,7 @@ it('asks before removing someone, and removes them only once you say so', functi
     serveOrg(orgJson(members: [orgJson()['data']['members'][0], orgJson()['data']['members'][2]]));
     finishRefreshes($screen)->assertDontSee('Ada Lovelace');
 
-    expect(writesSent())->toBe(['DELETE remotes/orgs/org-1/members/ada']);
+    expect(memberWritesSent())->toBe(['DELETE remotes/orgs/org-1/members/ada']);
 });
 
 it('puts someone back where they were when devnull won’t remove them', function () {
@@ -271,7 +271,7 @@ it('asks before you leave, in the web’s words', function () {
         ->emitNative(ButtonPressed::class, ['index' => 0, 'label' => 'Cancel', 'id' => 'leave-org:org-1'])
         ->assertNoNavigation();
 
-    expect(writesSent())->toBe([]);
+    expect(memberWritesSent())->toBe([]);
 });
 
 it('leaves the org, takes it out of the kept inbox, and goes back past its thread to the inbox', function () {
@@ -284,7 +284,7 @@ it('leaves the org, takes it out of the kept inbox, and goes back past its threa
     finishRefreshes($members)->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Leave', 'id' => 'leave-org:org-1']);
     finishRefreshes($members)->assertWentBack();
 
-    expect(writesSent())->toContain('DELETE remotes/orgs/org-1/members/local_dev')
+    expect(memberWritesSent())->toContain('DELETE remotes/orgs/org-1/members/local_dev')
         ->and(array_column(kept('remotes')['data'], 'id'))->toBe(['conv-1'])
         ->and(kept('remotes/orgs/org-1/messages'))->toBeNull();
 
