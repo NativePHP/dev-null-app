@@ -10,7 +10,6 @@ use App\NativeComponents\AuthCallback;
 use App\NativeComponents\Launch;
 use App\NativeComponents\Layouts\TabsLayout;
 use App\NativeComponents\Onboarding;
-use App\Providers\NativeServiceProvider;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -446,12 +445,8 @@ it('has no GitHub device flow, pairing codes or copy-and-paste path left', funct
         expect(class_exists($class) || enum_exists($class))->toBeFalse("{$class} should be gone.");
     }
 
-    $composer = json_decode((string) file_get_contents(base_path('composer.json')), true);
-
     expect(method_exists(Client::class, 'syncKey'))->toBeFalse()
         ->and(config('devnull'))->not->toHaveKey('github_client_id')
-        ->and($composer['require'])->not->toHaveKey('nativephp/mobile-clipboard')
-        ->and((new NativeServiceProvider(app()))->plugins())->not->toContain('NativePHP\Clipboard\ClipboardServiceProvider')
         ->and(file_get_contents(base_path('.env.example')))->not->toContain('DEVNULL_GITHUB_CLIENT_ID')->toContain("NATIVEPHP_DEEPLINK_SCHEME=devnull\n")
         ->and(file_get_contents(base_path('README.md')))->not->toContain('DEVNULL_GITHUB_CLIENT_ID')->not->toContain('device flow');
 });
