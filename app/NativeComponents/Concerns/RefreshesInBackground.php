@@ -198,8 +198,11 @@ trait RefreshesInBackground
                 ImageCache::prefetch($json);
             }
 
-            $this->refreshFailed = false;
-            $this->error = null;
+            if (! $quiet) {
+                $this->refreshFailed = false;
+                $this->error = null;
+            }
+
             $apply($json);
 
             return;

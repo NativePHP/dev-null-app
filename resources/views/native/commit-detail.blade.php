@@ -97,6 +97,10 @@
                 </native:column>
             @endif
 
+            @if ($commit && $related !== [])
+                @include('native.partials.related-commits')
+            @endif
+
             {{--
                 A pushed screen runs under its bottom bar, so the page clears the reply bar itself (see
                 Display::replyBarClearance): the last reply and its actions end above the bar, keyboard up or down.

@@ -42,7 +42,7 @@ final class ResponseCache
         '#^notifications/[^/]+/group$#',
         '#^log/[^/]+$#',
         '#^commits/[^/]+$#',
-        '#^commits/[^/]+/replies$#',
+        '#^commits/[^/]+/(replies|related)$#',
         '#^users/[^/]+$#',
         '#^users/[^/]+/commits$#',
         '#^starred$#',
@@ -454,6 +454,7 @@ final class ResponseCache
         $this->patchCommit($id, fn (array $commit): ?array => null);
         $this->forget("commits/{$id}");
         $this->forget("commits/{$id}/replies");
+        $this->forget("commits/{$id}/related");
 
         if (is_string($parentId) && $parentId !== '') {
             $this->patchCommit($parentId, fn (array $parent): array => [...$parent, 'replies_count' => max(0, (int) ($parent['replies_count'] ?? 0) - 1)]);

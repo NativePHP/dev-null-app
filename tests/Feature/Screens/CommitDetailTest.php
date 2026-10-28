@@ -29,6 +29,7 @@ function fakeThread(array $commit = [], array $replies = [], array $extra = []):
             ],
         )],
         'GET /api/v1/commits/c2/replies' => [pageJson($replies)],
+        'GET /api/v1/commits/c2/related' => [['data' => []]],
         ...$extra,
     ]);
 }
@@ -257,6 +258,7 @@ it('shows a reply you posted once when the next page of replies has it too', fun
                 : pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply'])], 'page2', 'http://devnull.test/api/v1/commits/c2/replies')),
             $path === '/api/v1/commits/r9' => Http::response(commitPageJson(replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'A fresh reply']))),
             $path === '/api/v1/commits/r9/replies' => Http::response(pageJson([])),
+            $path === '/api/v1/commits/c2/related' => Http::response(['data' => []]),
             default => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'replies_count' => 3]))),
         };
     });
@@ -423,6 +425,7 @@ it('asks for the replies five at a time, and the next five from Show more', func
         '/api/v1/commits/c2/replies' => Http::response(str_contains($request->url(), 'cursor=page2')
             ? pageJson($replies(6))
             : pageJson($replies(1, 2, 3, 4, 5), 'page2', 'http://devnull.test/api/v1/commits/c2/replies')),
+        '/api/v1/commits/c2/related' => Http::response(['data' => []]),
         default => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'replies_count' => 6]))),
     });
 
@@ -455,6 +458,7 @@ it('opens the replies of a deleted reply five at a time too', function () {
         '/api/v1/commits/r1/replies' => Http::response(str_contains($request->url(), 'cursor=page2')
             ? pageJson($nested(6))
             : pageJson($nested(1, 2, 3, 4, 5), 'page2', 'http://devnull.test/api/v1/commits/r1/replies')),
+        '/api/v1/commits/c2/related' => Http::response(['data' => []]),
         default => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'replies_count' => 2]))),
     });
 
