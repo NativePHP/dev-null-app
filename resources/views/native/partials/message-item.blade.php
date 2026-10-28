@@ -5,10 +5,10 @@
     emoji, yours outlined in your lane and a tap to take it back or add yours. A run ends in the time, or for the
     message the web gives a status, in that status.
 
-    Swiping it away from its edge shows React, Reply and, for an org's maintainers, Pin right beside the bubble, as the
-    web shows them on hover, in a slot its row always keeps so nothing moves: someone else's to the right, your own to the
-    left, the way the web's touch screens pull a message to reply. Swiping it back, or a tap anywhere in the thread, puts
-    them away; a double tap toggles a heart. A pinned message keeps its pin beside it. A message still being pushed takes
+    Swiping it toward its edge slides it out of the way, partly off the screen, and React, Reply and, for an org's
+    maintainers, Pin fade in where it was, as the web shows them on hover: someone else's to the left, your own to the
+    right. They sit in a slot the bubble always keeps beside it, so nothing rewraps. Swiping it back, or a tap anywhere in
+    the thread, puts them away; a double tap toggles a heart. A pinned message keeps its pin beside it. A message still being pushed takes
     none of them, and nothing reacts, replies or pins while the thread can't take a message.
 --}}
 @php($key = $message->id > 0 ? $message->id : $message->clientId)
@@ -46,7 +46,7 @@
 
         {{-- An image-only message keeps its actions beside its images; otherwise they go beside the bubble. --}}
         @if ($message->images !== [] && $message->body === '')
-            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}">
+            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}" :translate-x="$showsActions ? ($mine ? $slide : -$slide) : 0" animate-duration="180" animate-easing="ease-out">
                 @if ($mine)
                     @include('native.partials.message-actions')
                 @endif
@@ -67,8 +67,8 @@
                 they lie in that margin, centred on it. Android's rows don't shrink one child to make room for the next, so
                 a slot that simply followed a long bubble there was pushed off the screen.
             --}}
-            @php($room = ($isOrg ? 98 : 64) + 4)
-            <native:row ref="content-{{ $key }}" class="w-full {{ $mine ? 'justify-end' : 'justify-start' }}">
+            @php($room = $actionsWidth + \App\NativeComponents\Conversation::ActionsGap)
+            <native:row ref="content-{{ $key }}" class="w-full {{ $mine ? 'justify-end' : 'justify-start' }}" :translate-x="$showsActions ? ($mine ? $slide : -$slide) : 0" animate-duration="180" animate-easing="ease-out">
                 <native:column ref="room-{{ $key }}">
                     @if ($message->isPending())
                         <native:column ref="bubble-{{ $key }}" class="{{ $mine ? 'ml-['.$room.']' : 'mr-['.$room.']' }} px-3 py-2 rounded-2xl {{ $message->status === 'rejected' ? 'border border-theme-destructive bg-theme-surface' : 'bg-theme-'.$myColour.'/60' }}">

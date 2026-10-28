@@ -51,8 +51,9 @@ use Native\Mobile\Facades\Dialog;
  * it's still staged or rejected when you come back to the thread, and one
  * still on its way when the app closed goes again when it next opens. A
  * toast says why devnull didn't take one, wherever you are by then, with a
- * Retry of its own. A swipe on a message brings up React and Reply beside
- * it, and Pin for an org's maintainers, and a double tap toggles a heart.
+ * Retry of its own. A swipe on a message slides it out of the way to show
+ * React and Reply where it was, and Pin for an org's maintainers, and a
+ * double tap toggles a heart.
  *
  * An org's pinned messages show as the web shows them: the latest in a bar
  * over the top of the thread, which opens them all in a sheet, and a pin
@@ -100,6 +101,29 @@ class Conversation extends NativeComponent
     public const string ReactionsSheet = 'reactions';
 
     public const string PinnedSheet = 'pinned';
+
+    /**
+     * The slot beside a bubble for its actions: React and Reply, and in an org room for Pin as well, whether it shows or
+     * not, as the web keeps it, so a pin arriving never rewraps a bubble. Then the gap between the slot and the bubble.
+     */
+    public const int ActionsWidth = 64;
+
+    public const int OrgActionsWidth = 98;
+
+    public const int ActionsGap = 4;
+
+    /**
+     * A swipe slides a message out of the way by its actions' slot, which then takes the room the bubble left. A short
+     * bubble slides less, so all but the last 20 points of it past the thread's edge stay on screen, guessing its width
+     * from its longest line: its padding, then an average character of 15-point text.
+     */
+    public const int BubblePadding = 24;
+
+    public const float BubbleCharacterWidth = 7.5;
+
+    public const int KeptOnScreen = 20;
+
+    public const int LeastSlide = 16;
 
     /**
      * How long after a swipe brings a message's actions up a tap is taken as part of the swipe (see $actionsShownAt).
@@ -194,8 +218,8 @@ class Conversation extends NativeComponent
     public const int ReplyingBarHeight = 44;
 
     /**
-     * The message whose React, Reply and Pin show beside it, as the web shows them on hover. A swipe on a message shows
-     * them, and a swipe back, a tap anywhere in the thread, or a swipe on another message puts them away.
+     * The message whose React, Reply and Pin show beside it, as the web shows them on hover. A swipe on a message slides
+     * it aside to show them, and a swipe back, a tap anywhere in the thread, or a swipe on another message puts them away.
      */
     public ?int $actionsForId = null;
 
@@ -447,9 +471,9 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * Swiping a message away from its edge brings up its React, Reply and Pin beside it, in the room it pulls toward:
-     * someone else's to the right, your own to the left, the way the web pulls a message to reply. Swiping it back puts
-     * them away, and swiping another message moves them there. Any other swipe, as a flick while scrolling, does nothing.
+     * Swiping a message toward its edge slides it out of the way, partly off the screen, to show its React, Reply and Pin
+     * where it was: someone else's to the left, your own to the right. Swiping it back puts them away, and swiping
+     * another message moves them there. Any other swipe, as a flick while scrolling, does nothing.
      */
     public function swipedMessage(int $id, string $direction): void
     {
@@ -459,12 +483,12 @@ class Conversation extends NativeComponent
             return;
         }
 
-        $away = $message->userId === $this->me()?->id ? 'left' : 'right';
+        $toward = $message->userId === $this->me()?->id ? 'right' : 'left';
 
-        if ($direction === $away) {
+        if ($direction === $toward) {
             $this->actionsForId = $id;
             $this->actionsShownAt = self::now();
-        } elseif ($direction === ($away === 'left' ? 'right' : 'left') && $this->actionsForId === $id) {
+        } elseif ($direction === ($toward === 'left' ? 'right' : 'left') && $this->actionsForId === $id) {
             $this->actionsForId = null;
         }
     }
@@ -1219,10 +1243,34 @@ class Conversation extends NativeComponent
             'moreReactions' => self::MoreReactions,
             'canPush' => $thread !== null && $thread->access === Thread::Open,
             'canPin' => $this->canPin(),
+            'actionsWidth' => $this->actionsWidth(),
             'pinnedIds' => array_flip(array_map(fn (Message $message): int => $message->id, $this->pinned)),
             'longPins' => $this->longPins(),
             'placeholder' => $this->isOrg() ? 'Message '.($thread->orgName ?? 'the org') : 'Message @'.$this->username,
         ]);
+    }
+
+    private function actionsWidth(): int
+    {
+        return $this->isOrg() ? self::OrgActionsWidth : self::ActionsWidth;
+    }
+
+    /**
+     * How far a swipe slides a message toward its edge: the room its actions take, or for a short bubble only as far as
+     * keeps some of it on screen (see BubblePadding). Images are 240 points wide, so they slide the whole way.
+     */
+    private function slideOf(Message $message): int
+    {
+        $room = $this->actionsWidth() + self::ActionsGap;
+
+        if ($message->body === '') {
+            return $room;
+        }
+
+        $longest = max(array_map(mb_strlen(...), explode("\n", $message->body)));
+        $bubble = self::BubblePadding + (int) round($longest * self::BubbleCharacterWidth);
+
+        return min($room, max(self::LeastSlide, $bubble - self::KeptOnScreen));
     }
 
     /**
@@ -1321,6 +1369,7 @@ class Conversation extends NativeComponent
                 'endsRun' => true,
                 'status' => $message === $status ? $this->statusOf($message) : null,
                 'author' => $message->user ?? $this->authorOf($message->userId),
+                'slide' => $this->slideOf($message),
             ];
         }
 
