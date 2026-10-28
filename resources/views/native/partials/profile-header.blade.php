@@ -14,8 +14,8 @@
                     </native:stack>
                 </native:stack>
                 @if ($user->isLive())
-                    <native:row class="absolute left-0 right-0 top-[80] justify-center">
-                        @include('native.partials.live-badge')
+                    <native:row class="absolute left-0 right-0 top-[78] justify-center">
+                        @include('native.partials.live-badge', ['size' => 'lg'])
                     </native:row>
                 @endif
             </native:column>

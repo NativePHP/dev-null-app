@@ -24,7 +24,7 @@
             @include('native.partials.avatar', ['user' => $user, 'size' => $size - 8])
         </native:stack>
         <native:row class="absolute left-0 right-0 top-[{{ $size - 12 }}] justify-center">
-            @include('native.partials.live-badge', ['compact' => true])
+            @include('native.partials.live-badge')
         </native:row>
     </native:column>
 @else
