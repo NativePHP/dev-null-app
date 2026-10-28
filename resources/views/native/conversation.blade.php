@@ -139,35 +139,15 @@
         </native:bottom-bar>
     @endif
 
-    {{-- React on a message: the reactions the web offers first, then the phone's emoji picker for the rest. Or an org's pinned messages. --}}
-    <native:bottom-sheet ref="message-sheet" :visible="$sheetOpen" :detents="$sheet === \App\NativeComponents\Conversation::PinnedSheet ? 'medium,large' : '0.2'" @dismiss="messageSheetClosed">
-        @if ($sheet === \App\NativeComponents\Conversation::PinnedSheet)
-            @if ($pinned !== [])
-                @include('native.partials.pinned-sheet')
-            @endif
-        @elseif ($sheetMessage)
-            {{-- iOS sizes the sheet to its detent, so the row sits in the middle of it. Android's sheet is taller. --}}
-            <native:column class="w-full h-full px-5 pt-6 pb-8 ios:py-0 ios:justify-center">
-                <native:row ref="quick-reactions" class="w-full gap-3 justify-center">
-                    @foreach ($quickReactions as $emoji)
-                        <native:pressable ref="quick-{{ $loop->index }}" @press="toggleReaction({{ $sheetMessage->id }}, '{{ $emoji }}')" a11y-label="React with {{ $emoji }}">
-                            <native:stack :width="52" :height="52" center class="rounded-full {{ $sheetMessage->hasReacted($viewer?->id, $emoji) ? 'bg-theme-'.$myColour.'/20' : 'bg-theme-wash' }}">
-                                <native:text class="text-[26px]">{{ $emoji }}</native:text>
-                            </native:stack>
-                        </native:pressable>
-                    @endforeach
-                    <native:pressable ref="more-reactions" @press="openEmojiPicker({{ $sheetMessage->id }})" a11y-label="More reactions">
-                        <native:stack :width="52" :height="52" center class="rounded-full bg-theme-wash">
-                            <native:icon :ios="\App\Icons\Lucide::SmilePlus->ios()" :android="\App\Icons\Lucide::SmilePlus->android()" :size="24" class="text-theme-ink-muted" />
-                        </native:stack>
-                    </native:pressable>
-                </native:row>
-            </native:column>
+    {{-- An org's pinned messages. --}}
+    <native:bottom-sheet ref="message-sheet" :visible="$sheetOpen" detents="medium,large" @dismiss="messageSheetClosed">
+        @if ($pinned !== [])
+            @include('native.partials.pinned-sheet')
         @endif
     </native:bottom-sheet>
 
     @include('native.partials.mute-sheet')
 
-    {{-- More reactions, from the sheet or anywhere else: the emoji keyboard on iOS, Jetpack's emoji picker on Android. --}}
+    {{-- More reactions, from the bubble or anywhere else: the emoji keyboard on iOS, Jetpack's emoji picker on Android. --}}
     <native:emoji-picker ref="emoji-picker" :visible="$emojiPickerFor !== null" @change="emojiPicked" @dismiss="emojiPickerClosed" />
 </native:column>

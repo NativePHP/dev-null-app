@@ -3,7 +3,8 @@
     nearest it, then Reply, then React, with the web's icons. Every message keeps them, shrunk to nothing, and as the drag
     slides the message aside each grows in over its share of the way, nearest the bubble first, following the finger
     there and back. The slot never changes width: in an org it keeps room for Pin whether it shows or not, as the web's
-    does, so a pin arriving never rewraps a bubble. They only take taps once the message has settled open.
+    does, so a pin arriving never rewraps a bubble. They only take taps once the message has settled open. React opens
+    the web's quick reactions in a bubble pointing at it (see quick-reactions).
 
     A pinned message's pin shows all the time, nearest the bubble, so the others come in beyond it without moving it.
     For an org's maintainers it turns into Unpin, in the primary colour, while the others show; for everyone else it
@@ -39,6 +40,10 @@
                 </native:stack>
             @endif
         @endforeach
+        {{-- React's bubble points at React: the last button of theirs, the first of yours. --}}
+        @if ($reactionsFor === $message->id && ! $reactsFromPinned)
+            @include('native.partials.quick-reactions', ['anchor' => 'absolute top-0 bottom-0 w-[30] '.($mine ? 'left-0' : 'right-0')])
+        @endif
     </native:row>
     @if ($isPinned && $mine)
         @include('native.partials.message-pin')

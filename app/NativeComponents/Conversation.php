@@ -59,8 +59,9 @@ use Native\Mobile\Facades\Dialog;
  * Retry of its own. Dragging a message sideways slides it out of the way
  * with the finger, its React and Reply growing in where it was, and Pin
  * for an org's maintainers; let go far enough and it stays open, or it
- * springs back. A double tap toggles a heart. React offers the web's quick
- * reactions, and the phone's own emoji picker for the rest.
+ * springs back. A double tap toggles a heart. React shows the web's quick
+ * reactions in a bubble beside it, with More for the phone's own emoji
+ * picker.
  *
  * An org's pinned messages show as the web shows them: the latest in a bar
  * over the top of the thread, which opens them all in a sheet, and a pin
@@ -96,13 +97,6 @@ class Conversation extends NativeComponent
      * The reactions React offers first, before any you use more, as the web's quick bar.
      */
     public const array QuickReactions = ['😂', '✅', '❤️'];
-
-    /**
-     * What the sheet shows: React's reactions for a message, or the org's pinned messages.
-     */
-    public const string ReactionsSheet = 'reactions';
-
-    public const string PinnedSheet = 'pinned';
 
     /**
      * The slot beside a bubble for its actions: React and Reply, and in an org room for Pin as well, whether it shows or
@@ -242,20 +236,18 @@ class Conversation extends NativeComponent
     private array $pans = [];
 
     /**
-     * What the sheet shows, which stays as it was while the sheet slides away.
+     * Whether the sheet of the org's pinned messages is up.
      */
-    public string $sheet = self::ReactionsSheet;
-
-    /**
-     * The message React opened the reactions sheet for.
-     */
-    public ?int $sheetMessageId = null;
-
     public bool $sheetOpen = false;
 
     /**
-     * React in the pinned sheet shows the reactions in its place, and reacting goes back to the pinned messages, as the
-     * web keeps its panel open behind the reactions.
+     * The message whose React shows the web's quick reactions in a bubble beside it.
+     */
+    public ?int $reactionsFor = null;
+
+    /**
+     * React was pressed in the pinned sheet, so the bubble shows there, and the sheet comes back after the emoji picker
+     * has made way for it.
      */
     public bool $reactsFromPinned = false;
 
@@ -542,7 +534,8 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * React: the web's reactions for the message, in a sheet. From the pinned sheet, they take its place.
+     * React: the web's quick reactions and More, in a bubble beside the React that was pressed, above it unless there's
+     * no room. The message's options stay up underneath.
      */
     public function openReactions(int $id): void
     {
@@ -550,11 +543,17 @@ class Conversation extends NativeComponent
             return;
         }
 
-        $this->reactsFromPinned = $this->sheetOpen && $this->sheet === self::PinnedSheet;
-        $this->actionsForId = null;
-        $this->sheet = self::ReactionsSheet;
-        $this->sheetMessageId = $id;
-        $this->sheetOpen = true;
+        $this->reactsFromPinned = $this->sheetOpen;
+        $this->reactionsFor = $id;
+    }
+
+    /**
+     * A tap outside the bubble closes it.
+     */
+    public function reactionsClosed(): void
+    {
+        $this->reactionsFor = null;
+        $this->reactsFromPinned = false;
     }
 
     /**
@@ -567,8 +566,8 @@ class Conversation extends NativeComponent
         }
 
         $this->actionsForId = null;
+        $this->reactionsFor = null;
         $this->reactsFromPinned = false;
-        $this->sheet = self::PinnedSheet;
         $this->sheetOpen = true;
     }
 
@@ -576,15 +575,16 @@ class Conversation extends NativeComponent
     {
         $this->sheetOpen = false;
 
-        // The reactions making way for the emoji picker keep where React came from.
+        // The pinned sheet making way for the emoji picker keeps where React came from.
         if ($this->emojiPickerFor === null) {
+            $this->reactionsFor = null;
             $this->reactsFromPinned = false;
         }
     }
 
     /**
      * More reactions: the phone's own emoji picker, with its search, recents and skin tones, for any message. The
-     * reactions sheet makes way for it.
+     * bubble closes and the pinned sheet makes way for it.
      */
     public function openEmojiPicker(int $id): void
     {
@@ -593,6 +593,7 @@ class Conversation extends NativeComponent
         }
 
         $this->actionsForId = null;
+        $this->reactionsFor = null;
         $this->sheetOpen = false;
         $this->emojiPickerFor = $id;
     }
@@ -619,6 +620,7 @@ class Conversation extends NativeComponent
 
         $this->emojiPickerFor = null;
         $this->sheetOpen = $this->reactsFromPinned;
+        $this->reactsFromPinned = false;
         $this->toggleReaction($id, $reaction);
     }
 
@@ -630,7 +632,6 @@ class Conversation extends NativeComponent
         $this->emojiPickerFor = null;
 
         if ($this->reactsFromPinned) {
-            $this->sheet = self::PinnedSheet;
             $this->sheetOpen = true;
             $this->reactsFromPinned = false;
         }
@@ -640,6 +641,7 @@ class Conversation extends NativeComponent
     {
         $this->replyToId = $id;
         $this->actionsForId = null;
+        $this->reactionsFor = null;
         $this->sheetOpen = false;
         $this->reactsFromPinned = false;
         $this->composerKey++;
@@ -721,7 +723,7 @@ class Conversation extends NativeComponent
         $before = $this->pinned;
         $this->pinned = array_values(array_filter($this->pinned, fn (Message $pinned): bool => $pinned->id !== $id));
 
-        if ($this->pinned === [] && $this->sheet === self::PinnedSheet) {
+        if ($this->pinned === []) {
             $this->sheetOpen = false;
         }
 
@@ -743,17 +745,17 @@ class Conversation extends NativeComponent
 
     /**
      * Leaves the emoji on the message, or takes it back, at once. If devnull says no, it goes back as it was. Picked in
-     * the reactions sheet, the sheet closes, or goes back to the pinned messages it was opened from.
+     * the bubble, the bubble closes and the message's options go away.
      */
     public function toggleReaction(int $id, string $emoji): void
     {
         $message = $this->findMessage($id);
         $me = $this->me();
 
-        if ($this->sheet === self::ReactionsSheet) {
-            $this->sheet = $this->reactsFromPinned ? self::PinnedSheet : self::ReactionsSheet;
-            $this->sheetOpen = $this->sheetOpen && $this->reactsFromPinned;
+        if ($this->reactionsFor !== null) {
+            $this->reactionsFor = null;
             $this->reactsFromPinned = false;
+            $this->actionsForId = null;
         }
 
         if ($message === null || $message->isPending() || $message->isEvent() || $me === null || $this->thread?->access !== Thread::Open) {
@@ -984,7 +986,7 @@ class Conversation extends NativeComponent
         }, $pinned);
         $this->pinnedVersion = $version;
 
-        if ($this->pinned === [] && $this->sheet === self::PinnedSheet) {
+        if ($this->pinned === []) {
             $this->sheetOpen = false;
         }
     }
@@ -1440,7 +1442,6 @@ class Conversation extends NativeComponent
             'items' => $this->items($viewer),
             'composerClearance' => self::composerClearance($this->draft, $this->replyToId !== null),
             'replyTo' => $this->findMessage($this->replyToId),
-            'sheetMessage' => $this->findMessage($this->sheetMessageId),
             'quickReactions' => $this->quickReactions(),
             'canPush' => $thread !== null && $thread->access === Thread::Open,
             'canPin' => $this->canPin(),

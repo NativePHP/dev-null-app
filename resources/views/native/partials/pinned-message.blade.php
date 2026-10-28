@@ -33,6 +33,10 @@
                         </native:stack>
                     </native:pressable>
                 @endforeach
+                {{-- React's bubble points at React, the second button. --}}
+                @if ($reactionsFor === $message->id && $reactsFromPinned)
+                    @include('native.partials.quick-reactions', ['anchor' => 'absolute top-0 bottom-0 left-[32] w-[32]'])
+                @endif
             @endif
             @if ($canPin)
                 <native:pressable ref="{{ $key }}-unpin" @press="unpinMessage({{ $message->id }})" a11y-label="Unpin message">
