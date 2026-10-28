@@ -206,47 +206,48 @@ it('says a message devnull refused was rejected, and retries it under the same c
 });
 
 /**
- * Whether a message's React and Reply show: faded in and slid into place, or faded out and tucked toward the bubble.
+ * Whether a message rests slid aside with its actions grown in, rather than at home with them shrunk away.
  */
 function showsActions(TestableComponent $screen, string $key): bool
 {
-    $buttons = nodeByRef($screen, "actions-{$key}-buttons");
-
-    return $buttons['style']['opacity'] == 1 && $buttons['props']['translate-x'] == 0;
+    return (nodeByRef($screen, "content-{$key}")['props']['translate-x'] ?? 0) != 0;
 }
 
-it('slides a message swiped toward its edge out of the way, and shows React and Reply where it was', function () {
+it('slides a message dragged toward its edge out of the way, growing React and Reply in where it was', function () {
     serveRemoteThread(threadJson([
         remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?']),
         remoteMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => 'which one?']),
     ], ['read_through_id' => 2]));
 
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
-    $buttons = fn (int $id): array => nodeByRef($screen, "actions-{$id}-buttons");
+    $pan = fn (string $key): int => nodeByRef($screen, "swipe-{$key}")['props']['pan-x-id'];
 
-    // Reply sits nearest the bubble: after theirs, before yours. Until a swipe they're faded out, tucked toward it.
+    // The area drags the value the row follows, between home and the room the actions take, toward the message's edge.
+    expect(nodeByRef($screen, 'swipe-1')['props'])->toMatchArray(['pan-x-initial' => 0.0])
+        ->and(nodeByRef($screen, 'content-1')['props']['translate-x_sv'])->toBe('__sv:'.$pan('1'))
+        ->and(nodeByRef($screen, 'swipe-2')['props']['pan-x-initial'])->toEqual(0);
+
+    // Reply sits nearest the bubble, after theirs and before yours, and grows in over the first half of the drag, React
+    // over the second.
     expect(childRefs($screen, 'actions-1-buttons'))->toBe(['reply-1', 'react-1'])
         ->and(childRefs($screen, 'actions-2-buttons'))->toBe(['react-2', 'reply-2'])
-        ->and($buttons(1)['style']['opacity'])->toEqual(0)
-        ->and($buttons(1)['props'])->toMatchArray(['translate-x' => -8.0, 'animate-duration' => 180.0])
-        ->and($buttons(2)['props']['translate-x'])->toEqual(8);
+        ->and(nodeByRef($screen, 'reply-1')['props']['scale_sv'])->toBe('__sv:'.$pan('1').'|interp:-34,0:1,0')
+        ->and(nodeByRef($screen, 'react-1')['props']['scale_sv'])->toBe('__sv:'.$pan('1').'|interp:-68,-34:1,0')
+        ->and(nodeByRef($screen, 'react-2')['props']['opacity_sv'])->toBe('__sv:'.$pan('2').'|interp:34,68:0,1');
 
-    // A tap no longer shows them, and neither does a swipe away from the message's edge or a flick while scrolling.
-    $screen->tap('bubble-1')->swipe('swipe-1', 'right')->swipe('swipe-1', 'up');
+    // A tap no longer shows them, and neither does dragging the message away from its edge, or not far enough.
+    $screen->tap('bubble-1')->dragEnd('swipe-1', 200)->dragEnd('swipe-1', -20);
     expect(showsActions($screen, '1'))->toBeFalse();
 
-    // Theirs goes left, partly off the screen, by the room its actions take, and they fade and slide into place.
-    $screen->swipe('swipe-1', 'left');
+    // Theirs goes left, partly off the screen, by the room its actions take.
+    $screen->dragEnd('swipe-1', -68);
     expect(showsActions($screen, '1'))->toBeTrue()
-        ->and(nodeByRef($screen, 'content-1')['props'])->toMatchArray(['translate-x' => -68.0, 'animate-duration' => 180.0]);
+        ->and(nodeByRef($screen, 'content-1')['props']['translate-x'])->toEqual(-68);
 
-    // Yours goes the other way: left does nothing, and right slides it by as much and moves them there.
-    $screen->swipe('swipe-2', 'left');
-    expect(showsActions($screen, '1'))->toBeTrue()->and(showsActions($screen, '2'))->toBeFalse();
-
-    $screen->swipe('swipe-2', 'right');
+    // Yours goes right by as much, and the actions move there.
+    $screen->dragEnd('swipe-2', 68);
     expect(showsActions($screen, '1'))->toBeFalse()->and(showsActions($screen, '2'))->toBeTrue()
-        ->and(nodeByRef($screen, 'content-1')['props']['translate-x'])->toEqual(0)
+        ->and(nodeByRef($screen, 'swipe-1')['props']['pan-x-initial'])->toEqual(0)
         ->and(nodeByRef($screen, 'content-2')['props']['translate-x'])->toEqual(68);
 });
 
@@ -258,10 +259,10 @@ it('slides a short message less, so some of it stays on the screen', function ()
 
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
 
-    $screen->swipe('swipe-1', 'left');
+    $screen->dragEnd('swipe-1', -200);
     expect(nodeByRef($screen, 'content-1')['props']['translate-x'])->toEqual(-19);
 
-    $screen->swipe('swipe-2', 'left');
+    $screen->dragEnd('swipe-2', -200);
     expect(nodeByRef($screen, 'content-2')['props']['translate-x'])->toEqual(-68);
 });
 
@@ -277,14 +278,14 @@ it('puts the actions away with a swipe back or a tap anywhere in the thread', fu
     // Until some message's actions show, the rows take no tap, so a tap beside a bubble draws no ripple on Android.
     expect($rowTakesTaps())->toBeFalse();
 
-    $screen->swipe('swipe-1', 'left');
+    $screen->dragEnd('swipe-1', -200);
     expect($rowTakesTaps())->toBeTrue();
 
-    $screen->swipe('swipe-1', 'right');
+    $screen->dragEnd('swipe-1', 200);
     expect(showsActions($screen, '1'))->toBeFalse();
 
     // On Android a swipe that ends inside the bubble also lands as a tap on it, just after: that one is the swipe's own.
-    $screen->swipe('swipe-1', 'left')->tap($tap);
+    $screen->dragEnd('swipe-1', -200)->tap($tap);
     expect(showsActions($screen, '1'))->toBeTrue();
 
     $this->travel(1)->seconds();
@@ -295,7 +296,7 @@ it('puts the actions away with a swipe back or a tap anywhere in the thread', fu
 it("shows an image-only message's actions beside its images", function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => '', 'body_segments' => [], 'images' => [['id' => 7, 'width' => 400, 'height' => 300, 'description' => null, 'url' => 'http://devnull.test/i/7.png']]])], ['read_through_id' => 1]));
 
-    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))->swipe('swipe-1', 'left');
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))->dragEnd('swipe-1', -200);
 
     expect(childRefs($screen, 'content-1'))->toBe([null, 'actions-1'])
         ->and(showsActions($screen, '1'))->toBeTrue();
@@ -309,7 +310,7 @@ it('opens the reactions from React, without Reply in them', function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
 
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))
-        ->swipe('swipe-1', 'left')
+        ->dragEnd('swipe-1', -200)
         ->tap('react-1')
         ->assertSet('sheetOpen', true)
         ->assertSet('actionsForId', null);
@@ -329,15 +330,15 @@ it('replies to a message from its Reply button, and raises the keyboard', functi
     expect(nodeByRef($screen, 'message-input')['props'])->not->toHaveKey('autofocus');
 
     // A swipe no longer replies on its own: it brings up Reply.
-    $screen->swipe('swipe-1', 'left')->assertSet('replyToId', null);
+    $screen->dragEnd('swipe-1', -200)->assertSet('replyToId', null);
     $screen->tap('reply-1')
         ->assertSee('Replying to Ada Lovelace')
         ->assertSet('actionsForId', null);
 
     expect(nodeByRef($screen, 'message-input')['props']['autofocus'] ?? null)->toBeTrue();
 
-    $screen->swipe('swipe-2', 'right')->tap('reply-2')->assertSee('Replying to yourself');
-    $screen->swipe('swipe-1', 'left')->tap('reply-1')->set('draft', 'yes')->call('send');
+    $screen->dragEnd('swipe-2', 200)->tap('reply-2')->assertSee('Replying to yourself');
+    $screen->dragEnd('swipe-1', -200)->tap('reply-1')->set('draft', 'yes')->call('send');
 
     finishRefreshes($screen);
 
@@ -663,7 +664,7 @@ it('asks before pinning for the whole org, then pins at once and takes the pinne
     holdRefreshes();
 
     $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))
-        ->swipe('swipe-1', 'left')
+        ->dragEnd('swipe-1', -200)
         ->tap('pin-1')
         ->assertNativeCalled('Dialog.Alert', fn (array $params): bool => $params['title'] === 'Pin for the whole org?'
             && str_contains($params['message'], 'including people added without Share history'))
@@ -675,7 +676,7 @@ it('asks before pinning for the whole org, then pins at once and takes the pinne
         ->and(sentTo('PUT', 'remotes/messages/1/pin'))->toBe([]);
 
     // Pin message pins it straight away, with its pin beside it, and takes devnull's list once it answers.
-    $screen->swipe('swipe-1', 'left')->tap('pin-1')
+    $screen->dragEnd('swipe-1', -200)->tap('pin-1')
         ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => Conversation::PinMessage, 'id' => Conversation::PinAlert])
         ->assertSee('pinned · 1');
 
@@ -695,11 +696,11 @@ it('stops asking before pinning once you say not to ask again', function () {
     ]));
 
     $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))
-        ->swipe('swipe-1', 'left')
+        ->dragEnd('swipe-1', -200)
         ->tap('pin-1')
         ->emitNative(ButtonPressed::class, ['index' => 2, 'label' => Conversation::PinWithoutAsking, 'id' => Conversation::PinAlert]);
 
-    finishRefreshes($screen->swipe('swipe-2', 'left')->tap('pin-2'));
+    finishRefreshes($screen->dragEnd('swipe-2', -200)->tap('pin-2'));
 
     expect($this->bridge->callsTo('Dialog.Alert'))->toHaveCount(1)
         ->and(sentTo('PUT', 'remotes/messages/1/pin'))->toHaveCount(1)
@@ -713,7 +714,7 @@ it('marks a pinned message with a pin beside it, which only a maintainer can pre
     ]);
     serveOrgThread($thread('contributor'));
 
-    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))->swipe('swipe-1', 'left');
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))->dragEnd('swipe-1', -200);
 
     expect(nodeByRef($screen, 'pinned-1')['type'])->toBe('stack')
         ->and(rendersRef($screen, 'unpin-1'))->toBeFalse();
@@ -723,7 +724,7 @@ it('marks a pinned message with a pin beside it, which only a maintainer can pre
 
     expect(rendersRef($screen, 'pinned-1'))->toBeTrue()->and(rendersRef($screen, 'unpin-1'))->toBeFalse();
 
-    $screen->swipe('swipe-1', 'left');
+    $screen->dragEnd('swipe-1', -200);
 
     expect(rendersRef($screen, 'unpin-1'))->toBeTrue()->and(rendersRef($screen, 'pinned-1'))->toBeFalse();
 });
@@ -737,7 +738,7 @@ it('unpins at once, beside the message or in the pinned sheet, which closes once
 
     $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))
         ->assertSee('pinned · 2')
-        ->swipe('swipe-1', 'left')
+        ->dragEnd('swipe-1', -200)
         ->tap('unpin-1')
         ->assertSee('pinned · 1');
 
@@ -758,7 +759,7 @@ it("puts a pin back when devnull doesn't take it, and says why", function (int $
     );
     app(Account::class)->rememberSkipsPinWarning();
 
-    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1')->swipe('swipe-1', 'left')->tap('pin-1'));
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1')->dragEnd('swipe-1', -200)->tap('pin-1'));
 
     expect(rendersRef($screen, 'pinned-bar'))->toBeFalse()
         ->and(array_column(array_column($this->bridge->callsTo('ToastKit.Show'), 'params'), 'message'))->toBe([$toast]);
@@ -778,7 +779,7 @@ it("puts an unpinned message back where it was when devnull doesn't take it", fu
         pins: fn () => Http::response(['message' => 'Server Error'], 500),
     );
 
-    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1')->swipe('swipe-1', 'left')->tap('unpin-1'));
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1')->dragEnd('swipe-1', -200)->tap('unpin-1'));
 
     expect(array_map(fn ($message): int => $message->id, $screen->instance()->pinned))->toBe([2, 1, 3])
         ->and(array_column(array_column($this->bridge->callsTo('ToastKit.Show'), 'params'), 'message'))->toBe(['Could not unpin. Try again.']);
@@ -819,7 +820,7 @@ it("doesn't let a poll undo a pin of yours still on its way, and asks for the pi
     $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'));
 
     // The poll goes first, but answers while the pin is still out, so the pin's own answer wins.
-    finishRefreshes($screen->call('poll')->swipe('swipe-1', 'left')->tap('pin-1'))->assertSee('pinned · 1');
+    finishRefreshes($screen->call('poll')->dragEnd('swipe-1', -200)->tap('pin-1'))->assertSee('pinned · 1');
 
     expect(array_map(fn ($message): int => $message->id, $screen->instance()->pinned))->toBe([1]);
 

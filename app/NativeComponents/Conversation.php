@@ -28,6 +28,7 @@ use Native\Mobile\Attributes\Poll;
 use Native\Mobile\Edge\Layouts\Builders\NavAction;
 use Native\Mobile\Edge\Layouts\Builders\NavBarOptions;
 use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Edge\SharedValue;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Facades\Browser;
 use Native\Mobile\Facades\Dialog;
@@ -51,9 +52,10 @@ use Native\Mobile\Facades\Dialog;
  * it's still staged or rejected when you come back to the thread, and one
  * still on its way when the app closed goes again when it next opens. A
  * toast says why devnull didn't take one, wherever you are by then, with a
- * Retry of its own. A swipe on a message slides it out of the way to show
- * React and Reply where it was, and Pin for an org's maintainers, and a
- * double tap toggles a heart.
+ * Retry of its own. Dragging a message sideways slides it out of the way
+ * with the finger, its React and Reply growing in where it was, and Pin
+ * for an org's maintainers; let go far enough and it stays open, or it
+ * springs back. A double tap toggles a heart.
  *
  * An org's pinned messages show as the web shows them: the latest in a bar
  * over the top of the thread, which opens them all in a sheet, and a pin
@@ -113,9 +115,9 @@ class Conversation extends NativeComponent
     public const int ActionsGap = 4;
 
     /**
-     * A swipe slides a message out of the way by its actions' slot, which then takes the room the bubble left. A short
-     * bubble slides less, so all but the last 20 points of it past the thread's edge stay on screen, guessing its width
-     * from its longest line: its padding, then an average character of 15-point text.
+     * A drag slides a message out of the way by up to its actions' slot, which then takes the room the bubble left. A
+     * short bubble slides less, so all but the last 20 points of it past the thread's edge stay on screen, guessing its
+     * width from its longest line: its padding, then an average character of 15-point text.
      */
     public const int BubblePadding = 24;
 
@@ -218,17 +220,26 @@ class Conversation extends NativeComponent
     public const int ReplyingBarHeight = 44;
 
     /**
-     * The message whose React, Reply and Pin show beside it, as the web shows them on hover. A swipe on a message slides
-     * it aside to show them, and a swipe back, a tap anywhere in the thread, or a swipe on another message puts them away.
+     * The message whose React, Reply and Pin show beside it, as the web shows them on hover. Dragging a message aside
+     * shows them, and dragging it back, a tap anywhere in the thread, or opening another message's puts them away.
      */
     public ?int $actionsForId = null;
 
     /**
-     * When a swipe last brought a message's actions up. On Android a swipe that ends inside the bubble or its row also
-     * lands as a tap on them, a moment later once the double tap has had its chance, which would put the actions
-     * straight away again; a tap that close behind the swipe is the swipe's own.
+     * When a drag last brought a message's actions up. On Android a drag that ends inside the bubble or its row could
+     * also land as a tap on them, a moment later once the double tap has had its chance, which would put the actions
+     * straight away again; a tap that close behind the drag is the drag's own.
      */
     public float $actionsShownAt = 0;
+
+    /**
+     * Where each message sits sideways, shared with the gesture area that drags it (see panFor()). They're kept across
+     * renders, so the area moves the same value the row and its buttons follow, and a new resting place from here
+     * springs into place rather than jumping.
+     *
+     * @var array<int, SharedValue>
+     */
+    private array $pans = [];
 
     /**
      * What the sheet shows, which stays as it was while the sheet slides away.
@@ -471,11 +482,11 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * Swiping a message toward its edge slides it out of the way, partly off the screen, to show its React, Reply and Pin
-     * where it was: someone else's to the left, your own to the right. Swiping it back puts them away, and swiping
-     * another message moves them there. Any other swipe, as a flick while scrolling, does nothing.
+     * A message let go after a drag, where it came to rest. The gesture area moves it with the finger toward its edge,
+     * someone else's to the left and your own to the right, and springs it open or shut on release by how far it went
+     * and how fast. Open, its actions stay up and any other message's go away; shut, its own go away.
      */
-    public function swipedMessage(int $id, string $direction): void
+    public function draggedMessage(int $id, float $x, float $y = 0): void
     {
         $message = $this->findMessage($id);
 
@@ -483,12 +494,12 @@ class Conversation extends NativeComponent
             return;
         }
 
-        $toward = $message->userId === $this->me()?->id ? 'right' : 'left';
+        $toward = ($message->userId === $this->me()?->id ? 1 : -1) * $x;
 
-        if ($direction === $toward) {
+        if ($toward >= $this->slideOf($message) / 2) {
             $this->actionsForId = $id;
             $this->actionsShownAt = self::now();
-        } elseif ($direction === ($toward === 'left' ? 'right' : 'left') && $this->actionsForId === $id) {
+        } elseif ($this->actionsForId === $id) {
             $this->actionsForId = null;
         }
     }
@@ -1256,7 +1267,25 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * How far a swipe slides a message toward its edge: the room its actions take, or for a short bubble only as far as
+     * Where a message rests sideways, as a value the gesture area drags and the row and its buttons follow: slid open
+     * toward its edge while its actions show, home otherwise. A message devnull doesn't have yet, or an org's event,
+     * doesn't move.
+     */
+    private function panFor(Message $message, bool $mine): ?SharedValue
+    {
+        if ($message->isPending() || $message->isEvent()) {
+            return null;
+        }
+
+        $rest = $this->actionsForId === $message->id ? ($mine ? 1 : -1) * $this->slideOf($message) : 0;
+        $pan = $this->pans[$message->id] ??= SharedValue::make($rest);
+        $pan->setValue($rest);
+
+        return $pan;
+    }
+
+    /**
+     * How far a drag slides a message toward its edge: the room its actions take, or for a short bubble only as far as
      * keeps some of it on screen (see BubblePadding). Images are 240 points wide, so they slide the whole way.
      */
     private function slideOf(Message $message): int
@@ -1370,6 +1399,7 @@ class Conversation extends NativeComponent
                 'status' => $message === $status ? $this->statusOf($message) : null,
                 'author' => $message->user ?? $this->authorOf($message->userId),
                 'slide' => $this->slideOf($message),
+                'pan' => $this->panFor($message, $message->userId === $viewer?->id),
             ];
         }
 

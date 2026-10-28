@@ -5,10 +5,11 @@
     emoji, yours outlined in your lane and a tap to take it back or add yours. A run ends in the time, or for the
     message the web gives a status, in that status.
 
-    Swiping it toward its edge slides it out of the way, partly off the screen, and React, Reply and, for an org's
-    maintainers, Pin fade in where it was, as the web shows them on hover: someone else's to the left, your own to the
-    right. They sit in a slot the bubble always keeps beside it, so nothing rewraps. Swiping it back, or a tap anywhere in
-    the thread, puts them away; a double tap toggles a heart. A pinned message keeps its pin beside it. A message still being pushed takes
+    Dragging it toward its edge slides it out of the way with the finger, partly off the screen, and React, Reply and,
+    for an org's maintainers, Pin grow in one after another where it was, as the web shows them on hover: someone else's
+    to the left, your own to the right. Let go past halfway, or with a flick, and it stays open; short of that it springs
+    back. The actions sit in a slot the bubble always keeps beside it, so nothing rewraps. Dragging it back, or a tap
+    anywhere in the thread, puts them away; a double tap toggles a heart. A pinned message keeps its pin beside it. A message still being pushed takes
     none of them, and nothing reacts, replies or pins while the thread can't take a message.
 --}}
 @php($key = $message->id > 0 ? $message->id : $message->clientId)
@@ -24,7 +25,7 @@
 <native:row native:key="message-{{ $key }}" ref="message-{{ $key }}" class="w-full px-3 {{ $startsRun ? 'pt-3' : 'pt-[3]' }}">
 @endif
     @if ($replyable)
-        <native:gesture-area ref="swipe-{{ $key }}" @swipe="swipedMessage({{ $message->id }})" class="flex-1">
+        <native:gesture-area ref="swipe-{{ $key }}" :pan-x="$pan" :snap-x="$mine ? [0, $slide] : [-$slide, 0]" @dragEnd="draggedMessage({{ $message->id }})" class="flex-1">
     @endif
     {{-- A set width, not a max: a column that only hugs its bubble measures the text on one line and clips it. --}}
     <native:column class="{{ $replyable ? 'w-full' : 'flex-1' }} gap-1 {{ $mine ? 'items-end' : 'items-start' }}">
@@ -46,7 +47,7 @@
 
         {{-- An image-only message keeps its actions beside its images; otherwise they go beside the bubble. --}}
         @if ($message->images !== [] && $message->body === '')
-            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}" :translate-x="$showsActions ? ($mine ? $slide : -$slide) : 0" animate-duration="180" animate-easing="ease-out">
+            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}" :translate-x="$pan ?? 0">
                 @if ($mine)
                     @include('native.partials.message-actions')
                 @endif
@@ -63,7 +64,7 @@
 
         @if ($message->body !== '')
             {{-- The bubble shrinks to wrap short of the slot for its actions, which keeps its width either way. --}}
-            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}" :translate-x="$showsActions ? ($mine ? $slide : -$slide) : 0" animate-duration="180" animate-easing="ease-out">
+            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}" :translate-x="$pan ?? 0">
                 @if ($mine)
                     @include('native.partials.message-actions')
                 @endif
