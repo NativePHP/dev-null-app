@@ -8,16 +8,21 @@
 @php($isExpanded = in_array($message->id, $expandedPins, true))
 <native:column native:key="{{ $key }}" ref="{{ $key }}" class="w-full px-5 py-3 gap-1 {{ $first ? '' : 'border-t border-theme-hairline' }}">
     <native:row class="w-full gap-2 items-center">
+        {{-- Who and when on two lines, so a long name never squeezes out the time beside the actions. --}}
         @if ($author)
-            <native:pressable ref="{{ $key }}-author" @press="openProfile('{{ $author->username }}')" class="flex-shrink" a11y-label="{{ $author->name }}'s profile">
-                <native:row class="gap-2 items-center">
-                    @include('native.partials.avatar', ['user' => $author, 'size' => 20])
-                    <native:text font="semibold" class="text-[13px] text-theme-ink" :max-lines="1">{{ $author->name }}</native:text>
+            <native:pressable ref="{{ $key }}-author" @press="openProfile('{{ $author->username }}')" class="flex-1" a11y-label="{{ $author->name }}'s profile">
+                <native:row class="w-full gap-2 items-center">
+                    @include('native.partials.avatar', ['user' => $author, 'size' => 28])
+                    <native:column class="flex-1 gap-[1]">
+                        <native:text font="semibold" class="text-[13px] text-theme-ink" :max-lines="1">{{ $author->name }}</native:text>
+                        <native:text font="mono" class="text-[11px] text-theme-ink-muted" :max-lines="1">{{ $message->createdAt === null ? '' : \App\Devnull\Display::dayLabel($message->createdAt).' · '.$message->time() }}</native:text>
+                    </native:column>
                 </native:row>
             </native:pressable>
+        @else
+            <native:text font="mono" class="flex-1 text-[11px] text-theme-ink-muted" :max-lines="1">{{ $message->createdAt === null ? '' : \App\Devnull\Display::dayLabel($message->createdAt).' · '.$message->time() }}</native:text>
         @endif
-        <native:text font="mono" class="flex-1 text-[11px] text-theme-ink-muted" :max-lines="1">{{ $message->createdAt === null ? '' : \App\Devnull\Display::dayLabel($message->createdAt).' · '.$message->time() }}</native:text>
-        {{-- Side by side with no gap, so the time keeps its room: each is a 32-point target around a 16-point icon. --}}
+        {{-- Side by side with no gap: each is a 32-point target around a 16-point icon. --}}
         <native:row ref="{{ $key }}-actions" class="flex-shrink-0 items-center">
             @if ($canPush)
                 @foreach (['reply', 'react'] as $action)
