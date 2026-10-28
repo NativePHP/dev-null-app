@@ -25,6 +25,7 @@ final readonly class User
         public ?string $htmlUrl = null,
         public ?string $feedUrl = null,
         public ?CarbonImmutable $createdAt = null,
+        public ?Live $live = null,
     ) {}
 
     /**
@@ -50,13 +51,14 @@ final readonly class User
             htmlUrl: self::text($data['html_url'] ?? null),
             feedUrl: self::text($data['feed_url'] ?? null),
             createdAt: Commit::date($data['created_at'] ?? null),
+            live: Live::fromArray($data['live'] ?? null),
         );
     }
 
     /**
      * The user in the API's shape, so it can be kept and read back.
      *
-     * @return array{id: string, handle: string, name: string, avatar_url: ?string, bio: ?string, lane: int|string|null, company: ?string, location: ?string, website: ?string, github_url: ?string, html_url: ?string, feed_url: ?string, created_at: ?string}
+     * @return array{id: string, handle: string, name: string, avatar_url: ?string, bio: ?string, lane: int|string|null, company: ?string, location: ?string, website: ?string, github_url: ?string, html_url: ?string, feed_url: ?string, created_at: ?string, live: array{platform: ?string, url: string, thumbnail_url: ?string, ends_at: string}|null}
      */
     public function toArray(): array
     {
@@ -74,7 +76,16 @@ final readonly class User
             'html_url' => $this->htmlUrl,
             'feed_url' => $this->feedUrl,
             'created_at' => $this->createdAt?->toIso8601ZuluString(),
+            'live' => $this->live?->toArray(),
         ];
+    }
+
+    /**
+     * Whether they are streaming now, as the web marks their avatar.
+     */
+    public function isLive(): bool
+    {
+        return $this->live?->isOn() ?? false;
     }
 
     /**
