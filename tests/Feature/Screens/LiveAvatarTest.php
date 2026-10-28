@@ -60,6 +60,14 @@ it('rings a live author in red and marks them live, as the web does', function (
         ->and(railRingColour($screen, 'commit-c1'))->toBe(strtolower(config('native-ui.theme.light.live')));
 });
 
+it("pulses the badge's dot, as the web's animate-pulse does", function () {
+    $badge = findNode(nodeByRef(logByStreamer(adaStream(now()->addHour()->toIso8601ZuluString())), 'commit-c1'), fn (array $node): bool => ($node['ref'] ?? null) === 'live-badge');
+    $dot = findNode($badge, fn (array $node): bool => ($node['ref'] ?? null) === 'live-dot');
+
+    expect($dot['props'])->toMatchArray(['animate-duration' => 1000.0, 'animate-loop' => true])
+        ->and($dot['style']['opacity'])->toBe(0.5);
+});
+
 it('takes the badge off a row the log kept once the stream ends', function () {
     $screen = logByStreamer(adaStream(now()->addMinute()->toIso8601ZuluString()));
     $badge = fn (): ?array => findNode(nodeByRef($screen, 'commit-c1'), fn (array $node): bool => ($node['ref'] ?? null) === 'live-badge');
