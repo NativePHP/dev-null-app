@@ -11,8 +11,8 @@ use Native\Mobile\Icon\Icon;
  * Most are Lucide's own drawings. Their SVGs, from lucide-react 1.57.0, are in
  * resources/icons, and the NativePHP build turns each one into a template image
  * on iOS and a VectorDrawable on Android, so both platforms draw the web's
- * strokes, tinted like any other icon. `$filled` is the on state of a star or
- * a bookmark, which the web draws as the same shape with `fill-current`.
+ * strokes, tinted like any other icon. `$filled` is the on state of a star, a
+ * bookmark or a pin, which the web draws as the same shape with `fill-current`.
  *
  * The rest still map to the closest SF Symbol and outlined Material icon. To
  * draw one of them as the web does, add its SVG to resources/icons and name it
@@ -69,6 +69,7 @@ enum Lucide
     case Lightbulb;
     case Bug;
     case ImagePlus;
+    case Image;
     case Camera;
     case ChartBar;
     case Eye;
@@ -92,6 +93,7 @@ enum Lucide
     case PinOff;
     case BellOff;
     case LogOut;
+    case UserMinus;
 
     /**
      * The icon the web's inbox draws for a kind of notification.
@@ -174,6 +176,7 @@ enum Lucide
             self::Lightbulb => 'lightbulb',
             self::Bug => 'bug',
             self::ImagePlus => 'image-plus',
+            self::Image => 'image',
             self::Camera => 'camera',
             self::ChartBar => 'chart-bar',
             self::Eye => 'eye',
@@ -192,10 +195,11 @@ enum Lucide
             self::GitMerge => 'git-merge',
             self::Maximize => 'maximize',
             self::Key => 'key',
-            self::Pin => 'pin',
+            self::Pin => $filled ? 'pin-filled' : 'pin',
             self::PinOff => 'pin-off',
             self::BellOff => 'bell-off',
             self::LogOut => 'log-out',
+            self::UserMinus => 'user-minus',
             default => null,
         };
 

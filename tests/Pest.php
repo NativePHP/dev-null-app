@@ -160,14 +160,16 @@ function holdRefreshes(): FakeBridge
 
 /**
  * Runs every held background refresh, and any it leads to, and hands each
- * answer to the screen the way the background lane does.
+ * answer to the screen the way the background lane does. The lane runs a few
+ * at once, so the newest can answer first.
  */
-function finishRefreshes(TestableComponent $screen): TestableComponent
+function finishRefreshes(TestableComponent $screen, bool $newestFirst = false): TestableComponent
 {
     do {
         $ran = false;
+        $calls = $screen->bridge()->callsTo('AsyncTask.Dispatch');
 
-        foreach ($screen->bridge()->callsTo('AsyncTask.Dispatch') as $call) {
+        foreach ($newestFirst ? array_reverse($calls) : $calls as $call) {
             // A screen that has navigated away has stopped listening.
             if ($screen->navigationIntent() !== null) {
                 return $screen;
@@ -680,6 +682,14 @@ function findNode(array $node, callable $matches): ?array
     }
 
     return null;
+}
+
+/**
+ * Whether anything with this ref was rendered.
+ */
+function rendersRef(TestableComponent $screen, string $ref): bool
+{
+    return findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === $ref) !== null;
 }
 
 /**

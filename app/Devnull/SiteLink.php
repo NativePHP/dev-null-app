@@ -71,23 +71,40 @@ final class SiteLink
     }
 
     /**
+     * Whether a URL from devnull is a web page the browser may open: http or
+     * https, with a host, and no user or password before it. Nothing else a
+     * link might carry, like javascript:, file: or another app's scheme, can
+     * take the phone somewhere unexpected, and the in-app browser only opens
+     * web pages anyway.
+     *
+     * @phpstan-assert-if-true string $url
+     */
+    public static function isWebUrl(?string $url): bool
+    {
+        $parts = $url === null ? false : parse_url($url);
+
+        if ($parts === false || isset($parts['user']) || isset($parts['pass'])) {
+            return false;
+        }
+
+        return in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true) && ($parts['host'] ?? '') !== '';
+    }
+
+    /**
      * The path of an http or https URL on one of dev/null's hosts. A URL with
      * a user or password before its host is never one, as browsers and PHP
      * can disagree on where its host starts.
      */
     private static function pathOnDevnull(?string $url): ?string
     {
-        $parts = $url === null ? false : parse_url($url);
-
-        if ($parts === false || isset($parts['user']) || isset($parts['pass'])) {
+        if (! self::isWebUrl($url)) {
             return null;
         }
 
-        $scheme = strtolower($parts['scheme'] ?? '');
-        $host = strtolower($parts['host'] ?? '');
+        $parts = (array) parse_url((string) $url);
         $hosts = [...self::Hosts, strtolower((string) parse_url((string) config('devnull.url'), PHP_URL_HOST))];
 
-        if (! in_array($scheme, ['http', 'https'], true) || $host === '' || ! in_array($host, $hosts, true)) {
+        if (! in_array(strtolower($parts['host'] ?? ''), $hosts, true)) {
             return null;
         }
 

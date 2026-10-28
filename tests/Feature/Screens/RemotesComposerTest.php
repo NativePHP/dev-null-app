@@ -230,7 +230,7 @@ it('keeps the keyboard up through presses in the thread, and the field in place 
     expect(nodeByRef($screen, 'message-input')['props']['keep_focus_on_submit'] ?? false)->toBeTrue();
 
     // Replying while you're typing leaves the field as it is, so the keyboard doesn't drop and come back.
-    $screen->swipe('swipe-1', 'right')->assertSee('Replying to Ada Lovelace');
+    $screen->dragEnd('swipe-1', -200)->tap('reply-1')->assertSee('Replying to Ada Lovelace');
 
     // The strip fills a slot the bar always has, so the field's row keeps its place among the bar's rows, which
     // Android needs as well as the same id to keep the field.

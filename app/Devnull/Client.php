@@ -130,6 +130,14 @@ final readonly class Client
     }
 
     /**
+     * Where an org's maintainer pins a message for everyone in it, and unpins it.
+     */
+    public static function pinPath(int $messageId): string
+    {
+        return 'remotes/messages/'.$messageId.'/pin';
+    }
+
+    /**
      * Where a pastel is given to a commit, one per request.
      */
     public static function pastelPath(string $id): string
@@ -328,14 +336,16 @@ final readonly class Client
 
     /**
      * People matching a term, each with the web's reason you can't message
-     * them, or add them to a new org, when there is one. Never kept: who you
-     * can reach changes as people follow, block and turn Remotes off.
+     * them, or add them to a new org or the org $orgId, when there is one.
+     * Never kept: who you can reach changes as people follow, block and turn
+     * Remotes off.
      *
      * @return list<array{user: User, reason: string|null}>
      */
-    public function remoteCandidates(string $term, string $for): array
+    public function remoteCandidates(string $term, string $for, ?string $orgId = null): array
     {
-        $candidates = $this->json($this->send('GET', self::RemoteCandidatesPath, ['q' => $term, 'for' => $for]))['candidates'] ?? null;
+        $query = $orgId === null ? ['q' => $term, 'for' => $for] : ['q' => $term, 'org' => $orgId];
+        $candidates = $this->json($this->send('GET', self::RemoteCandidatesPath, $query))['candidates'] ?? null;
 
         return array_values(array_map(
             fn (array $candidate): array => [
@@ -357,6 +367,15 @@ final readonly class Client
         $org = $this->json($this->send('POST', self::OrgsPath, payload: ['name' => $name, 'members' => $members]))['org'] ?? null;
 
         return is_array($org) && is_string($org['id'] ?? null) ? $org['id'] : '';
+    }
+
+    /**
+     * Where an org's members are added, and where one of them is given a role or taken out, which is how you leave
+     * it too, by your own username.
+     */
+    public static function orgMembersPath(string $orgId, ?string $username = null): string
+    {
+        return self::threadPath(orgId: $orgId).'/members'.($username === null ? '' : '/'.rawurlencode($username));
     }
 
     /**

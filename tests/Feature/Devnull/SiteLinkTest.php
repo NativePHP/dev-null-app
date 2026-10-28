@@ -55,3 +55,25 @@ it('finds no app screen for anything else', function (?string $url) {
     'a username with two hyphens in a row' => ['https://dev-null.sh/@a--da'],
     'a username longer than GitHub allows' => ['https://dev-null.sh/@'.str_repeat('a', 40)],
 ]);
+
+it('takes an http or https address with a host for a web page', function (string $url) {
+    expect(SiteLink::isWebUrl($url))->toBeTrue();
+})->with([
+    'https' => ['https://nativephp.com/docs?page=1#top'],
+    'http' => ['http://example.com'],
+    'a scheme in capitals' => ['HTTPS://NATIVEPHP.COM'],
+]);
+
+it('takes nothing else for a web page', function (?string $url) {
+    expect(SiteLink::isWebUrl($url))->toBeFalse();
+})->with([
+    'nothing' => [null],
+    'javascript' => ['javascript:alert(1)'],
+    'a file on the phone' => ['file:///etc/passwd'],
+    "an app's own scheme" => ['devnull://auth/callback'],
+    'a phone number' => ['tel:+33100000000'],
+    'an email address' => ['mailto:ada@example.com'],
+    'no host' => ['https://'],
+    'no scheme' => ['nativephp.com'],
+    'a user and password before the host' => ['https://nativephp.com@evil.com/'],
+]);

@@ -31,9 +31,10 @@ trait SearchesPeople
     }
 
     /**
-     * Who could start a remote with you, or join a new org: `$for` is "remote" or "org".
+     * Who could start a remote with you, or join a new org: `$for` is "remote" or "org". With `$orgId`, who could
+     * join that org.
      */
-    protected function searchPeople(string $for): void
+    protected function searchPeople(string $for, ?string $orgId = null): void
     {
         $term = $this->term();
 
@@ -44,7 +45,7 @@ trait SearchesPeople
             return;
         }
 
-        $found = $this->attempt(fn (Client $devnull): array => $devnull->remoteCandidates($term, $for));
+        $found = $this->attempt(fn (Client $devnull): array => $devnull->remoteCandidates($term, $for, $orgId));
 
         if ($found === null) {
             return;

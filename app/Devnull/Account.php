@@ -25,6 +25,8 @@ final class Account
 
     private const string ProfileKey = 'devnull.profile';
 
+    private const string PinWarningKey = 'devnull.pin-warning-dismissed';
+
     /**
      * What's kept while devnull has said you have Remotes off, as against not having said yet.
      */
@@ -153,12 +155,26 @@ final class Account
     }
 
     /**
-     * Signs this phone out: who it was, the badges, its pastéis and Remotes, every answer kept for a quick start,
-     * and your unsent drafts.
+     * Whether you said not to be asked again before pinning a message for a whole org, as the web remembers it.
+     */
+    public function skipsPinWarning(): bool
+    {
+        return Cache::get(self::PinWarningKey) === true;
+    }
+
+    public function rememberSkipsPinWarning(): void
+    {
+        Cache::forever(self::PinWarningKey, true);
+    }
+
+    /**
+     * Signs this phone out: who it was, the badges, its pastéis and Remotes, every answer and image kept for a
+     * quick start, and your unsent drafts.
      */
     public function forget(): void
     {
         app(ResponseCache::class)->flush();
+        ImageCache::clear();
         app(Stash::class)->forget($this->user()?->id);
         app(Outbox::class)->forgetAll($this->user()?->id);
 
@@ -167,5 +183,6 @@ final class Account
         Cache::forget(self::PasteisKey);
         Cache::forget(self::RemotesKey);
         Cache::forget(self::ProfileKey);
+        Cache::forget(self::PinWarningKey);
     }
 }

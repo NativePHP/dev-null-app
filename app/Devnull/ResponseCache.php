@@ -777,6 +777,40 @@ final class ResponseCache
         }
     }
 
+    /**
+     * You left an org: devnull no longer shows it to you, so it leaves every
+     * kept page of your inbox, and its thread goes. The thread's screen,
+     * still under the one you left from, steps back to the inbox when it
+     * next shows (see takeLeftOrg()).
+     */
+    public function orgLeft(string $orgId): void
+    {
+        $userId = $this->userId();
+
+        if ($userId === null) {
+            return;
+        }
+
+        foreach ($this->index($userId) as $meta) {
+            if ($meta['path'] === Client::RemotesPath) {
+                $this->patch($meta['path'], $meta['query'], fn (array $json): array => [...$json, 'data' => self::without($json['data'] ?? [], $orgId)]);
+            }
+        }
+
+        $this->forget(Client::threadPath(orgId: $orgId).'/messages');
+        $this->store()->forever("{$userId} left {$orgId}", true);
+    }
+
+    /**
+     * Whether you left the org since its thread last asked, which asking forgets.
+     */
+    public function takeLeftOrg(string $orgId): bool
+    {
+        $userId = $this->userId();
+
+        return $userId !== null && $this->store()->pull("{$userId} left {$orgId}") === true;
+    }
+
     public function appleLinkChanged(bool $linked): void
     {
         $this->patch('me', [], fn (array $json): array => [...$json, 'apple_linked' => $linked]);

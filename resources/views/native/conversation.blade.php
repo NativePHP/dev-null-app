@@ -2,7 +2,7 @@
     A Remotes thread: the messages, oldest first, anchored to the latest at the bottom as a chat is, then the
     composer in the bottom bar, with photos and Ping. Who's typing shows under the title in the nav bar, so the bar never changes height
     for it. While the thread can't take a message, the bar says why instead, in the web's words, with Merge and Drop
-    for a request.
+    for a request. An org's pinned messages lie in a bar over the top of the thread.
 --}}
 <native:column class="w-full h-full bg-theme-background">
     @include('native.partials.error')
@@ -11,9 +11,16 @@
     {{--
         Each row is a child of the scroll view itself, not of one column inside it: SwiftUI keeps a reader's place by
         the rows on screen, and with everything in a single row it held onto the bottom instead, so a new message
-        pulled someone reading back down to it.
+        pulled someone reading back down to it. The stack around it is always there, so a pin coming or going never
+        rebuilds the thread under you.
     --}}
-    <native:scroll-view native:key="thread-{{ $username }}{{ $org }}" ref="thread" scroll-anchor="bottom" class="w-full flex-1 bg-theme-surface">
+    <native:stack ref="thread-stack" class="w-full flex-1">
+    <native:scroll-view native:key="thread-{{ $username }}{{ $org }}" ref="thread" scroll-anchor="bottom" class="w-full h-full bg-theme-surface">
+        {{-- The pinned bar lies over the top, so the oldest message can still scroll clear of it. --}}
+        @if ($pinned !== [])
+            <native:column ref="pinned-clearance" class="w-full h-[37]" />
+        @endif
+
         @if ($hasOlder)
             <native:row class="w-full py-3 justify-center">
                 <native:text ref="load-older" font="mono" class="text-[13px] text-theme-primary" @press="loadOlder">↑ earlier messages</native:text>
@@ -58,6 +65,11 @@
         {{-- The bar sits over the end of the thread, so the thread clears it. The scroll view clears the home indicator. --}}
         <native:column ref="composer-clearance" class="w-full h-[{{ $composerClearance }}]" />
     </native:scroll-view>
+
+    @if ($pinned !== [])
+        @include('native.partials.pinned-bar')
+    @endif
+    </native:stack>
 
     @if ($loaded)
         {{--
@@ -138,36 +150,15 @@
         </native:bottom-bar>
     @endif
 
-    {{-- React on a message: the reactions the web offers first, then the rest. --}}
-    <native:bottom-sheet ref="message-sheet" :visible="$sheetOpen" detents="0.45" @dismiss="messageSheetClosed">
-        @if ($sheetMessage)
-            <native:column class="w-full px-5 pt-6 pb-8 gap-5">
-                <native:row ref="quick-reactions" class="w-full gap-3 justify-center">
-                    @foreach ($quickReactions as $emoji)
-                        <native:pressable ref="quick-{{ $loop->index }}" @press="toggleReaction({{ $sheetMessage->id }}, '{{ $emoji }}')" a11y-label="React with {{ $emoji }}">
-                            <native:stack :width="52" :height="52" center class="rounded-full {{ $sheetMessage->hasReacted($viewer?->id, $emoji) ? 'bg-theme-'.$myColour.'/20' : 'bg-theme-wash' }}">
-                                <native:text class="text-[26px]">{{ $emoji }}</native:text>
-                            </native:stack>
-                        </native:pressable>
-                    @endforeach
-                </native:row>
-                {{-- EDGE's rows don't wrap on iOS, so the rest come in rows of eight. --}}
-                <native:column ref="more-reactions" class="w-full gap-1 items-center">
-                    @foreach (array_chunk($moreReactions, 8) as $row)
-                        <native:row class="gap-1">
-                            @foreach ($row as $emoji)
-                                <native:pressable ref="more-{{ $loop->parent->index * 8 + $loop->index }}" @press="toggleReaction({{ $sheetMessage->id }}, '{{ $emoji }}')" a11y-label="React with {{ $emoji }}">
-                                    <native:stack :width="40" :height="40" center class="rounded-full {{ $sheetMessage->hasReacted($viewer?->id, $emoji) ? 'bg-theme-'.$myColour.'/20' : 'bg-theme-surface' }}">
-                                        <native:text class="text-[22px]">{{ $emoji }}</native:text>
-                                    </native:stack>
-                                </native:pressable>
-                            @endforeach
-                        </native:row>
-                    @endforeach
-                </native:column>
-            </native:column>
+    {{-- An org's pinned messages. --}}
+    <native:bottom-sheet ref="message-sheet" :visible="$sheetOpen" detents="medium,large" @dismiss="messageSheetClosed">
+        @if ($pinned !== [])
+            @include('native.partials.pinned-sheet')
         @endif
     </native:bottom-sheet>
 
     @include('native.partials.mute-sheet')
+
+    {{-- More reactions, from the bubble or anywhere else: the emoji keyboard on iOS, Jetpack's emoji picker on Android. --}}
+    <native:emoji-picker ref="emoji-picker" :visible="$emojiPickerFor !== null" @change="emojiPicked" @dismiss="emojiPickerClosed" />
 </native:column>

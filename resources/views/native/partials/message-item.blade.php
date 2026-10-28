@@ -5,10 +5,12 @@
     emoji, yours outlined in your lane and a tap to take it back or add yours. A run ends in the time, or for the
     message the web gives a status, in that status.
 
-    A tap shows React and Reply right beside the bubble, as the web shows them on hover, in a slot its row always keeps
-    so nothing moves; a double tap toggles a heart. Swiping it sideways replies to it, as the web's touch screens do: someone
-    else's to the right, your own to the left. A message still being pushed takes none of them, and nothing reacts or
-    replies while the thread can't take a message.
+    Dragging it toward its edge slides it out of the way with the finger, partly off the screen, and React, Reply and,
+    for an org's maintainers, Pin grow in one after another where it was, as the web shows them on hover: someone else's
+    to the left, your own to the right. Let go past halfway, or with a flick, and it stays open; short of that it springs
+    back. The actions sit in a slot the bubble always keeps beside it, so nothing rewraps. Dragging it back, or a tap
+    anywhere in the thread, puts them away; a double tap toggles a heart. A pinned message keeps its pin beside it. A message still being pushed takes
+    none of them, and nothing reacts, replies or pins while the thread can't take a message.
 --}}
 @php($key = $message->id > 0 ? $message->id : $message->clientId)
 @php($laneToken = \App\Devnull\Lane::token(($author ?? null)?->lane()))
@@ -16,9 +18,14 @@
 @php($replyLane = $message->replyTo === null ? 'primary' : \App\Devnull\Lane::token(($authors[$message->replyTo['user_id']] ?? null)?->lane()))
 @php($replyable = ($canPush ?? false) && ! $message->isPending())
 @php($showsActions = $replyable && $actionsForId === $message->id)
+{{-- The row only takes a tap while some message's actions show, so a tap beside a bubble draws no ripple otherwise. --}}
+@if ($actionsForId !== null)
+<native:row native:key="message-{{ $key }}" ref="message-{{ $key }}" class="w-full px-3 {{ $startsRun ? 'pt-3' : 'pt-[3]' }}" @press="hideActions">
+@else
 <native:row native:key="message-{{ $key }}" ref="message-{{ $key }}" class="w-full px-3 {{ $startsRun ? 'pt-3' : 'pt-[3]' }}">
+@endif
     @if ($replyable)
-        <native:gesture-area ref="swipe-{{ $key }}" @swipe="swipedMessage({{ $message->id }})" class="flex-1">
+        <native:gesture-area ref="swipe-{{ $key }}" :pan-x="$pan" :snap-x="$mine ? [0, $slide] : [-$slide, 0]" @dragEnd="draggedMessage({{ $message->id }})" class="flex-1">
     @endif
     {{-- A set width, not a max: a column that only hugs its bubble measures the text on one line and clips it. --}}
     <native:column class="{{ $replyable ? 'w-full' : 'flex-1' }} gap-1 {{ $mine ? 'items-end' : 'items-start' }}">
@@ -38,9 +45,9 @@
             </native:column>
         @endif
 
-        {{-- An image-only message keeps React and Reply beside its images; otherwise they go beside the bubble. --}}
+        {{-- An image-only message keeps its actions beside its images; otherwise they go beside the bubble. --}}
         @if ($message->images !== [] && $message->body === '')
-            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}">
+            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}" :translate-x="$pan ?? 0">
                 @if ($mine)
                     @include('native.partials.message-actions')
                 @endif
@@ -56,8 +63,8 @@
         @endif
 
         @if ($message->body !== '')
-            {{-- The bubble shrinks to wrap short of the slot for React and Reply, which keeps its width either way. --}}
-            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}">
+            {{-- The bubble shrinks to wrap short of the slot for its actions, which keeps its width either way. --}}
+            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}" :translate-x="$pan ?? 0">
                 @if ($mine)
                     @include('native.partials.message-actions')
                 @endif
@@ -66,7 +73,7 @@
                         @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour, 'quoteRule' => $message->status === 'rejected' ? 'border-theme-lane-5' : 'border-theme-on-'.$myColour])
                     </native:column>
                 @else
-                    <native:column ref="bubble-{{ $key }}" class="flex-shrink px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}" @press="toggleActions({{ $message->id }})" @doubleTap="heart({{ $message->id }})" a11y-hint="Tap for React and Reply">
+                    <native:column ref="bubble-{{ $key }}" class="flex-shrink px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}" @press="hideActions" @doubleTap="heart({{ $message->id }})" a11y-hint="{{ $replyable ? 'Swipe sideways for React and Reply' : '' }}">
                         @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary', 'quoteRule' => $mine ? 'border-theme-on-'.$myColour : 'border-theme-lane-5'])
                     </native:column>
                 @endif
@@ -85,19 +92,7 @@
             </native:pressable>
         @endif
 
-        @php($chips = $message->reactionChips($viewer?->id))
-        @if ($chips !== [])
-            <native:row ref="reactions-{{ $key }}" class="gap-1">
-                @foreach ($chips as $chip)
-                    <native:pressable ref="chip-{{ $key }}-{{ $loop->index }}" @press="toggleReaction({{ $message->id }}, '{{ $chip['emoji'] }}')" a11y-label="{{ $chip['emoji'] }} {{ $chip['count'] }}{{ $chip['mine'] ? ', yours' : '' }}">
-                        <native:row class="px-2 py-[2] gap-1 items-center rounded-full border {{ $chip['mine'] ? 'border-theme-'.$myColour.' bg-theme-'.$myColour.'/10' : 'border-theme-hairline bg-theme-surface' }}">
-                            <native:text class="text-[13px]">{{ $chip['emoji'] }}</native:text>
-                            <native:text font="mono" class="text-[11px] text-theme-ink-muted">{{ $chip['count'] }}</native:text>
-                        </native:row>
-                    </native:pressable>
-                @endforeach
-            </native:row>
-        @endif
+        @include('native.partials.message-reactions')
 
         @if ($status !== null)
             <native:row ref="status-{{ $key }}" class="gap-[6] items-center px-1">

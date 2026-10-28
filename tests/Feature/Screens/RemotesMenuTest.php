@@ -39,14 +39,6 @@ function orgConversationJson(array $overrides = []): array
 }
 
 /**
- * Whether anything with this ref was rendered.
- */
-function rendersRef(TestableComponent $screen, string $ref): bool
-{
-    return findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === $ref) !== null;
-}
-
-/**
  * The inbox with Ada's conversation and the org, then devnull taking every write: the pin, mute and stash answers
  * devnull sends, and a block or a leave.
  *

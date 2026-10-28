@@ -1,5 +1,6 @@
 <?php
 
+use App\Devnull\Account;
 use App\Devnull\Client;
 use App\Devnull\DownloadImages;
 use App\Devnull\FetchInBackground;
@@ -143,6 +144,7 @@ it('downloads in the background only the images that are not on the device yet, 
 });
 
 it('keeps only what downloads as an image, and clears out images older than a day when asked to', function () {
+    signIn();
     $stale = cachedImage('https://avatars.githubusercontent.com/u/8?v=4', hoursAgo: 30);
     File::put(ImageCache::path('https://avatars.githubusercontent.com/u/9?v=4').'.part', 'half');
 
@@ -253,6 +255,7 @@ it('clears out only the images that were too old when the app started, and half-
 });
 
 it('brings an answer\'s images down with it when asked, before it comes back', function () {
+    signIn();
     Http::fake([
         'avatars.githubusercontent.com/*' => Http::response('png bytes', 200, ['Content-Type' => 'image/png']),
         'devnull.test/api/v1/log/following*' => Http::response(pageJson([commitJson(['author' => userJson(['avatar_url' => 'https://avatars.githubusercontent.com/u/2?v=4'])])])),
@@ -275,7 +278,28 @@ it('brings an answer\'s images down with it when asked, before it comes back', f
     expect(File::exists(ImageCache::path('https://avatars.githubusercontent.com/u/3?v=4')))->toBeFalse();
 });
 
+it('empties the image folder on sign-out, and draws what it held from the URL again', function () {
+    signIn();
+    $url = 'https://avatars.githubusercontent.com/u/2?v=4';
+    $path = cachedImage($url);
+
+    expect(ImageCache::src($url))->toBe($path);
+
+    app(Account::class)->forget();
+
+    expect(File::isDirectory(ImageCache::directory()))->toBeFalse()
+        ->and(ImageCache::src($url))->toBe($url);
+});
+
+it('keeps no image that lands once nobody is signed in', function () {
+    Http::fake(['avatars.githubusercontent.com/*' => Http::response('png bytes', 200, ['Content-Type' => 'image/png'])]);
+
+    expect(DownloadImages::save(['https://avatars.githubusercontent.com/u/2?v=4']))->toBe(0)
+        ->and(File::exists(ImageCache::path('https://avatars.githubusercontent.com/u/2?v=4')))->toBeFalse();
+});
+
 it('gives images it waits on only the time that is left, and starts none once it is up', function () {
+    signIn();
     Http::fake(['avatars.githubusercontent.com/*' => Http::response('png bytes', 200, ['Content-Type' => 'image/png'])]);
 
     expect(DownloadImages::save(['https://avatars.githubusercontent.com/u/2?v=4'], until: microtime(true) - 1))->toBe(0);

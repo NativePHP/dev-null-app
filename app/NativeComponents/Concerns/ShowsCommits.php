@@ -212,7 +212,7 @@ trait ShowsCommits
         }
 
         app(Account::class)->rememberPasteis($pasteis->afterGiving());
-        $this->replaceShownCommit($commit->withMorePasteis(1));
+        $this->changeShownCommit($id, fn (Commit $shown): Commit => $shown->withMorePasteis(1));
 
         $this->writeInBackground('POST', Client::pastelPath($id), null, fn (array $json) => $this->pastelGiven($id, $json), function (string $message, ?ApiException $exception = null) use ($id): void {
             $this->pastelTurnedDown($id, $exception);
@@ -272,7 +272,7 @@ trait ShowsCommits
         $images = $this->shownCommit($id)?->images ?? [];
         $image = $images[$index] ?? null;
 
-        if ($image === null || ! $this->isWebUrl($image->url)) {
+        if ($image === null || ! SiteLink::isWebUrl($image->url)) {
             return;
         }
 
@@ -402,11 +402,8 @@ trait ShowsCommits
     private function pastelGiven(string $id, array $json): void
     {
         $fresh = Commit::fromArray(is_array($json['data'] ?? null) ? $json['data'] : []);
-        $shown = $this->shownCommit($id);
 
-        if ($shown !== null && $fresh->pasteisCount > $shown->pasteisCount) {
-            $this->replaceShownCommit($shown->withMorePasteis($fresh->pasteisCount - $shown->pasteisCount));
-        }
+        $this->changeShownCommit($id, fn (Commit $shown): Commit => $shown->withMorePasteis(max(0, $fresh->pasteisCount - $shown->pasteisCount)));
 
         app(ResponseCache::class)->pastelGiven($json);
 
@@ -470,11 +467,7 @@ trait ShowsCommits
      */
     private function pastelTurnedDown(string $id, ?ApiException $exception): void
     {
-        $shown = $this->shownCommit($id);
-
-        if ($shown !== null) {
-            $this->replaceShownCommit($shown->withMorePasteis(-1));
-        }
+        $this->changeShownCommit($id, fn (Commit $shown): Commit => $shown->withMorePasteis(-1));
 
         $exhausted = $exception?->is(ErrorCode::PasteisExhausted) === true;
         $pasteis = app(Account::class)->pasteis();
@@ -515,18 +508,22 @@ trait ShowsCommits
      */
     protected function showStar(string $id, bool $starred, ?Commit $fresh = null): void
     {
-        $shown = $this->shownCommit($id);
-
-        if ($shown !== null) {
-            $this->replaceShownCommit($fresh === null ? $shown->withStar($starred) : $shown->withReactionsFrom($fresh));
-        }
+        $this->changeShownCommit($id, fn (Commit $shown): Commit => $fresh === null ? $shown->withStar($starred) : $shown->withReactionsFrom($fresh));
     }
 
-    private function replaceShownCommit(Commit $replacement): void
+    /**
+     * Runs $change over every copy of a commit showing: its row, and the ones
+     * nested in rows, as a quote or a reply under another commit. Each copy
+     * keeps what only it has, such as the replies its row shows under it,
+     * which a copy nested in a quote or a thread doesn't carry.
+     *
+     * @param  Closure(Commit): Commit  $change
+     */
+    private function changeShownCommit(string $id, Closure $change): void
     {
-        $replace = fn (Commit $commit): Commit => $commit->id === $replacement->id ? $replacement : $commit;
+        $changeCopy = fn (Commit $commit): Commit => $commit->id === $id ? $change($commit) : $commit;
 
-        $this->updateShownCommits(fn (Commit $commit): Commit => $replace($commit)->withPreviewReplies($replace));
+        $this->updateShownCommits(fn (Commit $commit): Commit => $changeCopy($commit)->withPreviewReplies($changeCopy)->withQuotedCommit($changeCopy));
     }
 
     /**
@@ -588,18 +585,9 @@ trait ShowsCommits
 
     private function openInBrowser(?string $url): void
     {
-        if ($this->isWebUrl($url)) {
+        if (SiteLink::isWebUrl($url)) {
             Browser::inApp($url);
         }
-    }
-
-    /**
-     * Only an http or https address is opened, in the browser or the viewer, so
-     * nothing else a row might carry can take the phone somewhere unexpected.
-     */
-    private function isWebUrl(?string $url): bool
-    {
-        return $url !== null && in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true);
     }
 
     /**
@@ -623,7 +611,7 @@ trait ShowsCommits
     {
         $image = $this->viewerImages[$index] ?? null;
 
-        if (! $this->viewerOpen || $image === null || ! $this->isWebUrl($image->url)) {
+        if (! $this->viewerOpen || $image === null || ! SiteLink::isWebUrl($image->url)) {
             return;
         }
 
