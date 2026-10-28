@@ -235,6 +235,9 @@ it('slides a message dragged toward its edge out of the way, growing React and R
         ->and(nodeByRef($screen, 'react-1')['props']['scale_sv'])->toBe('__sv:'.$pan('1').'|interp:-68,-34:1,0')
         ->and(nodeByRef($screen, 'react-2')['props']['opacity_sv'])->toBe('__sv:'.$pan('2').'|interp:34,68:0,1');
 
+    // Closed, they're only drawn, so a tap beside the message can't land on them; open, they're buttons.
+    expect(nodeByRef($screen, 'reply-1')['type'])->toBe('stack');
+
     // A tap no longer shows them, and neither does dragging the message away from its edge, or not far enough.
     $screen->tap('bubble-1')->dragEnd('swipe-1', 200)->dragEnd('swipe-1', -20);
     expect(showsActions($screen, '1'))->toBeFalse();
@@ -242,7 +245,9 @@ it('slides a message dragged toward its edge out of the way, growing React and R
     // Theirs goes left, partly off the screen, by the room its actions take.
     $screen->dragEnd('swipe-1', -68);
     expect(showsActions($screen, '1'))->toBeTrue()
-        ->and(nodeByRef($screen, 'content-1')['props']['translate-x'])->toEqual(-68);
+        ->and(nodeByRef($screen, 'content-1')['props']['translate-x'])->toEqual(-68)
+        ->and(nodeByRef($screen, 'reply-1')['type'])->toBe('pressable')
+        ->and(nodeByRef($screen, 'reply-2')['type'])->toBe('stack');
 
     // Yours goes right by as much, and the actions move there.
     $screen->dragEnd('swipe-2', 68);
@@ -538,7 +543,7 @@ it('pads the end of the thread for the composer bar alone, and for the reply bar
     // The scroll view adds the home indicator itself while the keyboard is down, so it isn't counted here.
     expect($clearance())->toEqual(Conversation::ComposerBarHeight + 8);
 
-    $screen->tap('bubble-1')->tap('reply-1');
+    $screen->dragEnd('swipe-1', -200)->tap('reply-1');
 
     expect($clearance())->toEqual(Conversation::ComposerBarHeight + Conversation::ReplyingBarHeight + 8);
 });
