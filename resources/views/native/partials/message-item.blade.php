@@ -11,6 +11,10 @@
     back. The actions sit in a slot the bubble always keeps beside it, so nothing rewraps. Dragging it back, or a tap
     anywhere in the thread, puts them away; a double tap toggles a heart. A pinned message keeps its pin beside it. A message still being pushed takes
     none of them, and nothing reacts, replies or pins while the thread can't take a message.
+
+    A long press on the bubble, or on the images, opens the message's menu (see App\Devnull\MessageMenu), which lifts it
+    out of the thread on iOS: Reply, React and Copy text, and Pin for an org's maintainers. The menu goes on a pressable
+    around the drawn bubble, so the lifted copy keeps the bubble's colour and padding.
 --}}
 @php($key = $message->id > 0 ? $message->id : $message->clientId)
 @php($laneToken = \App\Devnull\Lane::token(($author ?? null)?->lane()))
@@ -51,9 +55,7 @@
                 @if ($mine)
                     @include('native.partials.message-actions')
                 @endif
-                <native:column class="gap-1">
-                    @include('native.partials.message-images')
-                </native:column>
+                @include('native.partials.message-images', ['photosMenu' => $menu])
                 @if (! $mine)
                     @include('native.partials.message-actions')
                 @endif
@@ -69,13 +71,17 @@
                     @include('native.partials.message-actions')
                 @endif
                 @if ($message->isPending())
-                    <native:column ref="bubble-{{ $key }}" class="flex-shrink px-3 py-2 rounded-2xl {{ $message->status === 'rejected' ? 'border border-theme-destructive bg-theme-surface' : 'bg-theme-'.$myColour.'/60' }}">
-                        @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour, 'quoteRule' => $message->status === 'rejected' ? 'border-theme-lane-5' : 'border-theme-on-'.$myColour])
-                    </native:column>
+                    <native:pressable ref="bubble-{{ $key }}" class="flex-shrink" :context-menu="$menu">
+                        <native:column class="px-3 py-2 rounded-2xl {{ $message->status === 'rejected' ? 'border border-theme-destructive bg-theme-surface' : 'bg-theme-'.$myColour.'/60' }}">
+                            @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour, 'quoteRule' => $message->status === 'rejected' ? 'border-theme-lane-5' : 'border-theme-on-'.$myColour])
+                        </native:column>
+                    </native:pressable>
                 @else
-                    <native:column ref="bubble-{{ $key }}" class="flex-shrink px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}" @press="hideActions" @doubleTap="heart({{ $message->id }})" a11y-hint="{{ $replyable ? 'Swipe sideways for React and Reply' : '' }}">
-                        @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary', 'quoteRule' => $mine ? 'border-theme-on-'.$myColour : 'border-theme-lane-5'])
-                    </native:column>
+                    <native:pressable ref="bubble-{{ $key }}" class="flex-shrink" @press="hideActions" @doubleTap="heart({{ $message->id }})" :context-menu="$menu" a11y-hint="{{ $replyable ? 'Swipe sideways for React and Reply' : '' }}">
+                        <native:column class="px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}">
+                            @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary', 'quoteRule' => $mine ? 'border-theme-on-'.$myColour : 'border-theme-lane-5'])
+                        </native:column>
+                    </native:pressable>
                 @endif
                 @if (! $mine)
                     @include('native.partials.message-actions')

@@ -12,6 +12,7 @@ use App\Devnull\Data\Thread;
 use App\Devnull\Data\User;
 use App\Devnull\Display;
 use App\Devnull\Exceptions\ApiException;
+use App\Devnull\MessageMenu;
 use App\Devnull\MuteDuration;
 use App\Devnull\Outbox;
 use App\Devnull\ReactionEmoji;
@@ -39,6 +40,8 @@ use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Facades\Browser;
 use Native\Mobile\Facades\Device;
 use Native\Mobile\Facades\Dialog;
+use Native\Mobile\Facades\System;
+use NativePHP\Clipboard\Facades\Clipboard;
 
 /**
  * A Remotes thread, with a person or an org, as the web's thread shows it:
@@ -718,6 +721,45 @@ class Conversation extends NativeComponent
         $this->sheetOpen = false;
         $this->reactsFromPinned = false;
         $this->focusField(onlyIfIdle: true);
+    }
+
+    /**
+     * React, from the menu a long press opens: the quick reactions in their bubble when the message's options already
+     * show, so the bubble has React to point at, and otherwise the phone's emoji picker.
+     */
+    public function reactFromMenu(int $id): void
+    {
+        if ($this->actionsForId === $id) {
+            $this->openReactions($id);
+
+            return;
+        }
+
+        $this->openEmojiPicker($id);
+    }
+
+    /**
+     * Copy text, from the menu a long press opens: the message's text, as it was written, on the clipboard. A message
+     * still being pushed is named by its client id. iOS says so in a toast, in the web's words. Android says so itself,
+     * at the foot of the screen, as it has for every app since Android 13, the oldest the app runs on.
+     */
+    public function copyText(int|string $id): void
+    {
+        $message = is_int($id) ? $this->findMessage($id) : $this->findPending($id);
+
+        if ($message === null || $message->body === '') {
+            return;
+        }
+
+        if (! Clipboard::writeText($message->body)) {
+            Toasts::failed('Could not copy the text. Try again.');
+
+            return;
+        }
+
+        if (System::isIos()) {
+            Toasts::say('Copied.', short: true);
+        }
     }
 
     /**
@@ -1443,6 +1485,17 @@ class Conversation extends NativeComponent
         return null;
     }
 
+    private function findPending(string $clientId): ?Message
+    {
+        foreach ($this->pending as $message) {
+            if ($message->clientId === $clientId) {
+                return $message;
+            }
+        }
+
+        return null;
+    }
+
     private function replaceMessage(Message $replacement): void
     {
         $replace = fn (Message $message): Message => $message->id === $replacement->id ? $replacement : $message;
@@ -1750,6 +1803,8 @@ class Conversation extends NativeComponent
                 continue;
             }
 
+            $answerable = $this->takesActions($message);
+            $pinned = $this->canPin() ? $this->isPinned($message->id) : null;
             $previous = $items[array_key_last($items) ?? -1] ?? null;
             $startsRun = ($previous['type'] ?? null) !== 'message' || $previous['message']->userId !== $message->userId;
 
@@ -1767,6 +1822,8 @@ class Conversation extends NativeComponent
                 'author' => $message->user ?? $this->authorOf($message->userId),
                 'slide' => $this->slideOf($message),
                 'pan' => $this->panFor($message, $message->userId === $viewer?->id),
+                'menu' => MessageMenu::items($message, $answerable, $pinned),
+                'photosMenu' => $message->images === [] || $message->body === '' ? [] : MessageMenu::items($message, $answerable, $pinned, named: false),
             ];
         }
 

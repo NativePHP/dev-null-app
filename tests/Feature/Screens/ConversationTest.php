@@ -303,7 +303,7 @@ it("shows an image-only message's actions beside its images", function () {
 
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))->dragEnd('swipe-1', -200);
 
-    expect(childRefs($screen, 'content-1'))->toBe([null, 'actions-1'])
+    expect(childRefs($screen, 'content-1'))->toBe(['photos-1', 'actions-1'])
         ->and(showsActions($screen, '1'))->toBeTrue();
 
     $this->travel(1)->seconds();
@@ -1049,4 +1049,142 @@ it('shows three lines of a long pinned message, and the rest with Show more', fu
     $screen->tap('pin-1-more')->assertSee('Show less');
 
     expect(findNode(nodeByRef($screen, 'pin-1'), fn (array $node): bool => ($node['props']['max_lines'] ?? null) === 3))->toBeNull();
+});
+
+it('opens Reply, React and Copy text on a long press on a message, yours or theirs, and keeps its tap and double tap', function () {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?']),
+        remoteMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => 'which one?']),
+    ], ['read_through_id' => 2]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada', platform: 'ios'));
+
+    expect(nodeByRef($screen, 'bubble-1')['props']['has_context_menu'] ?? null)->toBeTrue()
+        ->and(menuItems($screen, 'bubble-1'))->toBe([
+            ['reply-menu-1', 'Reply', 'custom:reply'],
+            ['react-menu-1', 'React', 'custom:smile-plus'],
+            ['copy-menu-1', 'Copy text', 'custom:copy'],
+        ])
+        ->and(array_column(menuItems($screen, 'bubble-2'), 0))->toBe(['reply-menu-2', 'react-menu-2', 'copy-menu-2'])
+        ->and(nodeByRef($screen, 'bubble-1')['on_press'] ?? 0)->toBeGreaterThan(0)
+        ->and(nodeByRef($screen, 'bubble-1')['props']['on_double_tap'] ?? 0)->toBeGreaterThan(0);
+});
+
+it("opens the same menu on a message's photos, without Copy text when it has no text", function () {
+    $photo = ['id' => 7, 'width' => 400, 'height' => 300, 'description' => null, 'url' => 'http://devnull.test/i/7.png'];
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => '', 'images' => [$photo]]),
+        remoteMessageJson(['id' => 2, 'body' => 'the view from here', 'images' => [[...$photo, 'id' => 8]]]),
+    ], ['read_through_id' => 2]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada', platform: 'ios'));
+
+    // The bubble names the items of a message with both, so they're found once.
+    expect(menuItems($screen, 'photos-1'))->toBe([
+        ['reply-menu-1', 'Reply', 'custom:reply'],
+        ['react-menu-1', 'React', 'custom:smile-plus'],
+    ])
+        ->and(menuItems($screen, 'photos-2'))->toBe([
+            [null, 'Reply', 'custom:reply'],
+            [null, 'React', 'custom:smile-plus'],
+            [null, 'Copy text', 'custom:copy'],
+        ])
+        ->and(array_column(menuItems($screen, 'bubble-2'), 0))->toBe(['reply-menu-2', 'react-menu-2', 'copy-menu-2']);
+});
+
+it('only copies the text of a message still being pushed, or in a thread that cannot take a message', function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?'])], ['read_through_id' => 1]));
+    holdRefreshes()->respondTo('Clipboard.WriteText', ['success' => true]);
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada', platform: 'ios'))->set('draft', 'on it')->call('send');
+    $staged = $screen->instance()->pending[0]->clientId;
+
+    expect(menuItems($screen, 'bubble-'.$staged))->toBe([['copy-menu-'.$staged, 'Copy text', 'custom:copy']]);
+
+    $screen->tap('copy-menu-'.$staged)
+        ->assertNativeCalled('Clipboard.WriteText', fn (array $params): bool => $params['text'] === 'on it');
+
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?'])], ['read_through_id' => 1, 'access' => 'request']));
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+
+    expect(array_column(menuItems($screen, 'bubble-1'), 1))->toBe(['Copy text']);
+});
+
+it('copies the text of a message as it was written, and says so on iOS, where Android says so itself', function (string $platform, array $toasts) {
+    $this->bridge->respondTo('Clipboard.WriteText', ['success' => true]);
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => "run `php artisan test`\n> and tell me"])], ['read_through_id' => 1]));
+
+    finishRefreshes(Native::visit('/remotes/conversations/ada', platform: $platform))->tap('copy-menu-1');
+
+    expect(array_column($this->bridge->callsTo('Clipboard.WriteText'), 'params'))->toBe([['text' => "run `php artisan test`\n> and tell me"]])
+        ->and(array_column(array_column($this->bridge->callsTo('ToastKit.Show'), 'params'), 'message'))->toBe($toasts);
+})->with([
+    'iOS' => ['ios', ['Copied.']],
+    'Android' => ['android', []],
+]);
+
+it("says so when the text couldn't be copied", function () {
+    $this->bridge->respondTo('Clipboard.WriteText', ['error' => 'clipboard write failed']);
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?'])], ['read_through_id' => 1]));
+
+    finishRefreshes(Native::visit('/remotes/conversations/ada', platform: 'android'))->tap('copy-menu-1');
+
+    expect(array_column(array_column($this->bridge->callsTo('ToastKit.Show'), 'params'), 'message'))->toBe(['Could not copy the text. Try again.']);
+});
+
+it('replies from the menu as from the Reply beside the message, and raises the keyboard', function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?'])], ['read_through_id' => 1]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))
+        ->tap('reply-menu-1')
+        ->assertSee('Replying to Ada Lovelace');
+
+    expect(nodeByRef($screen, 'message-input')['props']['autofocus'] ?? null)->toBeTrue();
+});
+
+it("reacts from the menu with the phone's emoji picker, or the quick reactions when the message's options show", function () {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?']),
+        remoteMessageJson(['id' => 2, 'body' => 'staging is green']),
+    ], ['read_through_id' => 2]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))->tap('react-menu-1');
+
+    expect(pickerShows($screen))->toBeTrue()
+        ->and(rendersRef($screen, 'reactions-bubble'))->toBeFalse();
+
+    finishRefreshes($screen->select('emoji-picker', '🎉'));
+
+    expect(sentTo('POST', 'remotes/messages/1/reactions'))->toBe(['{"emoji":"🎉"}']);
+
+    // Slid open, the message has React beside it for the bubble to point at.
+    $screen->dragEnd('swipe-2', -200)->tap('react-menu-2')
+        ->assertSet('reactionsFor', 2)
+        ->assertSet('emojiPickerFor', null);
+
+    expect(rendersRef($screen, 'reactions-bubble'))->toBeTrue();
+});
+
+it("adds Pin message to the menu for an org's maintainers, and Unpin message on a pinned one", function () {
+    serveOrgThread(orgThreadJson([
+        orgMessageJson(['id' => 1, 'body' => 'standup in 10?']),
+        orgMessageJson(['id' => 2, 'body' => 'release checklist']),
+    ], ['pinned' => [orgMessageJson(['id' => 2, 'body' => 'release checklist'])]]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1', platform: 'ios'));
+
+    expect(menuItems($screen, 'bubble-1')[3] ?? null)->toBe(['pin-menu-1', 'Pin message', 'custom:pin'])
+        ->and(menuItems($screen, 'bubble-2')[3] ?? null)->toBe(['unpin-menu-2', 'Unpin message', 'custom:pin-off']);
+
+    $screen->tap('pin-menu-1')
+        ->assertNativeCalled('Dialog.Alert', fn (array $params): bool => $params['title'] === 'Pin for the whole org?');
+
+    finishRefreshes($screen->tap('unpin-menu-2'));
+
+    expect(sentTo('DELETE', 'remotes/messages/2/pin'))->toHaveCount(1);
+
+    serveOrgThread(orgThreadJson([orgMessageJson(['id' => 1, 'body' => 'standup in 10?'])], ['role' => 'contributor']));
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'));
+
+    expect(array_column(menuItems($screen, 'bubble-1'), 1))->toBe(['Reply', 'React', 'Copy text']);
 });

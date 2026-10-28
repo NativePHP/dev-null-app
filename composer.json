@@ -38,6 +38,7 @@
         "nativephp/mobile": "dev-main as 4.6.0",
         "nativephp/mobile-browser": "^1.2",
         "nativephp/mobile-camera": "^1.1",
+        "nativephp/mobile-clipboard": "^1.0",
         "nativephp/mobile-secure-storage": "^1.1",
         "nativephp/mobile-share": "^1.1",
         "nativephp/mobile-ui": "dev-main as 0.8.0",

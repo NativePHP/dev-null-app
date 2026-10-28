@@ -9,6 +9,7 @@ use Native\Mobile\Providers\CameraServiceProvider;
 use Native\Mobile\Providers\SecureStorageServiceProvider;
 use Native\Mobile\Providers\ShareServiceProvider;
 use Native\Mobile\UI\NativeUIServiceProvider;
+use NativePHP\Clipboard\ClipboardServiceProvider;
 use S2BR\MobileSplashscreen\MobileSplashscreenServiceProvider;
 use Victorycodedev\ToastKit\ToastKitServiceProvider;
 
@@ -52,6 +53,7 @@ class NativeServiceProvider extends ServiceProvider
             ShareServiceProvider::class,
             MobileSplashscreenServiceProvider::class,
             ToastKitServiceProvider::class,
+            ClipboardServiceProvider::class,
             ...(config('devnull.apple_sign_in') ? [NativephpSocialAuthServiceProvider::class] : []),
         ];
     }

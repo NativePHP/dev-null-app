@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "4c795f7f152e1855d8c1e257076e3f74",
+    "content-hash": "867ed223cedff5c9b645e3ee689426fe",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2950,6 +2950,61 @@
                 "source": "https://github.com/NativePHP/mobile-camera/tree/1.1.0"
             },
             "time": "2026-10-22T15:11:58+00:00"
+        },
+        {
+            "name": "nativephp/mobile-clipboard",
+            "version": "1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/NativePHP/mobile-clipboard.git",
+                "reference": "42915220750b02ff555ca20b11e656f31d015536"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/NativePHP/mobile-clipboard/zipball/42915220750b02ff555ca20b11e656f31d015536",
+                "reference": "42915220750b02ff555ca20b11e656f31d015536",
+                "shasum": ""
+            },
+            "require": {
+                "nativephp/mobile": "^3.0 || ^4.0",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^2.7|^3.0|^4.0"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "NativePHP\\Clipboard\\ClipboardServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "NativePHP\\Clipboard\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "NativePHP",
+                    "email": "support@nativephp.com"
+                }
+            ],
+            "description": "System clipboard access (copy/paste text) for NativePHP Mobile",
+            "support": {
+                "issues": "https://github.com/NativePHP/mobile-clipboard/issues",
+                "source": "https://github.com/NativePHP/mobile-clipboard/tree/1.0.0"
+            },
+            "time": "2026-07-19T02:38:14+00:00"
         },
         {
             "name": "nativephp/mobile-secure-storage",

@@ -94,6 +94,7 @@ enum Lucide
     case BellOff;
     case LogOut;
     case UserMinus;
+    case Copy;
 
     /**
      * The icon the web's inbox draws for a kind of notification.
@@ -200,6 +201,7 @@ enum Lucide
             self::BellOff => 'bell-off',
             self::LogOut => 'log-out',
             self::UserMinus => 'user-minus',
+            self::Copy => 'copy',
             default => null,
         };
 
