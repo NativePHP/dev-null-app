@@ -10,11 +10,13 @@ use Carbon\CarbonImmutable;
  * its body, drawn from its segments the way a commit's is, the message it
  * replies to (only as much as the web's ghost shows), its link card, images
  * and reactions. In an org it says who wrote it, and an org's history also
- * logs who joined and left as messages with an event.
+ * logs who joined and left as messages with an event. A ping, as MSN
+ * Messenger had, is an event too, in an org or with one person.
  *
  * A message you've just pushed shows straight away, as the web's do: staged
- * until devnull has it, or rejected with a retry when it couldn't take it.
- * Until then its id is 0 and its client id is what ties the two together.
+ * until devnull has it, or rejected with a retry when it couldn't take it,
+ * its photos drawn from the phone meanwhile. Until then its id is 0 and its
+ * client id is what ties the two together.
  */
 final readonly class Message
 {
@@ -28,6 +30,8 @@ final readonly class Message
     public const string Staged = 'staged';
 
     public const string Rejected = 'rejected';
+
+    public const string Ping = 'ping';
 
     /**
      * @param  list<BodyBlock>  $content
@@ -101,8 +105,10 @@ final readonly class Message
 
     /**
      * A message you're pushing, shown staged until devnull has it.
+     *
+     * @param  list<DraftImage>  $images
      */
-    public static function staged(string $userId, string $clientId, string $body, ?self $replyTo = null): self
+    public static function staged(string $userId, string $clientId, string $body, ?self $replyTo = null, array $images = []): self
     {
         return new self(
             id: 0,
@@ -112,6 +118,7 @@ final readonly class Message
             content: CommitBody::blocks($body, null),
             replyToId: $replyTo?->id,
             replyTo: $replyTo === null ? null : ['id' => $replyTo->id, 'user_id' => $replyTo->userId, 'body' => $replyTo->body, 'images_count' => count($replyTo->images)],
+            images: array_map(fn (DraftImage $image, int $index): CommitImage => $image->asCommitImage($index), $images, array_keys($images)),
             createdAt: CarbonImmutable::now(),
             status: self::Staged,
         );
@@ -153,6 +160,11 @@ final readonly class Message
     public function isEvent(): bool
     {
         return $this->event !== null;
+    }
+
+    public function isPing(): bool
+    {
+        return $this->event === self::Ping;
     }
 
     public function isPending(): bool
@@ -212,7 +224,8 @@ final readonly class Message
     }
 
     /**
-     * An org event, as the web logs it between messages: who did it, and to whom.
+     * An event, as the web logs it between messages: who did it, and to whom. In a thread with one person devnull
+     * leaves the author off a ping, since it can only be them.
      */
     public function eventText(?string $viewerId, ?string $orgName = null): string
     {
@@ -228,6 +241,11 @@ final readonly class Message
             'promoted' => "{$actor} made {$subject} a maintainer",
             'demoted' => "{$actor} made {$subject} a contributor",
             'inherited' => "{$actor} inherited maintainer",
+            self::Ping => match (true) {
+                $this->userId === $viewerId => 'you sent a ping',
+                $this->user !== null => "{$actor} sent a ping",
+                default => 'you got a ping',
+            },
             default => $actor,
         };
     }

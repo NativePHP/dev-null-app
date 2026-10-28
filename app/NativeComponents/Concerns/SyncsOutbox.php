@@ -45,7 +45,7 @@ use Victorycodedev\ToastKit\Events\ToastActionPressed;
  *   toast offers Edit, which opens it here when it can, or the commit the
  *   reply or quote was for.
  * - A message stays in its thread as rejected, with its Retry, and the toast
- *   offers Retry too.
+ *   offers Retry too. Its photos stay on the phone with it until it goes.
  *
  * A 401 signs the phone out, as any request does, which empties the outbox.
  *
@@ -211,10 +211,10 @@ trait SyncsOutbox
         }
 
         $outbox->forget($write);
+        app(DraftImages::class)->discard($write->images());
 
         if ($write->isCommit()) {
             app(ResponseCache::class)->commitAdded($data);
-            app(DraftImages::class)->discard($write->images());
             $this->showCommitWent($write, Commit::fromArray($data));
 
             return;
@@ -298,11 +298,7 @@ trait SyncsOutbox
         return match ($write->kind) {
             PendingWrite::Star => $devnull->signedWrite('POST', $commit),
             PendingWrite::Unstar => $devnull->signedWrite('DELETE', $commit),
-            PendingWrite::Message => $devnull->signedWrite('POST', $write->target.'/messages', array_filter([
-                'body' => $write->body(),
-                'client_id' => $write->client_id,
-                'reply_to_id' => $write->payload['reply_to_id'] ?? null,
-            ], fn (mixed $value): bool => $value !== null)),
+            PendingWrite::Message => $devnull->signedMessage((string) $write->target, $write->body(), $write->client_id, $write->replyToId(), $write->images()),
             default => $write->images() === []
                 ? $devnull->signedCommit($write->body(), $write->parentId(), $write->quotedCommitId(), $write->poll())
                 : $devnull->signedCommitWithImages($write->body(), $write->images(), $write->parentId(), $write->quotedCommitId()),

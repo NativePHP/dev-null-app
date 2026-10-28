@@ -7,8 +7,9 @@ use App\Devnull\Exceptions\InvalidDraftImage;
 use App\Models\PendingWrite;
 
 /**
- * The photos attached to the commits you're writing, taken with the camera or
- * picked from your library, held in the app's own storage until they're sent.
+ * The photos attached to the commits and Remotes messages you're writing,
+ * taken with the camera or picked from your library, held in the app's own
+ * storage until they're sent.
  *
  * A photo is checked as devnull checks it before it's attached, so you hear at
  * once, in the web's words, when one won't do: up to three, JPEG, PNG or WebP,
@@ -17,8 +18,8 @@ use App\Models\PendingWrite;
  *
  * The camera and the library hand over copies made for the app, so a photo is
  * moved here, and one that won't do is deleted, so none are left lying about.
- * A photo stays as long as a stashed draft or a commit in the outbox holds
- * it. One nothing holds any more goes after a day.
+ * A photo stays as long as a stashed draft, or a commit or a message in the
+ * outbox, holds it. One nothing holds any more goes after a day.
  */
 final class DraftImages
 {
@@ -137,7 +138,7 @@ final class DraftImages
     }
 
     /**
-     * The paths of the photos your stashed drafts and the commits in the outbox hold.
+     * The paths of the photos your stashed drafts, and the commits and messages in the outbox, hold.
      *
      * @return list<string>
      */
@@ -146,6 +147,7 @@ final class DraftImages
         $images = [
             ...app(Stash::class)->images(app(Account::class)->user()?->id),
             ...app(Outbox::class)->pending(PendingWrite::Commit, withFailed: true)->flatMap(fn (PendingWrite $write): array => $write->images())->all(),
+            ...app(Outbox::class)->pending(PendingWrite::Message, withFailed: true)->flatMap(fn (PendingWrite $write): array => $write->images())->all(),
         ];
 
         return array_map(fn (DraftImage $image): string => $image->path, $images);

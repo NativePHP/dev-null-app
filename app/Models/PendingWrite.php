@@ -132,6 +132,14 @@ class PendingWrite extends Model
     }
 
     /**
+     * The message a Remotes message replies to.
+     */
+    public function replyToId(): ?int
+    {
+        return is_int($this->payload['reply_to_id'] ?? null) ? $this->payload['reply_to_id'] : null;
+    }
+
+    /**
      * The draft a commit was written under (see App\Devnull\Stash), which it goes back to if devnull turns it down.
      */
     public function stashName(): ?string
@@ -148,7 +156,8 @@ class PendingWrite extends Model
     }
 
     /**
-     * The commit's photos still on the phone. Photos nothing holds any more are deleted after a day (see DraftImages).
+     * The photos of a commit or a message still on the phone. Photos nothing holds any more are deleted after a day
+     * (see DraftImages).
      *
      * @return list<DraftImage>
      */

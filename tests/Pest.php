@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Http;
 use Native\Mobile\AsyncTask;
 use Native\Mobile\Events\Async\AsyncTaskFailed;
 use Native\Mobile\Events\Async\AsyncTaskFinished;
+use Native\Mobile\Events\Gallery\MediaSelected;
 use Native\Mobile\Support\AsyncTaskRunner;
 use Native\Mobile\Support\AsyncTaskTransport;
 use Native\Mobile\Testing\FakeBridge;
@@ -870,6 +871,38 @@ function testPhoto(string $type = 'png', int $width = 40, int $height = 30): str
     };
 
     return $path;
+}
+
+/**
+ * The library handing back the photos at $paths, as the plugin sends them.
+ *
+ * @param  list<string>  $paths
+ */
+function photosPicked(TestableComponent $screen, array $paths): TestableComponent
+{
+    return $screen->emitNative(MediaSelected::class, [
+        'success' => true,
+        'files' => array_map(fn (string $path): array => ['path' => $path, 'mimeType' => 'image/'.pathinfo($path, PATHINFO_EXTENSION), 'type' => 'image'], $paths),
+        'count' => count($paths),
+    ]);
+}
+
+/**
+ * The parts of a multipart body, by name, in order.
+ *
+ * @return list<array{name: string, type: string, contents: string}>
+ */
+function multipartParts(Request $request): array
+{
+    preg_match('/boundary=(\S+)/', $request->header('Content-Type')[0], $matches);
+
+    return array_map(function (string $part): array {
+        [$headers, $contents] = explode("\r\n\r\n", ltrim($part, "\r\n"), 2);
+        preg_match('/name="([^"]+)"/', $headers, $name);
+        preg_match('/Content-Type: (\S+)/', $headers, $type);
+
+        return ['name' => $name[1], 'type' => $type[1], 'contents' => substr($contents, 0, -2)];
+    }, array_slice(explode('--'.$matches[1], $request->body()), 1, -1));
 }
 
 /**

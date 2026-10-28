@@ -7,22 +7,17 @@ use App\Devnull\Data\DraftImage;
 use App\Devnull\Data\PollDraft;
 use App\Devnull\DraftImages;
 use App\Devnull\Exceptions\ApiException;
-use App\Devnull\Exceptions\InvalidDraftImage;
 use Closure;
-use Native\Mobile\Attributes\On;
-use Native\Mobile\Events\Camera\PermissionDenied;
-use Native\Mobile\Events\Camera\PhotoTaken;
-use Native\Mobile\Events\Gallery\MediaSelected;
-use Native\Mobile\Facades\Camera;
 
 /**
  * What the composer sheet adds to a commit, as the web's composer does: photos,
  * a poll, and a preview (see partials/composer-tools).
  *
  * Photos come from the library or the camera, up to three, each with a
- * description for people who can't see it. A new commit or a quote can have a
- * poll instead, of two to four options, open for an hour up to a week. A reply
- * can have photos but not a poll, as on the web.
+ * description for people who can't see it (see AttachesPhotos). A new
+ * commit or a quote can have a poll instead, of two to four options, open
+ * for an hour up to a week. A reply can have photos but not a poll, as on
+ * the web.
  *
  * Preview shows the draft as the commit it would become, by you, at once, and
  * takes the body devnull sends back, with its code and mentions, when it comes.
@@ -35,15 +30,12 @@ use Native\Mobile\Facades\Camera;
  */
 trait AttachesToCommits
 {
+    use AttachesPhotos;
+
     /**
      * @var list<DraftImage>
      */
     public array $sheetImages = [];
-
-    /**
-     * The photo whose description is open under the photos, by its place.
-     */
-    public ?int $describing = null;
 
     /**
      * The poll's options, or null with no poll.
@@ -80,79 +72,6 @@ trait AttachesToCommits
      * Keeps the draft in the stash as it is now, its photos and poll with it.
      */
     abstract protected function stashSheetDraft(): void;
-
-    /**
-     * The web's image button: the photo library, for as many photos as there's still room for.
-     */
-    public function pickPhotos(): void
-    {
-        if ($this->canAttachPhotos()) {
-            Camera::pickImages('images', true, DraftImages::MaxImages - count($this->sheetImages))->start();
-        }
-    }
-
-    public function takePhoto(): void
-    {
-        if ($this->canAttachPhotos()) {
-            Camera::getPhoto()->start();
-        }
-    }
-
-    #[On(PhotoTaken::class)]
-    public function photoTaken(string $path = ''): void
-    {
-        $this->attachPhotos([$path]);
-    }
-
-    /**
-     * @param  list<mixed>  $files
-     */
-    #[On(MediaSelected::class)]
-    public function photosPicked(array $files = []): void
-    {
-        $this->attachPhotos(array_map(fn (mixed $file): string => is_array($file) && is_string($file['path'] ?? null) ? $file['path'] : '', $files));
-    }
-
-    #[On(PermissionDenied::class)]
-    public function cameraDenied(): void
-    {
-        if ($this->isComposing()) {
-            $this->sheetError = DraftImages::CameraDenied;
-        }
-    }
-
-    /**
-     * The ✕ on a photo: it comes off the draft, and off the phone.
-     */
-    public function removePhoto(int $index): void
-    {
-        if (! isset($this->sheetImages[$index])) {
-            return;
-        }
-
-        app(DraftImages::class)->discard([$this->sheetImages[$index]]);
-        array_splice($this->sheetImages, $index, 1);
-        $this->describing = null;
-        $this->stashSheetDraft();
-    }
-
-    /**
-     * The web's ALT on a photo: opens its description under the photos, or closes it.
-     */
-    public function describePhoto(int $index): void
-    {
-        if (isset($this->sheetImages[$index])) {
-            $this->describing = $this->describing === $index ? null : $index;
-        }
-    }
-
-    public function photoDescribed(int $index, string $description = ''): void
-    {
-        if (isset($this->sheetImages[$index])) {
-            $this->sheetImages[$index] = $this->sheetImages[$index]->withDescription($description);
-            $this->stashSheetDraft();
-        }
-    }
 
     /**
      * The web's poll button: two empty options, open for a day. A commit has photos or a poll, not both, and a
@@ -266,41 +185,33 @@ trait AttachesToCommits
         $this->sheetPreview = null;
     }
 
-    private function canAttachPhotos(): bool
+    /**
+     * @return list<DraftImage>
+     */
+    protected function attachedPhotos(): array
     {
-        return $this->isComposing() && $this->sheetPoll === null && count($this->sheetImages) < DraftImages::MaxImages;
+        return $this->sheetImages;
     }
 
     /**
-     * Keeps the photos the camera or the library handed over, as many as there's room for, and says why any didn't
-     * make it, in the web's words.
-     *
-     * @param  list<string>  $paths
+     * @param  list<DraftImage>  $photos
      */
-    private function attachPhotos(array $paths): void
+    protected function photosChanged(array $photos): void
     {
-        $paths = array_values(array_filter($paths, fn (string $path): bool => $path !== ''));
-
-        if ($paths === [] || ! $this->canAttachPhotos()) {
-            return;
-        }
-
-        $this->sheetError = null;
-
-        foreach ($paths as $path) {
-            if (count($this->sheetImages) >= DraftImages::MaxImages) {
-                $this->sheetError = DraftImages::TooMany;
-
-                break;
-            }
-
-            try {
-                $this->sheetImages[] = app(DraftImages::class)->keep($path);
-            } catch (InvalidDraftImage $exception) {
-                $this->sheetError = $exception->getMessage();
-            }
-        }
-
+        $this->sheetImages = $photos;
         $this->stashSheetDraft();
+    }
+
+    /**
+     * A commit has photos or a poll, not both.
+     */
+    protected function takesPhotos(): bool
+    {
+        return $this->isComposing() && $this->sheetPoll === null;
+    }
+
+    protected function photoFailed(?string $error): void
+    {
+        $this->sheetError = $error;
     }
 }

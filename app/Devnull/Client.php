@@ -249,40 +249,30 @@ final readonly class Client
     /**
      * Signs a commit with images without sending it, for the background to
      * send while the sheet says it's under way, since photos take a while to
-     * upload. devnull takes them as multipart, as from the `devnull commit`
-     * script: the JSON body goes in a payload part beside the images, and the
-     * SHA-256 of each image is signed on a line before it, so the signature
-     * covers them too. Descriptions go along when any photo has one.
+     * upload (see signedWithImages()).
      *
      * @param  list<DraftImage>  $images
      */
     public function signedCommitWithImages(string $body, array $images, ?string $parentId = null, ?string $quotedCommitId = null): SignedRequest
     {
-        $target = $this->target('commits', []);
-        $descriptions = array_map(fn (DraftImage $image): ?string => $image->isDescribed() ? trim($image->description) : null, $images);
-        $payload = self::body(self::commitPayload($body, $parentId, $quotedCommitId, descriptions: array_filter($descriptions) === [] ? [] : $descriptions));
-        $contents = array_map(fn (DraftImage $image): string => (string) file_get_contents($image->path), $images);
-        $boundary = 'devnull-'.bin2hex(random_bytes(16));
+        return $this->signedWithImages('commits', self::commitPayload($body, $parentId, $quotedCommitId), $images);
+    }
 
-        $part = fn (string $name, string $filename, string $type, string $bytes): string => "--{$boundary}\r\n"
-            ."Content-Disposition: form-data; name=\"{$name}\"; filename=\"{$filename}\"\r\n"
-            ."Content-Type: {$type}\r\n\r\n{$bytes}\r\n";
+    /**
+     * Signs a message for a Remotes thread without sending it, for the outbox
+     * to send from the background. devnull stores it once per client id, so
+     * it can go again. One with photos goes as a commit's do (see
+     * signedWithImages()), and may have no text.
+     *
+     * @param  list<DraftImage>  $images
+     */
+    public function signedMessage(string $threadPath, string $body, string $clientId, ?int $replyToId = null, array $images = []): SignedRequest
+    {
+        $payload = array_filter(['body' => $body, 'client_id' => $clientId, 'reply_to_id' => $replyToId], fn (mixed $value): bool => $value !== null);
 
-        $body = $part('payload', 'payload.json', 'application/json', $payload);
-
-        foreach ($images as $index => $image) {
-            $body .= $part('images[]', 'image-'.($index + 1).'.'.substr($image->mimeType, 6), $image->mimeType, $contents[$index]);
-        }
-
-        $hashes = implode(',', array_map(fn (string $bytes): string => hash('sha256', $bytes), $contents));
-
-        return new SignedRequest(
-            $this->origin().$target,
-            $this->sign('POST', $target, $hashes."\n".$payload, RequestSigner::ImagesNamespace),
-            'POST',
-            $body."--{$boundary}--\r\n",
-            "multipart/form-data; boundary={$boundary}",
-        );
+        return $images === []
+            ? $this->signedWrite('POST', $threadPath.'/messages', $payload)
+            : $this->signedWithImages($threadPath.'/messages', $payload, $images);
     }
 
     public function deleteCommit(string $id): void
@@ -569,6 +559,44 @@ final readonly class Client
     }
 
     /**
+     * Signs a write with images, as devnull takes them from the `devnull
+     * commit` script: multipart, the JSON body in a payload part beside the
+     * images, with the SHA-256 of each image signed on a line before it so the
+     * signature covers them too. Descriptions go along when any photo has one.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  list<DraftImage>  $images
+     */
+    private function signedWithImages(string $path, array $payload, array $images): SignedRequest
+    {
+        $target = $this->target($path, []);
+        $descriptions = array_map(fn (DraftImage $image): ?string => $image->isDescribed() ? trim($image->description) : null, $images);
+        $payload = self::body(array_filter($descriptions) === [] ? $payload : [...$payload, 'image_descriptions' => $descriptions]);
+        $contents = array_map(fn (DraftImage $image): string => (string) file_get_contents($image->path), $images);
+        $boundary = 'devnull-'.bin2hex(random_bytes(16));
+
+        $part = fn (string $name, string $filename, string $type, string $bytes): string => "--{$boundary}\r\n"
+            ."Content-Disposition: form-data; name=\"{$name}\"; filename=\"{$filename}\"\r\n"
+            ."Content-Type: {$type}\r\n\r\n{$bytes}\r\n";
+
+        $body = $part('payload', 'payload.json', 'application/json', $payload);
+
+        foreach ($images as $index => $image) {
+            $body .= $part('images[]', 'image-'.($index + 1).'.'.substr($image->mimeType, 6), $image->mimeType, $contents[$index]);
+        }
+
+        $hashes = implode(',', array_map(fn (string $bytes): string => hash('sha256', $bytes), $contents));
+
+        return new SignedRequest(
+            $this->origin().$target,
+            $this->sign('POST', $target, $hashes."\n".$payload, RequestSigner::ImagesNamespace),
+            'POST',
+            $body."--{$boundary}--\r\n",
+            "multipart/form-data; boundary={$boundary}",
+        );
+    }
+
+    /**
      * Sends a request signed elsewhere, exactly as signed: the body as the
      * bytes that were signed, or no body and no Content-Type when there was
      * none. Returns the response whatever its status.
@@ -656,19 +684,17 @@ final readonly class Client
     /**
      * What a commit sends, leaving out what it doesn't have.
      *
-     * @param  list<string|null>  $descriptions
      * @param  array{options: list<string>, duration: int}|null  $poll
      * @return array<string, mixed>
      */
-    private static function commitPayload(string $body, ?string $parentId, ?string $quotedCommitId, array $descriptions = [], ?array $poll = null): array
+    private static function commitPayload(string $body, ?string $parentId, ?string $quotedCommitId, ?array $poll = null): array
     {
         return array_filter([
             'body' => $body,
             'parent_id' => $parentId,
             'quoted_commit_id' => $quotedCommitId,
-            'image_descriptions' => $descriptions,
             'poll' => $poll,
-        ], fn (mixed $value): bool => $value !== null && $value !== []);
+        ], fn (mixed $value): bool => $value !== null);
     }
 
     /**
