@@ -272,7 +272,7 @@ trait ShowsCommits
         $images = $this->shownCommit($id)?->images ?? [];
         $image = $images[$index] ?? null;
 
-        if ($image === null || ! $this->isWebUrl($image->url)) {
+        if ($image === null || ! SiteLink::isWebUrl($image->url)) {
             return;
         }
 
@@ -588,18 +588,9 @@ trait ShowsCommits
 
     private function openInBrowser(?string $url): void
     {
-        if ($this->isWebUrl($url)) {
+        if (SiteLink::isWebUrl($url)) {
             Browser::inApp($url);
         }
-    }
-
-    /**
-     * Only an http or https address is opened, in the browser or the viewer, so
-     * nothing else a row might carry can take the phone somewhere unexpected.
-     */
-    private function isWebUrl(?string $url): bool
-    {
-        return $url !== null && in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true);
     }
 
     /**
@@ -623,7 +614,7 @@ trait ShowsCommits
     {
         $image = $this->viewerImages[$index] ?? null;
 
-        if (! $this->viewerOpen || $image === null || ! $this->isWebUrl($image->url)) {
+        if (! $this->viewerOpen || $image === null || ! SiteLink::isWebUrl($image->url)) {
             return;
         }
 

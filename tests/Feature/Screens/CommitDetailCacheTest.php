@@ -25,6 +25,7 @@ function serveThread(): void
     serveApi([
         'GET /api/v1/commits/c1' => [commitPageJson(graceRepliedTo(), [commitJson(['id' => 'c0', 'body' => 'The commit it replies to'])])],
         'GET /api/v1/commits/c1/replies' => [pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c1', 'body' => 'A compiler', 'author' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace'])])])],
+        'GET /api/v1/commits/c1/related' => [['data' => []]],
         'GET /api/v1/log/following' => [pageJson([graceRepliedTo()])],
         'GET /api/v1/me' => [['data' => userWithCountsJson(), 'unread_notifications_count' => 0]],
         'POST /api/v1/commits' => [['data' => commitJson(['id' => 'r2', 'parent_id' => 'c1', 'body' => 'A spreadsheet'])], 201],
@@ -47,7 +48,7 @@ it('opens on the commit and replies kept last time, with no request and no spinn
 
     finishRefreshes($screen)->assertSee('A compiler');
 
-    expect(count(Http::recorded()))->toBe(2);
+    expect(count(Http::recorded()))->toBe(3);
 });
 
 it('opens from a row on what the row knew, then fills in the replies and what it replies to', function () {

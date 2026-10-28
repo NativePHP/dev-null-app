@@ -4,13 +4,16 @@ namespace App\NativeComponents;
 
 use App\Devnull\Account;
 use App\Devnull\Client;
+use App\Devnull\Data\Commit;
 use App\Devnull\Data\Conversation as ConversationData;
 use App\Devnull\Data\Message;
 use App\Devnull\Data\Thread;
 use App\Devnull\Data\User;
 use App\Devnull\Display;
 use App\Devnull\Exceptions\ApiException;
+use App\Devnull\MuteDuration;
 use App\Devnull\Outbox;
+use App\Devnull\ResponseCache;
 use App\Devnull\SiteLink;
 use App\Devnull\Toasts;
 use App\Icons\Lucide;
@@ -291,6 +294,11 @@ class Conversation extends NativeComponent
     public array $expandedPins = [];
 
     /**
+     * Mute's sheet is open, asking how long for.
+     */
+    public bool $choosingMute = false;
+
+    /**
      * The messages whose reaction you changed and devnull hasn't answered for yet, which a poll leaves alone.
      *
      * @var array<int, true>
@@ -332,6 +340,13 @@ class Conversation extends NativeComponent
 
     public function onResume(): void
     {
+        // You left the org from its members: back to the inbox, which no longer lists it.
+        if ($this->isOrg() && app(ResponseCache::class)->takeLeftOrg($this->org)) {
+            $this->back();
+
+            return;
+        }
+
         $this->forgetRefreshes();
         $this->showKept();
         $this->showPending();
@@ -353,13 +368,21 @@ class Conversation extends NativeComponent
 
         $items = [];
 
-        if (! $this->isOrg()) {
-            $items[] = NavAction::make('view-profile')->label('View profile')->icon(ios: Lucide::UserRound->ios(), android: Lucide::UserRound->android())->press('viewProfile');
-        }
+        $items[] = $this->isOrg()
+            ? NavAction::make('members')->label('Members')->icon(ios: Lucide::UsersRound->ios(), android: Lucide::UsersRound->android())->press('viewMembers')
+            : NavAction::make('view-profile')->label('View profile')->icon(ios: Lucide::UserRound->ios(), android: Lucide::UserRound->android())->press('viewProfile');
+
+        $items[] = $this->thread->pinnedAt !== null
+            ? NavAction::make('unpin')->label('Unpin')->icon(ios: Lucide::PinOff->ios(), android: Lucide::PinOff->android())->press('unpin')
+            : NavAction::make('pin')->label('Pin')->icon(ios: Lucide::Pin->ios(), android: Lucide::Pin->android())->press('pin');
 
         $items[] = $this->thread->isArchived
             ? NavAction::make('pop')->label('Pop')->icon(ios: Lucide::ArchiveRestore->ios(), android: Lucide::ArchiveRestore->android())->press('pop')
             : NavAction::make('stash')->label('Stash')->icon(ios: Lucide::Archive->ios(), android: Lucide::Archive->android())->press('stash');
+
+        $items[] = $this->thread->isMuted()
+            ? NavAction::make('unmute')->label('Unmute')->icon(ios: Lucide::Bell->ios(), android: Lucide::Bell->android())->press('unmute')
+            : NavAction::make('mute')->label('Mute')->icon(ios: Lucide::BellOff->ios(), android: Lucide::BellOff->android())->press('chooseMute');
 
         return $options->action(
             NavAction::make('conversation-actions')
@@ -587,13 +610,13 @@ class Conversation extends NativeComponent
         $this->actionsForId = null;
 
         if ($this->isPinned($id)) {
-            $this->unpin($id);
+            $this->unpinMessage($id);
 
             return;
         }
 
         if (app(Account::class)->skipsPinWarning()) {
-            $this->pin($id);
+            $this->pinMessage($id);
 
             return;
         }
@@ -622,14 +645,14 @@ class Conversation extends NativeComponent
         }
 
         if (in_array($label, [self::PinMessage, self::PinWithoutAsking], true)) {
-            $this->pin($message);
+            $this->pinMessage($message);
         }
     }
 
     /**
      * Unpin, beside a pinned message in the thread or in the pinned sheet. The sheet closes once nothing is left in it.
      */
-    public function unpin(int $id): void
+    public function unpinMessage(int $id): void
     {
         if (! $this->canPin() || ! $this->isPinned($id)) {
             return;
@@ -726,10 +749,61 @@ class Conversation extends NativeComponent
         }, fn () => null);
     }
 
+    /**
+     * Pin and Unpin, from the menu, as the inbox row's: the thread says so at once, and goes back if devnull says no.
+     */
+    public function pin(): void
+    {
+        $this->changeThread(['pinnedAt' => CarbonImmutable::now()], 'pin', ['pinned' => true], 'pinned_at', 'Could not update the pin. Try again.');
+    }
+
+    public function unpin(): void
+    {
+        $this->changeThread(['pinnedAt' => null], 'pin', ['pinned' => false], 'pinned_at', 'Could not update the pin. Try again.');
+    }
+
+    /**
+     * Mute, from the menu: the sheet asks how long for, as the web's dialog does (see partials/mute-sheet).
+     */
+    public function chooseMute(): void
+    {
+        $this->choosingMute = $this->thread !== null;
+    }
+
+    public function muteFor(string $duration): void
+    {
+        $duration = MuteDuration::tryFrom($duration);
+        $this->choosingMute = false;
+
+        if ($duration !== null && $duration !== MuteDuration::Off) {
+            $this->changeThread(['mutedUntilAt' => $duration->until()], 'mute', ['duration' => $duration->value], 'muted_until_at', 'Could not update the mute. Try again.', 'Muted '.$this->menuTitle().'.');
+        }
+    }
+
+    public function muteSheetClosed(): void
+    {
+        $this->choosingMute = false;
+    }
+
+    public function unmute(): void
+    {
+        $this->changeThread(['mutedUntilAt' => null], 'mute', ['duration' => MuteDuration::Off->value], 'muted_until_at', 'Could not update the mute. Try again.', 'Unmuted '.$this->menuTitle().'.');
+    }
+
     public function viewProfile(): void
     {
         if ($this->username !== '') {
             $this->openInTab('/users/'.rawurlencode($this->username), $this->thread?->partner === null ? [] : ['user' => $this->thread->partner]);
+        }
+    }
+
+    /**
+     * The org's members, where a maintainer manages them and anyone can leave.
+     */
+    public function viewMembers(): void
+    {
+        if ($this->isOrg()) {
+            $this->openInTab('/orgs/'.rawurlencode($this->org).'/members');
         }
     }
 
@@ -753,7 +827,7 @@ class Conversation extends NativeComponent
             return;
         }
 
-        if ($url !== null) {
+        if (SiteLink::isWebUrl($url)) {
             Browser::inApp($url);
         }
     }
@@ -761,7 +835,7 @@ class Conversation extends NativeComponent
     /**
      * Pins the message at once, first in the list as the latest pinned, as the web does.
      */
-    private function pin(int $id): void
+    private function pinMessage(int $id): void
     {
         $message = $this->findMessage($id);
 
@@ -1046,6 +1120,63 @@ class Conversation extends NativeComponent
         }
     }
 
+    /**
+     * Changes the thread's pin or mute at once, and in the inbox kept for when you go back, then tells devnull. Its
+     * answer, `pinned_at` or `muted_until_at`, has the last word. If it says no, the thread goes back and a toast
+     * says so.
+     *
+     * @param  array<string, mixed>  $change
+     * @param  array<string, mixed>  $payload
+     */
+    private function changeThread(array $change, string $endpoint, array $payload, string $answer, string $failed, ?string $done = null): void
+    {
+        $before = $this->thread;
+
+        if ($before === null) {
+            return;
+        }
+
+        $field = array_key_first($change);
+        $this->showThreadChange($change);
+
+        $this->writeInBackground('PUT', $this->threadPath().'/'.$endpoint, $payload, function (array $json) use ($field, $answer, $done): void {
+            $this->showThreadChange([$field => Commit::date($json[$answer] ?? null)]);
+
+            if ($done !== null) {
+                Toasts::say($done);
+            }
+        }, function () use ($field, $before, $failed): void {
+            $this->showThreadChange([$field => $before->{$field}]);
+            Toasts::failed($failed);
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $change
+     */
+    private function showThreadChange(array $change): void
+    {
+        if ($this->thread === null) {
+            return;
+        }
+
+        $this->thread = new Thread(...[...get_object_vars($this->thread), ...$change]);
+
+        if ($this->row !== null) {
+            app(ResponseCache::class)->conversationChanged($this->row->id, [
+                ['pinnedAt' => 'pinned_at', 'mutedUntilAt' => 'muted_until_at'][array_key_first($change)] => reset($change)?->toJSON(),
+            ]);
+        }
+    }
+
+    /**
+     * What the web's menu and toasts call the thread: the partner's handle, or the org's title.
+     */
+    private function menuTitle(): string
+    {
+        return $this->isOrg() ? $this->title() : '@'.$this->username;
+    }
+
     private function threadPath(): string
     {
         return Client::threadPath($this->username, $this->org === '' ? null : $this->org);
@@ -1258,6 +1389,8 @@ class Conversation extends NativeComponent
             'pinnedIds' => array_flip(array_map(fn (Message $message): int => $message->id, $this->pinned)),
             'longPins' => $this->longPins(),
             'placeholder' => $this->isOrg() ? 'Message '.($thread->orgName ?? 'the org') : 'Message @'.$this->username,
+            'muting' => $this->choosingMute ? 'thread' : null,
+            'mutingTitle' => $this->menuTitle(),
         ]);
     }
 

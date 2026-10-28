@@ -111,6 +111,17 @@ it('leaves out what GitHub does not say, and opens a website given without its s
         ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://ada.example');
 });
 
+it('opens no GitHub profile link that is not a web page', function () {
+    fakeApi([
+        'GET /api/v1/users/ada' => [profileJson(user: ['github_url' => 'javascript:alert(1)'])],
+        'GET /api/v1/users/ada/commits' => [pageJson([])],
+    ]);
+
+    Native::visit('/log/users/ada')
+        ->tap('profile-github')
+        ->assertNativeNotCalled('Browser.OpenInApp');
+});
+
 it('opens a website on dev/null here rather than in the browser', function () {
     fakeApi([
         'GET /api/v1/users/ada' => [profileJson(user: ['website' => 'https://dev-null.sh/@grace'])],
@@ -207,7 +218,7 @@ it('reloads when you come back to it', function () {
         ->follow()
         ->goBack();
 
-    Http::assertSentCount(6);
+    Http::assertSentCount(7);
 });
 
 it('shows the pinned commit above the rest, marked as pinned', function () {

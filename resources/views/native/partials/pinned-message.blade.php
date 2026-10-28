@@ -35,7 +35,7 @@
                 @endforeach
             @endif
             @if ($canPin)
-                <native:pressable ref="{{ $key }}-unpin" @press="unpin({{ $message->id }})" a11y-label="Unpin message">
+                <native:pressable ref="{{ $key }}-unpin" @press="unpinMessage({{ $message->id }})" a11y-label="Unpin message">
                     <native:stack :width="32" :height="32" center>
                         <native:icon :ios="\App\Icons\Lucide::PinOff->ios()" :android="\App\Icons\Lucide::PinOff->android()" :size="16" class="text-theme-ink-muted" />
                     </native:stack>

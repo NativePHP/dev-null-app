@@ -1,5 +1,6 @@
 <?php
 
+use App\NativeComponents\AddOrgMembers;
 use App\NativeComponents\AuthCallback;
 use App\NativeComponents\CommitDetail;
 use App\NativeComponents\Connections;
@@ -11,6 +12,7 @@ use App\NativeComponents\NewOrg;
 use App\NativeComponents\NewRemote;
 use App\NativeComponents\Notifications;
 use App\NativeComponents\Onboarding;
+use App\NativeComponents\OrgMembers;
 use App\NativeComponents\Profile;
 use App\NativeComponents\Remotes;
 use App\NativeComponents\Safety;
@@ -42,5 +44,7 @@ Route::nativeGroup(TabsLayout::class, function (): void {
         Route::native("{$tab}/safety", Safety::class);
         Route::native("{$tab}/conversations/{username}", Conversation::class);
         Route::native("{$tab}/orgs/{org}", Conversation::class);
+        Route::native("{$tab}/orgs/{org}/members", OrgMembers::class);
+        Route::native("{$tab}/orgs/{org}/members/add", AddOrgMembers::class);
     }
 });

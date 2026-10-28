@@ -16,6 +16,7 @@ use Carbon\CarbonImmutable;
  * `access` is the web's: open to push, a request of theirs to merge first,
  * your own request waiting on them, or nothing at all because they don't
  * follow you while requests are off (restricted) or have Remotes off (closed).
+ * You may have pinned it in your inbox, or muted it until some time.
  */
 final readonly class Thread
 {
@@ -53,6 +54,8 @@ final readonly class Thread
         public array $members = [],
         public ?string $role = null,
         public ?array $pinned = null,
+        public ?CarbonImmutable $pinnedAt = null,
+        public ?CarbonImmutable $mutedUntilAt = null,
     ) {}
 
     /**
@@ -101,6 +104,8 @@ final readonly class Thread
             members: $members,
             role: is_string($data['role'] ?? null) ? $data['role'] : null,
             pinned: is_array($data['pinned'] ?? null) ? self::messagesFrom($data['pinned']) : null,
+            pinnedAt: Commit::date($data['pinned_at'] ?? null),
+            mutedUntilAt: Commit::date($data['muted_until_at'] ?? null),
         );
     }
 
@@ -116,5 +121,10 @@ final readonly class Thread
     public function isOrg(): bool
     {
         return $this->orgId !== null;
+    }
+
+    public function isMuted(): bool
+    {
+        return $this->mutedUntilAt !== null && $this->mutedUntilAt->isFuture();
     }
 }

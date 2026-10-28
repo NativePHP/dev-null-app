@@ -12,6 +12,7 @@ use App\Devnull\FetchInBackground;
 use App\Devnull\Outbox;
 use App\Devnull\ResponseCache;
 use App\Devnull\SignedRequest;
+use App\Devnull\SiteLink;
 use App\Devnull\Stash;
 use App\Devnull\Toasts;
 use App\Models\PendingWrite;
@@ -25,7 +26,8 @@ use Victorycodedev\ToastKit\Events\ToastActionPressed;
  * written to the outbox on the phone first (see Outbox), the screen shows it
  * at once, and it goes to devnull from the background straight away, signed
  * here on the UI thread where the Keychain is, as WritesInBackground signs.
- * Nothing on the tap waits on devnull.
+ * Nothing on the tap waits on devnull. Only a star or an unstar waits, for
+ * the one before it of the same commit (see queueStar()).
  *
  * devnull's answer comes back to whichever screen is showing by then, not
  * only the one it was made on, so a commit that doesn't go is heard of even
@@ -57,19 +59,37 @@ trait SyncsOutbox
 {
     /**
      * Stars or unstars a commit: every kept copy shows it at once, and devnull
-     * is told from the background. The screen showing it flips its own.
+     * is told from the background, once any star or unstar of it before this
+     * one has gone (see Outbox::starOnItsWay()). The screen showing it flips
+     * its own.
      */
     protected function queueStar(string $id, bool $starred): void
     {
         $cache = app(ResponseCache::class);
+        $outbox = app(Outbox::class);
 
         // An unstar takes the commit off your kept starred commits, so it keeps a copy to put back if devnull says no.
-        $write = app(Outbox::class)->add($starred ? PendingWrite::Star : PendingWrite::Unstar, $id, $starred ? [] : ['kept' => $cache->keptCommit($id)]);
+        $write = $outbox->add($starred ? PendingWrite::Star : PendingWrite::Unstar, $id, $starred ? [] : ['kept' => $cache->keptCommit($id)]);
 
         $cache->starChanged($id, $starred);
 
-        if ($write !== null) {
+        if ($write !== null && ! $outbox->starOnItsWay($id)) {
             $this->sendFromOutbox($write);
+        }
+    }
+
+    /**
+     * Sends the star or unstar of the commit that was waiting for $write to
+     * go, knowing whether devnull has the commit starred now, to put it back
+     * to if devnull turns this one down too.
+     */
+    private function sendNextStar(PendingWrite $write, bool $starred): void
+    {
+        $next = app(Outbox::class)->nextStar((string) $write->target);
+
+        if ($next !== null) {
+            $next->forceFill(['payload' => [...$next->payload, 'was_starred' => $starred]])->save();
+            $this->sendFromOutbox($next);
         }
     }
 
@@ -137,11 +157,18 @@ trait SyncsOutbox
      * What was left in the outbox when the app last closed. Stars and
      * messages go again, since devnull can't do either twice. A commit might
      * have reached devnull, and has nothing it could be known by, so it's
-     * turned down with why, for you to check and send again yourself.
+     * turned down with why, for you to check and send again yourself. A star
+     * or an unstar of a commit with one already on its way waits for it.
      */
     protected function sendLeftovers(): void
     {
-        foreach (app(Outbox::class)->leftovers() as $write) {
+        $outbox = app(Outbox::class);
+
+        foreach ($outbox->leftovers() as $write) {
+            if ($write->isStar() && $outbox->starOnItsWay((string) $write->target)) {
+                continue;
+            }
+
             $write->canBeSentAgain()
                 ? $this->sendFromOutbox($write)
                 : $this->writeTurnedDown($write, Outbox::ClosedBeforeAnswer, reopen: false);
@@ -200,6 +227,7 @@ trait SyncsOutbox
         if ($write->isStar()) {
             $later = $outbox->starsAfter($write);
             $outbox->forget($write);
+            $this->sendNextStar($write, ($data['starred'] ?? $write->kind === PendingWrite::Star) === true);
 
             if (! $later && $data !== []) {
                 app(ResponseCache::class)->commitReacted($data);
@@ -233,14 +261,16 @@ trait SyncsOutbox
         if ($write->isStar()) {
             $later = $outbox->starsAfter($write);
             $outbox->forget($write);
+            $this->sendNextStar($write, $write->wasStarred());
             $starred = $write->kind === PendingWrite::Star;
 
-            if ($later) {
+            // A later star or unstar has the last word, and one devnull already had as you left it has nothing to put back.
+            if ($later || $write->wasStarred() === $starred) {
                 return;
             }
 
-            app(ResponseCache::class)->starChanged((string) $write->target, ! $starred, is_array($write->payload['kept'] ?? null) ? $write->payload['kept'] : null);
-            $this->showStar((string) $write->target, ! $starred);
+            app(ResponseCache::class)->starChanged((string) $write->target, $write->wasStarred(), is_array($write->payload['kept'] ?? null) ? $write->payload['kept'] : null);
+            $this->showStar((string) $write->target, $write->wasStarred());
 
             Toasts::failed($error, ['label' => 'Retry', 'id' => 'retry-star', 'data' => ['commit' => $write->target, 'starred' => $starred]]);
 
@@ -375,7 +405,7 @@ trait SyncsOutbox
     {
         $url = $data['url'] ?? null;
 
-        if (is_string($url) && in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true)) {
+        if (is_string($url) && SiteLink::isWebUrl($url)) {
             Browser::inApp($url);
         }
     }

@@ -38,7 +38,6 @@ enum Lucide
     case ArrowUpRight;
     case ArrowUp;
     case Pin;
-    case PinOff;
     case ListOrdered;
     case Building2;
     case MapPin;
@@ -90,6 +89,10 @@ enum Lucide
     case GitMerge;
     case Maximize;
     case Key;
+    case PinOff;
+    case BellOff;
+    case LogOut;
+    case UserMinus;
 
     /**
      * The icon the web's inbox draws for a kind of notification.
@@ -144,8 +147,6 @@ enum Lucide
             self::Link => 'link',
             self::Star => $filled ? 'star-filled' : 'star',
             self::Bookmark => $filled ? 'bookmark-filled' : 'bookmark',
-            self::Pin => $filled ? 'pin-filled' : 'pin',
-            self::PinOff => 'pin-off',
             self::Trash2 => 'trash-2',
             self::ArrowUp => 'arrow-up',
             self::ChevronsUp => 'chevrons-up',
@@ -192,6 +193,11 @@ enum Lucide
             self::GitMerge => 'git-merge',
             self::Maximize => 'maximize',
             self::Key => 'key',
+            self::Pin => $filled ? 'pin-filled' : 'pin',
+            self::PinOff => 'pin-off',
+            self::BellOff => 'bell-off',
+            self::LogOut => 'log-out',
+            self::UserMinus => 'user-minus',
             default => null,
         };
 
