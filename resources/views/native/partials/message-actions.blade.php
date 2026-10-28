@@ -2,9 +2,8 @@
     React, Reply and Pin for the message you swiped, right beside its bubble as the web shows them on hover: Pin nearest
     it, then Reply, then React, with the web's icons. Every message keeps them, faded out and tucked a few points toward
     the bubble, so as a swipe slides the message aside they fade and slide into the room it left, and the slot never
-    changes width. In an org the slot keeps
-    room for Pin whether it shows or not, as the web's does, so a pin arriving never rewraps a bubble. Faded out, they
-    take no taps. Beside a bubble they lie in the margin it keeps for them ($inMargin); beside images they follow them.
+    changes width. In an org the slot keeps room for Pin whether it shows or not, as the web's does, so a pin arriving
+    never rewraps a bubble. Faded out, they take no taps.
 
     A pinned message's pin shows all the time, nearest the bubble, so the others come in beyond it without moving it.
     For an org's maintainers it turns into Unpin, in the primary colour, while the others show; for everyone else it
@@ -13,7 +12,7 @@
 @php($isPinned = isset($pinnedIds[$message->id]))
 @php($pinsHere = ! $isPinned && $canPin)
 @php($fading = $mine ? ['react', 'reply', ...($pinsHere ? ['pin'] : [])] : [...($pinsHere ? ['pin'] : []), 'reply', 'react'])
-<native:row ref="actions-{{ $key }}" class="w-[{{ $actionsWidth }}] flex-shrink-0 gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }} {{ ($inMargin ?? false) ? 'absolute top-0 bottom-0 '.($mine ? 'left-0' : 'right-0') : '' }}">
+<native:row ref="actions-{{ $key }}" class="w-[{{ $actionsWidth }}] flex-shrink-0 gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}">
     @if ($isPinned && ! $mine)
         @include('native.partials.message-pin')
     @endif

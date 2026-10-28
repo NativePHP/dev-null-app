@@ -61,15 +61,12 @@ it('shows the thread with your messages on the right and theirs on the left, tit
         ->assertSee('Today')
         ->assertSee('pulled 14:05');
 
-    // Theirs at the start of the row, yours at the end, in a thread that opens on its latest message. Each bubble keeps a
-    // margin for the slot for React and Reply on the side they go, right after theirs and right before yours, and the
-    // slot lies in it.
+    // Theirs at the start of the row with the slot for React and Reply right after the bubble, yours at the end with
+    // the slot right before it, in a thread that opens on its latest message. The bubble shrinks to wrap short of it.
     expect(nodeByRef($screen, 'content-1')['layout']['justify_content'])->toBe(0)
-        ->and(childRefs($screen, 'room-1'))->toBe(['bubble-1', 'actions-1'])
-        ->and(nodeByRef($screen, 'bubble-1')['layout']['margin'])->toEqual([0, 68, 0, 0])
-        ->and(nodeByRef($screen, 'actions-1')['layout']['position_type'])->toBe(1)
+        ->and(childRefs($screen, 'content-1'))->toBe(['bubble-1', 'actions-1'])
         ->and(nodeByRef($screen, 'content-2')['layout']['justify_content'])->toBe(2)
-        ->and(nodeByRef($screen, 'bubble-2')['layout']['margin'])->toEqual([0, 0, 0, 68])
+        ->and(childRefs($screen, 'content-2'))->toBe(['actions-2', 'bubble-2'])
         ->and(nodeByRef($screen, 'thread')['props']['scroll_anchor'] ?? null)->toBe('bottom');
 });
 

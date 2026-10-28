@@ -62,25 +62,23 @@
         @endif
 
         @if ($message->body !== '')
-            {{--
-                The bubble keeps a margin as wide as its actions' slot on the side they go, so it wraps short of them, and
-                they lie in that margin, centred on it. Android's rows don't shrink one child to make room for the next, so
-                a slot that simply followed a long bubble there was pushed off the screen.
-            --}}
-            @php($room = $actionsWidth + \App\NativeComponents\Conversation::ActionsGap)
-            <native:row ref="content-{{ $key }}" class="w-full {{ $mine ? 'justify-end' : 'justify-start' }}" :translate-x="$showsActions ? ($mine ? $slide : -$slide) : 0" animate-duration="180" animate-easing="ease-out">
-                <native:column ref="room-{{ $key }}">
-                    @if ($message->isPending())
-                        <native:column ref="bubble-{{ $key }}" class="{{ $mine ? 'ml-['.$room.']' : 'mr-['.$room.']' }} px-3 py-2 rounded-2xl {{ $message->status === 'rejected' ? 'border border-theme-destructive bg-theme-surface' : 'bg-theme-'.$myColour.'/60' }}">
-                            @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour, 'quoteRule' => $message->status === 'rejected' ? 'border-theme-lane-5' : 'border-theme-on-'.$myColour])
-                        </native:column>
-                    @else
-                        <native:column ref="bubble-{{ $key }}" class="{{ $mine ? 'ml-['.$room.']' : 'mr-['.$room.']' }} px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}" @press="hideActions" @doubleTap="heart({{ $message->id }})" a11y-hint="{{ $replyable ? 'Swipe sideways for React and Reply' : '' }}">
-                            @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary', 'quoteRule' => $mine ? 'border-theme-on-'.$myColour : 'border-theme-lane-5'])
-                        </native:column>
-                    @endif
-                    @include('native.partials.message-actions', ['inMargin' => true])
-                </native:column>
+            {{-- The bubble shrinks to wrap short of the slot for its actions, which keeps its width either way. --}}
+            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}" :translate-x="$showsActions ? ($mine ? $slide : -$slide) : 0" animate-duration="180" animate-easing="ease-out">
+                @if ($mine)
+                    @include('native.partials.message-actions')
+                @endif
+                @if ($message->isPending())
+                    <native:column ref="bubble-{{ $key }}" class="flex-shrink px-3 py-2 rounded-2xl {{ $message->status === 'rejected' ? 'border border-theme-destructive bg-theme-surface' : 'bg-theme-'.$myColour.'/60' }}">
+                        @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour, 'quoteRule' => $message->status === 'rejected' ? 'border-theme-lane-5' : 'border-theme-on-'.$myColour])
+                    </native:column>
+                @else
+                    <native:column ref="bubble-{{ $key }}" class="flex-shrink px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}" @press="hideActions" @doubleTap="heart({{ $message->id }})" a11y-hint="{{ $replyable ? 'Swipe sideways for React and Reply' : '' }}">
+                        @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary', 'quoteRule' => $mine ? 'border-theme-on-'.$myColour : 'border-theme-lane-5'])
+                    </native:column>
+                @endif
+                @if (! $mine)
+                    @include('native.partials.message-actions')
+                @endif
             </native:row>
         @endif
 
