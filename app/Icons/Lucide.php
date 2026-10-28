@@ -90,6 +90,11 @@ enum Lucide
     case GitMerge;
     case Maximize;
     case Key;
+    case Cookie;
+    case BotOff;
+    case Bomb;
+    /** Lucide has no dragon ball, so this is the web's own drawing, from its dragon-ball-icon.tsx. */
+    case DragonBall;
     case PinOff;
     case BellOff;
     case LogOut;
@@ -129,6 +134,10 @@ enum Lucide
             'git-merge' => self::GitMerge,
             'maximize' => self::Maximize,
             'key' => self::Key,
+            'cookie' => self::Cookie,
+            'bot-off' => self::BotOff,
+            'bomb' => self::Bomb,
+            'dragon-ball' => self::DragonBall,
             default => self::Terminal,
         };
     }
@@ -195,6 +204,10 @@ enum Lucide
             self::GitMerge => 'git-merge',
             self::Maximize => 'maximize',
             self::Key => 'key',
+            self::Cookie => 'cookie',
+            self::BotOff => 'bot-off',
+            self::Bomb => 'bomb',
+            self::DragonBall => 'dragon-ball',
             self::Pin => $filled ? 'pin-filled' : 'pin',
             self::PinOff => 'pin-off',
             self::BellOff => 'bell-off',
