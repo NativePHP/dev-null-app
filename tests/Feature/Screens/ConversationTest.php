@@ -1038,3 +1038,103 @@ it('shows three lines of a long pinned message, and the rest with Show more', fu
 
     expect(findNode(nodeByRef($screen, 'pin-1'), fn (array $node): bool => ($node['props']['max_lines'] ?? null) === 3))->toBeNull();
 });
+
+/**
+ * dev/null core with more members than the list shows, for the "@" suggestions: you, then each person given, as
+ * [handle, name, overrides for their member row].
+ *
+ * @param  list<array{0: string, 1: string, 2?: array<string, mixed>}>  $people
+ * @return array<string, mixed>
+ */
+function orgWithMembers(array $people): array
+{
+    return orgThreadJson([], ['members' => [
+        ['user' => userJson(), 'role' => 'maintainer', 'read_through_id' => 0],
+        ...array_map(fn (array $person, int $index): array => [
+            'user' => userJson(['id' => 'm'.$index, 'handle' => $person[0], 'name' => $person[1]]),
+            'role' => 'contributor',
+            'read_through_id' => 0,
+            ...($person[2] ?? []),
+        ], $people, array_keys($people)),
+    ]]);
+}
+
+it("lists an org's other members under Members when you type @, and closes once the caret leaves it", function () {
+    serveOrgThread(orgThreadJson([]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))
+        ->assertMissingElement('column', fn (array $node): bool => ($node['ref'] ?? null) === 'mention-suggestions')
+        ->input('message-input', 'hey @', 5);
+
+    expect(childRefs($screen, 'mention-suggestions'))->toBe(['mention-heading', 'mention-ada']);
+
+    $screen->moveCaret('message-input', 3)
+        ->assertMissingElement('column', fn (array $node): bool => ($node['ref'] ?? null) === 'mention-suggestions');
+});
+
+it('filters org members as the web ranks them: exact handle, handle prefix, name prefix, then the rest, followed first, six at most', function () {
+    serveOrgThread(orgWithMembers([
+        ['grace', 'Grace Hopper'],
+        ['tobias', 'Ada Tobias'],
+        ['adamant', 'Zed'],
+        ['adams', 'Yan', ['is_followed' => true]],
+        ['ada', 'Ada Lovelace'],
+        ['bada', 'Bee'],
+        ['cada', 'Cee'],
+        ['dada', 'Dee'],
+    ]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))->input('message-input', '@ADA', 4);
+
+    expect(childRefs($screen, 'mention-suggestions'))->toBe(['mention-ada', 'mention-adams', 'mention-adamant', 'mention-tobias', 'mention-bada', 'mention-cada']);
+});
+
+it('never suggests you, or a member devnull says not to, and suggests nothing in a thread with one person', function () {
+    serveOrgThread(orgWithMembers([['ada', 'Ada Lovelace'], ['mallory', 'Mallory', ['suggests_mentions' => false]]]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))->input('message-input', '@', 1);
+
+    expect(childRefs($screen, 'mention-suggestions'))->toBe(['mention-heading', 'mention-ada']);
+
+    serveApi(fn (Request $request) => Http::response(str_contains($request->url(), 'remotes/@ada/messages') ? threadJson([]) : currentUserJson()));
+
+    finishRefreshes(Native::visit('/remotes/conversations/ada'))
+        ->input('message-input', '@', 1)
+        ->assertSet('mention', null);
+});
+
+it('suggests nothing for an @ inside an email address or a URL, or while text is selected', function (string $draft, int $start, int $end) {
+    serveOrgThread(orgThreadJson([]));
+
+    finishRefreshes(Native::visit('/remotes/orgs/org-1'))
+        ->input('message-input', $draft, $start, $end)
+        ->assertSet('mention', null);
+})->with([
+    'an email address' => ['ping me at me@ada', 17, 17],
+    'a URL' => ['see dev-null.sh/@ada', 20, 20],
+    'a selection' => ['hi @ada', 3, 7],
+]);
+
+it('puts the member picked in place of what was typed, keeping the text either side and adding a space only when needed', function (string $draft, int $caret, string $expected) {
+    serveOrgThread(orgThreadJson([]));
+
+    finishRefreshes(Native::visit('/remotes/orgs/org-1'))
+        ->input('message-input', $draft, $caret)
+        ->tap('mention-ada')
+        ->assertSet('draft', $expected)
+        ->assertSet('mention', null);
+})->with([
+    'at the end' => ['thanks @Lo', 10, 'thanks @ada '],
+    'mid-draft, before a space' => ["ok 👋 @a review this\nplease", 7, "ok 👋 @ada review this\nplease"],
+    'mid-word' => ['cc @adxyz', 6, 'cc @ada xyz'],
+]);
+
+it('leaves the draft alone when it no longer has the @handle where the caret found it', function () {
+    serveOrgThread(orgThreadJson([]));
+
+    finishRefreshes(Native::visit('/remotes/orgs/org-1'))
+        ->input('message-input', 'hi @a', 5)
+        ->set('draft', 'hi')
+        ->tap('mention-ada')
+        ->assertSet('draft', 'hi');
+});

@@ -84,10 +84,13 @@
                 <native:column class="w-full h-[1] {{ $canPush ? 'android:bg-theme-hairline' : 'bg-theme-hairline' }}" />
                 @if ($canPush)
                     {{--
-                        What you're replying to and the photos on the draft each keep a slot, empty and no height when
-                        there's nothing in it, so the field's row never moves. Android rebuilds a row that moves among
-                        its siblings, field and all, which drops the keyboard.
+                        The members to mention, what you're replying to and the photos on the draft each keep a slot,
+                        empty and no height when there's nothing in it, so the field's row never moves. Android rebuilds
+                        a row that moves among its siblings, field and all, which drops the keyboard.
                     --}}
+                    <native:row native:key="mention-slot" ref="mention-slot" class="w-full {{ $mentionSuggestions !== [] ? 'pt-1 ios:px-4' : '' }}">
+                        @include('native.partials.mention-suggestions', ['suggestions' => $mentionSuggestions, 'query' => $mention['query'] ?? ''])
+                    </native:row>
                     <native:row native:key="replying-slot" ref="replying-slot" class="w-full {{ $replyTo ? 'ios:px-4' : '' }}">
                         @if ($replyTo)
                             <native:row ref="replying" class="flex-1 h-[44] px-4 gap-3 items-center ios:rounded-[18] ios:glass">

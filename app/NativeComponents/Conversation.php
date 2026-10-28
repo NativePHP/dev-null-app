@@ -23,6 +23,7 @@ use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\AttachesPhotos;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SuggestsMentions;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Concerns\WritesInBackground;
@@ -78,6 +79,9 @@ use Native\Mobile\Facades\Dialog;
  * while you're on the thread buzzes the phone, as the web shakes the thread
  * to MSN's sound, unless it's someone else's in a thread you've muted.
  *
+ * In an org, typing "@" lists the org's members above the field, as the web
+ * does, and typing on filters them (see SuggestsMentions).
+ *
  * When the composer can't push (a request to merge, your own request waiting,
  * someone who doesn't follow you, or has Remotes off), the bar says so in the
  * web's words, and a request offers Merge and Drop.
@@ -87,6 +91,7 @@ class Conversation extends NativeComponent
     use AttachesPhotos;
     use OpensInTab;
     use RefreshesInBackground;
+    use SuggestsMentions;
     use SyncsOutbox;
     use TalksToDevnull;
     use WritesInBackground;
@@ -486,6 +491,7 @@ class Conversation extends NativeComponent
 
         $this->pending[] = $message;
         $this->draft = '';
+        $this->mention = null;
         $this->photos = [];
         $this->describing = null;
         $this->replyToId = null;
@@ -1599,6 +1605,7 @@ class Conversation extends NativeComponent
             'myColour' => $this->myColour(),
             'partner' => $thread?->partner,
             'isOrg' => $this->isOrg(),
+            'mentionSuggestions' => $this->isOrg() ? $this->mentionSuggestions($thread->members ?? [], $viewer) : [],
             'access' => $thread->access ?? Thread::Open,
             'items' => $this->items($viewer),
             'composerClearance' => self::composerClearance($this->draft, $this->replyToId !== null, $this->photos !== [], $this->describing !== null),

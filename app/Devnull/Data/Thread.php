@@ -17,6 +17,11 @@ use Carbon\CarbonImmutable;
  * your own request waiting on them, or nothing at all because they don't
  * follow you while requests are off (restricted) or have Remotes off (closed).
  * You may have pinned it in your inbox, or muted it until some time.
+ *
+ * An org's members may each say whether to suggest them for a mention (not
+ * someone you've muted or blocked) and whether you follow them, as the web's
+ * thread does. Where devnull leaves that out, everyone is suggested and no one
+ * is followed.
  */
 final readonly class Thread
 {
@@ -33,7 +38,7 @@ final readonly class Thread
     /**
      * @param  list<Message>  $messages
      * @param  array<int, list<array{user_id: string, emoji: string}>>  $reactionChanges
-     * @param  list<array{user: User, role: ?string, read_through_id: int}>  $members
+     * @param  list<array{user: User, role: ?string, read_through_id: int, suggests_mentions: bool, is_followed: bool}>  $members
      * @param  list<string>  $typing
      * @param  list<Message>|null  $pinned
      */
@@ -79,6 +84,8 @@ final readonly class Thread
                     'user' => User::fromArray($member['user']),
                     'role' => is_string($member['role'] ?? null) ? $member['role'] : null,
                     'read_through_id' => is_int($member['read_through_id'] ?? null) ? $member['read_through_id'] : 0,
+                    'suggests_mentions' => ($member['suggests_mentions'] ?? true) !== false,
+                    'is_followed' => ($member['is_followed'] ?? false) === true,
                 ];
             }
         }
