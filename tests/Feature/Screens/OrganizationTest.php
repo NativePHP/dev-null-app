@@ -35,13 +35,13 @@ it('shows an organization as its page on the web does, and opens its links in th
         ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://github.com/laravel');
 });
 
-it("says what went wrong when devnull can't send the organization, and offers its page on the web", function () {
+it("says the page didn't load when devnull can't send the organization, and offers its page on the web", function () {
     Http::fake(['devnull.test/api/v1/organizations/*' => Http::response(['message' => 'Not Found.'], 404)]);
 
     $screen = finishRefreshes(Native::visit('/log/organizations/nobody'))->assertNavTitle('nobody');
 
-    nodeByRef($screen, 'error');
-    expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'organization-header'))->toBeNull();
+    $screen->assertSee("This organization's page didn't load here.");
+    expect(findNode($screen->tree(), fn (array $node): bool => in_array($node['ref'] ?? null, ['error', 'organization-header'], true)))->toBeNull();
 
     $screen->tap('empty-link')
         ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'http://devnull.test/@nobody');

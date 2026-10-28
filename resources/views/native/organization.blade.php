@@ -1,10 +1,10 @@
 {{--
     Laid out like the web's organization page: the avatar as a rounded square, the name, the handle marked
-    Organization, what GitHub says about it, then the web's note that organization pages are new.
+    Organization, what GitHub says about it, then the web's note that organization pages are new. devnull's error
+    isn't printed: the page says itself when it didn't load, and offers the page on the web.
 --}}
 <native:scroll-view class="w-full h-full bg-theme-surface">
     <native:column class="w-full">
-        @include('native.partials.error')
         @include('native.partials.refresh-failed')
 
         @if ($organization)
