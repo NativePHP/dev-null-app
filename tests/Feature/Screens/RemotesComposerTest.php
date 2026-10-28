@@ -97,10 +97,14 @@ it('pushes photos with a message, showing them staged at once and pushed once de
     $screen->assertNativeCalled('Camera.PickMedia', fn (array $params): bool => $params['mediaType'] === 'images' && $params['multiple'] === true && $params['maxItems'] === 3);
 
     holdRefreshes();
-    photosPicked($screen, $paths)->input('message-input', 'the new logo');
+    photosPicked($screen, $paths);
     $kept = array_map(fn ($photo): string => $photo->path, $screen->instance()->photos);
 
-    expect(nodeByRef($screen, 'photo-1-alt')['props']['a11y_label'])->toBe('Add description to photo 2');
+    // The field takes focus for a caption, and the keyboard brings the end of the thread above the taller bar.
+    expect(nodeByRef($screen, 'message-input')['props']['autofocus'] ?? false)->toBeTrue()
+        ->and(nodeByRef($screen, 'photo-1-alt')['props']['a11y_label'])->toBe('Add description to photo 2');
+
+    $screen->input('message-input', 'the new logo');
 
     $screen->tap('push')->assertSee('the new logo')->assertSee('staged')->assertSet('photos', []);
     $clientId = $screen->instance()->pending[0]->clientId;

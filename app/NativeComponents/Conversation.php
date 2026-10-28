@@ -160,8 +160,8 @@ class Conversation extends NativeComponent
     public ?int $replyToId = null;
 
     /**
-     * Mounts the composer's field afresh when you pick a message to reply to, so it takes focus and raises the
-     * keyboard, as the web focuses its field.
+     * Mounts the composer's field afresh when you pick a message to reply to or attach photos, so it takes focus and
+     * raises the keyboard, as the web focuses its field.
      */
     public int $composerKey = 0;
 
@@ -917,10 +917,17 @@ class Conversation extends NativeComponent
     }
 
     /**
+     * Photos just attached focus the field for a caption, as picking a message to reply to does. The keyboard coming
+     * up also brings the end of the thread back above the bar, which the photos have made taller.
+     *
      * @param  list<DraftImage>  $photos
      */
     protected function photosChanged(array $photos): void
     {
+        if (count($photos) > count($this->photos)) {
+            $this->composerKey++;
+        }
+
         $this->photos = $photos;
     }
 
