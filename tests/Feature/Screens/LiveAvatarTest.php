@@ -1,0 +1,118 @@
+<?php
+
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
+use Native\Mobile\Testing\Native;
+use Native\Mobile\Testing\TestableComponent;
+
+beforeEach(function () {
+    config(['devnull.url' => 'http://devnull.test']);
+    signIn();
+});
+
+/**
+ * A stream Ada is on, ending at $endsAt.
+ *
+ * @return array{platform: string, url: string, thumbnail_url: string, ends_at: string}
+ */
+function adaStream(string $endsAt): array
+{
+    return [
+        'platform' => 'twitch',
+        'url' => 'https://www.twitch.tv/ada',
+        'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_ada-1280x720.jpg',
+        'ends_at' => $endsAt,
+    ];
+}
+
+/**
+ * A log with one commit of Ada's, who is on $live.
+ *
+ * @param  array<string, mixed>|null  $live
+ */
+function logByStreamer(?array $live): TestableComponent
+{
+    serveApi(fn (Request $request) => Http::response(pageJson([
+        commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 2, 'live' => $live])]),
+    ])));
+
+    return Native::visit('/log', platform: 'ios');
+}
+
+/**
+ * The colour of the ring around the avatar on a commit's rail.
+ */
+function railRingColour(TestableComponent $screen, string $ref): string
+{
+    $ring = findNode(nodeByRef($screen, $ref), fn (array $node): bool => ($node['type'] ?? null) === 'stack' && isset($node['style']['border_color']) && strtolower($node['style']['border_color']) !== '#00000000');
+
+    return strtolower($ring['style']['border_color']);
+}
+
+it('rings a live author in red and marks them live, as the web does', function () {
+    $screen = logByStreamer(adaStream(now()->addHour()->toIso8601ZuluString()));
+
+    $badge = findNode(nodeByRef($screen, 'commit-c1'), fn (array $node): bool => ($node['ref'] ?? null) === 'live-badge');
+
+    expect($badge)->not->toBeNull()
+        ->and(treeShows($badge, 'LIVE'))->toBeTrue()
+        ->and(strtolower($badge['style']['bg_color']))->toBe(strtolower(config('native-ui.theme.light.live')))
+        ->and(railRingColour($screen, 'commit-c1'))->toBe(strtolower(config('native-ui.theme.light.live')));
+});
+
+it('keeps the lane ring once the stream has ended', function (?array $live) {
+    $screen = logByStreamer($live);
+
+    expect(findNode(nodeByRef($screen, 'commit-c1'), fn (array $node): bool => ($node['ref'] ?? null) === 'live-badge'))->toBeNull()
+        ->and(railRingColour($screen, 'commit-c1'))->toBe(strtolower(config('native-ui.theme.light.lane-2')));
+})->with('streams that are not on');
+
+/**
+ * Ada's profile, while she is on $live.
+ *
+ * @param  array<string, mixed>|null  $live
+ */
+function profileOfStreamer(?array $live): TestableComponent
+{
+    fakeApi([
+        'GET /api/v1/users/ada' => [[
+            'data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 2, 'live' => $live]),
+            'is_following' => false,
+            'activity' => ['scale' => 'week', 'buckets' => []],
+            'streaks' => ['longest' => 0, 'current' => 0],
+            'pinned_commit' => null,
+        ]],
+        'GET /api/v1/users/ada/commits' => [pageJson([])],
+    ]);
+
+    return Native::visit('/log/users/ada', platform: 'ios');
+}
+
+/**
+ * The colour of the ring the profile's avatar sits in.
+ */
+function profileRingColour(TestableComponent $screen): string
+{
+    $ring = findNode(nodeByRef($screen, 'profile-header'), fn (array $node): bool => ($node['type'] ?? null) === 'stack' && ($node['layout']['width'] ?? null) === 92.0);
+
+    return strtolower($ring['style']['bg_color']);
+}
+
+it("rings a live user's profile avatar in red and marks them live", function () {
+    $screen = profileOfStreamer(adaStream(now()->addHour()->toIso8601ZuluString()));
+
+    expect(findNode(nodeByRef($screen, 'profile-header'), fn (array $node): bool => ($node['ref'] ?? null) === 'live-badge'))->not->toBeNull()
+        ->and(profileRingColour($screen))->toBe(strtolower(config('native-ui.theme.light.live')));
+});
+
+it('keeps the lane ring on a profile once the stream has ended', function (?array $live) {
+    $screen = profileOfStreamer($live);
+
+    expect(findNode(nodeByRef($screen, 'profile-header'), fn (array $node): bool => ($node['ref'] ?? null) === 'live-badge'))->toBeNull()
+        ->and(profileRingColour($screen))->toBe(strtolower(config('native-ui.theme.light.lane-2')));
+})->with('streams that are not on');
+
+dataset('streams that are not on', [
+    'not live' => [null],
+    'ended' => [fn (): array => adaStream(now()->subMinute()->toIso8601ZuluString())],
+]);

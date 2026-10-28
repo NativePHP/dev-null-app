@@ -6,12 +6,19 @@
 <native:column class="w-full bg-theme-surface">
     <native:column ref="profile-header" class="w-full px-4 pt-6 pb-4 gap-4">
         <native:row class="w-full items-start justify-between">
-            {{-- The avatar wears the author's lane as a ring, offset from the surface. --}}
-            <native:stack :width="92" :height="92" class="rounded-full bg-theme-{{ \App\Devnull\Lane::token($user->lane()) }}">
-                <native:stack :width="88" :height="88" class="rounded-full bg-theme-surface">
-                    @include('native.partials.avatar', ['user' => $user, 'size' => 80])
+            {{-- The avatar wears the author's lane as a ring, offset from the surface, or red with the LIVE badge 10pt below it while they stream. --}}
+            <native:column :width="92" :height="92">
+                <native:stack :width="92" :height="92" class="rounded-full bg-theme-{{ $user->isLive() ? 'live' : \App\Devnull\Lane::token($user->lane()) }}">
+                    <native:stack :width="88" :height="88" class="rounded-full bg-theme-surface">
+                        @include('native.partials.avatar', ['user' => $user, 'size' => 80])
+                    </native:stack>
                 </native:stack>
-            </native:stack>
+                @if ($user->isLive())
+                    <native:row class="absolute left-0 right-0 top-[80] justify-center">
+                        @include('native.partials.live-badge')
+                    </native:row>
+                @endif
+            </native:column>
 
             @if ($sketched)
                 {{-- Follow waits for devnull to say whether you already do. --}}
