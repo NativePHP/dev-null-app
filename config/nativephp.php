@@ -112,6 +112,7 @@ return [
     'permissions' => [
         'NSCameraUsageDescription' => 'devnull uses the camera when you take a photo to attach to a commit.',
         'NSPhotoLibraryUsageDescription' => 'devnull opens your photos when you pick some to attach to a commit.',
+        'NSMicrophoneUsageDescription' => 'devnull uses the microphone when you record a voice note in Remotes.',
     ],
 
     /*

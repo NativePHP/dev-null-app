@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "4c795f7f152e1855d8c1e257076e3f74",
+    "content-hash": "a6e34837e083ae6eb8cc1df7ee22845e",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2950,6 +2950,116 @@
                 "source": "https://github.com/NativePHP/mobile-camera/tree/1.1.0"
             },
             "time": "2026-10-22T15:11:58+00:00"
+        },
+        {
+            "name": "nativephp/mobile-media-player",
+            "version": "1.0.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/NativePHP/mobile-media-player.git",
+                "reference": "ff249aaa50de0623edd3faeffeeeec9d15124869"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/NativePHP/mobile-media-player/zipball/ff249aaa50de0623edd3faeffeeeec9d15124869",
+                "reference": "ff249aaa50de0623edd3faeffeeeec9d15124869",
+                "shasum": ""
+            },
+            "require": {
+                "nativephp/mobile": "^3.0 || ^4.0",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^2.7|^3.0|^4.0"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "NativePHP\\MediaPlayer\\MediaPlayerServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "NativePHP\\MediaPlayer\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Bifrost Technology, LLC",
+                    "email": "support@nativephp.com"
+                }
+            ],
+            "description": "Media player plugin for NativePHP Mobile - shared audio/video playback, full-screen presentation, and a video-player element",
+            "support": {
+                "issues": "https://github.com/NativePHP/mobile-media-player/issues",
+                "source": "https://github.com/NativePHP/mobile-media-player/tree/1.0.2"
+            },
+            "time": "2026-09-15T18:59:52+00:00"
+        },
+        {
+            "name": "nativephp/mobile-microphone",
+            "version": "1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/NativePHP/mobile-microphone.git",
+                "reference": "94603d36388fb9b9f897fe146c0b8555e9c3c918"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/NativePHP/mobile-microphone/zipball/94603d36388fb9b9f897fe146c0b8555e9c3c918",
+                "reference": "94603d36388fb9b9f897fe146c0b8555e9c3c918",
+                "shasum": ""
+            },
+            "require": {
+                "nativephp/mobile": "^3.0 || ^4.0",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^2.7|^3.0|^4.0"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Native\\Mobile\\Providers\\MicrophoneServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Native\\Mobile\\Providers\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "NativePHP",
+                    "email": "support@nativephp.com"
+                }
+            ],
+            "description": "Microphone recording plugin for NativePHP Mobile - audio recording with pause/resume support",
+            "support": {
+                "issues": "https://github.com/NativePHP/mobile-microphone/issues",
+                "source": "https://github.com/NativePHP/mobile-microphone/tree/1.1.0"
+            },
+            "time": "2026-09-03T18:26:19+00:00"
         },
         {
             "name": "nativephp/mobile-secure-storage",
