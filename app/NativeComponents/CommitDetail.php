@@ -13,6 +13,7 @@ use App\Devnull\Data\StashedDraft;
 use App\Devnull\Display;
 use App\Devnull\DraftImages;
 use App\Devnull\Outbox;
+use App\Devnull\ResponseCache;
 use App\Devnull\RowCache;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
@@ -89,6 +90,13 @@ class CommitDetail extends NativeComponent
     public array $replies = [];
 
     public ?string $repliesCursor = null;
+
+    /**
+     * Other threads closest in meaning, in devnull's relevance order.
+     *
+     * @var list<Commit>
+     */
+    public array $related = [];
 
     /**
      * Whether the replies have been kept or fetched. Until then they show as loading.
@@ -215,6 +223,10 @@ class CommitDetail extends NativeComponent
     {
         $this->refresh($this->threadPath(), [], fn (array $json) => $this->takeThread($json));
         $this->refresh($this->threadPath().'/replies', [], fn (array $json) => $this->takeReplies($json));
+        $this->refresh($this->threadPath().'/related', [], fn (array $json) => $this->takeRelated($json), quiet: true, failed: function (): void {
+            $this->related = [];
+            app(ResponseCache::class)->forget($this->threadPath().'/related');
+        });
 
         foreach (array_keys($this->tombstoneReplies) as $id) {
             $id = (string) $id;
@@ -476,6 +488,7 @@ class CommitDetail extends NativeComponent
         $this->ancestors = array_map($update, $this->ancestors);
         $this->series = array_map($update, $this->series);
         $this->replies = array_map($update, $this->replies);
+        $this->related = array_map($update, $this->related);
         $this->tombstoneReplies = array_map(fn (array $replies): array => array_map($update, $replies), $this->tombstoneReplies);
     }
 
@@ -484,7 +497,7 @@ class CommitDetail extends NativeComponent
      */
     protected function shownCommits(): iterable
     {
-        return [...($this->commit === null ? [] : [$this->commit]), ...$this->ancestors, ...$this->series, ...$this->replies, ...array_merge([], ...array_values($this->tombstoneReplies))];
+        return [...($this->commit === null ? [] : [$this->commit]), ...$this->ancestors, ...$this->series, ...$this->replies, ...$this->related, ...array_merge([], ...array_values($this->tombstoneReplies))];
     }
 
     /**
@@ -544,7 +557,16 @@ class CommitDetail extends NativeComponent
             $this->takeReplies($replies);
         }
 
+        $this->takeRelated($this->cached($this->threadPath().'/related') ?? []);
         $this->keepStagedReplies();
+    }
+
+    /**
+     * @param  array<string, mixed>  $json
+     */
+    private function takeRelated(array $json): void
+    {
+        $this->related = Page::fromArray($json, Commit::fromArray(...))->items;
     }
 
     /**
@@ -638,6 +660,7 @@ class CommitDetail extends NativeComponent
                 [...$above, $this->commit, ...$this->series],
                 laneAbove: $earlier === [] ? null : end($earlier)->lane(),
             ),
+            'relatedRows' => Timeline::thread($this->related),
             'earlierCount' => $this->commit === null ? 0 : count($earlier),
             'earlierLane' => $earlier === [] ? null : end($earlier)->lane(),
             'replyCount' => max($this->commit->repliesCount ?? 0, count($this->replies)),

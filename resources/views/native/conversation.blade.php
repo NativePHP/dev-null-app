@@ -157,4 +157,6 @@
             </native:column>
         @endif
     </native:bottom-sheet>
+
+    @include('native.partials.mute-sheet')
 </native:column>
