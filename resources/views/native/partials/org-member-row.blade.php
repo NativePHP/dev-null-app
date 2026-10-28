@@ -1,8 +1,8 @@
 {{--
     Someone in an org, as the web's members dialog lists them: their avatar ringed in their lane, their name, "(you)"
     on your own row, their handle, and their role. A tap opens their profile. For a maintainer, a slot on the right
-    holds the button that opens their sheet, or a spinner while a change to them is on its way, and stays empty on
-    your own row so the roles line up.
+    holds More, which opens the platform's own menu of what they can do to them (see OrgMemberMenu), or a spinner
+    while a change to them is on its way, and stays empty on your own row so the roles line up.
 --}}
 <native:row native:key="member-{{ $user->id }}" ref="member-{{ $user->username }}" class="w-full pl-4 pr-2 py-3 gap-2 items-center">
     <native:pressable @press="viewProfile('{{ $user->username }}')" class="flex-1" a11y-label="{{ $user->name }}{{ $isMe ? ', you' : '' }}, {{ $user->handle() }}, {{ $role }}">
@@ -30,8 +30,8 @@
         <native:stack :width="36" :height="36" center class="flex-shrink-0">
             @if ($isChanging)
                 <native:activity-indicator size="small" />
-            @elseif ($canManage)
-                <native:pressable ref="manage-{{ $user->username }}" @press="manage('{{ $user->username }}')" a11y-label="Manage {{ $user->handle() }}">
+            @elseif ($menu !== [])
+                <native:pressable ref="manage-{{ $user->username }}" :menu="$menu" a11y-label="Manage {{ $user->handle() }}">
                     <native:stack :width="36" :height="36" center class="rounded-full">
                         <native:icon :ios="\App\Icons\Lucide::Ellipsis->ios()" :android="\App\Icons\Lucide::Ellipsis->android()" :size="18" class="text-theme-ink-muted" />
                     </native:stack>

@@ -1,7 +1,7 @@
 {{--
     The web's org members dialog as a screen, laid out like the Safety settings: for a maintainer, the org's name with
     Rename beside it, then everyone in a hairline box, with Add people at its top, then Leave org. The name and how full
-    the org is sit in the top bar. A member's sheet holds what a maintainer can do to them, as the web's menu does.
+    the org is sit in the top bar. More on a member opens what a maintainer can do to them, as the web's menu does.
 --}}
 <native:column class="w-full h-full bg-theme-surface">
     <native:scroll-view class="w-full flex-1 bg-theme-surface">
@@ -72,6 +72,4 @@
             @endif
         </native:column>
     </native:scroll-view>
-
-    @include('native.partials.org-member-sheet')
 </native:column>

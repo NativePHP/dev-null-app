@@ -5,6 +5,7 @@ namespace App\NativeComponents;
 use App\Devnull\Client;
 use App\Devnull\Data\Thread;
 use App\Devnull\Data\User;
+use App\Devnull\OrgMemberMenu;
 use App\Devnull\ResponseCache;
 use App\Devnull\Toasts;
 use App\NativeComponents\Concerns\OpensInTab;
@@ -22,16 +23,16 @@ use Native\Mobile\Facades\Dialog;
 /**
  * The web's org members dialog as a screen, opened from an org thread's menu:
  * everyone in the org with their role, and Leave org for anyone. A maintainer
- * also renames the org, adds people, and from a member's sheet makes them a
- * maintainer or a contributor, or removes them, as on the web. A contributor
- * sees who's in it and can leave, and nothing else.
+ * also renames the org, adds people, and from More on someone else makes them
+ * a maintainer or a contributor, or removes them, as the web's member menu
+ * does (see OrgMemberMenu). A contributor sees who's in it and can leave, and
+ * nothing else.
  *
  * It shows the org as its thread last kept it, then asks devnull behind it.
  * Each change shows at once and goes to devnull in the background; one that
  * devnull turns down goes back as it was, with a toast in devnull's words.
- * Removing someone asks first, in their sheet, and leaving asks in the web's
- * words. Once you've left, the inbox no longer lists the org, and back goes
- * past its thread to the inbox.
+ * Removing someone and leaving ask first. Once you've left, the inbox no
+ * longer lists the org, and back goes past its thread to the inbox.
  */
 class OrgMembers extends NativeComponent
 {
@@ -46,8 +47,11 @@ class OrgMembers extends NativeComponent
     public const string Contributor = 'contributor';
 
     /**
-     * The alert Leave org confirms with. Its id names the org, so an answer only reaches the screen that asked.
+     * The alerts Remove from org and Leave org confirm with. Each one's id names the org, and the member, so an
+     * answer only reaches what asked.
      */
+    public const string RemoveAlert = 'remove-member';
+
     public const string LeaveAlert = 'leave-org';
 
     /**
@@ -73,16 +77,6 @@ class OrgMembers extends NativeComponent
     public string $name = '';
 
     public bool $renaming = false;
-
-    /**
-     * Whose sheet is open, by username.
-     */
-    public ?string $managing = null;
-
-    /**
-     * The sheet is asking whether to remove them.
-     */
-    public bool $confirmingRemoval = false;
 
     /**
      * The members whose role or place devnull hasn't answered for yet, which a refresh leaves alone.
@@ -155,23 +149,6 @@ class OrgMembers extends NativeComponent
         });
     }
 
-    /**
-     * Opens a member's sheet, for a maintainer, on anyone but themselves.
-     */
-    public function manage(string $username): void
-    {
-        if ($this->canManage($username)) {
-            $this->managing = $username;
-            $this->confirmingRemoval = false;
-        }
-    }
-
-    public function sheetClosed(): void
-    {
-        $this->managing = null;
-        $this->confirmingRemoval = false;
-    }
-
     public function makeMaintainer(string $username): void
     {
         $this->changeRole($username, self::Maintainer);
@@ -184,24 +161,23 @@ class OrgMembers extends NativeComponent
 
     public function viewProfile(string $username): void
     {
-        $this->sheetClosed();
         $this->openInTab('/users/'.rawurlencode($username));
     }
 
     /**
-     * Remove from org, from a member's sheet, which then asks whether to, in the sheet itself: iOS drops an alert
-     * raised over a sheet.
+     * Remove from org, from someone's menu, which asks first. The web doesn't, but taking someone out of the org is
+     * as hard to undo as leaving it.
      */
     public function confirmRemove(string $username): void
     {
-        if ($this->managing === $username && $this->canManage($username)) {
-            $this->confirmingRemoval = true;
+        if (! $this->canManage($username)) {
+            return;
         }
-    }
 
-    public function cancelRemove(): void
-    {
-        $this->confirmingRemoval = false;
+        Dialog::alert("Remove @{$username}?", 'They stop seeing the org and its history. A maintainer would have to add them back.', [
+            ['label' => 'Cancel', 'style' => 'cancel'],
+            ['label' => 'Remove', 'style' => 'destructive'],
+        ])->id($this->alertId(self::RemoveAlert, $username));
     }
 
     /**
@@ -216,14 +192,22 @@ class OrgMembers extends NativeComponent
         Dialog::alert("Leave {$this->title()}?", 'You stop seeing the org and its history. A maintainer would have to add you back. If you are its only maintainer, the longest-standing member takes over.', [
             ['label' => 'Cancel', 'style' => 'cancel'],
             ['label' => 'Leave', 'style' => 'destructive'],
-        ])->id(self::LeaveAlert.':'.$this->org);
+        ])->id($this->alertId(self::LeaveAlert));
     }
 
     #[On(ButtonPressed::class)]
     public function onAlertButton(string $label = '', ?string $id = null): void
     {
-        if ($id === self::LeaveAlert.':'.$this->org && $label === 'Leave') {
+        if ($id === $this->alertId(self::LeaveAlert) && $label === 'Leave') {
             $this->leave();
+
+            return;
+        }
+
+        $prefix = $this->alertId(self::RemoveAlert, '');
+
+        if ($id !== null && str_starts_with($id, $prefix) && $label === 'Remove') {
+            $this->remove(substr($id, strlen($prefix)));
         }
     }
 
@@ -233,8 +217,6 @@ class OrgMembers extends NativeComponent
     public function remove(string $username): void
     {
         $index = $this->memberIndex($username);
-
-        $this->sheetClosed();
 
         if ($index === null || ! $this->canManage($username)) {
             return;
@@ -290,7 +272,7 @@ class OrgMembers extends NativeComponent
     {
         $me = $this->me();
         $isMaintainer = $this->isMaintainer();
-        $managed = $this->managing === null ? null : $this->memberIndex($this->managing);
+        $maintainers = $this->maintainers();
 
         return view('native.org-members', [
             'isMaintainer' => $isMaintainer,
@@ -301,11 +283,11 @@ class OrgMembers extends NativeComponent
                 'user' => $member['user'],
                 'role' => $member['role'] ?? self::Contributor,
                 'isMe' => $member['user']->id === $me?->id,
-                'canManage' => $this->canManage($member['user']->username),
+                'menu' => $this->canManage($member['user']->username)
+                    ? OrgMemberMenu::items($member['user'], $member['role'], $member['role'] === self::Maintainer && $maintainers === 1)
+                    : [],
                 'isChanging' => isset($this->changing[$member['user']->username]),
             ], $this->members),
-            'managed' => $managed === null ? null : $this->members[$managed],
-            'isLastMaintainer' => $managed !== null && ($this->members[$managed]['role'] ?? null) === self::Maintainer && $this->maintainers() === 1,
         ]);
     }
 
@@ -334,9 +316,6 @@ class OrgMembers extends NativeComponent
             $this->members = array_map(fn (array $member): array => ['user' => $member['user'], 'role' => $member['role']], $thread->members);
         }
 
-        if ($this->managing !== null && ! $this->canManage($this->managing)) {
-            $this->sheetClosed();
-        }
     }
 
     /**
@@ -345,7 +324,6 @@ class OrgMembers extends NativeComponent
      */
     private function changeRole(string $username, string $role): void
     {
-        $this->sheetClosed();
         $index = $this->memberIndex($username);
 
         if ($index === null || ! $this->canManage($username) || ($this->members[$index]['role'] ?? self::Contributor) === $role) {
@@ -430,6 +408,11 @@ class OrgMembers extends NativeComponent
         $names = array_map(fn (array $member): string => (string) strtok($member['user']->name, ' '), $others);
 
         return $names === [] ? 'the org' : implode(', ', $names);
+    }
+
+    private function alertId(string $alert, ?string $username = null): string
+    {
+        return "{$alert}:{$this->org}".($username === null ? '' : ":{$username}");
     }
 
     private function threadPath(): string

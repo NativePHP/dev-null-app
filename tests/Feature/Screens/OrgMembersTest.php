@@ -131,9 +131,7 @@ it('leaves a contributor to see who is in the org and leave, and nothing else', 
         ->assertMissingElement('pressable', fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'manage-'))
         ->assertSee('Leave org');
 
-    $screen->call('manage', 'ada')
-        ->assertSet('managing', null)
-        ->call('rename', 'mine now')
+    $screen->call('rename', 'mine now')
         ->call('makeMaintainer', 'ada')
         ->call('confirmRemove', 'ada')
         ->assertNativeNotCalled('Dialog.Alert')
@@ -170,17 +168,23 @@ it('puts the name back with devnull’s reason when it won’t rename the org', 
         ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Only maintainers can do that.');
 });
 
-it('makes a contributor a maintainer from their sheet', function () {
+it('offers a maintainer the web’s menu on everyone else, and makes a contributor a maintainer from it', function (string $platform) {
     serveOrg(orgJson());
     holdRefreshes();
 
-    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1/members'))
-        ->tap('manage-ada')
-        ->assertSet('managing', 'ada')
-        ->assertSee('Make maintainer')
-        ->assertSee('Remove from org')
-        ->tap('sheet-make-maintainer')
-        ->assertSet('managing', null);
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1/members', platform: $platform));
+
+    // More only opens its menu, which has what the web's member menu has.
+    expect(nodeByRef($screen, 'manage-ada')['props']['has_menu'] ?? null)->toBeTrue()
+        ->and(menuItems($screen, 'manage-ada'))->toBe([
+            ['make-maintainer-ada', 'Make maintainer', 'custom:shield'],
+            'divider',
+            ['remove-ada', 'Remove from org', 'custom:user-minus'],
+        ])
+        ->and(menuItems($screen, 'manage-grace')[0])->toBe(['make-contributor-grace', 'Make contributor', 'custom:user-round'])
+        ->and(nodeByRef($screen, 'remove-ada')['props']['destructive'] ?? null)->toBeTrue();
+
+    $screen->tap('make-maintainer-ada');
 
     expect($screen->instance()->members[1]['role'])->toBe('maintainer');
 
@@ -193,16 +197,13 @@ it('makes a contributor a maintainer from their sheet', function () {
     expect($screen->instance()->members[1]['role'])->toBe('maintainer')
         ->and(writesSent())->toBe(['PUT remotes/orgs/org-1/members/ada'])
         ->and(json_decode(sentTo('PUT', 'remotes/orgs/org-1/members/ada')[0], true))->toBe(['role' => 'maintainer']);
-});
+})->with(['ios', 'android']);
 
 it('offers Make contributor for a maintainer, and puts their role back when devnull says no', function () {
     serveOrg(orgJson(), ['PUT remotes/orgs/org-1/members/grace' => 422]);
     holdRefreshes();
 
-    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1/members'))
-        ->tap('manage-grace')
-        ->assertSee('Make contributor')
-        ->tap('sheet-make-contributor');
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1/members'))->tap('make-contributor-grace');
 
     expect($screen->instance()->members[2]['role'])->toBe('contributor');
 
@@ -218,35 +219,30 @@ it('never leaves an org without a maintainer', function () {
         ['user' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace Hopper']), 'role' => 'maintainer', 'read_through_id' => 1],
     ]));
 
-    finishRefreshes(Native::visit('/remotes/orgs/org-1/members'))
-        ->tap('manage-grace')
-        ->assertSee('An org needs at least one maintainer.')
-        ->call('makeContributor', 'grace')
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1/members'));
+
+    expect(nodeByRef($screen, 'make-contributor-grace')['props']['disabled'] ?? null)->toBeTrue();
+
+    $screen->call('makeContributor', 'grace')
         ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'An org needs at least one maintainer.');
 
     expect(writesSent())->toBe([]);
 });
 
-it('asks in the sheet before removing someone, and removes them only once you say so', function () {
+it('asks before removing someone, and removes them only once you say so', function () {
     serveOrg(orgJson());
     holdRefreshes();
 
     $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1/members'))
-        ->tap('manage-ada')
-        ->tap('sheet-remove')
-        ->assertSet('managing', 'ada')
-        ->assertSee('Remove @ada?')
-        ->assertSee('They stop seeing the org and its history. A maintainer would have to add them back.')
-        ->tap('cancel-remove')
-        ->assertSet('managing', 'ada')
-        ->assertDontSee('Remove @ada?')
+        ->tap('remove-ada')
+        ->assertNativeCalled('Dialog.Alert', fn (array $params): bool => $params['title'] === 'Remove @ada?'
+            && $params['message'] === 'They stop seeing the org and its history. A maintainer would have to add them back.')
+        ->emitNative(ButtonPressed::class, ['index' => 0, 'label' => 'Cancel', 'id' => 'remove-member:org-1:ada'])
         ->assertSee('Ada Lovelace');
 
     expect(writesSent())->toBe([]);
 
-    $screen->tap('sheet-remove')
-        ->tap('confirm-remove')
-        ->assertSet('managing', null)
+    $screen->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Remove', 'id' => 'remove-member:org-1:ada'])
         ->assertDontSee('Ada Lovelace');
 
     serveOrg(orgJson(members: [orgJson()['data']['members'][0], orgJson()['data']['members'][2]]));
@@ -337,7 +333,7 @@ it('finds people who could join this org, and adds the ones picked with or witho
         ->tap('candidate-linus')
         ->assertSee('4/'.NewOrg::MaxMembers)
         ->assertSee('Add 1')
-        ->tap('share-history')
+        ->toggle('share-history-switch', true)
         ->assertSet('sharesHistory', true)
         ->tap('add-people');
 

@@ -57,9 +57,9 @@ class AddOrgMembers extends NativeComponent
         $this->searchPeople('org', $this->org);
     }
 
-    public function toggleSharesHistory(): void
+    public function setSharesHistory(bool $sharesHistory): void
     {
-        $this->sharesHistory = ! $this->sharesHistory;
+        $this->sharesHistory = $sharesHistory;
     }
 
     public function add(): void
