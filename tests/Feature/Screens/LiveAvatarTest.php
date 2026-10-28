@@ -125,6 +125,57 @@ it('keeps the lane ring on a profile once the stream has ended', function (?arra
         ->and(profileRingColour($screen))->toBe(strtolower(config('native-ui.theme.light.lane-2')));
 })->with('streams that are not on');
 
+it("opens the web's stream sheet from a live author's avatar on the log", function () {
+    $screen = logByStreamer(adaStream(now()->addHour()->toIso8601ZuluString()));
+
+    expect(nodeByRef($screen, 'live-stream-sheet')['props']['visible'])->toBeFalse();
+
+    $screen = $screen->press("openLiveStream('ada')");
+
+    expect(nodeByRef($screen, 'live-stream-sheet')['props']['visible'])->toBeTrue()
+        ->and(nodeByRef($screen, 'live-stream-thumbnail')['props']['src'])->toBe('https://static-cdn.jtvnw.net/previews-ttv/live_user_ada-1280x720.jpg');
+
+    $screen->assertSee('Ada is live')
+        ->assertSee('twitch.tv')
+        ->assertSee('Watch now')
+        ->assertSee('@ada')
+        ->assertSee('Open profile');
+});
+
+it('opens the stream in the system browser, so Twitch or YouTube can take it', function () {
+    logByStreamer(adaStream(now()->addHour()->toIso8601ZuluString()))
+        ->press("openLiveStream('ada')")
+        ->tap('watch-live-stream')
+        ->assertNativeCalled('Browser.Open', fn (array $params): bool => $params['url'] === 'https://www.twitch.tv/ada');
+});
+
+it("opens the streamer's profile from the sheet", function () {
+    logByStreamer(adaStream(now()->addHour()->toIso8601ZuluString()))
+        ->press("openLiveStream('ada')")
+        ->tap('live-stream-profile')
+        ->assertSet('liveStreamer', null)
+        ->assertNavigatedTo('/log/users/ada');
+});
+
+it("opens a stopped streamer's profile from their avatar, as before", function (?array $live) {
+    logByStreamer($live)->press("openProfile('ada')")->assertNavigatedTo('/log/users/ada');
+})->with('streams that are not on');
+
+it("opens the stream sheet from a live user's profile avatar, without the profile link", function () {
+    $screen = profileOfStreamer(adaStream(now()->addHour()->toIso8601ZuluString()))->tap('profile-live-stream');
+
+    expect(nodeByRef($screen, 'live-stream-sheet')['props']['visible'])->toBeTrue();
+
+    $screen->assertSee('Ada is live')->assertDontSee('Open profile');
+});
+
+it('forgets the stream once the sheet has gone', function () {
+    logByStreamer(adaStream(now()->addHour()->toIso8601ZuluString()))
+        ->press("openLiveStream('ada')")
+        ->call('liveStreamClosed')
+        ->assertSet('liveStreamer', null);
+});
+
 dataset('streams that are not on', [
     'not live' => [null],
     'ended' => [fn (): array => adaStream(now()->subMinute()->toIso8601ZuluString())],

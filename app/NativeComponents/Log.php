@@ -22,6 +22,7 @@ use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
 use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\SuggestsWhoToFollow;
@@ -106,6 +107,7 @@ class Log extends NativeComponent
     use ExpandsThreads;
     use HoldsNewCommits;
     use OpensInTab;
+    use OpensLiveStream;
     use RefreshesInBackground;
     use ShowsCommits;
     use SuggestsWhoToFollow;

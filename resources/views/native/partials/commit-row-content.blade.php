@@ -94,5 +94,5 @@
     'node' => $continuesRun ? 'dot' : 'avatar',
     'avatarSize' => $muted ? 36 : 48,
     'user' => $author,
-    'press' => "openProfile('{$author->username}')",
+    'press' => $author->isLive() ? "openLiveStream('{$author->username}')" : "openProfile('{$author->username}')",
 ])

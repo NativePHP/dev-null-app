@@ -20,6 +20,7 @@ use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
 use App\NativeComponents\Concerns\OpensAchievements;
 use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -69,6 +70,7 @@ class Profile extends NativeComponent
     use OpensInTab {
         isShowing as isShowingPath;
     }
+    use OpensLiveStream;
     use RefreshesInBackground;
     use ShowsCommits;
     use TalksToDevnull;
@@ -523,6 +525,14 @@ class Profile extends NativeComponent
         $remotes = app(Account::class)->remotes();
 
         return $remotes !== null && $this->canChangeSafety() && ($this->profile?->followsYou === true || $remotes->requests);
+    }
+
+    /**
+     * The profile's owner, who may have no commit showing, or the author of one that is.
+     */
+    protected function streamer(string $username): ?User
+    {
+        return $this->profile?->user->username === $username ? $this->profile->user : $this->shownAuthor($username);
     }
 
     public function editOnGitHub(): void

@@ -56,6 +56,16 @@ final readonly class Live
         ];
     }
 
+    /**
+     * Where the stream is, as the web's stream card names it.
+     */
+    public function host(): string
+    {
+        $host = parse_url($this->url, PHP_URL_HOST);
+
+        return is_string($host) ? (string) preg_replace('/^www\./i', '', $host) : $this->url;
+    }
+
     public function isOn(): bool
     {
         return $this->endsAt->isFuture();

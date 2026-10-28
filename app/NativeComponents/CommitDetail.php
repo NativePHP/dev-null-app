@@ -19,6 +19,7 @@ use App\Devnull\Timeline;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -64,6 +65,7 @@ use Native\Mobile\Edge\NativeComponent;
 class CommitDetail extends NativeComponent
 {
     use OpensInTab;
+    use OpensLiveStream;
     use RefreshesInBackground;
     use ShowsCommits {
         reopenFailedCommit as private reopenFailedCommitInSheet;

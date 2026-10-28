@@ -59,6 +59,14 @@ it('is not live without a stream devnull can show', function (mixed $live) {
     'no end' => [stream(['ends_at' => null])],
 ]);
 
+it('names where the stream is as the web does, without www', function (string $url, string $host) {
+    expect(streamer(stream(['url' => $url]))->live->host())->toBe($host);
+})->with([
+    'twitch' => ['https://www.twitch.tv/alice', 'twitch.tv'],
+    'youtube' => ['https://youtube.com/watch?v=abc', 'youtube.com'],
+    'not a url' => ['twitch', 'twitch'],
+]);
+
 it('does not know a platform devnull adds later', function () {
     $live = streamer(stream(['platform' => 'kick']))->live;
 

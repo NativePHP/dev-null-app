@@ -2,6 +2,7 @@
     @include('native.partials.error')
     @include('native.partials.refresh-failed')
     @include('native.partials.commit-sheet')
+    @include('native.partials.live-stream-sheet')
 
     <native:scroll-view native:key="thread-{{ $scrollKey }}" ref="thread-scroll" class="w-full flex-1 bg-theme-surface">
         <native:column ref="thread-page" class="w-full bg-theme-surface">
