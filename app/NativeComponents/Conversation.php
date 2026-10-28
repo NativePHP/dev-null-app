@@ -160,10 +160,18 @@ class Conversation extends NativeComponent
     public ?int $replyToId = null;
 
     /**
-     * Mounts the composer's field afresh when you pick a message to reply to or attach photos, so it takes focus and
-     * raises the keyboard, as the web focuses its field.
+     * Mounts the composer's field afresh when it should take focus and raise the keyboard, as the web focuses its
+     * field: replying while the field is idle, or attaching photos.
      */
     public int $composerKey = 0;
+
+    /**
+     * Whether the field is in use, as far as the thread can tell. EDGE sends no focus event, so pressing into the
+     * field or typing in it says so. The field keeps the keyboard through presses elsewhere (keep-focus), so a reply
+     * then leaves it be instead of mounting it afresh, which would drop the keyboard and raise it again. Leaving the
+     * thread lets go of it.
+     */
+    public bool $composing = false;
 
     /**
      * The composer bar's height with one line in its field, the same as the reply bar on a commit's page: its top
@@ -249,6 +257,7 @@ class Conversation extends NativeComponent
 
     public function onResume(): void
     {
+        $this->composing = false;
         $this->forgetRefreshes();
         $this->showKept();
         $this->showPending();
@@ -403,6 +412,7 @@ class Conversation extends NativeComponent
      */
     public function updatedDraft(): void
     {
+        $this->composing = true;
         $now = self::now();
 
         if (trim($this->draft) === '' || $this->thread?->access !== Thread::Open || $now - $this->lastTypingAt < self::TypingPing || $this->lastId() === 0) {
@@ -473,7 +483,15 @@ class Conversation extends NativeComponent
         $this->replyToId = $id;
         $this->actionsForId = null;
         $this->sheetOpen = false;
-        $this->composerKey++;
+        $this->focusField(onlyIfIdle: true);
+    }
+
+    /**
+     * A press into the field: it has the keyboard now.
+     */
+    public function fieldPressed(): void
+    {
+        $this->composing = true;
     }
 
     /**
@@ -925,10 +943,23 @@ class Conversation extends NativeComponent
     protected function photosChanged(array $photos): void
     {
         if (count($photos) > count($this->photos)) {
-            $this->composerKey++;
+            $this->focusField();
         }
 
         $this->photos = $photos;
+    }
+
+    /**
+     * Mounts the field afresh so it takes focus and raises the keyboard. A reply leaves a field already in use alone
+     * ($onlyIfIdle); photos always remount it, since the library's sheet has taken the keyboard down by then.
+     */
+    private function focusField(bool $onlyIfIdle = false): void
+    {
+        if (! $onlyIfIdle || ! $this->composing) {
+            $this->composerKey++;
+        }
+
+        $this->composing = true;
     }
 
     protected function takesPhotos(): bool

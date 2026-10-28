@@ -5,8 +5,8 @@
     bottom as the draft grows. On Android the tools lead the row, ahead of the field, and the row starts closer to the
     edge for them (ios:pl-4 android:pl-2).
 
-    $ref names the plate ("{$ref}-plate"), $field is the partial that draws the field, and $tools are composer-tool's,
-    in the web's order.
+    $ref names the plate ("{$ref}-plate", also its key, so the field keeps its place as rows above it come and go),
+    $field is the partial that draws the field, and $tools are composer-tool's, in the web's order.
 --}}
 @php($toolsInField = \Native\Mobile\Platform::isIos())
 @unless ($toolsInField)
@@ -14,7 +14,7 @@
         @include('native.partials.composer-tool', $tool)
     @endforeach
 @endunless
-<native:row ref="{{ $ref }}-plate" class="flex-1 items-end ios:pr-1 ios:rounded-[18] ios:glass">
+<native:row native:key="{{ $ref }}-plate" ref="{{ $ref }}-plate" class="flex-1 items-end ios:pr-1 ios:rounded-[18] ios:glass">
     @include($field)
     @if ($toolsInField)
         @foreach ($tools as $tool)

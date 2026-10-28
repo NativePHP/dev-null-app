@@ -220,6 +220,38 @@ it('pads the end of the thread for the photos on the draft and an open descripti
     expect($clearance())->toEqual(Conversation::ComposerBarHeight + Conversation::PhotosHeight + Conversation::DescriptionHeight + 8);
 });
 
+it('keeps the keyboard up through presses in the thread, and the field in place as the reply strip and photos come and go', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?'])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda()->input('message-input', 'on it');
+    $field = idsDownTo($screen->tree(), 'message-input');
+    $rows = childRefs($screen, 'composer-bar');
+
+    expect(nodeByRef($screen, 'message-input')['props']['keep_focus_on_submit'] ?? false)->toBeTrue();
+
+    // Replying while you're typing leaves the field as it is, so the keyboard doesn't drop and come back.
+    $screen->swipe('swipe-1', 'right')->assertSee('Replying to Ada Lovelace');
+
+    // The strip fills a slot the bar always has, so the field's row keeps its place among the bar's rows, which
+    // Android needs as well as the same id to keep the field.
+    expect(idsDownTo($screen->tree(), 'message-input'))->toBe($field)
+        ->and(childRefs($screen, 'composer-bar'))->toBe($rows);
+
+    $screen->tap('cancel-reply');
+
+    expect(idsDownTo($screen->tree(), 'message-input'))->toBe($field);
+
+    // Attaching photos mounts it afresh to take focus once the library's sheet has gone; taking one off doesn't.
+    photosPicked($screen, [testPhoto(), testPhoto()]);
+    $withPhotos = idsDownTo($screen->tree(), 'message-input');
+
+    $screen->tap('photo-0-remove');
+
+    expect($withPhotos)->not->toBe($field)
+        ->and(idsDownTo($screen->tree(), 'message-input'))->toBe($withPhotos)
+        ->and(childRefs($screen, 'composer-bar'))->toBe($rows);
+});
+
 it('puts the photo and Ping buttons inside the Liquid Glass field on iOS, as the commit reply bar does', function () {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 

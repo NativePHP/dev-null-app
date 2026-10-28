@@ -68,11 +68,16 @@
             can't take a message, the bar is solid on both, with why in the field's place.
         --}}
         <native:bottom-bar>
-            <native:column ref="composer-bar" class="w-full {{ $canPush ? 'android:bg-theme-surface' : 'bg-theme-surface' }}">
+            <native:column native:key="composer-bar" ref="composer-bar" class="w-full {{ $canPush ? 'android:bg-theme-surface' : 'bg-theme-surface' }}">
                 <native:column class="w-full h-[1] {{ $canPush ? 'android:bg-theme-hairline' : 'bg-theme-hairline' }}" />
                 @if ($canPush)
-                    @if ($replyTo)
-                        <native:row class="w-full ios:px-4">
+                    {{--
+                        What you're replying to and the photos on the draft each keep a slot, empty and no height when
+                        there's nothing in it, so the field's row never moves. Android rebuilds a row that moves among
+                        its siblings, field and all, which drops the keyboard.
+                    --}}
+                    <native:row native:key="replying-slot" ref="replying-slot" class="w-full {{ $replyTo ? 'ios:px-4' : '' }}">
+                        @if ($replyTo)
                             <native:row ref="replying" class="flex-1 h-[44] px-4 gap-3 items-center ios:rounded-[18] ios:glass">
                                 <native:column class="w-[2] h-[28] rounded-full bg-theme-{{ $myColour }}" />
                                 <native:column class="flex-1 gap-[2]">
@@ -83,15 +88,13 @@
                                     <native:icon :ios="\App\Icons\Lucide::X->ios()" :android="\App\Icons\Lucide::X->android()" :size="16" class="text-theme-ink-muted" />
                                 </native:pressable>
                             </native:row>
-                        </native:row>
-                    @endif
-                    @if ($photos !== [])
-                        <native:column ref="message-photos" class="w-full px-4 pt-2">
-                            @include('native.partials.composer-photos', ['photos' => $photos, 'photoRef' => 'photo', 'describeClass' => 'ios:glass'])
-                        </native:column>
-                    @endif
+                        @endif
+                    </native:row>
+                    <native:column native:key="message-photos" ref="message-photos" class="w-full {{ $photos !== [] ? 'px-4 pt-2' : '' }}">
+                        @include('native.partials.composer-photos', ['photos' => $photos, 'photoRef' => 'photo', 'describeClass' => 'ios:glass'])
+                    </native:column>
                     {{-- The same room above and below the field, so the bar sits evenly on the keyboard. --}}
-                    <native:row ref="message-row" class="w-full ios:pl-4 android:pl-2 pr-4 py-2 gap-2 items-center">
+                    <native:row native:key="message-row" ref="message-row" class="w-full ios:pl-4 android:pl-2 pr-4 py-2 gap-2 items-center">
                         @include('native.partials.composer-plate', [
                             'ref' => 'message',
                             'field' => 'native.partials.message-field',
