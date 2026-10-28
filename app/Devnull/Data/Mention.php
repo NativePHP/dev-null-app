@@ -3,12 +3,13 @@
 namespace App\Devnull\Data;
 
 /**
- * Where the body mentions someone. The offset and length count Unicode code
- * points into the whole body and include the "@".
+ * Where the body mentions someone, or a GitHub organization devnull knows.
+ * The offset and length count Unicode code points into the whole body and
+ * include the "@".
  */
 final readonly class Mention
 {
-    public function __construct(public string $username, public int $offset, public int $length) {}
+    public function __construct(public string $username, public int $offset, public int $length, public bool $isOrganization = false) {}
 
     /**
      * GitHub accounts tagged in a bio or company, excluding emails, paths and package names.
@@ -39,6 +40,6 @@ final readonly class Mention
             return null;
         }
 
-        return new self($username, $offset, $length);
+        return new self($username, $offset, $length, ($data['kind'] ?? null) === 'organization');
     }
 }

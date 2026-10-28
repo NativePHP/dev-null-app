@@ -146,6 +146,14 @@ trait ShowsCommits
     }
 
     /**
+     * Opens a mentioned GitHub organization's page.
+     */
+    public function openOrganization(string $handle): void
+    {
+        $this->openInTab('/organizations/'.rawurlencode($handle));
+    }
+
+    /**
      * Opens the commit with its reply composer focused.
      */
     public function replyTo(string $id): void

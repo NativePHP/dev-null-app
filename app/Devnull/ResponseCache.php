@@ -44,6 +44,7 @@ final class ResponseCache
         '#^commits/[^/]+$#',
         '#^commits/[^/]+/(replies|related)$#',
         '#^users/[^/]+$#',
+        '#^organizations/[^/]+$#',
         '#^users/[^/]+/commits$#',
         '#^starred$#',
         '#^users/[^/]+/(followers|following)$#',

@@ -185,6 +185,29 @@ it('links mentions to profiles, counting code points so emoji before them do not
     $screen->press("openProfile('Grace-H')")->assertNavigatedTo('/log/users/Grace-H');
 });
 
+it("opens a mentioned organization's page, and a mentioned user's profile, in the tab", function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
+        'id' => 'c1',
+        'body' => 'thanks @laravel and @ada',
+        'mentions' => [
+            ['handle' => 'laravel', 'offset' => 7, 'length' => 8, 'kind' => 'organization'],
+            ['handle' => 'ada', 'offset' => 20, 'length' => 4, 'kind' => 'user'],
+        ],
+    ])]))]);
+
+    $screen = Native::visit('/log');
+
+    expect(paragraphRuns($screen, 'thanks'))->toBe([
+        ['thanks '],
+        ['@laravel', 'mention'],
+        [' and '],
+        ['@ada', 'mention'],
+    ]);
+
+    $screen->press("openOrganization('laravel')")->assertNavigatedTo('/log/organizations/laravel');
+    Native::visit('/log')->press("openProfile('ada')")->assertNavigatedTo('/log/users/ada');
+});
+
 it('shows inline code on a wash and keeps mentions on both sides of it', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
         'body' => '@ada ran `composer test` for @bob',

@@ -575,6 +575,14 @@ class Conversation extends NativeComponent
     }
 
     /**
+     * Opens a mentioned GitHub organization's page.
+     */
+    public function openOrganization(string $handle): void
+    {
+        $this->openInTab('/organizations/'.rawurlencode($handle));
+    }
+
+    /**
      * Opens a message's link preview: a page on dev/null the app has a screen
      * for here in the app, in this tab, and anything else in the browser.
      */

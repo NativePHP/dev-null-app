@@ -324,7 +324,7 @@ final class CommitBody
                 array_push($runs, ...self::withColors(mb_substr($text, $position, $offset - $position), $start + $position, $colors));
             }
 
-            $runs[] = new BodyRun($handle, username: $mention->username);
+            $runs[] = new BodyRun($handle, username: $mention->username, isOrganization: $mention->isOrganization);
             $position = $offset + $mention->length;
         }
 

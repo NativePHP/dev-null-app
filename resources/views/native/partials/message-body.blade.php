@@ -16,7 +16,7 @@
 @endif
 <native:text class="text-[15px] leading-snug {{ $ink }} whitespace-pre-wrap">@foreach ($block->runs as $run)
 @if ($run->isMention())
-<native:text :text="$run->text" font="semibold" class="font-semibold {{ $mentionInk }}" @press="openProfile('{{ $run->username }}')" />
+<native:text :text="$run->text" font="semibold" class="font-semibold {{ $mentionInk }}" @press="{{ $run->isOrganization ? 'openOrganization' : 'openProfile' }}('{{ $run->username }}')" />
 @elseif ($run->isCode)
 <native:text :text="$run->text" font="mono" class="text-[13px]" />
 @elseif ($run->isColor())
