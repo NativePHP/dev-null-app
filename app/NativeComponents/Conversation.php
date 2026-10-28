@@ -13,6 +13,7 @@ use App\Devnull\Display;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\MuteDuration;
 use App\Devnull\Outbox;
+use App\Devnull\ReactionEmoji;
 use App\Devnull\ResponseCache;
 use App\Devnull\SiteLink;
 use App\Devnull\Toasts;
@@ -58,7 +59,8 @@ use Native\Mobile\Facades\Dialog;
  * Retry of its own. Dragging a message sideways slides it out of the way
  * with the finger, its React and Reply growing in where it was, and Pin
  * for an org's maintainers; let go far enough and it stays open, or it
- * springs back. A double tap toggles a heart.
+ * springs back. A double tap toggles a heart. React offers the web's quick
+ * reactions, and the phone's own emoji picker for the rest.
  *
  * An org's pinned messages show as the web shows them: the latest in a bar
  * over the top of the thread, which opens them all in a sheet, and a pin
@@ -94,11 +96,6 @@ class Conversation extends NativeComponent
      * The reactions React offers first, before any you use more, as the web's quick bar.
      */
     public const array QuickReactions = ['😂', '✅', '❤️'];
-
-    /**
-     * The rest the sheet offers, every one of them in devnull's shortcode set.
-     */
-    public const array MoreReactions = ['👍', '👀', '🔥', '🎉', '🚀', '💯', '🙏', '🤔', '👏', '😅', '😮', '😢', '🙌', '💀', '✨', '🤝'];
 
     /**
      * What the sheet shows: React's reactions for a message, or the org's pinned messages.
@@ -261,6 +258,11 @@ class Conversation extends NativeComponent
      * web keeps its panel open behind the reactions.
      */
     public bool $reactsFromPinned = false;
+
+    /**
+     * The message the phone's emoji picker is up for, if it is.
+     */
+    public ?int $emojiPickerFor = null;
 
     /**
      * The org's pinned messages, latest pinned first, which everyone in it sees whatever history they were given.
@@ -573,7 +575,65 @@ class Conversation extends NativeComponent
     public function messageSheetClosed(): void
     {
         $this->sheetOpen = false;
-        $this->reactsFromPinned = false;
+
+        // The reactions making way for the emoji picker keep where React came from.
+        if ($this->emojiPickerFor === null) {
+            $this->reactsFromPinned = false;
+        }
+    }
+
+    /**
+     * More reactions: the phone's own emoji picker, with its search, recents and skin tones, for any message. The
+     * reactions sheet makes way for it.
+     */
+    public function openEmojiPicker(int $id): void
+    {
+        if ($this->findMessage($id)?->isEvent() !== false) {
+            return;
+        }
+
+        $this->actionsForId = null;
+        $this->sheetOpen = false;
+        $this->emojiPickerFor = $id;
+    }
+
+    /**
+     * Reacts with the emoji picked, as devnull takes it (see ReactionEmoji), and goes back to the pinned messages if
+     * React came from there. One devnull doesn't know isn't sent: a toast says so and the picker stays up for another.
+     */
+    public function emojiPicked(string $emoji): void
+    {
+        $id = $this->emojiPickerFor;
+
+        if ($id === null) {
+            return;
+        }
+
+        $reaction = ReactionEmoji::forDevnull($emoji);
+
+        if ($reaction === null) {
+            Toasts::failed("devnull doesn't take {$emoji} as a reaction yet. Pick another.");
+
+            return;
+        }
+
+        $this->emojiPickerFor = null;
+        $this->sheetOpen = $this->reactsFromPinned;
+        $this->toggleReaction($id, $reaction);
+    }
+
+    /**
+     * Closing the picker without a pick goes back to the pinned messages if React came from there.
+     */
+    public function emojiPickerClosed(): void
+    {
+        $this->emojiPickerFor = null;
+
+        if ($this->reactsFromPinned) {
+            $this->sheet = self::PinnedSheet;
+            $this->sheetOpen = true;
+            $this->reactsFromPinned = false;
+        }
     }
 
     public function reply(int $id): void
@@ -1382,7 +1442,6 @@ class Conversation extends NativeComponent
             'replyTo' => $this->findMessage($this->replyToId),
             'sheetMessage' => $this->findMessage($this->sheetMessageId),
             'quickReactions' => $this->quickReactions(),
-            'moreReactions' => self::MoreReactions,
             'canPush' => $thread !== null && $thread->access === Thread::Open,
             'canPin' => $this->canPin(),
             'actionsWidth' => $this->actionsWidth(),
