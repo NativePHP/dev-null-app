@@ -62,6 +62,8 @@
             @include('native.partials.message-images')
         @endif
 
+        @include('native.partials.message-voice')
+
         @if ($message->body !== '')
             {{-- The bubble shrinks to wrap short of the slot for its actions, which keeps its width either way. --}}
             <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}" :translate-x="$pan ?? 0">

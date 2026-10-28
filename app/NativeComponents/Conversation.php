@@ -8,6 +8,7 @@ use App\Devnull\Data\Commit;
 use App\Devnull\Data\Conversation as ConversationData;
 use App\Devnull\Data\DraftImage;
 use App\Devnull\Data\Message;
+use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\Thread;
 use App\Devnull\Data\User;
 use App\Devnull\Display;
@@ -18,10 +19,13 @@ use App\Devnull\ReactionEmoji;
 use App\Devnull\ResponseCache;
 use App\Devnull\SiteLink;
 use App\Devnull\Toasts;
+use App\Devnull\VoiceNotes;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\AttachesPhotos;
 use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\PlaysVoiceNotes;
+use App\NativeComponents\Concerns\RecordsVoiceNotes;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -73,6 +77,11 @@ use Native\Mobile\Facades\Dialog;
  * beside each one in the thread. Pinning and unpinning show at once and go
  * back if devnull says no, and pins from the others come with the polls.
  *
+ * The composer's microphone records a voice note of up to a minute, which
+ * goes on its own, through the outbox like any message (see
+ * RecordsVoiceNotes), and voice notes play in the thread as the web's do,
+ * one at a time, at the speed you pick (see PlaysVoiceNotes).
+ *
  * The composer's Ping pings them, or everyone in an org, as MSN Messenger
  * had: it lands in the thread as a log line. A ping coming in or going out
  * while you're on the thread buzzes the phone, as the web shakes the thread
@@ -86,6 +95,8 @@ class Conversation extends NativeComponent
 {
     use AttachesPhotos;
     use OpensInTab;
+    use PlaysVoiceNotes;
+    use RecordsVoiceNotes;
     use RefreshesInBackground;
     use SyncsOutbox;
     use TalksToDevnull;
@@ -462,10 +473,17 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * Pushes what's in the composer, its text, its photos or both, staged at once, as the web does.
+     * Pushes what's in the composer, its text, its photos or both, staged at once, as the web does. While a voice
+     * note is in its place, the voice note goes.
      */
     public function send(): void
     {
+        if ($this->recorder !== null) {
+            $this->pushRecording();
+
+            return;
+        }
+
         $body = trim($this->draft);
         $me = $this->me();
 
@@ -505,6 +523,100 @@ class Conversation extends NativeComponent
         if ($write !== null) {
             $this->resendMessage($write);
         }
+    }
+
+    /**
+     * A recorded voice note goes as a message of its own, staged at once with whatever it replies to, its recording
+     * kept on the phone until devnull has it.
+     */
+    protected function pushVoiceNote(MessageVoice $voice): void
+    {
+        $me = $this->me();
+
+        if ($me === null || $this->thread?->access !== Thread::Open) {
+            app(VoiceNotes::class)->discard($voice);
+
+            return;
+        }
+
+        if ($this->playingVoice === Message::DraftVoice) {
+            $this->stopVoiceNotes();
+        }
+
+        $message = Message::staged($me->id, (string) Str::uuid(), '', $this->findMessage($this->replyToId), voice: $voice);
+        $write = app(Outbox::class)->add(PendingWrite::Message, $this->threadPath(), [
+            'body' => '',
+            'reply_to_id' => $message->replyToId,
+            'voice' => $voice->toOutbox(),
+        ], $message->clientId);
+
+        if ($write === null) {
+            return;
+        }
+
+        $this->pending[] = $message;
+        $this->replyToId = null;
+        $this->lastActivityAt = self::now();
+
+        $this->sendFromOutbox($write);
+    }
+
+    protected function takesVoiceNotes(): bool
+    {
+        return $this->thread?->access === Thread::Open && trim($this->draft) === '' && $this->photos === [];
+    }
+
+    /**
+     * Why a voice note couldn't be recorded comes as a toast, from the top, as a photo's does.
+     */
+    protected function voiceNoteFailed(string $error): void
+    {
+        Toasts::failed($error);
+    }
+
+    protected function voiceNoteFor(string $key): ?MessageVoice
+    {
+        if ($key === Message::DraftVoice) {
+            return $this->recorded;
+        }
+
+        foreach ([...$this->messages, ...$this->pending, ...$this->pinned] as $message) {
+            if ($message->voice !== null && $message->voiceKey() === $key) {
+                return $message->voice;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Leaving the thread stops the voice note playing, and throws away one being recorded, as leaving the web's does.
+     */
+    public function navigate(string $uri, array $data = []): static
+    {
+        $this->leaveVoiceNotes();
+
+        return parent::navigate($uri, $data);
+    }
+
+    public function back(): static
+    {
+        $this->leaveVoiceNotes();
+
+        return parent::back();
+    }
+
+    public function unmount(): void
+    {
+        $this->leaveVoiceNotes();
+
+        parent::unmount();
+    }
+
+    private function leaveVoiceNotes(): void
+    {
+        $this->stopVoiceNotes();
+        $this->letGoOfRecording();
     }
 
     /**
@@ -1147,7 +1259,7 @@ class Conversation extends NativeComponent
 
         $this->pending = app(Outbox::class)->pending(PendingWrite::Message, $this->threadPath(), withFailed: true)
             ->map(function (PendingWrite $write) use ($me): Message {
-                $message = Message::staged($me->id, $write->client_id, $write->body(), $this->findMessage($write->replyToId()), $write->images());
+                $message = Message::staged($me->id, $write->client_id, $write->body(), $this->findMessage($write->replyToId()), $write->images(), $write->voice());
 
                 return $write->isFailed() ? $message->withStatus(Message::Rejected) : $message;
             })
@@ -1590,6 +1702,8 @@ class Conversation extends NativeComponent
 
     public function render(): View
     {
+        $this->sampleRecording();
+
         $viewer = $this->me();
         $thread = $this->thread;
 
@@ -1621,6 +1735,8 @@ class Conversation extends NativeComponent
             'pingLabel' => $this->isOrg() ? 'Ping everyone in the org' : 'Ping @'.$this->username,
             'muting' => $this->choosingMute ? 'thread' : null,
             'mutingTitle' => $this->menuTitle(),
+            'player' => $this->voicePlayback(),
+            'recordingElapsed' => $this->recordingElapsed(),
         ]);
     }
 

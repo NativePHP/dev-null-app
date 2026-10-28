@@ -94,6 +94,11 @@ enum Lucide
     case BellOff;
     case LogOut;
     case UserMinus;
+    case Mic;
+    case Play;
+    case Pause;
+    case RotateCw;
+    case Square;
 
     /**
      * The icon the web's inbox draws for a kind of notification.
@@ -200,6 +205,11 @@ enum Lucide
             self::BellOff => 'bell-off',
             self::LogOut => 'log-out',
             self::UserMinus => 'user-minus',
+            self::Mic => 'mic',
+            self::Play => 'play-filled',
+            self::Pause => 'pause-filled',
+            self::RotateCw => 'rotate-cw',
+            self::Square => 'square-filled',
             default => null,
         };
 

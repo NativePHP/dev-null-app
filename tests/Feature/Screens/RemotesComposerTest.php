@@ -252,25 +252,25 @@ it('keeps the keyboard up through presses in the thread, and the field in place 
         ->and(childRefs($screen, 'composer-bar'))->toBe($rows);
 });
 
-it('puts the photo and Ping buttons inside the Liquid Glass field on iOS, as the commit reply bar does', function () {
+it('puts the photo, microphone and Ping buttons inside the Liquid Glass field on iOS, as the commit reply bar does', function () {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
     $screen = threadWithAda('ios');
     $bar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
 
-    expect(childRefs($screen, 'message-plate'))->toBe(['message-field', 'attach-photos', 'ping'])
+    expect(childRefs($screen, 'message-plate'))->toBe(['message-field', 'attach-photos', 'record-voice-note', 'ping'])
         ->and(nodeByRef($screen, 'message-plate')['props']['glass'] ?? null)->toBe(1)
         ->and($bar['children'][0]['ref'] ?? null)->toBe('composer-bar')
         ->and($bar['children'][0]['style']['bg_color'] ?? null)->toBeNull()
         ->and(nodeByRef($screen, 'ping')['props']['a11y_label'])->toBe('Ping @ada');
 });
 
-it('leads the bar with the photo and Ping buttons on Android, on a solid bar', function () {
+it('leads the bar with the photo, microphone and Ping buttons on Android, on a solid bar', function () {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
     $screen = threadWithAda('android');
 
-    expect(array_slice(childRefs($screen, 'message-row'), 0, 3))->toBe(['attach-photos', 'ping', 'message-plate'])
+    expect(array_slice(childRefs($screen, 'message-row'), 0, 4))->toBe(['attach-photos', 'record-voice-note', 'ping', 'message-plate'])
         ->and(childRefs($screen, 'message-plate'))->toBe(['message-field'])
         ->and(nodeByRef($screen, 'message-plate')['props']['glass'] ?? null)->toBeNull()
         ->and(nodeByRef($screen, 'composer-bar')['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'));
