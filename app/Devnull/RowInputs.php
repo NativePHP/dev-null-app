@@ -41,8 +41,8 @@ final class RowInputs
     }
 
     /**
-     * How a commit shows what changes without devnull saying so: its time and
-     * its poll's time left.
+     * How a commit shows what changes without devnull saying so: its time, its
+     * poll's time left and whether its author's stream is still on.
      *
      * @return list<mixed>
      */
@@ -53,6 +53,7 @@ final class RowInputs
             $commit->poll?->showsResults(),
             $commit->poll?->status(),
             $commit->poll?->summary(),
+            $commit->author->isLive(),
         ];
     }
 }

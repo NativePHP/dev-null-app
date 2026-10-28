@@ -26,14 +26,14 @@ function adaStream(string $endsAt): array
 }
 
 /**
- * A log with one commit of Ada's, who is on $live.
+ * A log with one commit of Ada's, who is on $live. The commit is two days old, so its time reads the same for hours.
  *
  * @param  array<string, mixed>|null  $live
  */
 function logByStreamer(?array $live): TestableComponent
 {
     serveApi(fn (Request $request) => Http::response(pageJson([
-        commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 2, 'live' => $live])]),
+        commitJson(['id' => 'c1', 'created_at' => now()->subDays(2)->toIso8601ZuluString(), 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 2, 'live' => $live])]),
     ])));
 
     return Native::visit('/log', platform: 'ios');
@@ -58,6 +58,19 @@ it('rings a live author in red and marks them live, as the web does', function (
         ->and(treeShows($badge, 'LIVE'))->toBeTrue()
         ->and(strtolower($badge['style']['bg_color']))->toBe(strtolower(config('native-ui.theme.light.live')))
         ->and(railRingColour($screen, 'commit-c1'))->toBe(strtolower(config('native-ui.theme.light.live')));
+});
+
+it('takes the badge off a row the log kept once the stream ends', function () {
+    $screen = logByStreamer(adaStream(now()->addMinute()->toIso8601ZuluString()));
+    $badge = fn (): ?array => findNode(nodeByRef($screen, 'commit-c1'), fn (array $node): bool => ($node['ref'] ?? null) === 'live-badge');
+
+    expect($badge())->not->toBeNull();
+
+    $this->travel(2)->minutes();
+    $screen->call('isRanked');
+
+    expect($badge())->toBeNull()
+        ->and(railRingColour($screen, 'commit-c1'))->toBe(strtolower(config('native-ui.theme.light.lane-2')));
 });
 
 it('keeps the lane ring once the stream has ended', function (?array $live) {
