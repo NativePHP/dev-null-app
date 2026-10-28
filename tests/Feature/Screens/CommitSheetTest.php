@@ -64,13 +64,12 @@ it('puts Report commit in More only on commits you can report', function () {
 
     $screen = Native::visit('/log', platform: 'ios');
 
-    // Someone else's published commit: after a divider, the web's Report.
-    expect(array_slice(menuItems($screen, 'more-c3'), -2))->toBe(['divider', ['report-c3', 'Report commit', 'custom:flag']]);
+    // Someone else's published commit: the web's Report.
+    expect(menuItems($screen, 'more-c3'))->toBe([['report-c3', 'Report commit', 'custom:flag']]);
 
-    // Your own commit, and someone else's that isn't published, can't be reported.
-    foreach (['c2', 'c1'] as $id) {
-        expect(array_column(array_filter(menuItems($screen, 'more-'.$id), is_array(...)), 0))->not->toContain('report-'.$id);
-    }
+    // Your own commit can't be reported, and someone else's that isn't published has no More at all.
+    expect(array_column(array_filter(menuItems($screen, 'more-c2'), is_array(...)), 0))->not->toContain('report-c2')
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'more-c1'))->toBeNull();
 
     // The sheet is there, waiting, but down.
     expect(sheetProps($screen)['visible'])->toBeFalse();

@@ -71,7 +71,7 @@ it("shows Reply as just its icon beside a commit's replies, so the row still fit
 
     expect(nodeByRef($screen, 'reply-to-c1')['props']['a11y_label'])->toBe('Reply')
         ->and($labels('reply-to-c1'))->toBe([])
-        ->and($labels('reply-to-c2'))->toHaveCount(1);
+        ->and($labels('reply-to-c2'))->toBe([]);
 });
 
 it('lists what GitHub says about them under the bio, as the web does', function () {

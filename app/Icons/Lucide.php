@@ -27,6 +27,7 @@ enum Lucide
     case Settings2;
     case MessageSquareReply;
     case Link;
+    case Share;
     case Star;
     case Bookmark;
     case Trash2;
@@ -140,6 +141,7 @@ enum Lucide
             self::Settings2 => 'settings-2',
             self::MessageSquareReply => 'message-square-reply',
             self::Link => 'link',
+            self::Share => 'share',
             self::Star => $filled ? 'star-filled' : 'star',
             self::Bookmark => $filled ? 'bookmark-filled' : 'bookmark',
             self::Trash2 => 'trash-2',

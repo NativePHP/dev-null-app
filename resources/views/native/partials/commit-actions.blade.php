@@ -3,8 +3,9 @@
     and its count, Quote, Reply, and in Commit Blue "› N replies" when the row has no thread under it already. On the
     right: More.
 
-    Share link, Report and Delete live in More, which opens the platform's own menu (a UIMenu on iOS, a dropdown
-    on Android, see CommitMenu for what's in it). Tapping More only opens the menu.
+    Share is its own button at the end of the row. Pin, Report and Delete live in More, which opens the platform's own
+    menu (a UIMenu on iOS, a dropdown on Android, see CommitMenu for what's in it), and is left off when there's
+    nothing in it. Tapping More only opens the menu.
 
     Reply opens the commit with its reply composer focused. In a feed ($expandable) the replies link opens the thread in
     place, as on the web; elsewhere it opens the commit with its replies showing. Like the web, someone else's commit
@@ -54,10 +55,11 @@
 @php($canGivePastel = $pasteis !== null && $viewer !== null && ! $isOwn && $commit->isApproved())
 @php($pastelLabel = \App\Devnull\Display::count($commit->pasteisCount, 'pastel', 'pastéis'))
 @php($pastelSize = $compact ? 18 : 20)
+@php($menu = \App\Devnull\CommitMenu::items($commit, $viewer))
 @php($starLabel = ($commit->starred ? 'Unstar commit' : 'Star commit').($commit->starsCount > 0 ? ', '.\App\Devnull\Display::count($commit->starsCount, 'star', 'stars') : ''))
 <native:row ref="actions-{{ $commit->id }}" class="w-full -ml-2 -my-[6] items-center">
     @if ($canReact && $viewer !== null && ! $commit->isDeleted())
-        <native:pressable ref="star-{{ $commit->id }}" @press="toggleStar('{{ $commit->id }}')" class="flex-row min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="{{ $starLabel }}">
+        <native:pressable ref="star-{{ $commit->id }}" @press="toggleStar('{{ $commit->id }}')" class="flex-row flex-1 min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="{{ $starLabel }}">
             <native:icon :ios="\App\Icons\Lucide::Star->ios($commit->starred)" :android="\App\Icons\Lucide::Star->android($commit->starred)" :size="$iconSize" class="{{ $commit->starred ? 'text-theme-primary' : 'text-theme-ink-muted' }}" />
             @if ($commit->starsCount > 0)
                 <native:text font="mono" class="{{ $labelSize }} {{ $commit->starred ? 'text-theme-primary' : 'text-theme-ink-muted' }}">{{ \App\Devnull\Display::compactCount($commit->starsCount) }}</native:text>
@@ -66,19 +68,19 @@
     @endif
 
     @if ($canGivePastel)
-        <native:pressable ref="pastel-{{ $commit->id }}" @press="givePastel('{{ $commit->id }}')" class="flex-row min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="Give a pastel, {{ $pastelLabel }}, {{ $pasteis->left() }} left today">
+        <native:pressable ref="pastel-{{ $commit->id }}" @press="givePastel('{{ $commit->id }}')" class="flex-row flex-1 min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="Give a pastel, {{ $pastelLabel }}, {{ $pasteis->left() }} left today">
             <native:image :src="\App\Devnull\Data\Pasteis::Image" :width="$pastelSize" :height="$pastelSize" :fit="1" />
             <native:text font="mono" class="{{ $labelSize }} text-theme-ink-muted">{{ \App\Devnull\Display::compactCount($commit->pasteisCount) }}</native:text>
         </native:pressable>
     @elseif ($pasteis !== null)
-        <native:row ref="pastel-count-{{ $commit->id }}" class="min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="{{ $pastelLabel }}">
+        <native:row ref="pastel-count-{{ $commit->id }}" class="flex-1 min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="{{ $pastelLabel }}">
             <native:image :src="\App\Devnull\Data\Pasteis::Image" :width="$pastelSize" :height="$pastelSize" :fit="1" />
             <native:text font="mono" class="{{ $labelSize }} text-theme-ink-muted">{{ \App\Devnull\Display::compactCount($commit->pasteisCount) }}</native:text>
         </native:row>
     @endif
 
     @if ($withQuote && $canReact)
-        <native:pressable ref="quote-{{ $commit->id }}" @press="quoteCommit('{{ $commit->id }}')" class="flex-row min-w-[44] h-[36] px-2 gap-[3] items-center justify-center" a11y-label="{{ $hasQuoteStash ? 'Quote, you have an unsent quote here' : 'Quote' }}">
+        <native:pressable ref="quote-{{ $commit->id }}" @press="quoteCommit('{{ $commit->id }}')" class="flex-row flex-1 min-w-[44] h-[36] px-2 gap-[3] items-center" a11y-label="{{ $hasQuoteStash ? 'Quote, you have an unsent quote here' : 'Quote' }}">
             <native:icon :ios="\App\Icons\Lucide::Quote->ios()" :android="\App\Icons\Lucide::Quote->android()" :size="$iconSize" class="text-theme-ink-muted" />
             @if ($hasQuoteStash)
                 <native:column ref="quote-stash-{{ $commit->id }}" class="w-[5] h-[5] rounded-full bg-theme-ink-muted" />
@@ -87,11 +89,8 @@
     @endif
 
     @if ($withReply)
-        <native:pressable ref="reply-to-{{ $commit->id }}" @press="replyTo('{{ $commit->id }}')" class="flex-row min-w-[44] h-[36] px-2 gap-[6] items-center {{ $showsReplies ? 'justify-center' : '' }}" a11y-label="{{ $hasReplyStash ? 'Reply, you have an unsent reply here' : 'Reply' }}">
+        <native:pressable ref="reply-to-{{ $commit->id }}" @press="replyTo('{{ $commit->id }}')" class="flex-row flex-1 min-w-[44] h-[36] px-2 gap-[3] items-center" a11y-label="{{ $hasReplyStash ? 'Reply, you have an unsent reply here' : 'Reply' }}">
             <native:icon :ios="\App\Icons\Lucide::MessageSquareReply->ios()" :android="\App\Icons\Lucide::MessageSquareReply->android()" :size="$iconSize" class="text-theme-ink-muted" />
-            @unless ($showsReplies)
-                <native:text class="{{ $labelSize }} text-theme-ink-muted">Reply</native:text>
-            @endunless
             @if ($hasReplyStash)
                 <native:column ref="reply-stash-{{ $commit->id }}" class="w-[5] h-[5] -ml-[3] rounded-full bg-theme-ink-muted" />
             @endif
@@ -99,7 +98,7 @@
     @endif
 
     @if ($showsReplies)
-        <native:pressable ref="replies-{{ $commit->id }}" @press="{{ $repliesPress }}" class="flex-row h-[36] px-2 gap-1 items-center" a11y-label="{{ $isOpen ? 'Hide replies' : \App\Devnull\Display::count($repliesCount, 'reply', 'replies') }}">
+        <native:pressable ref="replies-{{ $commit->id }}" @press="{{ $repliesPress }}" class="flex-row flex-1 h-[36] px-2 gap-1 items-center" a11y-label="{{ $isOpen ? 'Hide replies' : \App\Devnull\Display::count($repliesCount, 'reply', 'replies') }}">
             @if ($isOpen)
                 <native:icon :ios="\App\Icons\Lucide::ChevronDown->ios()" :android="\App\Icons\Lucide::ChevronDown->android()" :size="14" class="text-theme-primary" />
                 <native:text class="{{ $labelSize }} text-theme-primary">Hide replies</native:text>
@@ -110,11 +109,17 @@
         </native:pressable>
     @endif
 
-    <native:spacer />
+    @unless ($commit->isDeleted())
+        <native:pressable ref="share-{{ $commit->id }}" @press="shareCommit('{{ $commit->id }}')" class="flex-row flex-1 min-w-[44] h-[36] px-2 items-center" a11y-label="Share link">
+            <native:icon :ios="\App\Icons\Lucide::Share->ios()" :android="\App\Icons\Lucide::Share->android()" :size="$iconSize" class="text-theme-ink-muted" />
+        </native:pressable>
+    @endunless
 
-    <native:pressable ref="more-{{ $commit->id }}" :menu="\App\Devnull\CommitMenu::items($commit, $viewer)" a11y-label="More">
-        <native:column class="min-w-[44] h-[36] items-center justify-center">
-            <native:icon :ios="\App\Icons\Lucide::Ellipsis->ios()" :android="\App\Icons\Lucide::Ellipsis->android()" :size="$iconSize" class="text-theme-ink-muted" />
-        </native:column>
-    </native:pressable>
+    @if ($menu !== [])
+        <native:pressable ref="more-{{ $commit->id }}" :menu="$menu" a11y-label="More">
+            <native:column class="min-w-[44] h-[36] items-center justify-center">
+                <native:icon :ios="\App\Icons\Lucide::Ellipsis->ios()" :android="\App\Icons\Lucide::Ellipsis->android()" :size="$iconSize" class="text-theme-ink-muted" />
+            </native:column>
+        </native:pressable>
+    @endif
 </native:row>

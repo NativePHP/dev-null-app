@@ -406,10 +406,10 @@ it('puts the web action row under each commit: the star, Quote, Reply and replie
         // Someone else's pending commit can't be starred or quoted, so the web leaves them off.
         ->assertMissingElement('pressable', fn (array $node): bool => in_array($node['ref'] ?? null, ['star-c0', 'quote-c0'], true));
 
-    // The web's order: star, Quote, Reply and replies on the left, then More for Share link and Report.
-    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'more-c2'])
-        // Nor can it be reported, so all its menu has is the link.
-        ->and(menuItems($screen, 'more-c0'))->toBe([['share-c0', 'Share link', 'custom:link']]);
+    // The web's order: star, Quote, Reply and replies on the left, then Share, then More for Pin, Report and Delete.
+    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'share-c2', 'more-c2'])
+        // Nor can it be reported, so it has no menu to open.
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'more-c0'))->toBeNull();
 
     $icon = fn (string $ref): ?array => findNode(nodeByRef($screen, $ref), fn (array $node): bool => ($node['type'] ?? null) === 'icon');
     $text = fn (string $ref, string $text): ?array => findNode(nodeByRef($screen, $ref), fn (array $node): bool => ($node['props']['text'] ?? null) === $text);
@@ -513,7 +513,6 @@ it('leaves bookmarks out of More even when an old cached commit has bookmark sta
 
     $screen = Native::visit('/log', platform: 'ios');
     expect(menuItems($screen, 'more-c1'))->toBe([
-        ['share-c1', 'Share link', 'custom:link'],
         ['pin-c1', 'Pin to profile', 'pin'],
         'divider',
         ['delete-c1', 'Delete commit', 'custom:trash-2'],

@@ -28,7 +28,7 @@
 @php($avatarLine = 76 + $indent)
 @if ($reply->isDeleted())
     @php($opened = $tombstones && array_key_exists($reply->id, $tombstoneReplies ?? []))
-    <native:row native:key="thread-reply-{{ $reply->id }}" ref="thread-reply-{{ $reply->id }}" class="w-full bg-theme-surface">
+    <native:row native:key="thread-reply-{{ $reply->id }}" ref="thread-reply-{{ $reply->id }}" class="w-full bg-theme-surface {{ $last && ! $muted ? 'border-b border-theme-hairline pb-[1]' : '' }}">
         <native:column :width="64" />
         <native:column class="flex-1">
             <native:row class="w-full pr-4 pt-[10] gap-2 {{ $last && $more === null ? 'pb-3' : 'pb-1' }} {{ $indent > 0 ? 'pl-['.$indent.']' : '' }}">
@@ -52,9 +52,6 @@
             @if ($more !== null)
                 @include('native.partials.thread-more', ['commit' => $thread ?? $reply])
             @endif
-            @if ($last && ! $muted)
-                <native:column ref="thread-end-{{ $reply->id }}" class="w-full h-[1] bg-theme-hairline" />
-            @endif
         </native:column>
         @include('native.partials.thread-links')
         @if ($opened && ($tombstoneReplies[$reply->id] ?? []) !== [])
@@ -64,7 +61,7 @@
     </native:row>
 @else
     @php($commit = $reply)
-    <native:pressable native:key="thread-reply-{{ $reply->id }}" ref="thread-reply-{{ $reply->id }}" @press="openCommit('{{ $reply->id }}')" class="w-full bg-theme-surface">
+    <native:pressable native:key="thread-reply-{{ $reply->id }}" ref="thread-reply-{{ $reply->id }}" @press="openCommit('{{ $reply->id }}')" class="w-full bg-theme-surface {{ $last && ! $muted ? 'border-b border-theme-hairline pb-[1]' : '' }}">
         <native:row class="w-full">
             <native:column :width="64" />
             <native:column class="flex-1">
@@ -90,9 +87,6 @@
                 </native:row>
                 @if ($more !== null)
                     @include('native.partials.thread-more', ['commit' => $thread ?? $reply])
-                @endif
-                @if ($last && ! $muted)
-                    <native:column ref="thread-end-{{ $reply->id }}" class="w-full h-[1] bg-theme-hairline" />
                 @endif
             </native:column>
             @include('native.partials.thread-links')

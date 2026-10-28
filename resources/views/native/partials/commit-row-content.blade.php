@@ -15,7 +15,7 @@
     the real one takes its place (see SyncsOutbox).
 
     A list builds and measures every node of a row as it scrolls in, so the content is one column: the rail's 64pt
-    gutter is its left margin, and the hairline under it is its bottom border. A border draws inside the box, so the
+    gutter is its left padding, so the hairline under it, its bottom border, runs the row's full width. A border draws inside the box, so the
     bottom padding takes the hairline's 1pt to keep the row as tall as it was.
 --}}
 @php($author = $commit->author)
@@ -32,7 +32,8 @@
 @php($inset = $focused ? 16 : 12)
 @php($padding = 'pt-['.$inset.']'.($threadBelow ? '' : ' pb-['.($hasHairline ? $inset + 1 : $inset).']'))
 @php($metaSize = $muted ? 'text-xs' : 'text-[13px]')
-<native:column class="flex-1 ml-[64] {{ $muted ? 'min-h-[56]' : 'min-h-[64]' }} {{ $padding }} pr-4 gap-1 {{ $hasHairline ? 'border-b border-theme-hairline' : '' }} {{ $commit->isStaged() ? 'opacity-[0.6]' : '' }}">
+
+<native:column class="flex-1 pl-[64] {{ $muted ? 'min-h-[56]' : 'min-h-[64]' }} {{ $padding }} pr-4 gap-1 {{ $hasHairline ? 'border-b border-theme-hairline' : '' }} {{ $commit->isStaged() ? 'opacity-[0.6]' : '' }}">
     <native:row class="w-full gap-[6] items-center">
         <native:text font="semibold" class="{{ $focused ? 'text-base' : ($muted ? 'text-sm' : 'text-[15px]') }} {{ $muted ? 'text-theme-ink-muted' : 'text-theme-ink' }} flex-shrink" :max-lines="1">{{ $author->name }}</native:text>
         <native:text font="mono" class="{{ $metaSize }} text-theme-ink-muted flex-shrink" :max-lines="1">{{ $author->handle() }}</native:text>

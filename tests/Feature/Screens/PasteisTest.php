@@ -85,7 +85,7 @@ it('leaves pastéis out of the rows while the mode is off, as the web hides them
 
     $screen = Native::visit('/log', platform: 'ios')->assertSee('3 replies');
 
-    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'more-c2'])
+    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'share-c2', 'more-c2'])
         ->and(findNode($screen->tree(), fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'pastel')))->toBeNull()
         ->and(findNode($screen->tree(), fn (array $node): bool => ($node['props']['src'] ?? null) === Pasteis::Image))->toBeNull();
 
@@ -103,7 +103,7 @@ it('puts the pastel and its count beside the star in pastéis mode', function ()
 
     $screen = Native::visit('/log', platform: 'ios');
 
-    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'pastel-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'more-c2'])
+    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'pastel-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'share-c2', 'more-c2'])
         ->and(nodeByRef($screen, 'pastel-c2')['props']['a11y_label'])->toBe('Give a pastel, 3 pastéis, 7 left today')
         ->and(nodeByRef($screen, 'pastel-c1')['props']['a11y_label'])->toBe('Give a pastel, 0 pastéis, 7 left today')
         // The web shows the count even when it's 0.
@@ -128,9 +128,9 @@ it('fits the pastel into the row beside the full Reply and replies labels, with 
     $screen = Native::visit('/log', platform: 'ios');
     $pastel = $pasteisMode ? ['pastel-c1'] : [];
 
-    // Star, the pastel in pastéis mode, Quote, Reply with its word, then More: no bookmark or link in the row.
-    expect(array_values(array_filter(childRefs($screen, 'actions-c1'))))->toBe(['star-c1', ...$pastel, 'quote-c1', 'reply-to-c1', 'more-c1'])
-        ->and(textInside($screen, 'reply-to-c1'))->toBe('Reply')
+    // Star, the pastel in pastéis mode, Quote, Reply (icons, no words), then More: no bookmark or link in the row.
+    expect(array_values(array_filter(childRefs($screen, 'actions-c1'))))->toBe(['star-c1', ...$pastel, 'quote-c1', 'reply-to-c1', 'share-c1', 'more-c1'])
+        ->and(nodeByRef($screen, 'reply-to-c1')['props']['a11y_label'])->toBe('Reply')
         ->and(textInside($screen, 'replies-c2'))->toBe('3 replies')
         ->and(nodeByRef($screen, 'replies-c2')['props']['a11y_label'])->toBe('3 replies');
 
