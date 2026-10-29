@@ -15,6 +15,7 @@ use App\Devnull\SignedRequest;
 use App\Devnull\SiteLink;
 use App\Devnull\Stash;
 use App\Devnull\Toasts;
+use App\Devnull\VoiceNotes;
 use App\Models\PendingWrite;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Facades\Browser;
@@ -47,7 +48,8 @@ use Victorycodedev\ToastKit\Events\ToastActionPressed;
  *   toast offers Edit, which opens it here when it can, or the commit the
  *   reply or quote was for.
  * - A message stays in its thread as rejected, with its Retry, and the toast
- *   offers Retry too. Its photos stay on the phone with it until it goes.
+ *   offers Retry too. Its photos or voice note stay on the phone with it
+ *   until it goes.
  *
  * A 401 signs the phone out, as any request does, which empties the outbox.
  *
@@ -114,7 +116,7 @@ trait SyncsOutbox
 
         app(Outbox::class)->sending($write, $taskId);
 
-        $task->timeout($write->images() === [] ? Outbox::Timeout : Outbox::UploadTimeout)
+        $task->timeout($write->images() === [] && $write->voice() === null ? Outbox::Timeout : Outbox::UploadTimeout)
             ->shared(Outbox::Answered)
             ->finished(fn (mixed $result) => $this->outboxAnswered($taskId, 'finished', $result))
             ->failed(fn (Throwable $exception) => $this->outboxAnswered($taskId, 'failed', null, $exception->getMessage()))
@@ -240,6 +242,7 @@ trait SyncsOutbox
 
         $outbox->forget($write);
         app(DraftImages::class)->discard($write->images());
+        app(VoiceNotes::class)->discard($write->voice());
 
         if ($write->isCommit()) {
             app(ResponseCache::class)->commitAdded($data);
@@ -328,7 +331,7 @@ trait SyncsOutbox
         return match ($write->kind) {
             PendingWrite::Star => $devnull->signedWrite('POST', $commit),
             PendingWrite::Unstar => $devnull->signedWrite('DELETE', $commit),
-            PendingWrite::Message => $devnull->signedMessage((string) $write->target, $write->body(), $write->client_id, $write->replyToId(), $write->images()),
+            PendingWrite::Message => $devnull->signedMessage((string) $write->target, $write->body(), $write->client_id, $write->replyToId(), $write->images(), $write->voice()),
             default => $write->images() === []
                 ? $devnull->signedCommit($write->body(), $write->parentId(), $write->quotedCommitId(), $write->poll())
                 : $devnull->signedCommitWithImages($write->body(), $write->images(), $write->parentId(), $write->quotedCommitId()),

@@ -1,7 +1,7 @@
 {{--
     One pinned message in the pinned sheet, as the web's panel lists it: who wrote it and when, Reply, React and, for a
-    maintainer, Unpin, which always show; then up to three lines of it with the rest a tap on Show more away, how many
-    images it has, and its reactions.
+    maintainer, Unpin, which always show; then up to three lines of it with the rest a tap on Show more away, its voice
+    note to play, how many images it has, and its reactions.
 --}}
 @php($author = $message->user ?? ($authors[$message->userId] ?? null))
 @php($isLong = isset($longPins[$message->id]))
@@ -61,6 +61,10 @@
                 <native:text font="medium" class="text-[13px] text-theme-primary">{{ $isExpanded ? 'Show less' : 'Show more' }}</native:text>
             </native:pressable>
         @endif
+    @endif
+
+    @if ($message->voice !== null)
+        @include('native.partials.voice-note', ['voice' => $message->voice, 'voiceKey' => $message->voiceKey(), 'ref' => $key.'-voice', 'ink' => 'ink'])
     @endif
 
     @if ($message->images !== [])

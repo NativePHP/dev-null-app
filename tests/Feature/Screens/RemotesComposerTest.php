@@ -190,7 +190,7 @@ it('opens the library for the photos there is still room for, and greys the butt
 
     photosPicked($screen, [testPhoto(), testPhoto()]);
 
-    expect(nodeByRef($screen, 'attach-photos')['type'])->not->toBe('pressable');
+    expect(nodeByRef($screen, 'attach-photos')['props']['disabled'] ?? false)->toBeTrue();
 });
 
 it('takes a photo off the draft and the phone with its ✕', function () {
@@ -252,25 +252,26 @@ it('keeps the keyboard up through presses in the thread, and the field in place 
         ->and(childRefs($screen, 'composer-bar'))->toBe($rows);
 });
 
-it('puts the photo and Ping buttons inside the Liquid Glass field on iOS, as the commit reply bar does', function () {
+it('puts a + for photos, a voice note and Ping inside the Liquid Glass field on iOS', function () {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
     $screen = threadWithAda('ios');
     $bar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
 
-    expect(childRefs($screen, 'message-plate'))->toBe(['message-field', 'attach-photos', 'ping'])
+    expect(childRefs($screen, 'message-plate'))->toBe(['message-field', 'composer-tools'])
+        ->and(array_slice(childRefs($screen, 'composer-tools'), 0, 3))->toBe(['attach-photos', 'record-voice-note', 'ping'])
         ->and(nodeByRef($screen, 'message-plate')['props']['glass'] ?? null)->toBe(1)
         ->and($bar['children'][0]['ref'] ?? null)->toBe('composer-bar')
         ->and($bar['children'][0]['style']['bg_color'] ?? null)->toBeNull()
-        ->and(nodeByRef($screen, 'ping')['props']['a11y_label'])->toBe('Ping @ada');
+        ->and(nodeByRef($screen, 'ping')['props']['label'])->toBe('Ping @ada');
 });
 
-it('leads the bar with the photo and Ping buttons on Android, on a solid bar', function () {
+it('leads the bar with the + on Android, on a solid bar', function () {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
     $screen = threadWithAda('android');
 
-    expect(array_slice(childRefs($screen, 'message-row'), 0, 3))->toBe(['attach-photos', 'ping', 'message-plate'])
+    expect(array_slice(childRefs($screen, 'message-row'), 0, 2))->toBe(['composer-tools', 'message-plate'])
         ->and(childRefs($screen, 'message-plate'))->toBe(['message-field'])
         ->and(nodeByRef($screen, 'message-plate')['props']['glass'] ?? null)->toBeNull()
         ->and(nodeByRef($screen, 'composer-bar')['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'));
@@ -354,7 +355,7 @@ it('pings everyone in an org, and shows who pinged it', function () {
 
     $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))->assertSee('* @ada sent a ping');
 
-    expect(nodeByRef($screen, 'ping')['props']['a11y_label'])->toBe('Ping everyone in the org');
+    expect(nodeByRef($screen, 'ping')['props']['label'])->toBe('Ping everyone in the org');
 
     finishRefreshes($screen->tap('ping'))->assertSee('* you sent a ping');
 

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitBody;
 use App\Devnull\Data\DraftImage;
+use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
@@ -177,6 +178,15 @@ class PendingWrite extends Model
         $images = is_array($this->payload['images'] ?? null) ? $this->payload['images'] : [];
 
         return array_values(array_filter(array_map(DraftImage::fromArray(...), $images)));
+    }
+
+    /**
+     * The voice note of a message still on the phone, or null for any other write, or when its recording has gone
+     * (see VoiceNotes).
+     */
+    public function voice(): ?MessageVoice
+    {
+        return MessageVoice::fromOutbox($this->payload['voice'] ?? null);
     }
 
     /**

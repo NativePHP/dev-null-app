@@ -7,6 +7,7 @@ use App\Devnull\Data\CommitThread;
 use App\Devnull\Data\Connection;
 use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\DraftImage;
+use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\Notification;
 use App\Devnull\Data\Page;
 use App\Devnull\Data\Profile;
@@ -270,17 +271,20 @@ final readonly class Client
      * Signs a message for a Remotes thread without sending it, for the outbox
      * to send from the background. devnull stores it once per client id, so
      * it can go again. One with photos goes as a commit's do (see
-     * signedWithImages()), and may have no text.
+     * signedWithImages()), and may have no text. A voice note goes the same
+     * way, alone, with its waveform and no text (see signedWithVoice()).
      *
      * @param  list<DraftImage>  $images
      */
-    public function signedMessage(string $threadPath, string $body, string $clientId, ?int $replyToId = null, array $images = []): SignedRequest
+    public function signedMessage(string $threadPath, string $body, string $clientId, ?int $replyToId = null, array $images = [], ?MessageVoice $voice = null): SignedRequest
     {
         $payload = array_filter(['body' => $body, 'client_id' => $clientId, 'reply_to_id' => $replyToId], fn (mixed $value): bool => $value !== null);
 
-        return $images === []
-            ? $this->signedWrite('POST', $threadPath.'/messages', $payload)
-            : $this->signedWithImages($threadPath.'/messages', $payload, $images);
+        return match (true) {
+            $voice !== null => $this->signedWithVoice($threadPath.'/messages', $clientId, $replyToId, $voice),
+            $images !== [] => $this->signedWithImages($threadPath.'/messages', $payload, $images),
+            default => $this->signedWrite('POST', $threadPath.'/messages', $payload),
+        };
     }
 
     public function deleteCommit(string $id): void
@@ -591,7 +595,35 @@ final readonly class Client
         $target = $this->target($path, []);
         $descriptions = array_map(fn (DraftImage $image): ?string => $image->isDescribed() ? trim($image->description) : null, $images);
         $payload = self::body(array_filter($descriptions) === [] ? $payload : [...$payload, 'image_descriptions' => $descriptions]);
-        $contents = array_map(fn (DraftImage $image): string => (string) file_get_contents($image->path), $images);
+        $files = array_map(fn (DraftImage $image, int $index): array => [
+            'images[]', 'image-'.($index + 1).'.'.substr($image->mimeType, 6), $image->mimeType, (string) file_get_contents($image->path),
+        ], $images, array_keys($images));
+
+        return $this->signedMultipart($target, $payload, $files);
+    }
+
+    /**
+     * Signs a voice note, as devnull takes one: multipart like a write with
+     * images, the recording alone in a voice part, its SHA-256 the line
+     * signed before the body, and the waveform the phone drew from it in the
+     * payload, since devnull never decodes it.
+     */
+    private function signedWithVoice(string $path, string $clientId, ?int $replyToId, MessageVoice $voice): SignedRequest
+    {
+        $payload = array_filter(['client_id' => $clientId, 'reply_to_id' => $replyToId, 'voice_waveform' => $voice->waveform], fn (mixed $value): bool => $value !== null);
+
+        return $this->signedMultipart($this->target($path, []), self::body($payload), [
+            ['voice', 'voice-note.wav', 'audio/wav', (string) file_get_contents($voice->url)],
+        ]);
+    }
+
+    /**
+     * The payload part, then each file, with the files' SHA-256 signed on a line before the body.
+     *
+     * @param  list<array{string, string, string, string}>  $files  each one's field, filename, type and bytes
+     */
+    private function signedMultipart(string $target, string $payload, array $files): SignedRequest
+    {
         $boundary = 'devnull-'.bin2hex(random_bytes(16));
 
         $part = fn (string $name, string $filename, string $type, string $bytes): string => "--{$boundary}\r\n"
@@ -600,11 +632,11 @@ final readonly class Client
 
         $body = $part('payload', 'payload.json', 'application/json', $payload);
 
-        foreach ($images as $index => $image) {
-            $body .= $part('images[]', 'image-'.($index + 1).'.'.substr($image->mimeType, 6), $image->mimeType, $contents[$index]);
+        foreach ($files as [$name, $filename, $type, $bytes]) {
+            $body .= $part($name, $filename, $type, $bytes);
         }
 
-        $hashes = implode(',', array_map(fn (string $bytes): string => hash('sha256', $bytes), $contents));
+        $hashes = implode(',', array_map(fn (array $file): string => hash('sha256', $file[3]), $files));
 
         return new SignedRequest(
             $this->origin().$target,

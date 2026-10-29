@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "867ed223cedff5c9b645e3ee689426fe",
+    "content-hash": "86b6ccf3a666125ed5bd845be0b1b96f",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2723,12 +2723,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-air.git",
-                "reference": "40825383f7a3e381280d83d559ea08f4dd0e2ab5"
+                "reference": "9da9a848ac70140fd5c248c53dd921f70e13381c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/40825383f7a3e381280d83d559ea08f4dd0e2ab5",
-                "reference": "40825383f7a3e381280d83d559ea08f4dd0e2ab5",
+                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/9da9a848ac70140fd5c248c53dd921f70e13381c",
+                "reference": "9da9a848ac70140fd5c248c53dd921f70e13381c",
                 "shasum": ""
             },
             "require": {
@@ -2839,7 +2839,7 @@
                 "source": "https://github.com/NativePHP/mobile-air/tree/main",
                 "issues": "https://github.com/NativePHP/mobile-air/issues"
             },
-            "time": "2026-10-28T19:54:03+00:00"
+            "time": "2026-10-29T09:23:33+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
@@ -3007,6 +3007,116 @@
             "time": "2026-07-19T02:38:14+00:00"
         },
         {
+            "name": "nativephp/mobile-media-player",
+            "version": "1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/NativePHP/mobile-media-player.git",
+                "reference": "28653560ea5cf458bf30a6c0f7f64c7f9c003cb1"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/NativePHP/mobile-media-player/zipball/28653560ea5cf458bf30a6c0f7f64c7f9c003cb1",
+                "reference": "28653560ea5cf458bf30a6c0f7f64c7f9c003cb1",
+                "shasum": ""
+            },
+            "require": {
+                "nativephp/mobile": "^3.3.11 || ^4.6.1",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^2.7|^3.0|^4.0"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "NativePHP\\MediaPlayer\\MediaPlayerServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "NativePHP\\MediaPlayer\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Bifrost Technology, LLC",
+                    "email": "support@nativephp.com"
+                }
+            ],
+            "description": "Media player plugin for NativePHP Mobile - shared audio/video playback, full-screen presentation, and a video-player element",
+            "support": {
+                "issues": "https://github.com/NativePHP/mobile-media-player/issues",
+                "source": "https://github.com/NativePHP/mobile-media-player/tree/1.1.0"
+            },
+            "time": "2026-10-29T09:15:16+00:00"
+        },
+        {
+            "name": "nativephp/mobile-microphone",
+            "version": "1.2.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/NativePHP/mobile-microphone.git",
+                "reference": "9234a6cbb9f5bca853f5ee0c95d8781e10afde08"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/NativePHP/mobile-microphone/zipball/9234a6cbb9f5bca853f5ee0c95d8781e10afde08",
+                "reference": "9234a6cbb9f5bca853f5ee0c95d8781e10afde08",
+                "shasum": ""
+            },
+            "require": {
+                "nativephp/mobile": "^3.0 || ^4.0",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^2.7|^3.0|^4.0"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Native\\Mobile\\Providers\\MicrophoneServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Native\\Mobile\\Providers\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "NativePHP",
+                    "email": "support@nativephp.com"
+                }
+            ],
+            "description": "Microphone recording plugin for NativePHP Mobile - audio recording with pause/resume support",
+            "support": {
+                "issues": "https://github.com/NativePHP/mobile-microphone/issues",
+                "source": "https://github.com/NativePHP/mobile-microphone/tree/1.2.0"
+            },
+            "time": "2026-10-29T09:22:03+00:00"
+        },
+        {
             "name": "nativephp/mobile-secure-storage",
             "version": "1.1.0",
             "dist": {
@@ -3122,12 +3232,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-ui.git",
-                "reference": "103622057bf61780d9ff6705457981e04bd40089"
+                "reference": "583bbc5b1612120a882c3a4de7eb2063abae3437"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/103622057bf61780d9ff6705457981e04bd40089",
-                "reference": "103622057bf61780d9ff6705457981e04bd40089",
+                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/583bbc5b1612120a882c3a4de7eb2063abae3437",
+                "reference": "583bbc5b1612120a882c3a4de7eb2063abae3437",
                 "shasum": ""
             },
             "require": {
@@ -3187,7 +3297,7 @@
                     "url": "https://nativephp.com/sponsor"
                 }
             ],
-            "time": "2026-10-28T19:27:44+00:00"
+            "time": "2026-10-29T10:49:31+00:00"
         },
         {
             "name": "nesbot/carbon",
@@ -11339,8 +11449,8 @@
         {
             "package": "nativephp/mobile",
             "version": "dev-main",
-            "alias": "4.6.0",
-            "alias_normalized": "4.6.0.0"
+            "alias": "4.6.1",
+            "alias_normalized": "4.6.1.0"
         },
         {
             "package": "nativephp/mobile-ui",
