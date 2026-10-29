@@ -18,6 +18,7 @@ use App\NativeComponents\Profile;
 use App\NativeComponents\Remotes;
 use App\NativeComponents\Safety;
 use App\NativeComponents\ScheduledCommits;
+use App\NativeComponents\Search;
 use App\NativeComponents\Starred;
 use App\NativeComponents\ThisDevice;
 use Illuminate\Support\Facades\Route;
@@ -51,5 +52,6 @@ Route::nativeGroup(TabsLayout::class, function (): void {
         Route::native("{$tab}/orgs/{org}/members", OrgMembers::class);
         Route::native("{$tab}/orgs/{org}/members/add", AddOrgMembers::class);
         Route::native("{$tab}/scheduled", ScheduledCommits::class);
+        Route::native("{$tab}/search", Search::class);
     }
 });
