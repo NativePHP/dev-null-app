@@ -168,7 +168,7 @@ it("offers a voice note in the +'s menu, between photos and Ping, while the draf
         ->and(nodeByRef($screen, 'record-voice-note')['props']['disabled'] ?? false)->toBe(! $offered)
         ->and(nodeByRef($screen, 'record-voice-note')['props']['label'])->toBe($label);
 })->with([
-    'an empty draft' => [fn (TestableComponent $screen) => $screen, true, 'Record a voice note (max. 1 min)'],
+    'an empty draft' => [fn (TestableComponent $screen) => $screen, true, 'Record a voice note'],
     'some text' => [fn (TestableComponent $screen) => $screen->input('message-input', 'one sec'), false, 'Voice notes go on their own'],
     'a photo' => [fn (TestableComponent $screen) => photosPicked($screen, [testPhoto()]), false, 'Voice notes go on their own'],
 ]);

@@ -8,10 +8,11 @@ use Native\Mobile\Edge\Layouts\Builders\NavAction;
 
 /**
  * What the + beside a Remotes thread's message field opens: the web's
- * composer tools, which there sit in a row of their own, in its order.
- * Attach photos, until there are three; Record a voice note, while the
- * draft has no text or photos, since voice notes go on their own, which
- * it then says in its place; and Ping.
+ * composer tools, which there sit in a row of their own, in its order, with
+ * shorter labels than its tooltips, as a menu's are. Attach photos, until
+ * there are three; Record a voice note, while the draft has no text or
+ * photos, since voice notes go on their own, which it then says in its
+ * place; and Ping.
  */
 final class ComposerMenu
 {
@@ -21,8 +22,8 @@ final class ComposerMenu
     public static function items(bool $photosFull, bool $voiceNotesGoAlone, string $pingLabel): array
     {
         return [
-            self::item('attach-photos', 'Attach up to 3 photos', Lucide::ImagePlus, 'pickPhotos', disabled: $photosFull),
-            self::item('record-voice-note', $voiceNotesGoAlone ? 'Voice notes go on their own' : 'Record a voice note (max. 1 min)', Lucide::Mic, 'recordVoiceNote', disabled: $voiceNotesGoAlone),
+            self::item('attach-photos', 'Attach photos', Lucide::ImagePlus, 'pickPhotos', disabled: $photosFull),
+            self::item('record-voice-note', $voiceNotesGoAlone ? 'Voice notes go on their own' : 'Record a voice note', Lucide::Mic, 'recordVoiceNote', disabled: $voiceNotesGoAlone),
             self::item('ping', $pingLabel, Lucide::Vibrate, 'ping'),
         ];
     }
