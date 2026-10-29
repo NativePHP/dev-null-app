@@ -41,7 +41,9 @@ use Native\Mobile\Facades\System;
  * is the reply bar's, and goes back to it when the sheet closes.
  *
  * The composer can attach photos, a poll and show a preview, as the web's
- * does (see AttachesToCommits).
+ * does (see AttachesToCommits), and suggests people to @mention, as the
+ * web's does: devnull's people for a new commit, a reply or a quote (see
+ * SuggestsMentions).
  *
  * The sheet keeps its commit while it slides away, so it doesn't empty on the
  * way down, and lets go of it once iOS says it's gone, however it was closed.
@@ -50,6 +52,7 @@ trait OpensCommitSheet
 {
     use AttachesToCommits;
     use DraftsIssues;
+    use SuggestsMentions;
     use SyncsOutbox;
 
     /**
@@ -359,6 +362,26 @@ trait OpensCommitSheet
     {
         $this->sheetClosing = $this->sheetClosing || ($this->sheetOpen && System::isIos());
         $this->sheetOpen = false;
+        $this->forgetMention('sheetBody');
+    }
+
+    /**
+     * The composer's field, while it's up, suggests whom devnull suggests for a new commit, a reply to the sheet's
+     * commit or a quote of it, as the web's composers ask.
+     */
+    protected function mentionFields(): array
+    {
+        if (! $this->sheetOpen || ! in_array($this->sheetView, ['compose', 'quote', 'reply'], true)) {
+            return [];
+        }
+
+        $about = match ($this->sheetView) {
+            'reply' => ['reply' => $this->sheetCommit?->id],
+            'quote' => ['quote' => $this->sheetCommit?->id],
+            default => [],
+        };
+
+        return ['sheetBody' => ['limit' => Commit::MaxRawLength, ...array_filter($about)]];
     }
 
     /**
@@ -410,6 +433,7 @@ trait OpensCommitSheet
         $this->sheetBody = '';
         $this->sheetRestored = false;
         $this->sheetError = null;
+        $this->forgetMention('sheetBody');
         $this->forgetAttachments();
         $this->forgetIssueDraft();
     }

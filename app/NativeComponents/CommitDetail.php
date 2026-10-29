@@ -71,6 +71,7 @@ class CommitDetail extends NativeComponent
     use ShowsCommits {
         reopenFailedCommit as private reopenFailedCommitInSheet;
         editFailedCommit as private editFailedCommitInSheet;
+        mentionFields as private sheetMentionFields;
     }
     use TalksToDevnull;
 
@@ -356,10 +357,22 @@ class CommitDetail extends NativeComponent
 
         $this->reply = '';
         $this->replyImages = [];
+        $this->forgetMention('reply');
         $this->updatedReply();
         $this->repliesShown = true;
         $this->keepStagedReplies();
         $this->sendFromOutbox($write);
+    }
+
+    /**
+     * The reply bar suggests whom devnull suggests for a reply to this commit, the people in its thread first, as
+     * the web's reply composer asks, and so does the composer sheet over it (see SuggestsMentions).
+     */
+    protected function mentionFields(): array
+    {
+        $bar = $this->commit === null || $this->sheetOpen ? [] : ['reply' => ['limit' => Commit::MaxRawLength, 'reply' => $this->commit->id]];
+
+        return [...$this->sheetMentionFields(), ...$bar];
     }
 
     /**

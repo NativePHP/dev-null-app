@@ -22,6 +22,10 @@
     A commit's page opens its reply here too, as "Reply to @handle", with the commit being answered as a static card
     over the field, for the photos and the preview its reply bar has no room for. Commit says Reply there.
 
+    While the caret is after an "@handle", the people to mention show right under the field, as the web's composer lists
+    them (see SuggestsMentions): for a bare "@" in a new commit, the people you follow, under that heading. The field
+    keeps the keyboard up through presses in the sheet (keep-focus), so picking someone leaves you typing after them.
+
     Under what's being written come its photos and the poll editor. A toolbar is pinned to the bottom of the sheet, so
     it stays just above the keyboard: the tools on the left, photos, the camera, a poll (not on a reply) and the
     preview, which shows the draft as the commit it would become in place of the field (see AttachesToCommits), and
@@ -76,13 +80,23 @@
                                 class="w-full text-theme-ink"
                                 :placeholder="$issueCommand?->placeholder() ?? match (true) { $quoting => 'Add your take', $replying => 'Reply to '.$sheetCommit->author->handle(), default => 'What did you ship?' }"
                                 native:model.debounce.150ms="sheetBody"
+                                :selection="$mentionCarets['sheetBody'] ?? null"
+                                @selectionChange="caretMoved('sheetBody')"
                                 autofocus
                                 multiline
                                 :max-lines="8"
                                 :max-length="$issueCommand ? \App\Devnull\Data\Commit::MaxLength : \App\Devnull\Data\Commit::MaxRawLength"
                                 size="lg"
+                                keep-focus
                                 a11y-label="Your commit"
                             />
+
+                            @include('native.partials.mention-suggestions', [
+                                'field' => 'sheetBody',
+                                'heading' => ($mention['query'] ?? null) === '' && $sheetView === 'compose' ? 'People you follow' : null,
+                                'label' => 'Mention a developer',
+                                'class' => 'w-full py-1 rounded-md border border-theme-hairline bg-theme-surface',
+                            ])
 
                             @if (! $issueCommand && \App\Devnull\Data\CommitBody::hasOversizedUrl($sheetBody))
                                 <native:text ref="sheet-link-error" class="w-full text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
