@@ -1279,6 +1279,49 @@ it('puts the member picked in place of what was typed, keeping the text either s
     'mid-word' => ['cc @adxyz', 6, 'cc @ada xyz'],
 ]);
 
+it('puts the caret right after the member picked, wherever in the draft the @ was', function (string $draft, int $caret, string $expected, int $placed) {
+    serveOrgThread(orgThreadJson([]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))
+        ->input('message-input', $draft, $caret)
+        ->tap('mention-ada')
+        ->assertSet('draft', $expected);
+
+    expect(nodeByRef($screen, 'message-input')['props'])->toMatchArray(['value' => $expected, 'selection_start' => $placed, 'selection_end' => $placed]);
+})->with([
+    'at the end' => ['thanks @Lo', 10, 'thanks @ada ', 12],
+    'mid-draft, after the space that follows' => ["ok 👋 @a review this\nplease", 7, "ok 👋 @ada review this\nplease", 10],
+    'mid-word, typed back in the draft' => ['Thanks @adfor the fix', 10, 'Thanks @ada for the fix', 12],
+]);
+
+it('counts letters typed onto the @handle after the caret last reported it', function () {
+    serveOrgThread(orgThreadJson([]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))
+        ->input('message-input', 'hi @a for this', 5)
+        ->set('draft', 'hi @ad for this')
+        ->tap('mention-ada')
+        ->assertSet('draft', 'hi @ada for this');
+
+    expect(nodeByRef($screen, 'message-input')['props']['selection_start'])->toBe(8);
+});
+
+it('places the caret only until the field reports the picked draft, so it never moves it again', function () {
+    serveOrgThread(orgThreadJson([]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'));
+
+    expect(nodeByRef($screen, 'message-input')['props']['selection_start'])->toBe(-1);
+
+    $screen->input('message-input', 'hi @a', 5)->tap('mention-ada')->moveCaret('message-input', 5, text: 'hi @a');
+
+    expect(nodeByRef($screen, 'message-input')['props']['selection_start'])->toBe(8);
+
+    $screen->moveCaret('message-input', 8, text: 'hi @ada ');
+
+    expect(nodeByRef($screen, 'message-input')['props']['selection_start'])->toBe(-1);
+});
+
 it('leaves the draft alone when it no longer has the @handle where the caret found it', function () {
     serveOrgThread(orgThreadJson([]));
 

@@ -21,7 +21,10 @@ use App\Devnull\Data\User;
  *
  * EDGE reports the caret with the field's text (@selectionChange), which is
  * where the token comes from. The draft is bound with a debounce, so a pick
- * only goes in while the draft still has the token where the caret found it.
+ * only goes in while the draft still has the token where the caret found it,
+ * and letters typed onto it since the caret was reported count as part of it.
+ * As on the web, the caret then goes after "@handle " (`$draftCaret`, which
+ * the field reads when it takes the new draft), wherever in the draft it was.
  */
 trait SuggestsMentions
 {
@@ -34,11 +37,18 @@ trait SuggestsMentions
     public const int MaxMentionSuggestions = 6;
 
     /**
-     * The "@handle" the caret is after: where its "@" is, in code points, and what follows it. Null while there's none.
+     * The "@handle" the caret is after: where its "@" is, in code points, what follows it, and the field's text when
+     * the caret was there. Null while there's none.
      *
-     * @var array{start: int, query: string}|null
+     * @var array{start: int, query: string, text: string}|null
      */
     public ?array $mention = null;
+
+    /**
+     * Where the caret goes once the field takes a picked mention, in code points. Null when there's nothing to place,
+     * which leaves the caret where the field puts it.
+     */
+    public ?int $draftCaret = null;
 
     /**
      * The field's caret moved, or its text changed under it. Only a bare caret right after an "@handle" suggests, and
@@ -46,46 +56,70 @@ trait SuggestsMentions
      */
     public function caretMoved(string $text, int $selectionStart, int $selectionEnd): void
     {
+        // The field has the draft as it is now, so a caret placed for a pick has been placed.
+        if ($text === $this->draft) {
+            $this->draftCaret = null;
+        }
+
         if (! $this->isOrg() || $selectionStart !== $selectionEnd || ! preg_match(self::MentionBeforeCaret, mb_substr($text, 0, $selectionStart), $match)) {
             $this->mention = null;
 
             return;
         }
 
-        $this->mention = ['start' => $selectionStart - mb_strlen($match[1]) - 1, 'query' => $match[1]];
+        $this->mention = ['start' => $selectionStart - mb_strlen($match[1]) - 1, 'query' => $match[1], 'text' => $text];
     }
 
     /**
      * Puts "@username" in place of the "@handle" being typed, with a space after it unless one follows already, and
-     * leaves the rest of the draft as it was.
+     * leaves the rest of the draft as it was. The caret goes after that space, as on the web.
      */
     public function pickMention(string $username): void
     {
         $mention = $this->mention;
         $this->mention = null;
 
-        if ($mention === null) {
+        $end = $mention === null ? null : self::mentionEnd($mention, $this->draft);
+
+        if ($mention === null || $end === null) {
             return;
         }
 
-        $token = '@'.$mention['query'];
-        $end = $mention['start'] + mb_strlen($token);
-
-        if (mb_substr($this->draft, $mention['start'], mb_strlen($token)) !== $token) {
-            return;
-        }
-
-        $before = mb_substr($this->draft, 0, $mention['start']);
+        $before = mb_substr($this->draft, 0, $mention['start']).'@'.$username;
         $after = mb_substr($this->draft, $end);
-        $next = $before.'@'.$username.(preg_match('/^\s/u', $after) ? '' : ' ').$after;
+        $spaced = preg_match('/^\s/u', $after) ? '' : ' ';
 
-        if (mb_strlen($next) > Message::MaxLength) {
-            $next = $before.'@'.$username.$after;
+        if (mb_strlen($before.$spaced.$after) > Message::MaxLength) {
+            $spaced = '';
         }
 
-        if (mb_strlen($next) <= Message::MaxLength) {
-            $this->draft = $next;
+        if (mb_strlen($before.$spaced.$after) > Message::MaxLength) {
+            return;
         }
+
+        $this->draft = $before.$spaced.$after;
+        $this->draftCaret = mb_strlen($before) + (preg_match('/^\s/u', $spaced.$after) ? 1 : 0);
+    }
+
+    /**
+     * Where the "@handle" the caret was after ends in the draft as it is now, in code points. The caret's reports
+     * trail the typing a little, so letters added to the handle since count, while text after the caret stays
+     * where it was. Null once the draft no longer has the handle where the caret found it.
+     *
+     * @param  array{start: int, query: string, text: string}  $mention
+     */
+    private static function mentionEnd(array $mention, string $draft): ?int
+    {
+        $caret = $mention['start'] + mb_strlen($mention['query']) + 1;
+        $before = mb_substr($mention['text'], 0, $caret);
+        $after = mb_substr($mention['text'], $caret);
+        $added = mb_strlen($draft) - $caret - mb_strlen($after);
+
+        if ($added >= 0 && str_starts_with($draft, $before) && str_ends_with($draft, $after)) {
+            return preg_match('/^[A-Za-z0-9-]*$/', mb_substr($draft, $caret, $added)) ? $caret + $added : null;
+        }
+
+        return mb_substr($draft, $mention['start'], $caret - $mention['start']) === '@'.$mention['query'] ? $caret : null;
     }
 
     /**

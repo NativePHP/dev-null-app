@@ -513,6 +513,7 @@ class Conversation extends NativeComponent
         $this->pending[] = $message;
         $this->draft = '';
         $this->mention = null;
+        $this->draftCaret = null;
         $this->photos = [];
         $this->describing = null;
         $this->replyToId = null;
