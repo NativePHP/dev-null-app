@@ -1,7 +1,8 @@
 {{--
     The profile's header, which the pager draws above its tabs (see profile.blade.php): the avatar ringed in their
-    lane, Follow or Edit on GitHub, who they are, what GitHub says about them, their counts and, in pastéis mode, the
-    pastéis they've been given, then their activity, streaks and achievements. It scrolls up with the tab you're on until the tabs pin under the nav bar.
+    lane, Follow (or, on your own, Scheduled commits and Edit on GitHub), who they are, what GitHub says about them,
+    their counts and, in pastéis mode, the pastéis they've been given, then their activity, streaks and achievements.
+    It scrolls up with the tab you're on until the tabs pin under the nav bar.
 --}}
 <native:column class="w-full bg-theme-surface">
     <native:column ref="profile-header" class="w-full px-4 pt-6 pb-4 gap-4">
@@ -32,7 +33,11 @@
             @if ($sketched)
                 {{-- Follow waits for devnull to say whether you already do. --}}
             @elseif ($isMe)
-                <native:button ref="edit-on-github" variant="secondary" size="sm" :ios-icon-trailing="\App\Icons\Lucide::ArrowUpRight->ios()" :android-icon-trailing="\App\Icons\Lucide::ArrowUpRight->android()" @press="editOnGitHub">Edit on GitHub</native:button>
+                {{-- Your scheduled commits, which only you see, beside Edit on GitHub. --}}
+                <native:row class="gap-2 items-center">
+                    <native:button ref="profile-scheduled" variant="secondary" size="sm" :ios-icon="\App\Icons\Lucide::CalendarDays->ios()" :android-icon="\App\Icons\Lucide::CalendarDays->android()" @press="openScheduledCommits" a11y-label="Scheduled commits" />
+                    <native:button ref="edit-on-github" variant="secondary" size="sm" :ios-icon-trailing="\App\Icons\Lucide::ArrowUpRight->ios()" :android-icon-trailing="\App\Icons\Lucide::ArrowUpRight->android()" @press="editOnGitHub">Edit on GitHub</native:button>
+                </native:row>
             @else
                 {{-- The web's Remote, beside Follow, when you can push to them. --}}
                 <native:row class="gap-2 items-center">
