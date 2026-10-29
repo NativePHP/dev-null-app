@@ -103,7 +103,7 @@ it('returns from a commit under the Log tab to the log it left: the same one, on
     $returned->assertSee('Commit 150');
 });
 
-it('returns from the reply a post focuses, under its commit, to the same log', function () {
+it('returns from a posted reply opened under its commit to the same log', function () {
     holdRefreshes();
     keep('log/following', pageJson(array_map(fn (int $n): array => commitJson(['id' => "c{$n}", 'body' => "Commit {$n}"]), range(0, 9)), 'more'));
     keep('commits/c2', commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit'])));
@@ -120,12 +120,16 @@ it('returns from the reply a post focuses, under its commit, to the same log', f
     $listKey = $log->get('listKey');
     $rows = tabReturnRows($log);
 
-    // Open a commit, reply to it: the view focuses the reply, two screens
+    // Open a commit, post a reply in place, then open it two screens
     // down under the Log tab.
     $reply = $log->tap('commit-c2')->assertNavigatedTo('/log/commits/c2')->follow();
     $reply = finishRefreshes($reply)
         ->input('reply-input', 'A fresh reply')
         ->tap('send-reply')
+        ->assertNoNavigation();
+
+    $reply = finishRefreshes($reply)
+        ->tap('thread-reply-r9')
         ->assertNavigatedTo('/log/commits/r9')
         ->follow()
         ->assertSet('id', 'r9')

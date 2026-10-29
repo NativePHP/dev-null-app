@@ -4,6 +4,7 @@ use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\DraftImage;
+use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\PollDraft;
 use App\Devnull\Data\User;
 use App\Devnull\DeviceKey;
@@ -194,6 +195,28 @@ it('signs a commit with images as multipart, with their SHA-256s on a line befor
         ->and($request->headers['X-SSH-Signature'])->toBe(testKey()->sign($message, 'devnull-api-images'));
 });
 
+it('signs a voice note alone as multipart, with its SHA-256 on a line before the JSON body and its waveform in it', function () {
+    $path = sys_get_temp_dir().'/devnull-voice-'.bin2hex(random_bytes(6)).'.wav';
+    file_put_contents($path, 'RIFF fake wav');
+    $voice = new MessageVoice('', 2500, array_fill(0, 48, 50), $path);
+
+    $request = app(Client::class)->signedMessage('remotes/@ada', 'ignored', '9f0f6f3e-0000-4000-8000-000000000001', 7, voice: $voice);
+
+    $boundary = substr($request->contentType, strlen('multipart/form-data; boundary='));
+    $payload = '{"client_id":"9f0f6f3e-0000-4000-8000-000000000001","reply_to_id":7,"voice_waveform":['.implode(',', array_fill(0, 48, 50)).']}';
+
+    expect($request->url)->toBe('http://devnull.test/api/v1/remotes/@ada/messages')
+        ->and(array_slice(explode("--{$boundary}", $request->body), 1))->toBe([
+            "\r\nContent-Disposition: form-data; name=\"payload\"; filename=\"payload.json\"\r\nContent-Type: application/json\r\n\r\n{$payload}\r\n",
+            "\r\nContent-Disposition: form-data; name=\"voice\"; filename=\"voice-note.wav\"\r\nContent-Type: audio/wav\r\n\r\nRIFF fake wav\r\n",
+            "--\r\n",
+        ]);
+
+    $message = RequestSigner::message($request->headers['X-Devnull-Timestamp'], $request->headers['X-Devnull-Nonce'], 'POST', '/api/v1/remotes/@ada/messages', hash('sha256', 'RIFF fake wav')."\n".$payload);
+
+    expect($request->headers['X-SSH-Signature'])->toBe(testKey()->sign($message, 'devnull-api-images'));
+});
+
 it('sends a signed request with the content type it was signed with', function () {
     Http::fake(['devnull.test/*' => Http::response(['data' => commitJson()], 201)]);
 
@@ -233,6 +256,7 @@ it('signs bodiless deletes and posts', function (string $call, string $method, s
 })->with([
     ['follow', 'POST', '/api/v1/users/local_dev/follow'],
     ['unfollow', 'DELETE', '/api/v1/users/local_dev/follow'],
+    ['dismissSuggestion', 'POST', '/api/v1/users/local_dev/dismiss'],
     ['deleteCommit', 'DELETE', '/api/v1/commits/local_dev'],
 ]);
 
@@ -408,11 +432,11 @@ it('never replaces a key it cannot read', function () {
 it('reads commits, threads, profiles and notifications into data objects', function () {
     Http::fake([
         'devnull.test/api/v1/commits/c1' => Http::response(commitPageJson(
-            commitJson(['id' => 'c1', 'parent_id' => 'p1', 'author' => ['id' => 'u9', 'username' => 'ada', 'name' => null]]),
+            commitJson(['id' => 'c1', 'parent_id' => 'p1', 'author' => ['id' => 'u9', 'handle' => 'ada', 'name' => null]]),
             [commitJson(['id' => 'p1'])],
         )),
         'devnull.test/api/v1/users/ada' => Http::response([
-            'data' => userWithCountsJson(['username' => 'ada', 'lane' => 4], commits: 3, followers: 5, following: 1),
+            'data' => userWithCountsJson(['handle' => 'ada', 'lane' => 4], commits: 3, followers: 5, following: 1),
             'is_following' => true,
             'activity' => ['scale' => 'day', 'buckets' => [['date' => '2026-10-15T09:00:00Z', 'count' => 2]]],
             'streaks' => ['longest' => 4, 'current' => 1],
@@ -451,7 +475,7 @@ it('reads commits, threads, profiles and notifications into data objects', funct
 });
 
 it('tolerates missing optional fields', function () {
-    $commit = Commit::fromArray(['id' => 'c1', 'body' => 'Hello', 'author' => ['username' => 'ada']]);
+    $commit = Commit::fromArray(['id' => 'c1', 'body' => 'Hello', 'author' => ['handle' => 'ada']]);
 
     expect($commit->status)->toBe('approved')
         ->and($commit->createdAt)->toBeNull()
@@ -511,7 +535,7 @@ it('reads what the web shows on a commit', function () {
 it('reads a commit\'s author, and its parent\'s, as full users', function () {
     $ada = userJson([
         'id' => 'u2',
-        'username' => 'ada',
+        'handle' => 'ada',
         'name' => 'Ada Lovelace',
         'bio' => null,
         'company' => 'Analytical Engines',

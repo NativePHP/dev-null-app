@@ -33,7 +33,7 @@ function stackedAvatars(TestableComponent $screen, string $id): array
  */
 function personJson(string $username, string $name, int $lane = 2, array $overrides = []): array
 {
-    return userJson(['id' => 'u-'.$username, 'username' => $username, 'name' => $name, 'avatar_url' => "https://avatars.test/{$username}", 'lane' => $lane, ...$overrides]);
+    return userJson(['id' => 'u-'.$username, 'handle' => $username, 'name' => $name, 'avatar_url' => "https://avatars.test/{$username}", 'lane' => $lane, ...$overrides]);
 }
 
 /**
@@ -259,10 +259,10 @@ it('words a level-up as safely as the API allows: no level it did not send, no r
         // Nothing but a follow or a level-up opens a profile, and no commit is named.
         ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'action-n-leveled_up'))->toBeNull();
 
-    $screen->tap('notification-n-leveled_up')->assertNavigatedTo('/notifications/users/ada');
+    $screen->tap('notification-n-leveled_up')->assertNavigatedTo('/notifications/users/local_dev');
 })->with([
-    'the API sends no level' => [[]],
-    'an empty rank' => [['level' => 4, 'rank' => '  ']],
+    'the API sends no level' => [['level' => null, 'rank' => null, 'rank_description' => null]],
+    'an empty rank' => [['level' => 4, 'rank' => '  ', 'rank_description' => null]],
 ]);
 
 it('chips a level-up with its level and rank when devnull actually sends them', function () {
@@ -300,6 +300,36 @@ it('words moderation updates like the web, with a verdict chip and the reason fo
 
     expect($verdict('n-rejected'))->toBe(config('native-ui.theme.light.destructive'))
         ->and($verdict('n-approved'))->toBe(config('native-ui.theme.light.ink-muted'));
+});
+
+it('words a level-up like the web: nobody named, the level and rank in your lane, and what the rank means', function () {
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('leveled_up')])]]);
+
+    $screen = Native::visit('/notifications', platform: 'ios')
+        ->assertSee('You reached level 5: wheel.')
+        ->assertSee('Member of the trusted wheel administrative group')
+        ->assertDontSee('Local Dev')
+        ->assertDontSee('replied to your commit')
+        ->assertMissingElement('column', fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'actors-'))
+        ->assertElement('icon', fn (array $node): bool => ($node['props']['name'] ?? null) === 'custom:chevrons-up' && ($node['props']['color'] ?? null) === config('native-ui.theme.light.lane-3'));
+
+    $chip = findNode(nodeByRef($screen, 'level-chip-n-leveled_up'), fn (array $node): bool => ($node['type'] ?? null) === 'text');
+
+    expect($chip['props']['text'] ?? null)->toBe('Lv. 5 · wheel')
+        ->and($chip['props']['color'] ?? null)->toBe(config('native-ui.theme.light.lane-3'))
+        ->and(nodeByRef($screen, 'notification-n-leveled_up')['props']['a11y_label'] ?? null)->toBe('New. You reached level 5: wheel');
+});
+
+it('says only that you reached a new level when devnull does not say which', function () {
+    $levelUp = array_diff_key(notificationJson('leveled_up'), array_flip(['level', 'rank', 'rank_description']));
+
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([$levelUp])]]);
+
+    Native::visit('/notifications')
+        ->assertSee('You reached a new level.')
+        ->assertDontSee('replied to your commit')
+        ->assertMissingElement('column', fn (array $node): bool => ($node['ref'] ?? null) === 'level-chip-n-leveled_up')
+        ->assertMissingElement('text', fn (array $node): bool => ($node['ref'] ?? null) === 'level-description-n-leveled_up');
 });
 
 it('leaves out an empty reason', function () {
@@ -361,7 +391,7 @@ it('opens what the web opens for each kind', function (string $type, string $des
     ['approved', '/notifications/commits/c-approved'],
     ['rejected', '/notifications/commits/c-rejected'],
     ['followed', '/notifications/users/ada'],
-    ['leveled_up', '/notifications/users/ada'],
+    ['leveled_up', '/notifications/users/local_dev'],
 ]);
 
 it("has the web's filters, several on at once, each asked for by its type with all asked for plainly", function () {
@@ -637,6 +667,17 @@ it('opens on skeleton rows, and fills in what it kept straight after, so a tab t
     expect(showsLoading(showingNotifications($screen)))->toBeTrue();
 
     finishRefreshes($screen)->assertSet('skeletonFrame', false)->assertSee('followed you');
+});
+
+it('opens on what it kept on iOS, which puts a tab back as it was last drawn, with no spinner first', function () {
+    config(['devnull.skeleton_first' => true]);
+    holdRefreshes();
+    keep('notifications', inboxJson([notificationJson('followed')]), ['type' => null]);
+
+    $screen = Native::visit('/notifications', platform: 'ios');
+
+    $screen->assertSet('skeletonFrame', false)->assertSee('followed you');
+    expect(showsLoading(showingNotifications($screen)))->toBeFalse();
 });
 
 it('lists a group of followers when it is tapped, each with the same small follow back, and none for the group', function () {

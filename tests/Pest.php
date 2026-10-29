@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Http;
 use Native\Mobile\AsyncTask;
 use Native\Mobile\Events\Async\AsyncTaskFailed;
 use Native\Mobile\Events\Async\AsyncTaskFinished;
+use Native\Mobile\Events\Gallery\MediaSelected;
 use Native\Mobile\Support\AsyncTaskRunner;
 use Native\Mobile\Support\AsyncTaskTransport;
 use Native\Mobile\Testing\FakeBridge;
@@ -159,14 +160,16 @@ function holdRefreshes(): FakeBridge
 
 /**
  * Runs every held background refresh, and any it leads to, and hands each
- * answer to the screen the way the background lane does.
+ * answer to the screen the way the background lane does. The lane runs a few
+ * at once, so the newest can answer first.
  */
-function finishRefreshes(TestableComponent $screen): TestableComponent
+function finishRefreshes(TestableComponent $screen, bool $newestFirst = false): TestableComponent
 {
     do {
         $ran = false;
+        $calls = $screen->bridge()->callsTo('AsyncTask.Dispatch');
 
-        foreach ($screen->bridge()->callsTo('AsyncTask.Dispatch') as $call) {
+        foreach ($newestFirst ? array_reverse($calls) : $calls as $call) {
             // A screen that has navigated away has stopped listening.
             if ($screen->navigationIntent() !== null) {
                 return $screen;
@@ -406,11 +409,11 @@ function signIn(array $user = []): FakeBridge
  */
 function userJson(array $overrides = []): array
 {
-    $username = $overrides['username'] ?? 'local_dev';
+    $username = $overrides['handle'] ?? 'local_dev';
 
     return [
         'id' => '0199e5c4-0000-7000-8000-000000000001',
-        'username' => $username,
+        'handle' => $username,
         'name' => 'Local Dev',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/1?v=4',
         'bio' => 'Ships things.',
@@ -478,7 +481,7 @@ function commitJson(array $overrides = []): array
         'short_hash' => substr(str_replace('-', '', $id), -7),
         'body' => $body,
         'parent_id' => null,
-        'html_url' => 'http://devnull.test/@'.($author['username'] ?? '').'/commits/'.$id,
+        'html_url' => 'http://devnull.test/@'.($author['handle'] ?? '').'/commits/'.$id,
         'created_at' => now()->subMinutes(5)->toIso8601ZuluString(),
         'stars_count' => 0,
         'replies_count' => 0,
@@ -543,19 +546,20 @@ function notificationCommitJson(array $overrides = [], bool $withParent = true):
  * A group of notifications as the API sends it: the newest one, the first few
  * people in the group, how many there are and how many are unread. Stars and
  * replies group on your commit (subject_id); everything else stands alone.
- * A moderation update names you as its actor, as devnull stores it.
+ * A moderation update or a level-up names you as its actor, as devnull stores it,
+ * and a level-up says which level and rank you reached.
  *
  * @param  array<string, mixed>  $overrides
  * @return array<string, mixed>
  */
 function notificationJson(string $type, array $overrides = []): array
 {
-    $isModeration = in_array($type, ['approved', 'rejected'], true);
-    $actor = $overrides['actor'] ?? ($isModeration ? userJson() : userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'lane' => 2]));
+    $isYours = in_array($type, ['approved', 'rejected', 'leveled_up'], true);
+    $actor = $overrides['actor'] ?? ($isYours ? userJson() : userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 2]));
     $yours = notificationCommitJson(['id' => 'c-yours', 'body' => 'Shipped the app.'], withParent: false);
 
     $commit = match ($type) {
-        'followed' => null,
+        'followed', 'leveled_up' => null,
         'replied' => notificationCommitJson(['id' => 'c-replied', 'parent_id' => 'c-yours', 'body' => 'About replied', 'author' => $actor, 'parent' => $yours]),
         'starred' => notificationCommitJson(['id' => 'c-starred', 'body' => 'About starred']),
         'mentioned' => notificationCommitJson(['id' => 'c-mentioned', 'body' => 'About mentioned', 'author' => $actor]),
@@ -578,6 +582,7 @@ function notificationJson(string $type, array $overrides = []): array
         'actors_count' => 1,
         'unread_count' => 1,
         'commit' => $commit,
+        ...($type === 'leveled_up' ? ['level' => 5, 'rank' => 'wheel', 'rank_description' => 'Member of the trusted wheel administrative group'] : []),
         ...$overrides,
     ];
 }
@@ -682,6 +687,14 @@ function findNode(array $node, callable $matches): ?array
     }
 
     return null;
+}
+
+/**
+ * Whether anything with this ref was rendered.
+ */
+function rendersRef(TestableComponent $screen, string $ref): bool
+{
+    return findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === $ref) !== null;
 }
 
 /**
@@ -876,6 +889,38 @@ function testPhoto(string $type = 'png', int $width = 40, int $height = 30): str
 }
 
 /**
+ * The library handing back the photos at $paths, as the plugin sends them.
+ *
+ * @param  list<string>  $paths
+ */
+function photosPicked(TestableComponent $screen, array $paths): TestableComponent
+{
+    return $screen->emitNative(MediaSelected::class, [
+        'success' => true,
+        'files' => array_map(fn (string $path): array => ['path' => $path, 'mimeType' => 'image/'.pathinfo($path, PATHINFO_EXTENSION), 'type' => 'image'], $paths),
+        'count' => count($paths),
+    ]);
+}
+
+/**
+ * The parts of a multipart body, by name, in order.
+ *
+ * @return list<array{name: string, type: string, contents: string}>
+ */
+function multipartParts(Request $request): array
+{
+    preg_match('/boundary=(\S+)/', $request->header('Content-Type')[0], $matches);
+
+    return array_map(function (string $part): array {
+        [$headers, $contents] = explode("\r\n\r\n", ltrim($part, "\r\n"), 2);
+        preg_match('/name="([^"]+)"/', $headers, $name);
+        preg_match('/Content-Type: (\S+)/', $headers, $type);
+
+        return ['name' => $name[1], 'type' => $type[1], 'contents' => substr($contents, 0, -2)];
+    }, array_slice(explode('--'.$matches[1], $request->body()), 1, -1));
+}
+
+/**
  * A Remotes message as devnull sends it to someone in the conversation. Its segments follow its body unless a test
  * sends its own.
  *
@@ -917,7 +962,7 @@ function conversationJson(array $overrides = []): array
         'id' => 'conv-1',
         'kind' => 'direct',
         'name' => null,
-        'partner' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]),
+        'partner' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]),
         'members' => null,
         'last_message' => remoteMessageJson(),
         'last_message_at' => '2026-10-19T15:00:00.000000Z',
@@ -950,7 +995,7 @@ function remotesInboxJson(array $conversations, bool $hasMore = false, int $unre
 function threadJson(array $messages, array $overrides = []): array
 {
     return ['data' => [
-        'partner' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]),
+        'partner' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]),
         'messages' => $messages,
         'has_older' => false,
         'reactions_version' => 0,

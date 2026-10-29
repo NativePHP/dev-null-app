@@ -48,7 +48,7 @@ it('asks only once, and says nothing, when devnull does not know the key', funct
 
     $screen->assertNoNavigation()
         ->assertSet('error', null)
-        ->assertSee('Sign in with GitHub');
+        ->assertSee('Sign in on dev-null.sh');
 
     Http::assertSentCount(1);
     expect(app(Account::class)->user())->toBeNull();

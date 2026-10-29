@@ -32,7 +32,7 @@ function pollInboxJson(array $groups, ?string $readAt = null, ?string $cursor = 
  */
 function pollPersonJson(string $username, string $name): array
 {
-    return userJson(['id' => 'u-'.$username, 'username' => $username, 'name' => $name, 'avatar_url' => "https://avatars.test/{$username}"]);
+    return userJson(['id' => 'u-'.$username, 'handle' => $username, 'name' => $name, 'avatar_url' => "https://avatars.test/{$username}"]);
 }
 
 /**
@@ -620,11 +620,11 @@ it('keeps a follow back made while a newer copy of the same person waited in the
             // The poll's copy of the group: ada again, as the server last knew it.
             str_contains($url, 'through=') => Http::response(pollInboxJson([
                 notificationJson('followed', ['id' => 'n-shown-'.++$copies, 'group_id' => 'g-shown', 'event_count' => 2, 'actors_count' => 2,
-                    'actor' => userJson(['id' => 'u-ada', 'username' => 'ada', 'name' => 'Ada', 'avatar_url' => 'https://avatars.test/ada', 'is_followed' => $followed]),
-                    'actors' => [userJson(['username' => 'ada', 'is_followed' => $followed])]]),
+                    'actor' => userJson(['id' => 'u-ada', 'handle' => 'ada', 'name' => 'Ada', 'avatar_url' => 'https://avatars.test/ada', 'is_followed' => $followed]),
+                    'actors' => [userJson(['handle' => 'ada', 'is_followed' => $followed])]]),
             ])),
             default => Http::response(pollInboxJson([notificationJson('followed', ['id' => 'n-shown', 'group_id' => 'g-shown',
-                'actor' => userJson(['id' => 'u-ada', 'username' => 'ada', 'name' => 'Ada', 'avatar_url' => 'https://avatars.test/ada', 'is_followed' => false])])])),
+                'actor' => userJson(['id' => 'u-ada', 'handle' => 'ada', 'name' => 'Ada', 'avatar_url' => 'https://avatars.test/ada', 'is_followed' => false])])])),
         };
     });
 
@@ -667,11 +667,11 @@ it('carries a follow back onto a newer copy only of the same person, not whoever
             // The group's newer copy is led by grace, who sent no is_followed at all.
             ? Http::response(pollInboxJson([
                 notificationJson('followed', ['id' => 'n-shown-2', 'group_id' => 'g-shown', 'event_count' => 2, 'actors_count' => 2,
-                    'actor' => userJson(['id' => 'u-grace', 'username' => 'grace', 'name' => 'Grace', 'avatar_url' => 'https://avatars.test/grace']),
-                    'actors' => [userJson(['username' => 'grace']), userJson(['username' => 'linus', 'is_followed' => true])]]),
+                    'actor' => userJson(['id' => 'u-grace', 'handle' => 'grace', 'name' => 'Grace', 'avatar_url' => 'https://avatars.test/grace']),
+                    'actors' => [userJson(['handle' => 'grace']), userJson(['handle' => 'linus', 'is_followed' => true])]]),
             ]))
             : Http::response(pollInboxJson([notificationJson('followed', ['id' => 'n-shown', 'group_id' => 'g-shown',
-                'actor' => userJson(['id' => 'u-linus', 'username' => 'linus', 'name' => 'Linus', 'avatar_url' => 'https://avatars.test/linus', 'is_followed' => true])])]));
+                'actor' => userJson(['id' => 'u-linus', 'handle' => 'linus', 'name' => 'Linus', 'avatar_url' => 'https://avatars.test/linus', 'is_followed' => true])])]));
     });
 
     $screen = finishRefreshes(Native::visit('/notifications'));
@@ -694,7 +694,7 @@ it('keeps the older members a group had loaded when its newest event moves and i
     // A group of 26 events: the first page holds 20 of them, the rest come by cursor, and its newest moves on.
     $member = fn (int $n): array => notificationJson('starred', [
         'id' => "m{$n}", 'group_id' => 'g-star', 'created_at' => now()->subHours(3)->subMinutes($n)->toIso8601ZuluString(),
-        'actor' => userJson(['id' => "u-{$n}", 'username' => 'dev'.$n, 'name' => "Dev {$n}", 'avatar_url' => "https://avatars.test/{$n}"]),
+        'actor' => userJson(['id' => "u-{$n}", 'handle' => 'dev'.$n, 'name' => "Dev {$n}", 'avatar_url' => "https://avatars.test/{$n}"]),
     ]);
 
     serveApi(function (Request $request) use (&$pulled, $member) {

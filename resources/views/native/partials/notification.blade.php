@@ -11,7 +11,7 @@
     time (a level chip instead, when devnull sent it; a follow of theirs alone offers the follow back), then who did
     what — a star of a commit with images shows the first of them beside it whatever the commit says, and one that
     says nothing but its images is worded so and shows no box, your own commit sits under a star or a verdict in a
-    muted hairline box, and a level-up says only that you reached one, since the API tells no more. A moderator's
+    muted hairline box, and a level-up names the level and rank when the API supplies them. A moderator's
     verdict is muted, a rejection gives their reason.
 
     A row that arrived since your last visit says so to a screen reader: its type icon, or the avatar in its node,
@@ -35,7 +35,7 @@
 @php($actorsCommit = $notification->isActorsCommit())
 @php($level = $notification->isLevelUp() && $notification->level !== null && $notification->rank !== null ? $notification : null)
 @php($images = $notification->starredImages())
-<native:pressable native:key="notification-{{ $notification->id }}" ref="notification-{{ $notification->id }}" @press="open('{{ $notification->id }}')" class="w-full bg-theme-surface" a11y-label="{{ $isNew ? 'New. ' : '' }}{{ $notification->isModeration() || $notification->isLevelUp() ? $notification->sentence() : $notification->actor->name.' '.$notification->sentence() }}">
+<native:pressable native:key="notification-{{ $notification->id }}" ref="notification-{{ $notification->id }}" @press="open('{{ $notification->id }}')" class="w-full bg-theme-surface" a11y-label="{{ $isNew ? 'New. ' : '' }}{{ $notification->namesNobody() ? $notification->sentence() : $notification->actor->name.' '.$notification->sentence() }}">
     <native:row class="w-full">
         <native:column :width="64" />
         <native:column class="flex-1">
@@ -94,7 +94,9 @@
                                 <native:text font="mono-medium" class="text-xs text-theme-{{ $laneToken }}">Lv. {{ $notification->level }} · {{ $notification->rank }}</native:text>
                             </native:column>
                         @else
-                            @include('native.partials.stacked-avatars', ['id' => $notification->id, 'actors' => $notification->actors, 'more' => max(0, $notification->actorsCount - count($notification->actors))])
+                            @if (! $notification->isLevelUp())
+                                @include('native.partials.stacked-avatars', ['id' => $notification->id, 'actors' => $notification->actors, 'more' => max(0, $notification->actorsCount - count($notification->actors))])
+                            @endif
                         @endif
                         <native:spacer />
                         <native:text font="mono" class="text-[13px] text-theme-ink-muted flex-shrink-0">{{ \App\Devnull\Display::relativeTime($notification->createdAt) }}</native:text>

@@ -70,7 +70,7 @@
         @php($nodeSize = $node === 'avatar' ? $avatarSize : 48)
         @php($nodeAt = 'absolute top-['.($center - intdiv($nodeSize, 2)).'] left-['.(32 - intdiv($nodeSize, 2)).']')
         @if ($node === 'avatar' && $press)
-            <native:pressable @press="{{ $press }}" class="{{ $nodeAt }}" a11y-label="{{ $user->name }}'s profile">
+            <native:pressable @press="{{ $press }}" class="{{ $nodeAt }}" a11y-label="{{ $user->isLive() ? "{$user->name} is live" : "{$user->name}'s profile" }}">
                 @include('native.partials.rail-avatar', ['user' => $user, 'lane' => $lane, 'size' => $avatarSize])
             </native:pressable>
         @elseif ($node === 'avatar' || $node === 'staged')

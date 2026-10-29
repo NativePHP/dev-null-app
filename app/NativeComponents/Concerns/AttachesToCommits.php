@@ -3,55 +3,39 @@
 namespace App\NativeComponents\Concerns;
 
 use App\Devnull\Client;
-use App\Devnull\Data\Commit;
 use App\Devnull\Data\DraftImage;
 use App\Devnull\Data\PollDraft;
 use App\Devnull\DraftImages;
 use App\Devnull\Exceptions\ApiException;
-use App\Devnull\Exceptions\InvalidDraftImage;
-use App\Devnull\ResponseCache;
-use App\Devnull\SignedRequest;
 use Closure;
-use Native\Mobile\Attributes\On;
-use Native\Mobile\Events\Camera\PermissionDenied;
-use Native\Mobile\Events\Camera\PhotoTaken;
-use Native\Mobile\Events\Gallery\MediaSelected;
-use Native\Mobile\Facades\Camera;
-use Native\Mobile\Facades\Dialog;
 
 /**
  * What the composer sheet adds to a commit, as the web's composer does: photos,
  * a poll, and a preview (see partials/composer-tools).
  *
  * Photos come from the library or the camera, up to three, each with a
- * description for people who can't see it. A new commit or a quote can have a
- * poll instead, of two to four options, open for an hour up to a week. A reply
- * can have photos but not a poll, as on the web.
+ * description for people who can't see it (see AttachesPhotos). A new
+ * commit or a quote can have a poll instead, of two to four options, open
+ * for an hour up to a week. A reply can have photos but not a poll, as on
+ * the web.
  *
  * Preview shows the draft as the commit it would become, by you, at once, and
  * takes the body devnull sends back, with its code and mentions, when it comes.
  *
- * A commit with photos goes from the background, since photos take a while to
- * upload, and Commit spins until devnull has it. Photos and a poll go with the
- * sheet: closing it drops them, and deletes the photos from the phone, as
- * sending them does.
+ * A commit with photos goes through the outbox like any other, given longer
+ * to upload (see SyncsOutbox). The photos go with it, and are deleted from
+ * the phone once devnull has them. Until it's sent, the photos and the poll
+ * are stashed with the draft (see Stash), so closing the sheet keeps them for
+ * next time. Drop throws them away with it, deleting the photos.
  */
 trait AttachesToCommits
 {
-    /**
-     * Photos take longer than a usual write to upload over a slow connection.
-     */
-    public const int UploadTimeout = 120;
+    use AttachesPhotos;
 
     /**
      * @var list<DraftImage>
      */
     public array $sheetImages = [];
-
-    /**
-     * The photo whose description is open under the photos, by its place.
-     */
-    public ?int $describing = null;
 
     /**
      * The poll's options, or null with no poll.
@@ -78,13 +62,6 @@ trait AttachesToCommits
     public ?array $sheetPreview = null;
 
     /**
-     * @param  Closure(Client): SignedRequest  $sign
-     * @param  Closure(array<string, mixed>): void  $done
-     * @param  Closure(string, ?ApiException): void  $failed
-     */
-    abstract protected function sendInBackground(Closure $sign, Closure $done, Closure $failed, int $timeout = 30): void;
-
-    /**
      * @param  array<string, mixed>|null  $payload
      * @param  Closure(array<string, mixed>): void  $done
      * @param  Closure(string, ?ApiException): void  $failed
@@ -92,75 +69,9 @@ trait AttachesToCommits
     abstract protected function writeInBackground(string $method, string $path, ?array $payload, Closure $done, Closure $failed): void;
 
     /**
-     * The web's image button: the photo library, for as many photos as there's still room for.
+     * Keeps the draft in the stash as it is now, its photos and poll with it.
      */
-    public function pickPhotos(): void
-    {
-        if ($this->canAttachPhotos()) {
-            Camera::pickImages('images', true, DraftImages::MaxImages - count($this->sheetImages))->start();
-        }
-    }
-
-    public function takePhoto(): void
-    {
-        if ($this->canAttachPhotos()) {
-            Camera::getPhoto()->start();
-        }
-    }
-
-    #[On(PhotoTaken::class)]
-    public function photoTaken(string $path = ''): void
-    {
-        $this->attachPhotos([$path]);
-    }
-
-    /**
-     * @param  list<mixed>  $files
-     */
-    #[On(MediaSelected::class)]
-    public function photosPicked(array $files = []): void
-    {
-        $this->attachPhotos(array_map(fn (mixed $file): string => is_array($file) && is_string($file['path'] ?? null) ? $file['path'] : '', $files));
-    }
-
-    #[On(PermissionDenied::class)]
-    public function cameraDenied(): void
-    {
-        if ($this->isComposing()) {
-            $this->sheetError = DraftImages::CameraDenied;
-        }
-    }
-
-    /**
-     * The ✕ on a photo: it comes off the draft, and off the phone.
-     */
-    public function removePhoto(int $index): void
-    {
-        if (! isset($this->sheetImages[$index]) || $this->sheetPosting) {
-            return;
-        }
-
-        app(DraftImages::class)->discard([$this->sheetImages[$index]]);
-        array_splice($this->sheetImages, $index, 1);
-        $this->describing = null;
-    }
-
-    /**
-     * The web's ALT on a photo: opens its description under the photos, or closes it.
-     */
-    public function describePhoto(int $index): void
-    {
-        if (isset($this->sheetImages[$index])) {
-            $this->describing = $this->describing === $index ? null : $index;
-        }
-    }
-
-    public function photoDescribed(int $index, string $description = ''): void
-    {
-        if (isset($this->sheetImages[$index])) {
-            $this->sheetImages[$index] = $this->sheetImages[$index]->withDescription($description);
-        }
-    }
+    abstract protected function stashSheetDraft(): void;
 
     /**
      * The web's poll button: two empty options, open for a day. A commit has photos or a poll, not both, and a
@@ -171,18 +82,21 @@ trait AttachesToCommits
         if ($this->isComposing() && $this->sheetView !== 'reply' && $this->sheetImages === [] && $this->sheetPoll === null) {
             $this->sheetPoll = PollDraft::start();
             $this->sheetPollLength = PollDraft::DefaultLength;
+            $this->stashSheetDraft();
         }
     }
 
     public function removePoll(): void
     {
         $this->sheetPoll = null;
+        $this->stashSheetDraft();
     }
 
     public function addPollOption(): void
     {
         if ($this->sheetPoll !== null && count($this->sheetPoll) < PollDraft::MaxOptions) {
             $this->sheetPoll[] = '';
+            $this->stashSheetDraft();
         }
     }
 
@@ -193,6 +107,7 @@ trait AttachesToCommits
     {
         if ($this->sheetPoll !== null && $index >= PollDraft::MinOptions && isset($this->sheetPoll[$index])) {
             array_splice($this->sheetPoll, $index, 1);
+            $this->stashSheetDraft();
         }
     }
 
@@ -200,7 +115,13 @@ trait AttachesToCommits
     {
         if ($this->sheetPoll !== null && isset($this->sheetPoll[$index])) {
             $this->sheetPoll[$index] = mb_substr($option, 0, PollDraft::MaxOptionLength);
+            $this->stashSheetDraft();
         }
+    }
+
+    public function updatedSheetPollLength(): void
+    {
+        $this->stashSheetDraft();
     }
 
     /**
@@ -247,46 +168,12 @@ trait AttachesToCommits
     }
 
     /**
-     * Sends a commit with photos from the background. The sheet goes once devnull has it, as for any commit, or says
-     * why it didn't take it, keeping the photos. Should the sheet have gone by then, a toast says so instead.
-     *
-     * @param  Closure(Commit): void  $sent
+     * Lets go of the photos, the poll and the preview. The photos stay on the phone for the stashed draft, unless
+     * they're thrown away with it ($discardPhotos).
      */
-    protected function commitPhotosFromSheet(string $body, ?Commit $parent, ?Commit $quoted, Closure $sent): void
+    protected function forgetAttachments(bool $discardPhotos = false): void
     {
-        $images = $this->sheetImages;
-        $this->sheetPosting = true;
-        $this->sheetError = null;
-
-        $this->sendInBackground(
-            fn (Client $devnull): SignedRequest => $devnull->signedCommitWithImages($body, $images, $parent?->id, $quoted?->id),
-            function (array $json) use ($sent): void {
-                $this->sheetPosting = false;
-                $commit = is_array($json['data'] ?? null) ? $json['data'] : [];
-
-                app(ResponseCache::class)->commitAdded($commit);
-                $sent(Commit::fromArray($commit));
-            },
-            function (string $message): void {
-                $this->sheetPosting = false;
-
-                if ($this->isComposing()) {
-                    $this->sheetError = $message;
-                } else {
-                    Dialog::toast($message);
-                }
-            },
-            self::UploadTimeout,
-        );
-    }
-
-    /**
-     * Lets go of the photos, the poll and the preview. Photos still on the phone are deleted, unless they're on
-     * their way to devnull.
-     */
-    protected function forgetAttachments(): void
-    {
-        if (! $this->sheetPosting) {
+        if ($discardPhotos) {
             app(DraftImages::class)->discard($this->sheetImages);
         }
 
@@ -298,39 +185,33 @@ trait AttachesToCommits
         $this->sheetPreview = null;
     }
 
-    private function canAttachPhotos(): bool
+    /**
+     * @return list<DraftImage>
+     */
+    protected function attachedPhotos(): array
     {
-        return $this->isComposing() && $this->sheetPoll === null && ! $this->sheetPosting && count($this->sheetImages) < DraftImages::MaxImages;
+        return $this->sheetImages;
     }
 
     /**
-     * Keeps the photos the camera or the library handed over, as many as there's room for, and says why any didn't
-     * make it, in the web's words.
-     *
-     * @param  list<string>  $paths
+     * @param  list<DraftImage>  $photos
      */
-    private function attachPhotos(array $paths): void
+    protected function photosChanged(array $photos): void
     {
-        $paths = array_values(array_filter($paths, fn (string $path): bool => $path !== ''));
+        $this->sheetImages = $photos;
+        $this->stashSheetDraft();
+    }
 
-        if ($paths === [] || ! $this->canAttachPhotos()) {
-            return;
-        }
+    /**
+     * A commit has photos or a poll, not both.
+     */
+    protected function takesPhotos(): bool
+    {
+        return $this->isComposing() && $this->sheetPoll === null;
+    }
 
-        $this->sheetError = null;
-
-        foreach ($paths as $path) {
-            if (count($this->sheetImages) >= DraftImages::MaxImages) {
-                $this->sheetError = DraftImages::TooMany;
-
-                break;
-            }
-
-            try {
-                $this->sheetImages[] = app(DraftImages::class)->keep($path);
-            } catch (InvalidDraftImage $exception) {
-                $this->sheetError = $exception->getMessage();
-            }
-        }
+    protected function photoFailed(?string $error): void
+    {
+        $this->sheetError = $error;
     }
 }

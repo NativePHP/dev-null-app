@@ -10,10 +10,14 @@ use App\Devnull\Data\Page;
  * the web's thread toggle does, and "Hide replies" closes them again. One
  * level deep: a reply's own replies open its page.
  *
+ * The app asks for replies oldest first, five at a time (see
+ * Client::RepliesPerPage). A thread opened in place shows its first five,
+ * and "Show more" under them opens the rest on the commit's page, with its
+ * replies showing.
+ *
  * Under a commit devnull sends with its newest reply, "Show more" opens the
- * rest in place, newest first as on the web. The API only pages replies
- * oldest first, 50 at a time, so they're turned round here, and a thread
- * longer than a page opens the commit instead.
+ * rest in place, newest first as on the web, so they're turned round here,
+ * and a thread longer than a page opens the commit's page instead.
  *
  * A thread opened before opens at once from the cache, and refreshes behind.
  */
@@ -33,10 +37,17 @@ trait ExpandsThreads
      */
     public array $newestFirst = [];
 
+    /**
+     * Threads opened in place with more replies than they show.
+     *
+     * @var list<string>
+     */
+    public array $threadsWithMore = [];
+
     public function toggleReplies(string $id): void
     {
         if (array_key_exists($id, $this->threads)) {
-            unset($this->threads[$id]);
+            $this->closeThread($id);
 
             return;
         }
@@ -113,27 +124,38 @@ trait ExpandsThreads
     {
         // A thread whose last reply went closes, so its commit gets its hairline back.
         if ($page->items === []) {
-            unset($this->threads[$id]);
+            $this->closeThread($id);
 
             return;
         }
 
         if (! in_array($id, $this->newestFirst, true)) {
             $this->threads[$id] = $page->items;
+            $this->threadsWithMore = array_values(array_diff($this->threadsWithMore, [$id]));
+
+            if ($page->hasMore()) {
+                $this->threadsWithMore[] = $id;
+            }
 
             return;
         }
 
         // More than a page: the newest replies aren't on it, so the commit's page shows them.
         if ($page->hasMore()) {
-            unset($this->threads[$id]);
+            $this->closeThread($id);
             $this->newestFirst = array_values(array_diff($this->newestFirst, [$id]));
-            $this->openCommit($id);
+            $this->openReplies($id);
 
             return;
         }
 
         $this->threads[$id] = array_reverse($page->items);
+    }
+
+    private function closeThread(string $id): void
+    {
+        unset($this->threads[$id]);
+        $this->threadsWithMore = array_values(array_diff($this->threadsWithMore, [$id]));
     }
 
     /**

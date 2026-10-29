@@ -17,7 +17,7 @@ beforeEach(function () {
  */
 function listedJson(string $id, string $username, string $name): array
 {
-    return userJson(['id' => $id, 'username' => $username, 'name' => $name, 'lane' => 2]);
+    return userJson(['id' => $id, 'handle' => $username, 'name' => $name, 'lane' => 2]);
 }
 
 /**
@@ -89,7 +89,7 @@ it('shows skeleton rows until devnull answers, with nothing kept', function () {
         ->assertSee("You haven't blocked anyone.");
 
     expect(showsLoading($screen->tree()))->toBeFalse()
-        ->and(kept('me/muted')['data'][0]['username'])->toBe('ada');
+        ->and(kept('me/muted')['data'][0]['handle'])->toBe('ada');
 });
 
 it('shows the lists as they were last time at once, then takes what devnull says behind them', function () {
@@ -133,7 +133,7 @@ it("prints the error when there's nothing kept to show", function () {
 });
 
 it('unmutes straight away, as the web does, and they leave the list and their kept profile', function () {
-    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada']), 'is_muting' => true]);
+    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada']), 'is_muting' => true]);
     serveApi([
         'GET /api/v1/me/muted' => [peopleJson([listedJson('u2', 'ada', 'Ada Lovelace'), listedJson('u3', 'grace', 'Grace Hopper')])],
         'GET /api/v1/me/blocked' => [peopleJson([], path: 'me/blocked')],
@@ -147,7 +147,7 @@ it('unmutes straight away, as the web does, and they leave the list and their ke
         ->assertSee('Grace Hopper');
 
     expect(safetyRequests('DELETE', 'users/ada/mute'))->toBe(1)
-        ->and(array_column(kept('me/muted')['data'], 'username'))->toBe(['grace'])
+        ->and(array_column(kept('me/muted')['data'], 'handle'))->toBe(['grace'])
         ->and(kept('users/ada')['is_muting'])->toBeFalse();
 });
 
@@ -236,7 +236,7 @@ it('comes back from a profile showing the mute made there', function () {
     keep('me/muted', peopleJson([]));
     keep('me/blocked', peopleJson([listedJson('u2', 'ada', 'Ada Lovelace')], path: 'me/blocked'));
     keep('users/grace', [
-        'data' => userWithCountsJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace Hopper']),
+        'data' => userWithCountsJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace Hopper']),
         'is_following' => false,
         'is_muting' => false,
     ]);

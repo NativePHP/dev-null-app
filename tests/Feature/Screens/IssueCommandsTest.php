@@ -1,6 +1,7 @@
 <?php
 
 use App\Devnull\Client;
+use App\Devnull\Data\StashedDraft;
 use App\Devnull\IssueCommand;
 use App\Devnull\Stash;
 use App\NativeComponents\Log;
@@ -10,6 +11,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
+use Victorycodedev\ToastKit\Events\ToastActionPressed;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -26,7 +28,7 @@ beforeEach(function () {
 function issueSheetOnLog(?array $answer = null): TestableComponent
 {
     serveApi([
-        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'An older commit', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])],
+        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'An older commit', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])])],
         'POST /api/v1/issues' => $answer ?? [['number' => 123, 'url' => 'https://github.com/nunomaduro/dev-null.sh/issues/123'], 201],
     ]);
 
@@ -84,11 +86,11 @@ it('offers the commands a slash could become, and starts the one you tap empty',
     expect($screen->instance()->sheetIssue)->toBe('bug')
         ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('')
         ->and(hasRef($screen, 'issue-commands'))->toBeFalse()
-        ->and(app(Stash::class)->get($this->userId, 'commit'))->toBe('');
+        ->and(app(Stash::class)->get($this->userId, 'commit')->body)->toBe('');
 });
 
 it('opens the menu for a restored slash only once you type, as the web opens it only while you type', function () {
-    app(Stash::class)->put($this->userId, 'commit', '/');
+    app(Stash::class)->put($this->userId, 'commit', new StashedDraft('/'));
 
     $screen = issueSheetOnLog();
 
@@ -135,7 +137,7 @@ it('goes back to a commit from the badge, keeping what you wrote', function () {
 });
 
 it('only turns a new commit into an issue, never a quote', function () {
-    serveApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])]]);
+    serveApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])])]]);
 
     $screen = Native::visit('/log', platform: 'ios')->tap('quote-c1')->input('sheet-body', '/bug ');
 
@@ -187,10 +189,10 @@ it('opens the issue while the button spins, then says so with View issue, as the
 
     expect(issueRequestsSent())->toBe(1)
         ->and(nodeByRef($screen, 'sheet')['props'])->toMatchArray(['visible' => true, 'detents' => '0.3'])
-        ->and(app(Stash::class)->get($this->userId, 'commit'))->toBe('')
+        ->and(app(Stash::class)->get($this->userId, 'commit')->body)->toBe('')
         ->and(nodeByRef($screen, 'log')['id'])->toBe($list)
         ->and($screen->instance()->commits)->toHaveCount(1);
-    $bridge->assertNotCalled('Dialog.Toast');
+    $bridge->assertNotCalled('ToastKit.Show');
 
     $screen->tap('view-issue')
         ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://github.com/nunomaduro/dev-null.sh/issues/123');
@@ -204,15 +206,29 @@ it('opens the issue while the button spins, then says so with View issue, as the
         ->and(hasRef($screen, 'sheet-commit'))->toBeTrue();
 });
 
-it('says so in a toast when the sheet was swiped away before the issue opened', function () {
+it('opens no issue link that is not a web page', function () {
+    $screen = issueSheetOnLog([['number' => 123, 'url' => 'javascript:alert(1)'], 201])->input('sheet-body', '/bug Broken.')->tap('sheet-open-issue');
+
+    $screen->tap('view-issue')
+        ->emitNative(ToastActionPressed::class, ['toastId' => 'toast-1', 'actionId' => 'view-issue', 'data' => ['url' => 'file:///etc/passwd']])
+        ->assertNativeNotCalled('Browser.OpenInApp');
+});
+
+it('says so in a toast with View issue when the sheet was swiped away before the issue opened', function () {
     holdRefreshes();
     $screen = issueSheetOnLog()->input('sheet-body', '/feature Dark mode')->tap('sheet-open-issue')->dismissSheet('sheet');
 
     finishRefreshes($screen)
-        ->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === 'Opened issue #123.');
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Opened issue #123.'
+            && $params['variant'] === 'success'
+            && $params['action'] === ['id' => 'view-issue', 'label' => 'View issue']
+            && $params['data'] === ['url' => 'https://github.com/nunomaduro/dev-null.sh/issues/123']);
 
-    expect(app(Stash::class)->get($this->userId, 'commit'))->toBe('')
+    expect(app(Stash::class)->get($this->userId, 'commit')->body)->toBe('')
         ->and(nodeByRef($screen, 'sheet')['props']['visible'])->toBeFalse();
+
+    $screen->emitNative(ToastActionPressed::class, ['toastId' => 'toast-1', 'actionId' => 'view-issue', 'data' => ['url' => 'https://github.com/nunomaduro/dev-null.sh/issues/123']])
+        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://github.com/nunomaduro/dev-null.sh/issues/123');
 });
 
 it('keeps the issue draft with why when devnull or GitHub says no', function (array $answer, string $message) {
@@ -222,7 +238,7 @@ it('keeps the issue draft with why when devnull or GitHub says no', function (ar
         ->and($screen->instance()->sheetIssue)->toBe('bug')
         ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('Broken.')
         ->and(sheetButtonEnabled($screen, 'sheet-open-issue'))->toBeTrue()
-        ->and(app(Stash::class)->get($this->userId, 'commit'))->toBe('Broken.');
+        ->and(app(Stash::class)->get($this->userId, 'commit')->body)->toBe('Broken.');
 })->with([
     'over the limit' => [[['message' => 'Issue limit reached. Try again in an hour.', 'code' => 'rate_limited'], 429], 'Issue limit reached. Try again in an hour.'],
     'GitHub said no' => [[['message' => 'GitHub did not create the issue. Your draft is safe.', 'code' => 'github_issue_failed'], 503], 'GitHub did not create the issue. Your draft is safe.'],

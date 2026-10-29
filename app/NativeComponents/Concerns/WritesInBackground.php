@@ -56,21 +56,13 @@ trait WritesInBackground
         FetchInBackground::dispatch($request->url, $request->headers, $request->method, $request->body, false, null, $request->contentType)
             ->timeout($timeout)
             ->finished(function (mixed $result) use ($done, $failed): void {
-                $result = is_array($result) ? $result : [];
-                $status = (int) ($result['status'] ?? 0);
-                $successful = $status >= 200 && $status < 300;
+                $exception = FetchInBackground::failureOf($result);
 
-                if ($successful && ($result['from_devnull'] ?? false) === true) {
-                    $done(is_array($result['json'] ?? null) ? $result['json'] : []);
+                if ($exception === null) {
+                    $done(FetchInBackground::jsonOf($result));
 
                     return;
                 }
-
-                $exception = match (true) {
-                    $status === 0 => ApiException::couldNotConnect((string) config('devnull.url')),
-                    $successful => ApiException::unexpectedAnswer((string) config('devnull.url'), $status),
-                    default => ApiException::fromParts($status, $result['json'] ?? null, (string) ($result['retry_after'] ?? '')),
-                };
 
                 if ($exception instanceof Unauthenticated) {
                     $this->signOut($exception);

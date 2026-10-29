@@ -5,7 +5,7 @@
 
 {{--
     Laid out like the web's profile settings: a section each, with its heading, on the surface. The full-width buttons
-    are large, as Sign in with GitHub is, and the main ones wear your colour.
+    are large, as Sign in on dev-null.sh is, and the main ones wear your colour.
 --}}
 <native:column class="w-full h-full bg-theme-surface">
     @include('native.partials.colour-sheet')
@@ -179,6 +179,19 @@
                             <native:text ref="remote-preferences-error" class="w-full px-4 pt-2 text-sm text-theme-destructive">{{ $remotePreferencesError }}</native:text>
                         @endif
                     @endif
+                </native:column>
+            @endif
+
+            @if ($user)
+                {{-- The web's Who to follow setting, in its words, as a switch like the others here. --}}
+                <native:column ref="who-to-follow-setting" class="w-full pt-10">
+                    <native:row class="w-full px-4 gap-6 items-start">
+                        <native:column class="flex-1 gap-2">
+                            <native:text font="semibold" class="text-lg text-theme-ink">Who to follow</native:text>
+                            <native:text class="text-sm leading-relaxed text-theme-ink-muted">Three people you might want to follow, in your log.</native:text>
+                        </native:column>
+                        <native:toggle ref="who-to-follow-switch" :value="$showsWhoToFollow" @change="setShowsWhoToFollow" a11y-label="Who to follow" />
+                    </native:row>
                 </native:column>
             @endif
 

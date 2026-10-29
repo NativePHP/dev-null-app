@@ -88,7 +88,7 @@ it('shows no quote box at all when the quoted commit was not sent, as the signed
 });
 
 it('words a level-up plainly and opens your profile, telling of no level the API leaves out', function () {
-    $level = Notification::fromArray(notificationJson('leveled_up', ['commit' => null]));
+    $level = Notification::fromArray(notificationJson('leveled_up', ['commit' => null, 'level' => null, 'rank' => null, 'rank_description' => null]));
 
     expect($level->isLevelUp())->toBeTrue()
         ->and($level->sentence())->toBe('You reached a new level')
@@ -107,8 +107,7 @@ it('keeps the level and rank only when devnull actually sent them, as the web\'s
     expect($level->level)->toBe(3)
         ->and($level->rank)->toBe('Committer')
         ->and($level->rankDescription)->toBe('You shipped it.')
-        // Still no rank read into the sentence, since the API doesn't guarantee one.
-        ->and($level->sentence())->toBe('You reached a new level');
+        ->and($level->sentence())->toBe('You reached level 3: Committer');
 });
 
 it('carries the whole commit along, while a reply keeps reading as it always did', function () {

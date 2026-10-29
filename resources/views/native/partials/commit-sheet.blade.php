@@ -5,7 +5,8 @@
     bar, the same on both platforms (see sheet-bar-button), 16pt in from the sheet's top and sides. On Android the bar
     sits under Material's handle strip, since mobile-ui has no way yet to draw the handle over the content. The title is
     centred.
-    Cancel closes it as a swipe does, keeping the draft. If devnull says no, why shows here and the draft stays. The
+    Cancel closes it as a swipe does, keeping the draft. Commit closes it at once, and the commit goes from the outbox
+    (see SyncsOutbox). If devnull says no, a toast says why and the draft comes back in the sheet. The
     Log's compose button opens the same composer for a new commit, without the card. A draft stashed last time comes
     back in it, with the web's stash@{0} and drop beside the counter, in the toolbar at the bottom.
 
@@ -48,7 +49,7 @@
                     @if ($issueCommand)
                         @include('native.partials.sheet-bar-button', ['ref' => 'sheet-open-issue', 'icon' => \App\Icons\Lucide::Check, 'label' => 'Open issue', 'main' => true, 'loading' => $openingIssue, 'press' => $openingIssue || ! \App\Devnull\IssueCommand::fits($sheetBody) ? null : 'openIssueFromSheet'])
                     @else
-                        @include('native.partials.sheet-bar-button', ['ref' => 'sheet-commit', 'icon' => \App\Icons\Lucide::Check, 'label' => $replying ? 'Reply' : 'Commit', 'main' => true, 'loading' => $sheetPosting, 'press' => $sheetPosting || ! $canCommit ? null : 'commitFromSheet'])
+                        @include('native.partials.sheet-bar-button', ['ref' => 'sheet-commit', 'icon' => \App\Icons\Lucide::Check, 'label' => $replying ? 'Reply' : 'Commit', 'main' => true, 'press' => $canCommit ? 'commitFromSheet' : null])
                     @endif
                 </native:row>
                 <native:column class="w-full h-[1] bg-theme-hairline" />

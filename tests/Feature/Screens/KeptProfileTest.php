@@ -41,13 +41,13 @@ it('keeps your profile current whenever it loads', function () {
 
 it("doesn't keep someone else's profile as yours", function () {
     fakeApi([
-        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']), 'is_following' => false]],
+        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']), 'is_following' => false]],
         'GET /api/v1/users/ada/commits' => [pageJson([])],
     ]);
 
     Native::visit('/log/users/ada')->assertSee('Ada');
 
-    expect(app(Account::class)->profile()['data']['username'] ?? null)->toBe('local_dev');
+    expect(app(Account::class)->profile()['data']['handle'] ?? null)->toBe('local_dev');
 });
 
 it('forgets your kept profile when you sign out', function () {

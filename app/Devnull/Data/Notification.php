@@ -14,9 +14,7 @@ use Carbon\CarbonImmutable;
  * star on an image-only commit, and the commit of yours a quote quotes, which
  * devnull only sends along when it loaded it — absent rather than null, so a
  * quote with none of it sent shows no box at all, as on the web. A level-up
- * tells of no level on the API, whose NotificationResource leaves the level,
- * rank and its description out; they come along only when actually sent, as
- * the web's own page has them, and none of them is made up.
+ * uses the level, rank and description when sent, without inventing missing data.
  */
 final readonly class Notification
 {
@@ -114,16 +112,6 @@ final readonly class Notification
     }
 
     /**
-     * You reached a level, which the web words without naming you as its
-     * actor, and opens on your profile. Its level and rank only came along
-     * when devnull sent them, which its signed API does not.
-     */
-    public function isLevelUp(): bool
-    {
-        return $this->type === 'leveled_up';
-    }
-
-    /**
      * A moderator approved or rejected your commit. Nobody else is named.
      */
     public function isModeration(): bool
@@ -134,6 +122,30 @@ final readonly class Notification
     public function isRejection(): bool
     {
         return $this->type === 'rejected';
+    }
+
+    /**
+     * You reached a new level. Like a moderator's verdict, devnull names you as its actor.
+     */
+    public function isLevelUp(): bool
+    {
+        return $this->type === 'leveled_up';
+    }
+
+    /**
+     * Whether it happened to you rather than being something someone did, so the web names nobody: a verdict or a level-up.
+     */
+    public function namesNobody(): bool
+    {
+        return $this->isModeration() || $this->isLevelUp();
+    }
+
+    /**
+     * "Lv. 5 · wheel", as the level-up's chip reads, or null when devnull doesn't say which level it was.
+     */
+    public function levelLabel(): ?string
+    {
+        return $this->level === null || $this->rank === null ? null : "Lv. {$this->level} · {$this->rank}";
     }
 
     /**
@@ -226,7 +238,7 @@ final readonly class Notification
     }
 
     /**
-     * Everything but a follow is about a commit, and opens it.
+     * Everything but a follow or a level-up is about a commit, and opens it.
      */
     public function opensCommit(): bool
     {
@@ -258,7 +270,7 @@ final readonly class Notification
     /**
      * What happened, as the web words it. For a person it follows their name and their handle or the others.
      * A star on an image-only commit says it was your image, or images. A
-     * level-up says nothing of which level, since the API tells it not.
+     * level-up names its level and rank only when the API supplies them.
      */
     public function sentence(): string
     {
@@ -270,7 +282,7 @@ final readonly class Notification
                 : 'starred your commit',
             'quoted' => 'quoted your commit',
             'approved', 'rejected' => "Your commit was {$this->type}",
-            'leveled_up' => 'You reached a new level',
+            'leveled_up' => $this->levelLabel() === null ? 'You reached a new level' : "You reached level {$this->level}: {$this->rank}",
             default => 'replied to your commit',
         };
     }

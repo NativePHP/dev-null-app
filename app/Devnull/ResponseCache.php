@@ -42,8 +42,9 @@ final class ResponseCache
         '#^notifications/[^/]+/group$#',
         '#^log/[^/]+$#',
         '#^commits/[^/]+$#',
-        '#^commits/[^/]+/replies$#',
+        '#^commits/[^/]+/(replies|related)$#',
         '#^users/[^/]+$#',
+        '#^organizations/[^/]+$#',
         '#^users/[^/]+/commits$#',
         '#^starred$#',
         '#^users/[^/]+/(followers|following)$#',
@@ -51,6 +52,11 @@ final class ResponseCache
         '#^remotes/@[^/]+/messages$#',
         '#^remotes/orgs/[^/]+/messages$#',
     ];
+
+    /**
+     * The queries of the inbox's tabs, Open, Fetched and Stashed, as the Remotes screen asks for them.
+     */
+    private const array InboxTabs = [[], ['tab' => 'fetched'], ['tab' => 'stashed']];
 
     /**
      * The kept answers that list people with whether you follow each one.
@@ -96,7 +102,7 @@ final class ResponseCache
      * What every copy of a user has of their profile, as a commit's author, a
      * notification's actor or a profile's header.
      */
-    private const array ProfileFields = ['username', 'name', 'avatar_url', 'bio', 'company', 'location', 'website', 'github_url', 'html_url', 'feed_url', 'lane'];
+    private const array ProfileFields = ['handle', 'name', 'avatar_url', 'bio', 'company', 'location', 'website', 'github_url', 'html_url', 'feed_url', 'lane'];
 
     /**
      * Whether a GET of $path with $query is kept: a known path, and a first page.
@@ -288,8 +294,63 @@ final class ResponseCache
             ? self::prepend($json, $commit)
             : [...$json, 'data' => self::without($json['data'] ?? [], $id)]);
 
-        $unstarred = array_diff($this->unstarredIds(), [$id]);
-        $this->store()->forever("{$userId} unstarred", array_slice($commit['starred'] ? $unstarred : [$id, ...$unstarred], 0, self::RememberedUnstars));
+        $this->rememberUnstarred($id, ! $commit['starred']);
+    }
+
+    /**
+     * Remembers a commit as unstarred on this phone, or forgets it was once it's starred again.
+     */
+    private function rememberUnstarred(string $id, bool $unstarred): void
+    {
+        $userId = $this->userId();
+
+        if ($userId === null) {
+            return;
+        }
+
+        $others = array_diff($this->unstarredIds(), [$id]);
+        $this->store()->forever("{$userId} unstarred", array_slice($unstarred ? [$id, ...$others] : $others, 0, self::RememberedUnstars));
+    }
+
+    /**
+     * You starred or unstarred a commit, before devnull has said so, or it
+     * turned that down and the star goes back. Every copy of the commit flips
+     * its star and moves its count to match, as the screen does (see
+     * Commit::withStar()), and your starred commits take it on top or let it
+     * go, as for devnull's answer. A commit starred with no copy kept anywhere
+     * but $copy, as one taken off your starred commits had before, waits for
+     * devnull's answer to go on top of them.
+     *
+     * @param  array<string, mixed>|null  $copy
+     */
+    public function starChanged(string $id, bool $starred, ?array $copy = null): void
+    {
+        $kept = $this->findCommit($id) ?? $copy;
+        $change = fn (array $commit): array => ($commit['starred'] ?? false) === $starred ? $commit : [
+            ...$commit,
+            'starred' => $starred,
+            'stars_count' => max(0, (int) ($commit['stars_count'] ?? 0) + ($starred ? 1 : -1)),
+        ];
+
+        $this->patchCommit($id, $change);
+
+        if ($starred && $kept === null) {
+            $this->rememberUnstarred($id, false);
+
+            return;
+        }
+
+        $this->commitStarred($change([...($kept ?? []), 'id' => $id]));
+    }
+
+    /**
+     * Any kept copy of a commit, as devnull last sent it.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function keptCommit(string $id): ?array
+    {
+        return $this->findCommit($id);
     }
 
     /**
@@ -321,8 +382,8 @@ final class ResponseCache
 
         $this->commitReacted($commit);
 
-        if (is_string($author['username'] ?? null) && is_int($json['author_pasteis_received'] ?? null)) {
-            $this->patch('users/'.rawurlencode($author['username']), [], fn (array $kept): array => [...$kept, 'pasteis_received' => $json['author_pasteis_received']]);
+        if (is_string($author['handle'] ?? null) && is_int($json['author_pasteis_received'] ?? null)) {
+            $this->patch('users/'.rawurlencode($author['handle']), [], fn (array $kept): array => [...$kept, 'pasteis_received' => $json['author_pasteis_received']]);
         }
 
         if (is_int($json['pasteis_remaining'] ?? null)) {
@@ -399,6 +460,7 @@ final class ResponseCache
         $this->patchCommit($id, fn (array $commit): ?array => null);
         $this->forget("commits/{$id}");
         $this->forget("commits/{$id}/replies");
+        $this->forget("commits/{$id}/related");
 
         if (is_string($parentId) && $parentId !== '') {
             $this->patchCommit($parentId, fn (array $parent): array => [...$parent, 'replies_count' => max(0, (int) ($parent['replies_count'] ?? 0) - 1)]);
@@ -461,7 +523,7 @@ final class ResponseCache
             return;
         }
 
-        $this->patch('users/'.rawurlencode($user['username']), [], fn (array $kept): array => [...$kept, 'is_muting' => $muting]);
+        $this->patch('users/'.rawurlencode($user['handle']), [], fn (array $kept): array => [...$kept, 'is_muting' => $muting]);
         $this->patch(Client::MutedPath, [], fn (array $kept): array => self::listed($kept, $user, $muting));
 
         $this->rememberHidden($user['id'], $muting);
@@ -496,7 +558,7 @@ final class ResponseCache
             return;
         }
 
-        $path = 'users/'.rawurlencode($user['username']);
+        $path = 'users/'.rawurlencode($user['handle']);
         $profile = $this->get($path);
 
         if ($profile !== null && ($me = $this->username()) !== null) {
@@ -514,6 +576,85 @@ final class ResponseCache
     }
 
     /**
+     * You pinned, unpinned, muted or unmuted a conversation or an org: every
+     * kept inbox tab with it takes the new fields, in devnull's words
+     * (`pinned_at`, `muted_until_at`), and sorts again as devnull does,
+     * pinned first.
+     *
+     * @param  array<string, mixed>  $fields
+     */
+    public function conversationChanged(string $id, array $fields): void
+    {
+        foreach (self::InboxTabs as $query) {
+            $this->patch(Client::RemotesPath, $query, fn (array $json): array => self::inbox(
+                $json,
+                array_map(fn (array $row): array => ($row['id'] ?? null) === $id ? [...$row, ...$fields] : $row, self::rows($json)),
+            ));
+        }
+    }
+
+    /**
+     * You stashed or popped a conversation or an org: it leaves the tab it
+     * was on and joins Stashed, or Open, in its place there.
+     */
+    public function conversationStashed(string $id, bool $stashed): void
+    {
+        $row = null;
+
+        foreach (self::InboxTabs as $query) {
+            $row ??= collect(self::rows($this->get(Client::RemotesPath, $query) ?? []))->firstWhere('id', $id);
+        }
+
+        $this->conversationGone($id);
+
+        if ($row !== null) {
+            $this->patch(Client::RemotesPath, $stashed ? ['tab' => 'stashed'] : [], fn (array $json): array => self::inbox(
+                $json,
+                [...self::rows($json), [...$row, 'is_archived' => $stashed]],
+            ));
+        }
+    }
+
+    /**
+     * You blocked the partner of a conversation, or left an org: it leaves every kept inbox tab.
+     */
+    public function conversationGone(string $id): void
+    {
+        foreach (self::InboxTabs as $query) {
+            $this->patch(Client::RemotesPath, $query, fn (array $json): array => self::inbox(
+                $json,
+                array_values(array_filter(self::rows($json), fn (array $row): bool => ($row['id'] ?? null) !== $id)),
+            ));
+        }
+    }
+
+    /**
+     * A kept inbox page's rows.
+     *
+     * @param  array<string, mixed>  $json
+     * @return list<array<string, mixed>>
+     */
+    private static function rows(array $json): array
+    {
+        return array_values(array_filter(is_array($json['data'] ?? null) ? $json['data'] : [], is_array(...)));
+    }
+
+    /**
+     * A kept inbox page with these rows, in devnull's order: pinned first, then the latest message first.
+     *
+     * @param  array<string, mixed>  $json
+     * @param  list<array<string, mixed>>  $rows
+     * @return array<string, mixed>
+     */
+    private static function inbox(array $json, array $rows): array
+    {
+        usort($rows, fn (array $a, array $b): int => [isset($b['pinned_at']), (string) ($b['last_message_at'] ?? ''), (string) ($b['id'] ?? '')]
+            <=> [isset($a['pinned_at']), (string) ($a['last_message_at'] ?? ''), (string) ($a['id'] ?? '')]);
+
+        return [...$json, 'data' => $rows];
+    }
+
+    /**
      * The user a mute or block answered with, and the state devnull says it left.
      *
      * @param  array<string, mixed>  $json
@@ -523,7 +664,7 @@ final class ResponseCache
     {
         $user = is_array($json['data'] ?? null) ? $json['data'] : [];
 
-        if (! is_string($user['id'] ?? null) || $user['id'] === '' || ! is_string($user['username'] ?? null) || $user['username'] === '') {
+        if (! is_string($user['id'] ?? null) || $user['id'] === '' || ! is_string($user['handle'] ?? null) || $user['handle'] === '') {
             return [null, false];
         }
 
@@ -635,6 +776,40 @@ final class ResponseCache
         if ($userId !== null) {
             $this->store()->forever("{$userId} deleted", array_slice([$id, ...array_diff($this->deletedIds(), [$id])], 0, self::RememberedDeletions));
         }
+    }
+
+    /**
+     * You left an org: devnull no longer shows it to you, so it leaves every
+     * kept page of your inbox, and its thread goes. The thread's screen,
+     * still under the one you left from, steps back to the inbox when it
+     * next shows (see takeLeftOrg()).
+     */
+    public function orgLeft(string $orgId): void
+    {
+        $userId = $this->userId();
+
+        if ($userId === null) {
+            return;
+        }
+
+        foreach ($this->index($userId) as $meta) {
+            if ($meta['path'] === Client::RemotesPath) {
+                $this->patch($meta['path'], $meta['query'], fn (array $json): array => [...$json, 'data' => self::without($json['data'] ?? [], $orgId)]);
+            }
+        }
+
+        $this->forget(Client::threadPath(orgId: $orgId).'/messages');
+        $this->store()->forever("{$userId} left {$orgId}", true);
+    }
+
+    /**
+     * Whether you left the org since its thread last asked, which asking forgets.
+     */
+    public function takeLeftOrg(string $orgId): bool
+    {
+        $userId = $this->userId();
+
+        return $userId !== null && $this->store()->pull("{$userId} left {$orgId}") === true;
     }
 
     public function appleLinkChanged(bool $linked): void
@@ -902,7 +1077,7 @@ final class ResponseCache
             return $node;
         }
 
-        if (($node['id'] ?? null) === $id && array_key_exists('username', $node)) {
+        if (($node['id'] ?? null) === $id && array_key_exists('handle', $node)) {
             $node = [...$node, ...array_intersect_key($profile, $node)];
         }
 
@@ -935,7 +1110,7 @@ final class ResponseCache
             return $node;
         }
 
-        if (($node['username'] ?? null) === $username && array_key_exists('is_followed', $node)) {
+        if (($node['handle'] ?? null) === $username && array_key_exists('is_followed', $node)) {
             $node['is_followed'] = $following;
         }
 

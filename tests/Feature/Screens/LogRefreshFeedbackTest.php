@@ -163,7 +163,13 @@ function heldRefreshPayloads(TestableComponent $screen): array
         $path = AsyncTaskTransport::directory('payload').DIRECTORY_SEPARATOR.$id.'.task';
 
         if (is_file($path)) {
-            $held[$id] = (string) file_get_contents($path);
+            $sealed = (string) file_get_contents($path);
+            $payload = AsyncTaskTransport::readPayload($id);
+
+            if ($payload !== null) {
+                file_put_contents($path, $sealed);
+                $held[$id] = $payload;
+            }
         }
     }
 

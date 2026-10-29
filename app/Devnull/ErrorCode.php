@@ -41,7 +41,7 @@ enum ErrorCode: string
             self::DeviceNotApproved => "This phone isn't approved on devnull. Sign in to approve it.",
             self::InvalidGrant => 'fatal: that sign-in expired or was already used. Sign in again.',
             self::InvalidAppleToken => "fatal: devnull couldn't verify that Apple sign-in. Try again.",
-            self::AppleNotLinked => 'No devnull account has this Apple ID linked. Sign in with GitHub, then link Apple under Account.',
+            self::AppleNotLinked => 'No devnull account has this Apple ID linked. Sign in on dev-null.sh, then link Apple under Account.',
             self::AppleLinkedElsewhere => 'That Apple ID is linked to another devnull account. Unlink it there first.',
             self::UserBlocked => 'fatal: you blocked this profile.',
             self::UserUnavailable => "fatal: this profile isn't available.",

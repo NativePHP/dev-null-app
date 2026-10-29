@@ -3,15 +3,24 @@
 namespace App\NativeComponents;
 
 use App\Devnull\Account;
+use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitThread;
+use App\Devnull\Data\Draft;
+use App\Devnull\Data\DraftImage;
 use App\Devnull\Data\Page;
+use App\Devnull\Data\StashedDraft;
 use App\Devnull\Display;
+use App\Devnull\DraftImages;
+use App\Devnull\Outbox;
+use App\Devnull\ResponseCache;
 use App\Devnull\RowCache;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Lucide;
+use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -27,8 +36,12 @@ use Native\Mobile\Edge\NativeComponent;
  * parts below, with its replies between, as on the web. Deleted ancestors,
  * parts and replies show as tombstones.
  *
- * The commit opens at the top, with what it replies to behind "↑ N earlier
- * commits" and its replies behind "› N replies", each opened in place.
+ * The commit opens near the top, under the commit it replies to, with the
+ * ones before that behind "↑ N earlier commits" and its replies behind
+ * "› N replies", each opened in place. Opened from a "› N replies" button
+ * ($data['replies']), its replies already show. They come five at a time
+ * (see Client::RepliesPerPage), and "Show more" under the last asks for the
+ * next five, as it does under a deleted reply's replies opened in place.
  *
  * It opens on the commit as it was last time, or opened from a row, on what
  * the row knew of it, then asks devnull for the rest behind it and fills it in.
@@ -40,12 +53,25 @@ use Native\Mobile\Edge\NativeComponent;
  * The reply bar has no room for photos or a preview, so its expand button
  * opens the reply in the composer sheet, which has them (see replyInSheet()).
  * The draft goes with it, and back to the bar if the sheet closes unsent.
+ * Photos left in it show as a count under the bar's field, which opens the
+ * sheet on them, and Reply in the bar sends them with the text.
+ *
+ * A reply goes at once: the bar empties and the reply shows staged under the
+ * commit while it goes to devnull from the outbox (see SyncsOutbox), then the
+ * real one takes its place. If devnull turns it down, it leaves, and what you
+ * wrote is back in the bar, or in the sheet with its photos. Edit, on the
+ * toast of a reply or a quote turned down after you'd left, opens its commit
+ * here with it ($data['edit']).
  */
 class CommitDetail extends NativeComponent
 {
     use OpensInTab;
+    use OpensLiveStream;
     use RefreshesInBackground;
-    use ShowsCommits;
+    use ShowsCommits {
+        reopenFailedCommit as private reopenFailedCommitInSheet;
+        editFailedCommit as private editFailedCommitInSheet;
+    }
     use TalksToDevnull;
 
     public string $id = '';
@@ -68,6 +94,13 @@ class CommitDetail extends NativeComponent
     public ?string $repliesCursor = null;
 
     /**
+     * Other threads closest in meaning, in devnull's relevance order.
+     *
+     * @var list<Commit>
+     */
+    public array $related = [];
+
+    /**
      * Whether the replies have been kept or fetched. Until then they show as loading.
      */
     public bool $repliesLoaded = false;
@@ -79,9 +112,21 @@ class CommitDetail extends NativeComponent
      */
     public array $tombstoneReplies = [];
 
+    /**
+     * Where the next page of each deleted reply's replies starts, by the deleted reply's id, or null when they're all shown.
+     *
+     * @var array<string, string|null>
+     */
+    public array $tombstoneCursors = [];
+
     public string $reply = '';
 
-    public bool $sendingReply = false;
+    /**
+     * The photos in the reply's draft, attached in the sheet, which the bar sends with it.
+     *
+     * @var list<DraftImage>
+     */
+    public array $replyImages = [];
 
     /**
      * Whether the reply was stashed when the page opened, which the bar marks until you empty it or drop it.
@@ -89,7 +134,7 @@ class CommitDetail extends NativeComponent
     public bool $replyRestored = false;
 
     /**
-     * Whether the ancestors show above the commit, rather than "↑ N earlier commits".
+     * Whether the ancestors before the commit's parent show above it, rather than "↑ N earlier commits".
      */
     public bool $earlierShown = false;
 
@@ -126,10 +171,14 @@ class CommitDetail extends NativeComponent
     public function mount(): void
     {
         $this->focusReply = $this->data('reply', false) === true;
-        $this->reply = app(Stash::class)->get($this->me()?->id, $this->replyStashName());
-        $this->replyRestored = $this->reply !== '';
+        $this->repliesShown = $this->data('replies', false) === true;
+        $draft = app(Stash::class)->get($this->me()?->id, $this->replyStashName());
+        $this->reply = $draft->body;
+        $this->replyImages = $draft->images;
+        $this->replyRestored = ! $draft->isEmpty();
         $this->showKept();
         $this->revalidate();
+        $this->editFromData();
     }
 
     /**
@@ -176,13 +225,21 @@ class CommitDetail extends NativeComponent
     {
         $this->refresh($this->threadPath(), [], fn (array $json) => $this->takeThread($json));
         $this->refresh($this->threadPath().'/replies', [], fn (array $json) => $this->takeReplies($json));
+        $this->refresh($this->threadPath().'/related', [], fn (array $json) => $this->takeRelated($json), quiet: true, failed: function (): void {
+            $this->related = [];
+            app(ResponseCache::class)->forget($this->threadPath().'/related');
+        });
 
         foreach (array_keys($this->tombstoneReplies) as $id) {
             $id = (string) $id;
 
             $this->refresh('commits/'.rawurlencode($id).'/replies', [], function (array $json) use ($id): void {
                 if (array_key_exists($id, $this->tombstoneReplies)) {
-                    $this->tombstoneReplies[$id] = Page::fromArray($json, Commit::fromArray(...))->items;
+                    [$this->tombstoneReplies[$id], $this->tombstoneCursors[$id]] = self::withFirstPage(
+                        $this->tombstoneReplies[$id],
+                        $this->tombstoneCursors[$id] ?? null,
+                        Page::fromArray($json, Commit::fromArray(...)),
+                    );
                 }
             });
         }
@@ -202,8 +259,9 @@ class CommitDetail extends NativeComponent
     }
 
     /**
-     * Tapping into the reply bar brings the commit being answered to the top:
-     * the earlier commits fold away again and the page starts over from the top.
+     * Tapping into the reply bar brings the commit being answered back up, under
+     * its parent: the earlier commits fold away again and the page starts over
+     * from the top.
      */
     public function replyTapped(): void
     {
@@ -225,12 +283,31 @@ class CommitDetail extends NativeComponent
     public function toggleTombstone(string $id): void
     {
         if (array_key_exists($id, $this->tombstoneReplies)) {
-            unset($this->tombstoneReplies[$id]);
+            unset($this->tombstoneReplies[$id], $this->tombstoneCursors[$id]);
 
             return;
         }
 
         $this->loadTombstoneReplies($id);
+    }
+
+    /**
+     * "Show more" under a deleted reply's replies: its next five, in place.
+     */
+    public function loadMoreTombstoneReplies(string $id): void
+    {
+        $cursor = $this->tombstoneCursors[$id] ?? null;
+
+        if ($cursor === null) {
+            return;
+        }
+
+        $page = $this->attempt(fn ($devnull) => $devnull->replies($id, $cursor));
+
+        if ($page !== null && array_key_exists($id, $this->tombstoneReplies)) {
+            $this->tombstoneReplies[$id] = [...$this->tombstoneReplies[$id], ...$page->items];
+            $this->tombstoneCursors[$id] = $page->nextCursor;
+        }
     }
 
     public function loadMoreReplies(): void
@@ -247,59 +324,71 @@ class CommitDetail extends NativeComponent
 
             $this->replies = [...array_values(array_filter($this->replies, fn (Commit $reply): bool => ! isset($loaded[$reply->id]))), ...$page->items];
             $this->repliesCursor = $page->nextCursor;
+            $this->keepStagedReplies();
         }
     }
 
+    /**
+     * Sends the reply in the bar, with any photos its draft has: the bar
+     * empties, and the reply shows staged under the commit, at once, while it
+     * goes from the outbox.
+     */
     public function sendReply(): void
     {
         $body = trim($this->reply);
+        $me = $this->me();
 
-        if ($this->sendingReply || ! Commit::fits($body)) {
+        if ($me === null || $this->commit === null || $this->commit->isDeleted() || ! Draft::canCommit($body, $this->replyImages)) {
             return;
         }
 
-        $this->sendingReply = true;
+        $write = app(Outbox::class)->add(PendingWrite::Commit, $this->id, [
+            'body' => $body,
+            'parent_id' => $this->id,
+            'images' => PendingWrite::imagePayload($this->replyImages),
+            'stash' => $this->replyStashName(),
+            'composer' => 'bar',
+        ]);
 
-        try {
-            $reply = $this->attempt(fn ($devnull) => $devnull->createCommit($body, $this->id));
-        } finally {
-            $this->sendingReply = false;
-        }
-
-        if ($reply === null) {
+        if ($write === null) {
             return;
         }
 
         $this->reply = '';
+        $this->replyImages = [];
         $this->updatedReply();
-        $this->replies = [...$this->replies, $reply];
         $this->repliesShown = true;
-        $this->openCommit($reply->id);
+        $this->keepStagedReplies();
+        $this->sendFromOutbox($write);
     }
 
     /**
-     * Stashes the reply as it changes. An empty field forgets it, and isn't restored any more.
+     * Stashes the reply as it changes, with its photos. With nothing left in it, it's forgotten, and isn't restored
+     * any more.
      */
     public function updatedReply(): void
     {
-        app(Stash::class)->put($this->me()?->id, $this->replyStashName(), $this->reply);
+        $draft = new StashedDraft($this->reply, $this->replyImages);
+        app(Stash::class)->put($this->me()?->id, $this->replyStashName(), $draft);
 
-        if ($this->reply === '') {
+        if ($draft->isEmpty()) {
             $this->replyRestored = false;
         }
     }
 
     /**
-     * The web's drop, beside a restored reply: it's thrown away, and the field starts again empty.
+     * The web's drop, beside a restored reply: it's thrown away, photos too, and the field starts again empty.
      */
     public function dropReplyStash(): void
     {
+        app(DraftImages::class)->discard($this->replyImages);
         $this->reply = '';
+        $this->replyImages = [];
         $this->updatedReply();
     }
 
     /**
-     * A reply sent from the composer sheet goes under the commit, as one sent from the reply bar does.
+     * A reply sent from the composer sheet goes under the commit, staged, as one sent from the reply bar does.
      */
     protected function showCommitted(Commit $commit): void
     {
@@ -308,18 +397,74 @@ class CommitDetail extends NativeComponent
         }
 
         $this->reply = '';
+        $this->replyImages = [];
         $this->replyRestored = false;
-        $this->replies = [...$this->replies, $commit];
         $this->repliesShown = true;
+        $this->keepStagedReplies();
     }
 
     /**
-     * The reply bar takes back the draft it handed the sheet, as it was left there.
+     * devnull has the reply: the real one takes the staged one's place.
+     */
+    protected function showCommitWent(PendingWrite $write, Commit $commit): void
+    {
+        $staged = PendingWrite::stagedId($write->client_id);
+
+        $this->replies = array_map(fn (Commit $reply): Commit => $reply->id === $staged ? $commit : $reply, $this->replies);
+    }
+
+    /**
+     * devnull turned the reply down: the staged one leaves.
+     */
+    protected function showCommitTurnedDown(PendingWrite $write): void
+    {
+        $this->keepStagedReplies();
+    }
+
+    /**
+     * A reply to this commit from the bar goes back into the bar, marked as
+     * restored, when the bar's free. One from the sheet opens the sheet again,
+     * with its photos.
+     */
+    protected function reopenFailedCommit(PendingWrite $write): bool
+    {
+        if ($write->composer() !== 'bar') {
+            return $this->reopenFailedCommitInSheet($write);
+        }
+
+        if ($write->parentId() !== $this->id || $this->sheetOpen || trim($this->reply) !== '' || $this->replyImages !== []) {
+            return false;
+        }
+
+        $this->takeFailedReply($write);
+
+        return true;
+    }
+
+    /**
+     * Edit, on the toast of a reply from the bar: this commit's bar, or the commit it was for.
+     */
+    protected function editFailedCommit(PendingWrite $write): void
+    {
+        if ($write->composer() !== 'bar' || $write->parentId() !== $this->id) {
+            $this->editFailedCommitInSheet($write);
+
+            return;
+        }
+
+        $this->sheetOpen = false;
+        $this->takeFailedReply($write);
+    }
+
+    /**
+     * The reply bar takes back the draft it handed the sheet, as it was left there, photos too.
      */
     protected function commitSheetGone(string $view): void
     {
         if ($view === 'reply') {
-            $this->reply = app(Stash::class)->get($this->me()?->id, $this->replyStashName());
+            $draft = app(Stash::class)->get($this->me()?->id, $this->replyStashName());
+            $this->reply = $draft->body;
+            $this->replyImages = $draft->images;
             $this->replyRestored = false;
         }
     }
@@ -345,6 +490,7 @@ class CommitDetail extends NativeComponent
         $this->ancestors = array_map($update, $this->ancestors);
         $this->series = array_map($update, $this->series);
         $this->replies = array_map($update, $this->replies);
+        $this->related = array_map($update, $this->related);
         $this->tombstoneReplies = array_map(fn (array $replies): array => array_map($update, $replies), $this->tombstoneReplies);
     }
 
@@ -353,7 +499,46 @@ class CommitDetail extends NativeComponent
      */
     protected function shownCommits(): iterable
     {
-        return [...($this->commit === null ? [] : [$this->commit]), ...$this->ancestors, ...$this->series, ...$this->replies, ...array_merge([], ...array_values($this->tombstoneReplies))];
+        return [...($this->commit === null ? [] : [$this->commit]), ...$this->ancestors, ...$this->series, ...$this->replies, ...$this->related, ...array_merge([], ...array_values($this->tombstoneReplies))];
+    }
+
+    /**
+     * Opened by Edit on the toast of a reply or a quote devnull turned down: its composer, with what it had.
+     */
+    private function editFromData(): void
+    {
+        $id = $this->data('edit');
+        $write = is_numeric($id) ? app(Outbox::class)->find((int) $id) : null;
+
+        if ($write !== null && $write->isCommit() && $write->isFailed()) {
+            $this->editFailedCommit($write);
+        }
+    }
+
+    /**
+     * The bar takes back a reply devnull turned down, with its photos, and the outbox lets it go: it's a draft again.
+     */
+    private function takeFailedReply(PendingWrite $write): void
+    {
+        $this->reply = $write->body();
+        $this->replyImages = $write->images();
+        $this->replyRestored = true;
+        $this->focusReply = true;
+        $this->updatedReply();
+        app(Outbox::class)->forget($write);
+    }
+
+    /**
+     * Your replies to this commit still on their way go after the rest,
+     * staged, oldest first. Ones that went or were turned down while the page
+     * wasn't showing leave, and come back with devnull's replies if they went.
+     */
+    private function keepStagedReplies(): void
+    {
+        $this->replies = [
+            ...array_values(array_filter($this->replies, fn (Commit $reply): bool => ! $reply->isStaged())),
+            ...array_reverse($this->stagedCommits($this->id)),
+        ];
     }
 
     /**
@@ -373,6 +558,17 @@ class CommitDetail extends NativeComponent
         if (($replies = $this->cached($this->threadPath().'/replies')) !== null) {
             $this->takeReplies($replies);
         }
+
+        $this->takeRelated($this->cached($this->threadPath().'/related') ?? []);
+        $this->keepStagedReplies();
+    }
+
+    /**
+     * @param  array<string, mixed>  $json
+     */
+    private function takeRelated(array $json): void
+    {
+        $this->related = Page::fromArray($json, Commit::fromArray(...))->items;
     }
 
     /**
@@ -394,16 +590,33 @@ class CommitDetail extends NativeComponent
      */
     private function takeReplies(array $json): void
     {
-        $page = Page::fromArray($json, Commit::fromArray(...));
-        $fresh = array_flip(array_map(fn (Commit $reply): string => $reply->id, $page->items));
-
-        $later = $this->repliesCursor !== null
-            ? array_values(array_filter(array_slice($this->replies, count($page->items)), fn (Commit $reply): bool => ! isset($fresh[$reply->id])))
-            : [];
-
-        $this->replies = [...$page->items, ...$later];
-        $this->repliesCursor = $later === [] ? $page->nextCursor : $this->repliesCursor;
+        [$this->replies, $this->repliesCursor] = self::withFirstPage($this->replies, $this->repliesCursor, Page::fromArray($json, Commit::fromArray(...)));
         $this->repliesLoaded = true;
+        $this->keepStagedReplies();
+    }
+
+    /**
+     * A fresh first page over the replies showing, and where the next page
+     * starts. Pages loaded after the first stay, past what it holds: there's
+     * a page after it still to load, or more show than a page holds. Staged
+     * replies are left for keepStagedReplies() to put back.
+     *
+     * @param  list<Commit>  $shown
+     * @param  Page<Commit>  $page
+     * @return array{0: list<Commit>, 1: string|null}
+     */
+    private static function withFirstPage(array $shown, ?string $cursor, Page $page): array
+    {
+        $shown = array_values(array_filter($shown, fn (Commit $reply): bool => ! $reply->isStaged()));
+
+        if ($cursor === null && count($shown) <= Client::RepliesPerPage) {
+            return [$page->items, $page->nextCursor];
+        }
+
+        $fresh = array_flip(array_map(fn (Commit $reply): string => $reply->id, $page->items));
+        $later = array_values(array_filter(array_slice($shown, count($page->items)), fn (Commit $reply): bool => ! isset($fresh[$reply->id])));
+
+        return [[...$page->items, ...$later], $later === [] ? $page->nextCursor : $cursor];
     }
 
     private function replyStashName(): string
@@ -422,6 +635,7 @@ class CommitDetail extends NativeComponent
 
         if ($page !== null) {
             $this->tombstoneReplies[$id] = $page->items;
+            $this->tombstoneCursors[$id] = $page->nextCursor;
         }
     }
 
@@ -432,7 +646,8 @@ class CommitDetail extends NativeComponent
 
     public function render(): View
     {
-        $earlier = $this->earlierShown ? [] : $this->ancestors;
+        $earlier = $this->earlierShown ? [] : array_slice($this->ancestors, 0, -1);
+        $above = $this->earlierShown ? $this->ancestors : array_slice($this->ancestors, -1);
         $viewer = $this->me();
         $this->replyRows ??= new RowCache;
         $this->replyRows->startFrame();
@@ -444,9 +659,10 @@ class CommitDetail extends NativeComponent
             'stashed' => app(Stash::class)->names($viewer?->id),
             'pasteis' => app(Account::class)->pasteis(),
             'rows' => $this->commit === null ? [] : Timeline::thread(
-                [...($this->earlierShown ? $this->ancestors : []), $this->commit, ...$this->series],
+                [...$above, $this->commit, ...$this->series],
                 laneAbove: $earlier === [] ? null : end($earlier)->lane(),
             ),
+            'relatedRows' => Timeline::thread($this->related),
             'earlierCount' => $this->commit === null ? 0 : count($earlier),
             'earlierLane' => $earlier === [] ? null : end($earlier)->lane(),
             'replyCount' => max($this->commit->repliesCount ?? 0, count($this->replies)),

@@ -13,6 +13,7 @@ use App\Devnull\ResponseCache;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Carbon\CarbonImmutable;
 use Illuminate\View\View;
@@ -54,6 +55,7 @@ class Notifications extends NativeComponent
     use DrawsSkeletonFirst;
     use OpensInTab;
     use RefreshesInBackground;
+    use SyncsOutbox;
     use TalksToDevnull;
 
     /**

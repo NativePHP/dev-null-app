@@ -48,7 +48,7 @@ it('adds a custom colour to the theme the first time it is drawn, the same in li
 it('draws someone who picked a custom colour on the web in it, on the rail beside their commits', function () {
     signIn();
     serveApi(fn (Request $request) => Http::response(pageJson([
-        commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'lane' => '#1a2b3c'])]),
+        commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => '#1a2b3c'])]),
     ])));
 
     $drawn = drawnIn(Native::visit('/log'), '#1a2b3c');
@@ -61,7 +61,7 @@ it('draws someone who picked a custom colour on the web in it, on the rail besid
 it('draws a profile in its custom colour', function () {
     signIn();
     serveApi([
-        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'lane' => '#c0ffee']), 'is_following' => false]],
+        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => '#c0ffee']), 'is_following' => false]],
         'GET /api/v1/users/ada/commits' => [pageJson([])],
     ]);
 

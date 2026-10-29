@@ -111,14 +111,8 @@ it('lays the series out in order on a part\'s page, the part in focus', function
     ]);
 
     $screen = Native::visit('/log/commits/p2')
-        // The earlier part waits above, the later one follows.
-        ->assertSee('1 earlier commit')
-        ->assertDontSee('Part 1 of the thread')
-        ->assertSee('Part 3 of the thread');
-
-    expect(threadRows($screen))->toBe(['focused-commit', 'commit-p3']);
-
-    $screen->tap('earlier-commits')
+        // The part before it shows above, as the commit it replies to, and the later one follows.
+        ->assertDontSee('earlier commit')
         ->assertSee('Part 1 of the thread')
         ->assertSee('Part 2 of the thread')
         ->assertSee('Part 3 of the thread')
@@ -144,8 +138,8 @@ it('puts a part\'s replies under it, above the later parts, as on the web', func
     fakeApi([
         'GET /api/v1/commits/p1' => [commitPageJson(seriesPartJson(1, overrides: ['replies_count' => 2]), [], [seriesPartJson(2), seriesPartJson(3)])],
         'GET /api/v1/commits/p1/replies' => [pageJson([
-            replyJson(['id' => 'r1', 'parent_id' => 'p1', 'body' => 'Reads well', 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada'])]),
-            replyJson(['id' => 'r2', 'parent_id' => 'p1', 'body' => 'Agreed', 'author' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace'])]),
+            replyJson(['id' => 'r1', 'parent_id' => 'p1', 'body' => 'Reads well', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])]),
+            replyJson(['id' => 'r2', 'parent_id' => 'p1', 'body' => 'Agreed', 'author' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace'])]),
         ], path: 'http://devnull.test/api/v1/commits/p1/replies', perPage: 50)],
     ]);
 

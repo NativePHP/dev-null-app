@@ -7,6 +7,7 @@ use App\Devnull\Data\CommitThread;
 use App\Devnull\Data\Connection;
 use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\DraftImage;
+use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\Notification;
 use App\Devnull\Data\Page;
 use App\Devnull\Data\Profile;
@@ -63,6 +64,11 @@ final readonly class Client
     public const string BlockedPath = 'me/blocked';
 
     /**
+     * Who to follow: three people to show and three spares, the next page of the day's picks for each ?round=.
+     */
+    public const string SuggestedUsersPath = 'me/suggested-users';
+
+    /**
      * Where pastéis mode is switched on and off for the signed-in account.
      */
     public const string PasteisModePath = 'me/pasteis-mode';
@@ -91,6 +97,12 @@ final readonly class Client
      */
     public const string IssuesPath = 'issues';
 
+    /**
+     * How many replies the app asks for at a time. devnull sends 50 a page
+     * unless it's asked for fewer, and the app never asks for more than this.
+     */
+    public const int RepliesPerPage = 5;
+
     public function __construct(private DeviceKey $deviceKey, private string $baseUrl, private ResponseCache $cache) {}
 
     /**
@@ -116,6 +128,14 @@ final readonly class Client
     public static function reactionsPath(int $messageId): string
     {
         return 'remotes/messages/'.$messageId.'/reactions';
+    }
+
+    /**
+     * Where an org's maintainer pins a message for everyone in it, and unpins it.
+     */
+    public static function pinPath(int $messageId): string
+    {
+        return 'remotes/messages/'.$messageId.'/pin';
     }
 
     /**
@@ -225,42 +245,46 @@ final readonly class Client
     }
 
     /**
+     * Signs a commit without sending it, for the outbox to send from the
+     * background, as createCommit() would send it (see Outbox).
+     *
+     * @param  array{options: list<string>, duration: int}|null  $poll
+     */
+    public function signedCommit(string $body, ?string $parentId = null, ?string $quotedCommitId = null, ?array $poll = null): SignedRequest
+    {
+        return $this->signedWrite('POST', 'commits', self::commitPayload($body, $parentId, $quotedCommitId, poll: $poll));
+    }
+
+    /**
      * Signs a commit with images without sending it, for the background to
      * send while the sheet says it's under way, since photos take a while to
-     * upload. devnull takes them as multipart, as from the `devnull commit`
-     * script: the JSON body goes in a payload part beside the images, and the
-     * SHA-256 of each image is signed on a line before it, so the signature
-     * covers them too. Descriptions go along when any photo has one.
+     * upload (see signedWithImages()).
      *
      * @param  list<DraftImage>  $images
      */
     public function signedCommitWithImages(string $body, array $images, ?string $parentId = null, ?string $quotedCommitId = null): SignedRequest
     {
-        $target = $this->target('commits', []);
-        $descriptions = array_map(fn (DraftImage $image): ?string => $image->isDescribed() ? trim($image->description) : null, $images);
-        $payload = self::body(self::commitPayload($body, $parentId, $quotedCommitId, descriptions: array_filter($descriptions) === [] ? [] : $descriptions));
-        $contents = array_map(fn (DraftImage $image): string => (string) file_get_contents($image->path), $images);
-        $boundary = 'devnull-'.bin2hex(random_bytes(16));
+        return $this->signedWithImages('commits', self::commitPayload($body, $parentId, $quotedCommitId), $images);
+    }
 
-        $part = fn (string $name, string $filename, string $type, string $bytes): string => "--{$boundary}\r\n"
-            ."Content-Disposition: form-data; name=\"{$name}\"; filename=\"{$filename}\"\r\n"
-            ."Content-Type: {$type}\r\n\r\n{$bytes}\r\n";
+    /**
+     * Signs a message for a Remotes thread without sending it, for the outbox
+     * to send from the background. devnull stores it once per client id, so
+     * it can go again. One with photos goes as a commit's do (see
+     * signedWithImages()), and may have no text. A voice note goes the same
+     * way, alone, with its waveform and no text (see signedWithVoice()).
+     *
+     * @param  list<DraftImage>  $images
+     */
+    public function signedMessage(string $threadPath, string $body, string $clientId, ?int $replyToId = null, array $images = [], ?MessageVoice $voice = null): SignedRequest
+    {
+        $payload = array_filter(['body' => $body, 'client_id' => $clientId, 'reply_to_id' => $replyToId], fn (mixed $value): bool => $value !== null);
 
-        $body = $part('payload', 'payload.json', 'application/json', $payload);
-
-        foreach ($images as $index => $image) {
-            $body .= $part('images[]', 'image-'.($index + 1).'.'.substr($image->mimeType, 6), $image->mimeType, $contents[$index]);
-        }
-
-        $hashes = implode(',', array_map(fn (string $bytes): string => hash('sha256', $bytes), $contents));
-
-        return new SignedRequest(
-            $this->origin().$target,
-            $this->sign('POST', $target, $hashes."\n".$payload, RequestSigner::ImagesNamespace),
-            'POST',
-            $body."--{$boundary}--\r\n",
-            "multipart/form-data; boundary={$boundary}",
-        );
+        return match (true) {
+            $voice !== null => $this->signedWithVoice($threadPath.'/messages', $clientId, $replyToId, $voice),
+            $images !== [] => $this->signedWithImages($threadPath.'/messages', $payload, $images),
+            default => $this->signedWrite('POST', $threadPath.'/messages', $payload),
+        };
     }
 
     public function deleteCommit(string $id): void
@@ -316,14 +340,16 @@ final readonly class Client
 
     /**
      * People matching a term, each with the web's reason you can't message
-     * them, or add them to a new org, when there is one. Never kept: who you
-     * can reach changes as people follow, block and turn Remotes off.
+     * them, or add them to a new org or the org $orgId, when there is one.
+     * Never kept: who you can reach changes as people follow, block and turn
+     * Remotes off.
      *
      * @return list<array{user: User, reason: string|null}>
      */
-    public function remoteCandidates(string $term, string $for): array
+    public function remoteCandidates(string $term, string $for, ?string $orgId = null): array
     {
-        $candidates = $this->json($this->send('GET', self::RemoteCandidatesPath, ['q' => $term, 'for' => $for]))['candidates'] ?? null;
+        $query = $orgId === null ? ['q' => $term, 'for' => $for] : ['q' => $term, 'org' => $orgId];
+        $candidates = $this->json($this->send('GET', self::RemoteCandidatesPath, $query))['candidates'] ?? null;
 
         return array_values(array_map(
             fn (array $candidate): array => [
@@ -345,6 +371,15 @@ final readonly class Client
         $org = $this->json($this->send('POST', self::OrgsPath, payload: ['name' => $name, 'members' => $members]))['org'] ?? null;
 
         return is_array($org) && is_string($org['id'] ?? null) ? $org['id'] : '';
+    }
+
+    /**
+     * Where an org's members are added, and where one of them is given a role or taken out, which is how you leave
+     * it too, by your own username.
+     */
+    public static function orgMembersPath(string $orgId, ?string $username = null): string
+    {
+        return self::threadPath(orgId: $orgId).'/members'.($username === null ? '' : '/'.rawurlencode($username));
     }
 
     /**
@@ -427,6 +462,14 @@ final readonly class Client
     {
         $this->send('DELETE', 'users/'.rawurlencode($username).'/follow');
         $this->cache->followChanged(rawurlencode($username), false);
+    }
+
+    /**
+     * Not interested, as the web's who to follow says it: devnull never suggests them again.
+     */
+    public function dismissSuggestion(string $username): void
+    {
+        $this->send('POST', 'users/'.rawurlencode($username).'/dismiss');
     }
 
     /**
@@ -527,7 +570,7 @@ final readonly class Client
      */
     public function signedGet(string $path, array $query = []): SignedRequest
     {
-        $target = $this->target($path, $query);
+        $target = $this->target($path, self::paged($path, $query));
 
         return new SignedRequest($this->origin().$target, $this->sign('GET', $target, ''));
     }
@@ -544,6 +587,72 @@ final readonly class Client
         $body = self::body($payload);
 
         return new SignedRequest($this->origin().$target, $this->sign($method, $target, $body), $method, $body);
+    }
+
+    /**
+     * Signs a write with images, as devnull takes them from the `devnull
+     * commit` script: multipart, the JSON body in a payload part beside the
+     * images, with the SHA-256 of each image signed on a line before it so the
+     * signature covers them too. Descriptions go along when any photo has one.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  list<DraftImage>  $images
+     */
+    private function signedWithImages(string $path, array $payload, array $images): SignedRequest
+    {
+        $target = $this->target($path, []);
+        $descriptions = array_map(fn (DraftImage $image): ?string => $image->isDescribed() ? trim($image->description) : null, $images);
+        $payload = self::body(array_filter($descriptions) === [] ? $payload : [...$payload, 'image_descriptions' => $descriptions]);
+        $files = array_map(fn (DraftImage $image, int $index): array => [
+            'images[]', 'image-'.($index + 1).'.'.substr($image->mimeType, 6), $image->mimeType, (string) file_get_contents($image->path),
+        ], $images, array_keys($images));
+
+        return $this->signedMultipart($target, $payload, $files);
+    }
+
+    /**
+     * Signs a voice note, as devnull takes one: multipart like a write with
+     * images, the recording alone in a voice part, its SHA-256 the line
+     * signed before the body, and the waveform the phone drew from it in the
+     * payload, since devnull never decodes it.
+     */
+    private function signedWithVoice(string $path, string $clientId, ?int $replyToId, MessageVoice $voice): SignedRequest
+    {
+        $payload = array_filter(['client_id' => $clientId, 'reply_to_id' => $replyToId, 'voice_waveform' => $voice->waveform], fn (mixed $value): bool => $value !== null);
+
+        return $this->signedMultipart($this->target($path, []), self::body($payload), [
+            ['voice', 'voice-note.wav', 'audio/wav', (string) file_get_contents($voice->url)],
+        ]);
+    }
+
+    /**
+     * The payload part, then each file, with the files' SHA-256 signed on a line before the body.
+     *
+     * @param  list<array{string, string, string, string}>  $files  each one's field, filename, type and bytes
+     */
+    private function signedMultipart(string $target, string $payload, array $files): SignedRequest
+    {
+        $boundary = 'devnull-'.bin2hex(random_bytes(16));
+
+        $part = fn (string $name, string $filename, string $type, string $bytes): string => "--{$boundary}\r\n"
+            ."Content-Disposition: form-data; name=\"{$name}\"; filename=\"{$filename}\"\r\n"
+            ."Content-Type: {$type}\r\n\r\n{$bytes}\r\n";
+
+        $body = $part('payload', 'payload.json', 'application/json', $payload);
+
+        foreach ($files as [$name, $filename, $type, $bytes]) {
+            $body .= $part($name, $filename, $type, $bytes);
+        }
+
+        $hashes = implode(',', array_map(fn (array $file): string => hash('sha256', $file[3]), $files));
+
+        return new SignedRequest(
+            $this->origin().$target,
+            $this->sign('POST', $target, $hashes."\n".$payload, RequestSigner::ImagesNamespace),
+            'POST',
+            $body."--{$boundary}--\r\n",
+            "multipart/form-data; boundary={$boundary}",
+        );
     }
 
     /**
@@ -572,7 +681,7 @@ final readonly class Client
      */
     private function get(string $path, array $query = []): array
     {
-        $json = $this->json($this->send('GET', $path, $query));
+        $json = $this->json($this->send('GET', $path, self::paged($path, $query)));
         $this->cache->put($path, $query, $json);
         ImageCache::prefetch($json);
 
@@ -634,19 +743,17 @@ final readonly class Client
     /**
      * What a commit sends, leaving out what it doesn't have.
      *
-     * @param  list<string|null>  $descriptions
      * @param  array{options: list<string>, duration: int}|null  $poll
      * @return array<string, mixed>
      */
-    private static function commitPayload(string $body, ?string $parentId, ?string $quotedCommitId, array $descriptions = [], ?array $poll = null): array
+    private static function commitPayload(string $body, ?string $parentId, ?string $quotedCommitId, ?array $poll = null): array
     {
         return array_filter([
             'body' => $body,
             'parent_id' => $parentId,
             'quoted_commit_id' => $quotedCommitId,
-            'image_descriptions' => $descriptions,
             'poll' => $poll,
-        ], fn (mixed $value): bool => $value !== null && $value !== []);
+        ], fn (mixed $value): bool => $value !== null);
     }
 
     /**
@@ -685,6 +792,19 @@ final readonly class Client
     {
         return (new RequestSigner($this->deviceKey->current()))
             ->headers($method, $target, $body, CarbonImmutable::now()->getTimestamp(), RequestSigner::nonce(), $namespace);
+    }
+
+    /**
+     * A GET's query with the page size the app asks for: a page of replies
+     * holds RepliesPerPage. The size isn't part of what the answer's kept
+     * under, as every page of replies has it.
+     *
+     * @param  array<string, string|null>  $query
+     * @return array<string, string|null>
+     */
+    private static function paged(string $path, array $query): array
+    {
+        return preg_match('#^commits/[^/]+/replies$#', $path) === 1 ? [...$query, 'limit' => (string) self::RepliesPerPage] : $query;
     }
 
     /**

@@ -42,7 +42,7 @@ function openPollJson(array $overrides = [], bool $results = false): array
  */
 function pollOnLog(array $commit = [], ?array $answer = null): TestableComponent
 {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada']);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada']);
 
     serveApi([
         'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'Tabs or spaces?', 'author' => $ada, 'poll' => openPollJson(), ...$commit])])],
@@ -87,7 +87,7 @@ it('spins Vote while the vote goes, and says why devnull turned it down, keeping
 
     expect(nodeByRef($screen, 'poll-vote-c1')['props'])->toMatchArray(['loading' => true, 'disabled' => true]);
 
-    finishRefreshes($screen)->assertNativeCalled('Dialog.Toast', fn (array $params): bool => $params['message'] === 'This poll has closed.');
+    finishRefreshes($screen)->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'This poll has closed.');
 
     expect(nodeByRef($screen, 'poll-vote-c1')['props'])->not->toHaveKey('loading')
         ->and($screen->instance()->pollChoices)->toBe(['c1' => 'o1']);

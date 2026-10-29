@@ -10,11 +10,16 @@ use Carbon\CarbonImmutable;
  * its body, drawn from its segments the way a commit's is, the message it
  * replies to (only as much as the web's ghost shows), its link card, images
  * and reactions. In an org it says who wrote it, and an org's history also
- * logs who joined and left as messages with an event.
+ * logs who joined and left as messages with an event. A ping, as MSN
+ * Messenger had, is an event too, in an org or with one person.
+ *
+ * A voice note goes on its own, with no text or images, and plays from the
+ * URL devnull signed for you (see MessageVoice).
  *
  * A message you've just pushed shows straight away, as the web's do: staged
- * until devnull has it, or rejected with a retry when it couldn't take it.
- * Until then its id is 0 and its client id is what ties the two together.
+ * until devnull has it, or rejected with a retry when it couldn't take it,
+ * its photos or voice note drawn from the phone meanwhile. Until then its id
+ * is 0 and its client id is what ties the two together.
  */
 final readonly class Message
 {
@@ -29,9 +34,16 @@ final readonly class Message
 
     public const string Rejected = 'rejected';
 
+    public const string Ping = 'ping';
+
+    /**
+     * The key of the voice note waiting in the composer, which no message has (see voiceKey()).
+     */
+    public const string DraftVoice = 'draft';
+
     /**
      * @param  list<BodyBlock>  $content
-     * @param  array{id: int, user_id: string, body: string, images_count: int}|null  $replyTo
+     * @param  array{id: int, user_id: string, body: string, images_count: int, has_voice: bool}|null  $replyTo
      * @param  list<CommitImage>  $images
      * @param  list<array{user_id: string, emoji: string}>  $reactions
      */
@@ -46,6 +58,7 @@ final readonly class Message
         public ?LinkPreview $linkPreview = null,
         public bool $linkPreviewPending = false,
         public array $images = [],
+        public ?MessageVoice $voice = null,
         public array $reactions = [],
         public ?string $event = null,
         public ?string $subjectId = null,
@@ -83,6 +96,7 @@ final readonly class Message
                 'user_id' => (string) ($replyTo['user_id'] ?? ''),
                 'body' => is_string($replyTo['body'] ?? null) ? $replyTo['body'] : '',
                 'images_count' => (int) ($replyTo['images_count'] ?? 0),
+                'has_voice' => ($replyTo['has_voice'] ?? false) === true,
             ],
             linkPreview: $preview === null ? null : LinkPreview::fromArray($preview),
             linkPreviewPending: ($preview['is_pending'] ?? false) === true,
@@ -90,6 +104,7 @@ final readonly class Message
                 fn (mixed $image): ?CommitImage => is_array($image) ? CommitImage::fromArray($image) : null,
                 is_array($data['images'] ?? null) ? $data['images'] : [],
             ))),
+            voice: MessageVoice::fromArray($data['voice'] ?? null),
             reactions: self::reactionsFrom($data['reactions'] ?? []),
             event: is_string($data['event'] ?? null) ? $data['event'] : null,
             subjectId: is_string($data['subject_id'] ?? null) ? $data['subject_id'] : null,
@@ -101,8 +116,10 @@ final readonly class Message
 
     /**
      * A message you're pushing, shown staged until devnull has it.
+     *
+     * @param  list<DraftImage>  $images
      */
-    public static function staged(string $userId, string $clientId, string $body, ?self $replyTo = null): self
+    public static function staged(string $userId, string $clientId, string $body, ?self $replyTo = null, array $images = [], ?MessageVoice $voice = null): self
     {
         return new self(
             id: 0,
@@ -111,7 +128,9 @@ final readonly class Message
             body: $body,
             content: CommitBody::blocks($body, null),
             replyToId: $replyTo?->id,
-            replyTo: $replyTo === null ? null : ['id' => $replyTo->id, 'user_id' => $replyTo->userId, 'body' => $replyTo->body, 'images_count' => count($replyTo->images)],
+            replyTo: $replyTo === null ? null : ['id' => $replyTo->id, 'user_id' => $replyTo->userId, 'body' => $replyTo->body, 'images_count' => count($replyTo->images), 'has_voice' => $replyTo->voice !== null],
+            images: array_map(fn (DraftImage $image, int $index): CommitImage => $image->asCommitImage($index), $images, array_keys($images)),
+            voice: $voice,
             createdAt: CarbonImmutable::now(),
             status: self::Staged,
         );
@@ -150,9 +169,23 @@ final readonly class Message
         return new self(...[...get_object_vars($this), 'linkPreview' => $linkPreview, 'linkPreviewPending' => $pending]);
     }
 
+    /**
+     * What the thread knows its voice note by while it plays: its client id, which a message you pushed keeps once
+     * devnull has it.
+     */
+    public function voiceKey(): string
+    {
+        return $this->clientId !== '' ? $this->clientId : (string) $this->id;
+    }
+
     public function isEvent(): bool
     {
         return $this->event !== null;
+    }
+
+    public function isPing(): bool
+    {
+        return $this->event === self::Ping;
     }
 
     public function isPending(): bool
@@ -192,8 +225,8 @@ final readonly class Message
 
     /**
      * The one line a row of the inbox shows of the last message, as the web words it: "you: …" for yours, the first
-     * name in an org for someone else's, "sent an image" for a message that is only images, and the event for an
-     * org's log line.
+     * name in an org for someone else's, "sent a voice note" or "sent an image" for a message with no text, and the
+     * event for an org's log line.
      */
     public function preview(?string $viewerId, bool $inOrg): string
     {
@@ -202,7 +235,7 @@ final readonly class Message
         }
 
         $text = trim((string) preg_replace('/\s+/', ' ', $this->body));
-        $text = $text === '' ? 'sent an image' : $text;
+        $text = $text === '' ? ($this->voice !== null ? 'sent a voice note' : 'sent an image') : $text;
 
         return match (true) {
             $this->userId === $viewerId => 'you: '.$text,
@@ -212,7 +245,8 @@ final readonly class Message
     }
 
     /**
-     * An org event, as the web logs it between messages: who did it, and to whom.
+     * An event, as the web logs it between messages: who did it, and to whom. In a thread with one person devnull
+     * leaves the author off a ping, since it can only be them.
      */
     public function eventText(?string $viewerId, ?string $orgName = null): string
     {
@@ -228,28 +262,46 @@ final readonly class Message
             'promoted' => "{$actor} made {$subject} a maintainer",
             'demoted' => "{$actor} made {$subject} a contributor",
             'inherited' => "{$actor} inherited maintainer",
+            self::Ping => match (true) {
+                $this->userId === $viewerId => 'you sent a ping',
+                $this->user !== null => "{$actor} sent a ping",
+                default => 'you got a ping',
+            },
             default => $actor,
         };
     }
 
     /**
      * What the ghost of a reply shows of the message it answers: one line of its body with the code and links
-     * stripped, or that it was only images.
+     * stripped, or that it was a voice note or only images.
      */
     public function replySnippet(): string
     {
-        if ($this->replyTo === null) {
-            return '';
+        return $this->replyTo === null ? '' : self::snippetOf($this->replyTo['body'], $this->replyTo['images_count'], $this->replyTo['has_voice'] ?? false);
+    }
+
+    /**
+     * The message itself in one line, as the ghost of a reply shows it, for the pinned bar over an org's thread.
+     */
+    public function snippet(): string
+    {
+        return self::snippetOf($this->body, count($this->images), $this->voice !== null);
+    }
+
+    private static function snippetOf(string $body, int $images, bool $hasVoice = false): string
+    {
+        if ($hasVoice) {
+            return 'Voice note';
         }
 
-        $text = (string) preg_replace('/```[\s\S]*?```/', ' code ', $this->replyTo['body']);
+        $text = (string) preg_replace('/```[\s\S]*?```/', ' code ', $body);
         $text = trim((string) preg_replace('/\s+/', ' ', (string) preg_replace(['/`/', '#https?://#i'], '', $text)));
 
         if ($text !== '') {
             return $text;
         }
 
-        return $this->replyTo['images_count'] > 1 ? $this->replyTo['images_count'].' images' : 'Image';
+        return $images > 1 ? $images.' images' : 'Image';
     }
 
     /**

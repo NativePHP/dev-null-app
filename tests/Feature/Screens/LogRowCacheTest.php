@@ -2,6 +2,7 @@
 
 use App\Devnull\Account;
 use App\Devnull\Data\Pasteis;
+use App\Devnull\Data\StashedDraft;
 use App\Devnull\ImageCache;
 use App\Devnull\Stash;
 use App\NativeComponents\Log;
@@ -16,13 +17,13 @@ beforeEach(function () {
     File::ensureDirectoryExists(ImageCache::directory());
     signIn();
 
-    $grace = userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace']);
+    $grace = userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace']);
     $long = str_repeat('A commit long enough to fold. ', 12).'The very end.';
 
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([
             commitJson(['id' => 'c3', 'body' => $long, 'preview_segments' => [['type' => 'text', 'text' => substr($long, 0, 270).'…']]]),
-            commitJson(['id' => 'c2', 'replies_count' => 1, 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'avatar_url' => 'https://avatars.githubusercontent.com/u/2?v=4'])]),
+            commitJson(['id' => 'c2', 'replies_count' => 1, 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'avatar_url' => 'https://avatars.githubusercontent.com/u/2?v=4'])]),
             commitJson(['id' => 'c1', 'body' => 'The oldest commit', 'author' => $grace]),
         ])],
         'GET /api/v1/commits/c2/replies' => [pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'A reply in place'])])],
@@ -61,7 +62,7 @@ it('draws a kept row as building it again would, whatever changed', function () 
         'a commit unfolded' => fn () => $screen->tap('show-more-c3'),
         'a thread opened' => fn () => $screen->tap('replies-c2')->assertSee('A reply in place'),
         'a draft stashed' => function () use ($screen) {
-            app(Stash::class)->put(app(Account::class)->user()?->id, 'reply-c1', 'Half a reply');
+            app(Stash::class)->put(app(Account::class)->user()?->id, 'reply-c1', new StashedDraft('Half a reply'));
             $screen->call('isRanked');
         },
         'pastéis mode' => function () use ($screen) {

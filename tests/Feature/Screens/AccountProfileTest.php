@@ -200,7 +200,7 @@ it('syncs from GitHub with a spinner until devnull answers, then shows the fresh
         && $request->body() === ''
         && $request->hasHeader('X-SSH-Signature'));
     expect(collect(Http::recorded())->filter(fn (array $sent): bool => $sent[0]->method() === 'PUT'))->toHaveCount(1);
-    $bridge->assertNotCalled('Dialog.Toast');
+    $bridge->assertNotCalled('ToastKit.Show');
 });
 
 it('gives your profile on the Profile tab the synced name at once', function () {
@@ -237,7 +237,7 @@ it('says in the section why it could not sync, and keeps what it showed', functi
         ->and(nodeByRef($screen, 'sync-github')['props'])->not->toHaveKey('disabled')
         ->and(app(Account::class)->user()?->name)->toBe('Kept Name');
 
-    $bridge->assertNotCalled('Dialog.Toast');
+    $bridge->assertNotCalled('ToastKit.Show');
 })->with([
     'GitHub could not be reached' => [503, ['message' => 'Whatever devnull words it as.', 'code' => ErrorCode::GitHubSyncFailed->value], 'Could not sync from GitHub. Try again in a minute.'],
     'synced a moment ago' => [429, ['message' => 'You just synced. Try again in a minute.', 'code' => 'rate_limited'], 'You just synced. Try again in a minute.'],

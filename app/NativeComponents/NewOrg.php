@@ -3,12 +3,13 @@
 namespace App\NativeComponents;
 
 use App\Devnull\Client;
-use App\Devnull\Data\User;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Exceptions\Unauthenticated;
 use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\PicksPeople;
 use App\NativeComponents\Concerns\SearchesPeople;
+use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
@@ -22,7 +23,9 @@ use Native\Mobile\Edge\NativeComponent;
 class NewOrg extends NativeComponent
 {
     use OpensInTab;
+    use PicksPeople;
     use SearchesPeople;
+    use SyncsOutbox;
     use TalksToDevnull;
 
     /**
@@ -34,15 +37,7 @@ class NewOrg extends NativeComponent
 
     public string $name = '';
 
-    /** @var list<User> */
-    public array $picked = [];
-
     public bool $creating = false;
-
-    /**
-     * Why devnull wouldn't create it, in its words, beside the button as on the web.
-     */
-    public ?string $createError = null;
 
     public function navTitle(): string
     {
@@ -54,28 +49,6 @@ class NewOrg extends NativeComponent
         $this->searchPeople('org');
     }
 
-    /**
-     * Picks someone, or takes them back out. Someone who can't join, or anyone once the org is full, can't be picked.
-     */
-    public function toggle(string $username): void
-    {
-        $this->createError = null;
-
-        if ($this->isPicked($username)) {
-            $this->picked = array_values(array_filter($this->picked, fn (User $person): bool => $person->username !== $username));
-
-            return;
-        }
-
-        $candidate = $this->candidate($username);
-
-        if ($candidate === null || $candidate['reason'] !== null || $this->isFull()) {
-            return;
-        }
-
-        $this->picked = [...$this->picked, $candidate['user']];
-    }
-
     public function create(): void
     {
         if ($this->picked === [] || $this->creating) {
@@ -83,24 +56,24 @@ class NewOrg extends NativeComponent
         }
 
         $this->creating = true;
-        $this->createError = null;
+        $this->pickError = null;
 
         try {
             $id = app(Client::class)->createOrg(
                 trim($this->name) === '' ? null : trim($this->name),
-                array_map(fn (User $person): string => $person->username, $this->picked),
+                $this->pickedUsernames(),
             );
         } catch (Unauthenticated $exception) {
             $this->signOut($exception);
 
             return;
         } catch (ApiException $exception) {
-            $this->createError = $exception->firstError();
+            $this->pickError = $exception->firstError();
             $this->creating = false;
 
             return;
         } catch (KeychainUnavailable $exception) {
-            $this->createError = $exception->getMessage();
+            $this->pickError = $exception->getMessage();
             $this->creating = false;
 
             return;
@@ -111,34 +84,20 @@ class NewOrg extends NativeComponent
 
     public function render(): View
     {
-        $isFull = $this->isFull();
-
         return view('native.new-org', [
             'term' => $this->term(),
-            'total' => 1 + count($this->picked),
-            'isFull' => $isFull,
+            'total' => $this->total(),
+            'isFull' => $this->isFull(),
             'myColour' => $this->myColour(),
-            'rows' => array_map(fn (array $candidate): array => [
-                'user' => $candidate['user'],
-                'isPicked' => $this->isPicked($candidate['user']->username),
-                'reason' => $candidate['reason'] ?? ($isFull && ! $this->isPicked($candidate['user']->username) ? 'the org is full ('.self::MaxMembers.')' : null),
-            ], $this->candidates),
+            'rows' => $this->candidateRows(),
         ]);
     }
 
-    private function isPicked(string $username): bool
+    /**
+     * You, since you maintain it.
+     */
+    protected function alreadyIn(): int
     {
-        foreach ($this->picked as $person) {
-            if ($person->username === $username) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function isFull(): bool
-    {
-        return 1 + count($this->picked) >= self::MaxMembers;
+        return 1;
     }
 }

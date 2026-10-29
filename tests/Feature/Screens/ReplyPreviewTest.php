@@ -11,7 +11,7 @@ beforeEach(function () {
 
 function grace(): array
 {
-    return userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace', 'lane' => 4]);
+    return userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace', 'lane' => 4]);
 }
 
 /**
@@ -27,7 +27,7 @@ function previewedJson(array $replies, bool $more = false, array $overrides = []
         'id' => 'c1',
         'body' => 'Ship it?',
         'replies_count' => count($replies) + ($more ? 2 : 0),
-        'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'lane' => 1]),
+        'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 1]),
         'reply_preview' => ['data' => $replies, 'next_cursor' => $more ? 'eyJjcmVhdGVkX2F0IjoiMjAyNiJ9' : null],
         ...$overrides,
     ]);
@@ -120,7 +120,7 @@ it('opens the rest of the thread in place, newest first, from Show more', functi
     expect(dashColours(nodeByRef($screen, 'thread-reply-r2')))->toContain(config('native-ui.theme.light.lane-4'))
         ->and(findNode(nodeByRef($screen, 'thread-reply-r2'), fn (array $node): bool => ($node['ref'] ?? null) === 'thread-elbow'))->toBeNull();
 
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/c1/replies');
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/c1/replies?limit=5');
 });
 
 it('opens Show more at once from the thread kept last time, and refreshes it behind', function () {
@@ -138,13 +138,18 @@ it('opens Show more at once from the thread kept last time, and refreshes it beh
         ->and(refreshesSent($screen))->toBeGreaterThan(1);
 });
 
-it('opens the commit instead when its thread is longer than a page', function () {
+it('opens the commit with its replies showing instead when its thread is longer than a page', function () {
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([previewedJson([replyJson(['id' => 'r60', 'parent_id' => 'c1'])], more: true)])],
-        'GET /api/v1/commits/c1/replies' => [pageJson(array_map(fn (int $n): array => replyJson(['id' => "r{$n}", 'parent_id' => 'c1']), range(1, 50)), 'page2')],
+        'GET /api/v1/commits/c1/replies' => [pageJson(array_map(fn (int $n): array => replyJson(['id' => "r{$n}", 'parent_id' => 'c1']), range(1, 5)), 'page2')],
+        'GET /api/v1/commits/c1' => [commitPageJson(previewedJson([], more: true))],
     ]);
 
-    Native::visit('/log', platform: 'ios')->tap('more-replies-c1')->assertNavigatedTo('/log/commits/c1');
+    Native::visit('/log', platform: 'ios')
+        ->tap('more-replies-c1')
+        ->assertNavigatedTo('/log/commits/c1')
+        ->follow()
+        ->assertSet('repliesShown', true);
 });
 
 it('stars a reply in the thread in place', function () {
@@ -159,8 +164,49 @@ it('stars a reply in the thread in place', function () {
         ->and($screen->instance()->commits[0]->replyPreview->replies[0]->starsCount)->toBe(1);
 });
 
+it('keeps the thread under a commit you star below a quote of it, and unstars it on the next tap', function () {
+    $quoted = previewedJson([]);
+    unset($quoted['reply_preview']);
+
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([
+            commitJson(['id' => 'q1', 'body' => 'Look at this', 'quoted_commit_id' => 'c1', 'quoted_commit' => $quoted]),
+            previewedJson([replyJson(['id' => 'r9', 'parent_id' => 'c1', 'body' => 'The newest reply', 'author' => grace()])]),
+        ])],
+        'POST /api/v1/commits/c1/star' => [['data' => commitJson(['id' => 'c1', 'stars_count' => 1, 'starred' => true])]],
+        'DELETE /api/v1/commits/c1/star' => [['data' => commitJson(['id' => 'c1', 'stars_count' => 0, 'starred' => false])]],
+    ]);
+    $screen = Native::visit('/log', platform: 'ios');
+
+    $screen->tap('star-c1')->assertSee('The newest reply');
+    $starred = $screen->instance()->commits[1]->starred;
+    $screen->tap('star-c1');
+
+    expect($starred)->toBeTrue()
+        ->and($screen->instance()->commits[1]->starred)->toBeFalse()
+        ->and(sentTo('DELETE', 'commits/c1/star'))->toHaveCount(1);
+});
+
+it('keeps the thread under a commit you star that is also the reply previewed under its parent', function () {
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([])],
+        'GET /api/v1/log/latest' => [pageJson([
+            previewedJson([replyJson(['id' => 'c1', 'parent_id' => 'p1', 'body' => 'Ship it?', 'replies_count' => 1])], overrides: ['id' => 'p1', 'body' => 'Should we ship?']),
+            previewedJson([replyJson(['id' => 'r9', 'parent_id' => 'c1', 'body' => 'The newest reply', 'author' => grace()])], overrides: ['parent_id' => 'p1']),
+        ], path: 'http://devnull.test/api/v1/log/latest')],
+        'POST /api/v1/commits/c1/star' => [['data' => commitJson(['id' => 'c1', 'stars_count' => 1, 'starred' => true])]],
+    ]);
+    $screen = tapLogTab(Native::visit('/log', platform: 'ios'), 'latest');
+
+    $screen->call('toggleStar', 'c1');
+
+    $screen->assertSee('The newest reply');
+    expect($screen->instance()->commits[0]->replyPreview->replies[0]->starred)->toBeTrue()
+        ->and($screen->instance()->commits[1]->starred)->toBeTrue();
+});
+
 it("runs the commit's rail on past its thread when the author's run carries on below", function () {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'lane' => 1]);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 1]);
 
     Http::fake(['devnull.test/*' => Http::response(pageJson([
         previewedJson([replyJson(['id' => 'r1', 'parent_id' => 'c1', 'author' => grace()])], overrides: ['id' => 'c2', 'author' => $ada]),
@@ -177,7 +223,7 @@ it("runs the commit's rail on past its thread when the author's run carries on b
 });
 
 it('ends a commit alone in its run with a dot, and joins a run of one author', function () {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada', 'lane' => 1]);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada', 'lane' => 1]);
 
     Http::fake(['devnull.test/*' => Http::response(pageJson([
         commitJson(['id' => 'c3', 'author' => $ada]),

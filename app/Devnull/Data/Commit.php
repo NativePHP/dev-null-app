@@ -39,6 +39,12 @@ final readonly class Commit
     public const int PreviewLines = 8;
 
     /**
+     * The status of a commit you made that devnull doesn't have yet, which
+     * stands in for it on the screen (see PendingWrite::stagedCommit()).
+     */
+    public const string Staged = 'staged';
+
+    /**
      * @param  list<Mention>  $mentions
      * @param  list<CommitImage>  $images
      * @param  list<BodyBlock>  $content
@@ -219,6 +225,22 @@ final readonly class Commit
     }
 
     /**
+     * This commit with $update applied to the commit it quotes, as its card draws it.
+     *
+     * @param  Closure(Commit): Commit  $update
+     */
+    public function withQuotedCommit(Closure $update): self
+    {
+        $quoted = $this->quotedCommit === null ? null : $update($this->quotedCommit);
+
+        if ($quoted === $this->quotedCommit) {
+            return $this;
+        }
+
+        return new self(...[...get_object_vars($this), 'quotedCommit' => $quoted]);
+    }
+
+    /**
      * Whether it quotes a commit, even one you may no longer see.
      */
     public function isQuote(): bool
@@ -295,6 +317,14 @@ final readonly class Commit
     public function isPending(): bool
     {
         return $this->status === 'pending';
+    }
+
+    /**
+     * Whether this is a commit still on its way to devnull, standing in for the one it will become.
+     */
+    public function isStaged(): bool
+    {
+        return $this->status === self::Staged;
     }
 
     public function isApproved(): bool
