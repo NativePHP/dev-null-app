@@ -15,8 +15,6 @@ use App\Devnull\RowWindow;
 use App\Devnull\ShownTabs;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
-use App\Icons\Android;
-use App\Icons\Ios;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
@@ -32,8 +30,6 @@ use Closure;
 use Illuminate\View\View;
 use Native\Mobile\Attributes\Poll;
 use Native\Mobile\Edge\Element;
-use Native\Mobile\Edge\Layouts\Builders\NavAction;
-use Native\Mobile\Edge\Layouts\Builders\NavBarOptions;
 use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Events\Async\AsyncTaskFailed;
 use Native\Mobile\Events\Async\AsyncTaskFinished;
@@ -45,7 +41,7 @@ use Native\Mobile\Events\Async\AsyncTaskFinished;
  * EDGE gives PHP no way to scroll a list, so a new key on the list is how it
  * gets back to the top.
  *
- * The Log has no composer of its own. The nav bar's compose button opens one
+ * The Log has no composer of its own. The floating compose button opens one
  * in a sheet (see OpensCommitSheet), which leaves the log where you were in it,
  * and the commit goes on top. A field in the list was redrawn with the whole
  * log every time it synced, and fast typing lost and reordered letters.
@@ -322,16 +318,6 @@ class Log extends NativeComponent
     public function navTitle(): string
     {
         return 'devnull';
-    }
-
-    public function navigationOptions(): ?NavBarOptions
-    {
-        return NavBarOptions::make()->action(
-            NavAction::make('compose')
-                ->icon(ios: Ios::SquareAndPencil, android: Android::Edit)
-                ->a11yLabel('New commit')
-                ->press('composeInSheet'),
-        );
     }
 
     /**

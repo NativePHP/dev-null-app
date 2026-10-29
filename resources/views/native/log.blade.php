@@ -44,3 +44,14 @@
         </native:pager-overlay>
     </native:pager>
 </native:column>
+
+@if ($viewer !== null && ! $sheetOpen)
+    <native:fab
+        ref="compose-fab"
+        icon="edit"
+        bottom-offset="72"
+        edge-offset="20"
+        a11y-label="New commit"
+        @tap="composeInSheet"
+    />
+@endif

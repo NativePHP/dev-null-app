@@ -13,7 +13,7 @@ beforeEach(function () {
 });
 
 /**
- * A Following log with one commit of Ada's, its new commit answered with $answer, and the sheet's composer open from the nav bar.
+ * A Following log with one commit of Ada's, its new commit answered with $answer, and the sheet's composer open from the floating button.
  *
  * @param  array{0: mixed, 1?: int}|null  $answer
  */
@@ -24,7 +24,7 @@ function composeSheetOnLog(?array $answer = null, string $platform = 'ios'): Tes
         'POST /api/v1/commits' => $answer ?? [['data' => commitJson(['id' => '0199e5c4-2222-7000-8000-00000000cafe', 'body' => 'Shipped from the sheet.'])], 201],
     ]);
 
-    return Native::visit('/log', platform: $platform)->press('composeInSheet');
+    return Native::visit('/log', platform: $platform)->tap('compose-fab');
 }
 
 function sheetCommitDisabled(TestableComponent $screen): bool
@@ -32,13 +32,13 @@ function sheetCommitDisabled(TestableComponent $screen): bool
     return ! sheetButtonEnabled($screen, 'sheet-commit');
 }
 
-it('opens a composer in the sheet from the nav bar, over the log where you are in it', function () {
+it('opens a composer in the sheet from the floating button, over the log where you are in it', function () {
     fakeApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1'])])]]);
 
     $screen = Native::visit('/log', platform: 'ios');
     $list = nodeByRef($screen, 'log')['id'];
 
-    $screen->press('composeInSheet')
+    $screen->tap('compose-fab')
         ->assertNoNavigation()
         ->assertSee('New commit')
         ->assertMissingElement('column', fn (array $node): bool => ($node['ref'] ?? null) === 'quote-card');
@@ -183,7 +183,7 @@ it('opens the sheet again at once on Android, whose sheet never says it has gone
     $screen->tap('sheet-cancel');
     expect($screen->instance()->sheetClosing)->toBeFalse();
 
-    $screen->press('composeInSheet')->input('sheet-body', 'Once more')->tap('sheet-commit');
+    $screen->tap('compose-fab')->input('sheet-body', 'Once more')->tap('sheet-commit');
 
     expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
         ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('Once more');
@@ -214,7 +214,7 @@ it('keeps the draft when the sheet is swiped away, and opens on it again, marked
     expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeFalse()
         ->and($screen->instance()->sheetBody)->toBe('');
 
-    $screen->press('composeInSheet');
+    $screen->tap('compose-fab');
 
     expect(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('Half a thought')
         ->and(nodeByRef($screen, 'sheet-stash'))->not->toBeEmpty()
@@ -228,7 +228,7 @@ it('closes the sheet from Cancel in its bar, keeping the draft as a swipe does',
 
     expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeFalse();
 
-    $screen->dismissSheet('sheet')->press('composeInSheet');
+    $screen->dismissSheet('sheet')->tap('compose-fab');
 
     expect(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('Half a thought')
         ->and(nodeByRef($screen, 'sheet-stash'))->not->toBeEmpty();
@@ -236,7 +236,7 @@ it('closes the sheet from Cancel in its bar, keeping the draft as a swipe does',
 
 it('draws Cancel and Commit as a cross and a check in circles, 16pt in from the top and sides, on both platforms', function (string $platform) {
     fakeApi(['GET /api/v1/log/following' => [pageJson([])]]);
-    $screen = Native::visit('/log', platform: $platform)->press('composeInSheet')->input('sheet-body', 'Shipped it');
+    $screen = Native::visit('/log', platform: $platform)->tap('compose-fab')->input('sheet-body', 'Shipped it');
     $bar = findNode($screen->tree(), fn (array $node): bool => in_array('sheet-cancel', array_column($node['children'] ?? [], 'ref'), true));
     $size = fn (string $ref): array => [sheetButtonCircle($screen, $ref)['layout']['width'], sheetButtonCircle($screen, $ref)['layout']['height']];
 
@@ -249,13 +249,13 @@ it('draws Cancel and Commit as a cross and a check in circles, 16pt in from the 
 
 it('puts the cross on glass on iOS and on a tonal circle on Android', function () {
     fakeApi(['GET /api/v1/log/following' => [pageJson([])]]);
-    $ios = Native::visit('/log', platform: 'ios')->press('composeInSheet');
+    $ios = Native::visit('/log', platform: 'ios')->tap('compose-fab');
     $icon = fn (string $ref): ?string => findNode(sheetButtonCircle($ios, $ref), fn (array $node): bool => $node['type'] === 'icon')['props']['name'] ?? null;
 
     expect([$icon('sheet-cancel'), $icon('sheet-commit')])->toBe(['custom:x', 'custom:check'])
         ->and(sheetButtonCircle($ios, 'sheet-cancel')['props']['glass'] ?? null)->toBe(5);
 
-    $android = Native::visit('/log', platform: 'android')->press('composeInSheet');
+    $android = Native::visit('/log', platform: 'android')->tap('compose-fab');
 
     expect(strtolower(sheetButtonCircle($android, 'sheet-cancel')['style']['bg_color']))->toBe(strtolower(config('native-ui.theme.light.surface-variant')))
         ->and(sheetButtonCircle($android, 'sheet-cancel')['props'])->not->toHaveKey('glass');
