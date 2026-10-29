@@ -191,7 +191,7 @@ it('keeps the thread under a commit you star that is also the reply previewed un
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([])],
         'GET /api/v1/log/latest' => [pageJson([
-            previewedJson([replyJson(['id' => 'c1', 'parent_id' => 'p1', 'body' => 'Ship it?', 'replies_count' => 1])], overrides: ['id' => 'p1', 'body' => 'Should we ship?']),
+            previewedJson([replyJson(['id' => 'c1', 'parent_id' => 'p1', 'body' => 'Ship it?', 'replies_count' => 1, 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 1])])], overrides: ['id' => 'p1', 'body' => 'Should we ship?']),
             previewedJson([replyJson(['id' => 'r9', 'parent_id' => 'c1', 'body' => 'The newest reply', 'author' => grace()])], overrides: ['parent_id' => 'p1']),
         ], path: 'http://devnull.test/api/v1/log/latest')],
         'POST /api/v1/commits/c1/star' => [['data' => commitJson(['id' => 'c1', 'stars_count' => 1, 'starred' => true])]],

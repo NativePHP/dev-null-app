@@ -469,23 +469,26 @@ it('makes Quote a button, which opens the quote sheet', function () {
     $screen->tap('quote-c1')->assertSee('Quote @ada');
 });
 
-it('lets you star your own commits including those waiting for approval', function (string $status, string $platform) {
+it('gives your own commits the count of their stars instead of a star, as devnull won\'t let you star them', function (string $status, string $platform) {
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([
             commitJson(['id' => 'c2', 'status' => $status, 'stars_count' => 2]),
             commitJson(['id' => 'c1', 'status' => $status, 'stars_count' => 0]),
         ])],
-        'POST /api/v1/commits/c2/star' => [['data' => commitJson(['id' => 'c2', 'status' => $status, 'stars_count' => 3, 'starred' => true])]],
     ]);
 
     $screen = Native::visit('/log', platform: $platform)
-        ->assertElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'star-c2' && ($node['props']['a11y_label'] ?? null) === 'Star commit, 2 stars')
-        ->assertElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'star-c1' && ($node['props']['a11y_label'] ?? null) === 'Star commit')
-        ->tap('star-c2');
+        ->assertMissingElement('pressable', fn (array $node): bool => in_array($node['ref'] ?? null, ['star-c2', 'star-c1'], true));
 
-    expect($screen->instance()->commits[0]->starred)->toBeTrue()
-        ->and($screen->instance()->commits[0]->starsCount)->toBe(3);
-    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && str_ends_with($request->url(), '/c2/star'));
+    expect(nodeByRef($screen, 'star-count-c2'))->type->toBe('pressable')->props->a11y_label->toBe('2 stars, show who starred')
+        ->and(treeShows(nodeByRef($screen, 'star-count-c2'), '2'))->toBeTrue()
+        ->and(nodeByRef($screen, 'star-count-c1'))->type->toBe('row')->props->a11y_label->toBe('No stars yet')
+        ->and(findNodes(nodeByRef($screen, 'star-count-c1'), fn (array $node): bool => ($node['type'] ?? null) === 'text'))->toBe([]);
+
+    $screen->call('toggleStar', 'c2');
+
+    expect($screen->instance()->commits[0])->starred->toBeFalse()->starsCount->toBe(2);
+    Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
 })->with(['approved', 'pending'])->with(['ios', 'android']);
 
 it('stars and unstars from the row, taking the count devnull sends back', function () {
