@@ -159,14 +159,14 @@ function playedBars(TestableComponent $screen, string $ref): int
     return count(array_filter($bars, fn (array $node): bool => ($node['style']['opacity'] ?? 1) == 1));
 }
 
-it('offers the microphone between photos and Ping while the draft is empty, since voice notes go on their own', function (Closure $draft, bool $offered, string $label) {
+it("offers a voice note in the +'s menu, between photos and Ping, while the draft is empty, since voice notes go on their own", function (Closure $draft, bool $offered, string $label) {
     serveVoiceThread([remoteMessageJson(['id' => 1])]);
 
     $screen = $draft(voiceThread());
 
-    expect(childRefs($screen, 'message-plate'))->toBe(['message-field', 'attach-photos', 'record-voice-note', 'ping'])
-        ->and(nodeByRef($screen, 'record-voice-note')['type'] === 'pressable')->toBe($offered)
-        ->and(nodeByRef($screen, 'record-voice-note')['props']['a11y_label'])->toBe($label);
+    expect(array_slice(childRefs($screen, 'composer-tools'), 0, 3))->toBe(['attach-photos', 'record-voice-note', 'ping'])
+        ->and(nodeByRef($screen, 'record-voice-note')['props']['disabled'] ?? false)->toBe(! $offered)
+        ->and(nodeByRef($screen, 'record-voice-note')['props']['label'])->toBe($label);
 })->with([
     'an empty draft' => [fn (TestableComponent $screen) => $screen, true, 'Record a voice note (max. 1 min)'],
     'some text' => [fn (TestableComponent $screen) => $screen->input('message-input', 'one sec'), false, 'Voice notes go on their own'],
@@ -245,7 +245,7 @@ it('stops to listen to the recording first, then pushes it staged at once and pu
     $screen->tap('push')->assertSee('staged')->assertSet('recorder', null)->assertNativeCalled('MediaPlayer.Stop');
     $clientId = $screen->instance()->pending[0]->clientId;
 
-    expect(childRefs($screen, 'message-plate'))->toBe(['message-field', 'attach-photos', 'record-voice-note', 'ping'])
+    expect(childRefs($screen, 'message-plate'))->toBe(['message-field', 'composer-tools'])
         ->and(nodeByRef($screen, 'voice-'.$clientId.'-clock')['props']['text'])->toBe('0:02');
 
     finishRefreshes($screen)->assertSee('pushed')->assertSet('pending', []);
@@ -321,7 +321,7 @@ it('throws a recording away with the trash, and one that arrives after that too'
     }
 
     expect(file_exists($recording))->toBeFalse()
-        ->and(childRefs($screen, 'message-plate'))->toBe(['message-field', 'attach-photos', 'record-voice-note', 'ping'])
+        ->and(childRefs($screen, 'message-plate'))->toBe(['message-field', 'composer-tools'])
         ->and(voiceUploads())->toBe([]);
 })->with(['while recording' => [true], 'once recorded' => [false]]);
 

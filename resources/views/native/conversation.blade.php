@@ -75,7 +75,7 @@
         {{--
             The composer, drawn as the reply bar on a commit's page is (see partials/composer-plate): on iOS the bar is
             bare and the field is a Liquid Glass plate with the tools inside it, on Android the bar is the surface with
-            a hairline and the tools lead it. The tools are the web's, in its order: photos, the microphone, then Ping. Above the field
+            a hairline and the tools lead it. The web's tools, photos, the microphone and Ping, open from one + here. Above the field
             sit what you're replying to and the photos on the draft, on glass of their own on iOS. While the thread
             can't take a message, the bar is solid on both, with why in the field's place.
         --}}
@@ -107,15 +107,16 @@
                     </native:column>
                     {{-- The same room above and below the field, so the bar sits evenly on the keyboard. --}}
                     <native:row native:key="message-row" ref="message-row" class="w-full ios:pl-4 android:pl-2 pr-4 py-2 gap-2 items-center">
-                        {{-- A voice note takes the field's place, and the tools', while it's recorded and waits to be pushed. --}}
-                        @php($voiceNotesGoAlone = trim($draft) !== '' || $photos !== [])
+                        {{--
+                            The web's tools, photos, a voice note and Ping, are one + here, which opens them in a menu (see
+                            ComposerMenu), so the field keeps its room. A voice note takes the field's place, and the +'s,
+                            while it's recorded and waits to be pushed.
+                        --}}
                         @include('native.partials.composer-plate', [
                             'ref' => 'message',
                             'field' => $recorder === null ? 'native.partials.message-field' : 'native.partials.voice-recorder',
                             'tools' => $recorder !== null ? [] : [
-                                ['ref' => 'attach-photos', 'icon' => \App\Icons\Lucide::ImagePlus, 'label' => 'Attach up to 3 photos', 'press' => 'pickPhotos', 'disabled' => count($photos) >= \App\Devnull\DraftImages::MaxImages],
-                                ['ref' => 'record-voice-note', 'icon' => \App\Icons\Lucide::Mic, 'label' => $voiceNotesGoAlone ? 'Voice notes go on their own' : 'Record a voice note (max. 1 min)', 'press' => 'recordVoiceNote', 'disabled' => $voiceNotesGoAlone],
-                                ['ref' => 'ping', 'icon' => \App\Icons\Lucide::Vibrate, 'label' => $pingLabel, 'press' => 'ping'],
+                                ['ref' => 'composer-tools', 'icon' => \App\Icons\Lucide::Plus, 'label' => 'Photos, a voice note or a ping', 'menu' => \App\Devnull\ComposerMenu::items(count($photos) >= \App\Devnull\DraftImages::MaxImages, trim($draft) !== '' || $photos !== [], $pingLabel)],
                             ],
                         ])
                         @php($length = mb_strlen($draft))
