@@ -115,6 +115,7 @@ it("fills the compose sheet's check with your lane, with a check that reads on i
     'rose, checked in white' => 4,
 ]);
 
+// The Notifications screen keeps the web's phone filter row rather than paged tabs, so its filters carry no lane underline (see NotificationsTest).
 it('draws the tab underline in your lane, in its light and dark shades', function (string $path, int $lane) {
     signIn(['lane' => $lane]);
     Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
@@ -125,7 +126,7 @@ it('draws the tab underline in your lane, in its light and dark shades', functio
         ->and(strtolower($pager['props']['dark_tab_indicator_color']))->toBe(strtolower(config("native-ui.theme.dark.lane-{$lane}")))
         // Only the underline: the labels stay ink.
         ->and($pager['props']['tab_active_color'])->toBe(config('native-ui.theme.light.ink'));
-})->with(['/log', '/notifications'])->with([2, 5]);
+})->with(['/log'])->with([2, 5]);
 
 it('draws the underline under your profile\'s tabs in your lane too', function () {
     signIn(['lane' => 5]);

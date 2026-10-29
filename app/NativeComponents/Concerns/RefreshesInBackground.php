@@ -48,6 +48,30 @@ trait RefreshesInBackground
     protected array $refreshing = [];
 
     /**
+     * The refreshes that owe the screen feedback, still out, by the path they
+     * were asked for — a feed's plain ask and its ?since ask are one feed's
+     * ask. Counted, not flagged: a refresh forced through beside one already
+     * out owes feedback until both have landed, and only the ones asked for
+     * it are counted at all — the quiet ones a poll or a resume makes never
+     * show. Cleared when the screen goes under another, whose answers were
+     * dropped, so a dropped answer can't leave feedback up for good (see
+     * forgetRefreshes).
+     *
+     * @var array<string, int>
+     */
+    protected array $feedbackRefreshes = [];
+
+    /**
+     * Bumped whenever refreshes are forgotten (a screen going under another,
+     * whose answers were dropped). A completion carrying an older one owns
+     * nothing anymore — not the dedupe markers, not the feedback — though
+     * what it brought still applies, as ever. As Log guards its held pages by
+     * the list they were cut from (Log::$listGeneration), this guards the
+     * refreshes by the screen that asked for them.
+     */
+    protected int $refreshGeneration = 0;
+
+    /**
      * Asks again for everything the screen shows.
      */
     abstract protected function revalidate(): void;
@@ -85,14 +109,19 @@ trait RefreshesInBackground
      * screen. It only tells $failed, for a caller that has something else to
      * do then. One $withImages brings the answer's images down before it
      * lands, rather than after in a task of their own (see FetchInBackground).
+     * A $feedback one is counted among the refreshes the screen says it's
+     * waiting on (see $feedbackRefreshes), landing or failing or failing its
+     * way into a retry.
      *
      * @param  array<string, string|null>  $query
      * @param  Closure(array<string, mixed>): void  $apply
      * @param  (Closure(): void)|null  $failed
      */
-    protected function refresh(string $path, array $query, Closure $apply, bool $again = false, bool $quiet = false, ?Closure $failed = null, bool $withImages = false, bool $retried = false): void
+    protected function refresh(string $path, array $query, Closure $apply, bool $again = false, bool $quiet = false, ?Closure $failed = null, bool $withImages = false, bool $retried = false, bool $feedback = false, ?int $generation = null): void
     {
         $key = ResponseCache::key('', $path, $query);
+        $generation ??= $this->refreshGeneration;
+        $current = $generation === $this->refreshGeneration;
 
         if (! $again && isset($this->refreshing[$key]) && microtime(true) - $this->refreshing[$key] < 30) {
             return;
@@ -110,25 +139,43 @@ trait RefreshesInBackground
             return;
         }
 
-        $this->refreshing[$key] = microtime(true);
+        if ($current) {
+            $this->refreshing[$key] = microtime(true);
+
+            if ($feedback) {
+                $this->feedbackRefreshes[$path] = ($this->feedbackRefreshes[$path] ?? 0) + 1;
+            }
+        }
 
         FetchInBackground::dispatch($request->url, $request->headers, 'GET', '', $withImages, $withImages ? ImageCache::takePrune() : null)
             ->timeout(30)
-            ->finished(function (mixed $result) use ($key, $path, $query, $apply, $quiet, $failed, $withImages, $retried): void {
-                unset($this->refreshing[$key]);
-
+            ->finished(function (mixed $result) use ($key, $path, $query, $apply, $quiet, $failed, $withImages, $retried, $feedback, $generation): void {
                 $result = is_array($result) ? $result : [];
+                $serverError = ! $retried && (int) ($result['status'] ?? 0) >= 500;
 
-                if (! $retried && (int) ($result['status'] ?? 0) >= 500) {
-                    $this->refresh($path, $query, $apply, again: true, quiet: $quiet, failed: $failed, withImages: $withImages, retried: true);
+                // A completion from before the screen went under another owns
+                // nothing: it doesn't touch the markers of the refreshes asked
+                // since. What it brought still applies, below, as ever — and
+                // its retry is still worth asking for, under its own old
+                // generation, owning nothing too.
+                if ($generation === $this->refreshGeneration) {
+                    unset($this->refreshing[$key]);
+                    $this->endedFeedbackRefresh($path, $feedback);
+                }
+
+                if ($serverError) {
+                    $this->refresh($path, $query, $apply, again: true, quiet: $quiet, failed: $failed, withImages: $withImages, retried: true, feedback: $feedback, generation: $generation);
 
                     return;
                 }
 
                 $this->settleRefresh($result, $path, $query, $apply, $quiet, $failed, $withImages);
             })
-            ->failed(function (Throwable $exception) use ($key, $quiet, $failed): void {
-                unset($this->refreshing[$key]);
+            ->failed(function (Throwable $exception) use ($key, $path, $quiet, $failed, $feedback, $generation): void {
+                if ($generation === $this->refreshGeneration) {
+                    unset($this->refreshing[$key]);
+                    $this->endedFeedbackRefresh($path, $feedback);
+                }
 
                 if ($quiet) {
                     $failed?->__invoke();
@@ -185,12 +232,45 @@ trait RefreshesInBackground
     }
 
     /**
+     * Whether a refresh the screen owes feedback for is still out — any of
+     * them, or the ones asking for $path, a feed's plain ask and its ?since
+     * ask alike. No clock in it: an answer that never comes keeps its
+     * feedback, and only landing or failing takes it down.
+     */
+    public function refreshFeedbackOut(?string $path = null): bool
+    {
+        return $path === null ? $this->feedbackRefreshes !== [] : isset($this->feedbackRefreshes[$path]);
+    }
+
+    /**
+     * One feedback refresh done, landed or failed. Others asking for the
+     * same path may still be out, forced through beside it.
+     */
+    protected function endedFeedbackRefresh(string $path, bool $feedback): void
+    {
+        if (! $feedback) {
+            return;
+        }
+
+        if (($this->feedbackRefreshes[$path] ?? 0) <= 1) {
+            unset($this->feedbackRefreshes[$path]);
+
+            return;
+        }
+
+        $this->feedbackRefreshes[$path]--;
+    }
+
+    /**
      * Forgets refreshes that were still out, whose answers NativePHP dropped
-     * when this screen went under another.
+     * when this screen went under another. Their feedback goes with them,
+     * and whatever lands from them afterwards owns nothing.
      */
     protected function forgetRefreshes(): void
     {
         $this->refreshing = [];
+        $this->feedbackRefreshes = [];
+        $this->refreshGeneration++;
     }
 
     /**

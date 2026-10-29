@@ -39,12 +39,20 @@ it('opens the Log on the tab you last had open, after switching away from it at 
     Http::assertNotSent(fn (Request $request): bool => str_starts_with($request->url(), 'http://devnull.test/api/v1/log/following'));
 });
 
-it('opens Notifications on the filter you last had open', function () {
+it('opens Notifications on the selection you last had on, carrying a single filter an older app kept across', function () {
     Http::fake(['devnull.test/*' => Http::response(['data' => [], 'next_cursor' => null, 'read_at' => null, 'filters' => ['type' => 'all']])]);
 
-    tapFilter(Native::visit('/notifications'), 'mentions')->assertSet('type', 'mentions');
+    // An older app kept one filter at a time: All opens on all of them, one category on it alone.
+    app(ShownTabs::class)->remember('0199e5c4-0000-7000-8000-000000000001', 'notifications', 'mentions');
 
-    Native::visit('/notifications')->assertSet('type', 'mentions');
+    $screen = Native::visit('/notifications')->assertSet('type', 'mentions');
+
+    // The selection since is several at once, remembered for the account.
+    $screen->call('show', 'replies,stars');
+
+    tapFilter(Native::visit('/notifications'), 'stars')->assertSet('type', 'replies');
+
+    Native::visit('/notifications')->assertSet('enabled', ['replies']);
 });
 
 it("opens your own profile on the tab you last had open, but someone else's on their commits", function () {

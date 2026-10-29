@@ -41,6 +41,7 @@
 
         <native:pager-overlay>
             @include('native.partials.new-commits-pill', ['label' => $newCommitsLabel, 'press' => 'showNewCommits', 'shown' => $newCommits !== []])
+            @include('native.partials.refreshing', ['shown' => $refreshing])
         </native:pager-overlay>
     </native:pager>
 </native:column>

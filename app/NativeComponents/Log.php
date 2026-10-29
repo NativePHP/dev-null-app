@@ -52,7 +52,11 @@ use Native\Mobile\Events\Async\AsyncTaskFinished;
  *
  * It opens on the log as it was last time, then asks devnull again in the
  * background, and every 30 seconds while it's showing, as the web polls.
- * Commits newer than anything showing wait at the top of the list in the new
+ * Only a re-tap of the Log tab says it's waiting, with the chip under the
+ * pager's tabs (see partials/refreshing): a pull to refresh has the list's
+ * own spinner in your hand, and those quiet asks never say so either.
+ * Commits newer than
+ * anything showing wait at the top of the list in the new
  * commits pill (see HoldsNewCommits), which says how many devnull counted
  * since the newest one showing (?since=). Scrolled down, it pins under the tabs.
  *
@@ -440,20 +444,35 @@ class Log extends NativeComponent
     }
 
     /**
-     * Pull to refresh. You're at the top, so anything new goes straight in.
+     * Pull to refresh, and the re-tap of the Log tab that does the same. You're
+     * at the top, so anything new goes straight in. A pull stays quiet — the
+     * list's own spinner, in your hand, says it — so only the re-tap asks with
+     * $feedback, for the chip (see partials/refreshing) the pull never shows.
      */
-    public function load(): void
+    public function load(bool $feedback = false): void
     {
         if ($this->isRanked()) {
-            $this->rank();
+            $this->rank(feedback: $feedback);
 
             return;
         }
 
         $log = $this->log;
-        $this->refresh('log/'.$log, [], fn (array $json) => $this->takeFresh($log, $json, showNewer: true), again: true);
+        $this->refresh('log/'.$log, [], fn (array $json) => $this->takeFresh($log, $json, showNewer: true), again: true, feedback: $feedback);
         $this->refreshThreads();
         $this->refreshUnreadNotifications();
+    }
+
+    /**
+     * A re-tap of the Log tab at the bottom, which the tab bar only sends once
+     * the log you're on is back at its top (it scrolls the list there itself
+     * when it isn't): pull the log to refresh, as the web's tab does. Keeps
+     * the log you're on and its list where they are. Unlike a pull, it says
+     * it's waiting (feedback), there being nothing in your hand that does.
+     */
+    public function refreshLog(): void
+    {
+        $this->load(feedback: true);
     }
 
     /**
@@ -480,14 +499,14 @@ class Log extends NativeComponent
      * Asks devnull what changed since the newest commit showing. Trending
      * stays as it was ranked, and only learns what's newer than the ranking.
      */
-    protected function revalidate(): void
+    protected function revalidate(bool $feedback = false): void
     {
         $log = $this->log;
         $since = $this->isRanked() ? $this->rankedSince : $this->newestShownId();
 
         $this->refresh('log/'.$log, ['since' => $since], fn (array $json) => $this->isRanked()
             ? $this->takeRankedUpdate($log, $json)
-            : $this->takeFresh($log, $json));
+            : $this->takeFresh($log, $json), feedback: $feedback);
         $this->refreshThreads();
         $this->refreshUnreadNotifications();
     }
@@ -496,9 +515,9 @@ class Log extends NativeComponent
      * Opening a log: Trending is ranked afresh, as a page load does on the web. The others refresh behind what's kept.
      * Your settings come too, for the timezone the app shows times in.
      */
-    private function open(): void
+    private function open(bool $feedback = false): void
     {
-        $this->isRanked() ? $this->rank() : $this->revalidate();
+        $this->isRanked() ? $this->rank($feedback) : $this->revalidate($feedback);
         $this->openWhoToFollow();
         $this->refreshSettings();
     }
@@ -507,11 +526,11 @@ class Log extends NativeComponent
      * Ranks Trending afresh: the fresh ranking replaces what's showing, and
      * what was put above it goes, as reloading the page does on the web.
      */
-    private function rank(): void
+    private function rank(bool $feedback = false): void
     {
         $log = $this->log;
 
-        $this->refresh('log/'.$log, [], fn (array $json) => $this->takeRanking($log, $json), again: true);
+        $this->refresh('log/'.$log, [], fn (array $json) => $this->takeRanking($log, $json), again: true, feedback: $feedback);
         $this->refreshThreads();
         $this->refreshUnreadNotifications();
     }
@@ -1176,6 +1195,7 @@ class Log extends NativeComponent
             'pasteis' => app(Account::class)->pasteis(),
             'stashed' => app(Stash::class)->names($viewer?->id),
             'newCommitsLabel' => $this->newCommitsLabel(),
+            'refreshing' => $this->refreshFeedbackOut('log/'.$this->log),
             'pages' => $pages,
             'pageIndex' => array_search($this->log, self::Logs, true),
             'tabs' => array_map(fn (string $log): string => self::Labels[$log], self::Logs),

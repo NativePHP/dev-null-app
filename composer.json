@@ -13,11 +13,11 @@
     "repositories": [
         {
             "type": "vcs",
-            "url": "https://github.com/NativePHP/mobile-air"
+            "url": "https://github.com/ricardovfreixo/mobile-air"
         },
         {
             "type": "vcs",
-            "url": "https://github.com/NativePHP/mobile-ui"
+            "url": "https://github.com/ricardovfreixo/mobile-ui"
         },
         {
             "type": "vcs",
@@ -35,7 +35,7 @@
         "laravel/boost": "^2.0",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
-        "nativephp/mobile": "dev-main as 4.6.1",
+        "nativephp/mobile": "dev-fix/root-tab-reselect as 4.6.1",
         "nativephp/mobile-browser": "^1.2",
         "nativephp/mobile-camera": "^1.1",
         "nativephp/mobile-clipboard": "^1.0",
@@ -43,7 +43,7 @@
         "nativephp/mobile-microphone": "^1.2",
         "nativephp/mobile-secure-storage": "^1.1",
         "nativephp/mobile-share": "^1.1",
-        "nativephp/mobile-ui": "dev-main as 0.8.0",
+        "nativephp/mobile-ui": "dev-fix/list-root-tab-scroll-target as 0.8.0",
         "s2br/nativephp-mobile-splashscreen": "^1.4",
         "victorycodedev/toastkit": "dev-fix/android-toasts-above-sheets as 1.4.0"
     },

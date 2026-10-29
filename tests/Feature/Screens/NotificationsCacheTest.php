@@ -1,6 +1,7 @@
 <?php
 
 use App\Devnull\Account;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 
@@ -63,6 +64,38 @@ it('shows a spinner only the first time', function () {
         ->assertDontSee('Nothing here yet.');
 
     finishRefreshes($screen)->assertSee('followed you');
+});
+
+it('takes a fresh copy of a group in place, however its newest event moved on, and keeps the pages under it', function () {
+    holdRefreshes();
+    // Two groups kept, with a page under them.
+    keep('notifications', pageJson([
+        notificationJson('starred', ['id' => 'a1', 'group_id' => 'g-a']),
+        notificationJson('followed', ['id' => 'b1', 'group_id' => 'g-b']),
+    ], 'older'));
+    serveApi(function (Request $request) {
+        if (str_contains($request->url(), 'cursor=older')) {
+            return Http::response(pageJson([notificationJson('mentioned', ['id' => 'c-mentioned', 'group_id' => 'g-older'])], 'oldest'));
+        }
+
+        // The star group gained an event: its newest event is a2 now, its group still g-a.
+        return Http::response(pageJson([
+            notificationJson('starred', ['id' => 'a2', 'group_id' => 'g-a', 'event_count' => 2]),
+            notificationJson('followed', ['id' => 'b1', 'group_id' => 'g-b', 'unread_count' => 0]),
+        ], 'older'));
+    });
+
+    $screen = Native::visit('/notifications')->call('loadMore');
+
+    expect(array_map(fn ($group): string => $group->id, $screen->instance()->notifications))->toBe(['a1', 'b1', 'c-mentioned']);
+
+    finishRefreshes($screen);
+
+    $groups = array_map(fn ($group): string => $group->groupId.'#'.$group->id, $screen->instance()->notifications);
+
+    // The group's fresh copy takes its own place, not a second one above it, and the page under it stays.
+    expect($groups)->toBe(['g-a#a2', 'g-b#b1', 'g-older#c-mentioned'])
+        ->and($screen->instance()->nextCursor)->toBe('oldest');
 });
 
 it('keeps them and says it could not refresh when offline', function () {

@@ -9,6 +9,12 @@ use Carbon\CarbonImmutable;
  * first few people in the group, how many events and people there are and
  * how many are unread. Expanded, a group lists its notifications one by one
  * in the same shape. The commit's parent only comes along when you may see it.
+ *
+ * The whole commit comes along too, as the API sends it: its images beside a
+ * star on an image-only commit, and the commit of yours a quote quotes, which
+ * devnull only sends along when it loaded it — absent rather than null, so a
+ * quote with none of it sent shows no box at all, as on the web. A level-up
+ * uses the level, rank and description when sent, without inventing missing data.
  */
 final readonly class Notification
 {
@@ -33,6 +39,8 @@ final readonly class Notification
         public string $groupId = '',
         public int $eventCount = 1,
         public ?bool $actorIsFollowed = null,
+        public ?Commit $commit = null,
+        public bool $quotedCommitSent = false,
         public ?int $level = null,
         public ?string $rank = null,
         public ?string $rankDescription = null,
@@ -53,6 +61,9 @@ final readonly class Notification
             ? (int) $data['unread_count'] > 0
             : array_key_exists('read_at', $data) && $data['read_at'] === null;
         $id = (string) ($data['id'] ?? '');
+        $level = $data['level'] ?? null;
+        $rank = $data['rank'] ?? null;
+        $rankDescription = $data['rank_description'] ?? null;
 
         return new self(
             id: $id,
@@ -72,9 +83,11 @@ final readonly class Notification
             groupId: is_string($data['group_id'] ?? null) && $data['group_id'] !== '' ? $data['group_id'] : $id,
             eventCount: max(1, (int) ($data['event_count'] ?? 1)),
             actorIsFollowed: is_bool($actorJson['is_followed'] ?? null) ? $actorJson['is_followed'] : null,
-            level: is_int($data['level'] ?? null) ? $data['level'] : null,
-            rank: is_string($data['rank'] ?? null) && $data['rank'] !== '' ? $data['rank'] : null,
-            rankDescription: is_string($data['rank_description'] ?? null) && trim($data['rank_description']) !== '' ? $data['rank_description'] : null,
+            commit: $commit === [] ? null : Commit::fromArray($commit),
+            quotedCommitSent: array_key_exists('quoted_commit', $commit),
+            level: is_numeric($level) ? (int) $level : null,
+            rank: is_string($rank) && trim($rank) !== '' ? $rank : null,
+            rankDescription: is_string($rankDescription) && trim($rankDescription) !== '' ? $rankDescription : null,
         );
     }
 
@@ -144,6 +157,57 @@ final readonly class Notification
     }
 
     /**
+     * The commit is the actor's own words: a reply, a quote or a mention, so
+     * the web writes their name into the sentence and shows it as their commit.
+     */
+    public function isActorsCommit(): bool
+    {
+        return in_array($this->type, ['replied', 'quoted', 'mentioned'], true);
+    }
+
+    /**
+     * The images of your commit a star came with, as the web shows them beside
+     * it: only when devnull loaded them, which its signed API does not today.
+     *
+     * @return list<CommitImage>
+     */
+    public function starredImages(): array
+    {
+        return $this->isStar() && $this->commit !== null ? $this->commit->images : [];
+    }
+
+    /**
+     * A star on your commit that says nothing but its images, as the web words
+     * it "starred your image" and shows nothing of the commit beside them.
+     * The body it reads is the one the row shows, so a commit whose segments
+     * weren't sent still counts as readable, worded as it reads.
+     */
+    public function isImageOnlyStar(): bool
+    {
+        return $this->starredImages() !== [] && trim($this->body ?? '') === '';
+    }
+
+    /**
+     * Whether the commit of yours this one quotes came along at all, as the
+     * web shows the box under a quote only when it did, which its signed API
+     * does not load today.
+     */
+    public function showsQuotedCommit(): bool
+    {
+        return $this->type === 'quoted' && $this->quotedCommitSent;
+    }
+
+    /**
+     * The commit of yours a quote quotes: a tombstone once it was deleted, or
+     * null once you may no longer see it, either of which the web still boxes,
+     * in the web's words.
+     */
+    public function quotedOwnCommit(): ?Commit
+    {
+        return $this->showsQuotedCommit() ? $this->commit?->quotedCommit : null;
+    }
+
+    /**
      * Whether the group has more than one event, so it opens to list them, as on the web.
      */
     public function isGrouped(): bool
@@ -165,7 +229,8 @@ final readonly class Notification
     }
 
     /**
-     * The commit a tap opens, as on the web: the notification's own commit. A follow or a level-up opens a profile instead.
+     * The commit a tap opens, as on the web: the notification's own commit. A
+     * follow, or a level-up, opens a profile instead.
      */
     public function commitToOpen(): ?string
     {
@@ -204,13 +269,17 @@ final readonly class Notification
 
     /**
      * What happened, as the web words it. For a person it follows their name and their handle or the others.
+     * A star on an image-only commit says it was your image, or images. A
+     * level-up names its level and rank only when the API supplies them.
      */
     public function sentence(): string
     {
         return match ($this->type) {
             'followed' => 'followed you',
             'mentioned' => 'mentioned you',
-            'starred' => 'starred your commit',
+            'starred' => $this->isImageOnlyStar()
+                ? 'starred your '.(count($this->starredImages()) === 1 ? 'image' : 'images')
+                : 'starred your commit',
             'quoted' => 'quoted your commit',
             'approved', 'rejected' => "Your commit was {$this->type}",
             'leveled_up' => $this->levelLabel() === null ? 'You reached a new level' : "You reached level {$this->level}: {$this->rank}",

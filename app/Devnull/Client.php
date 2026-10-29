@@ -622,14 +622,19 @@ final readonly class Client
 
     /**
      * Your notifications grouped as the web groups them, filtered by the web's
-     * ?type= (all, replies, quotes, stars, mentions, follows or moderation).
-     * Listing any of them marks them all read.
+     * ?type= (all, none, one or more of replies, quotes, stars, mentions,
+     * follows and moderation comma-separated, or all). Listing any of them
+     * marks them all read.
+     *
+     * A poll passes $through, the oldest group still showing, so devnull sends
+     * everything since then on top of a page, as the web asks every 30s. It is
+     * left off otherwise, which asks for the same first page as ever.
      *
      * @return Page<Notification>
      */
-    public function notifications(string $type = 'all', ?string $cursor = null): Page
+    public function notifications(string $type = 'all', ?string $cursor = null, ?string $through = null): Page
     {
-        return Page::fromArray($this->get('notifications', self::notificationsQuery($type, $cursor)), Notification::fromArray(...));
+        return Page::fromArray($this->get('notifications', self::notificationsQuery($type, $cursor, $through)), Notification::fromArray(...));
     }
 
     /**
@@ -643,13 +648,16 @@ final readonly class Client
     }
 
     /**
-     * All is the default, so it's left off, as the web's own links leave it off.
+     * All is the default, so it's left off, as the web's own links leave it
+     * off. What isn't sent is left off too: a cursor for the first page, and
+     * $through for every ask but a poll's, which keeps the first page it asks
+     * for the same one as ever.
      *
      * @return array<string, string|null>
      */
-    public static function notificationsQuery(string $type, ?string $cursor = null): array
+    public static function notificationsQuery(string $type, ?string $cursor = null, ?string $through = null): array
     {
-        return ['type' => $type === 'all' ? null : $type, 'cursor' => $cursor];
+        return ['type' => $type === 'all' ? null : $type, 'cursor' => $cursor, 'through' => $through];
     }
 
     /**

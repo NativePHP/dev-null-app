@@ -8,7 +8,8 @@ use App\Devnull\Data\Page;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Exceptions\Unauthenticated;
-use App\Devnull\ShownTabs;
+use App\Devnull\NotificationFilters;
+use App\Devnull\ResponseCache;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
@@ -16,27 +17,38 @@ use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Carbon\CarbonImmutable;
 use Illuminate\View\View;
+use Native\Mobile\Attributes\Poll;
 use Native\Mobile\Edge\NativeComponent;
 
 /**
- * Follows, stars, replies, quotes, mentions, level-ups, and moderation updates
+ * Follows, stars, replies, quotes, mentions, level-ups and moderation updates
  * for your commits, grouped as the web groups them, on a Rail Gray rail.
  *
- * The web's filters run along the top: All, Replies, Quotes, Stars, Mentions,
- * Follows and Moderation, each kept on its own for next time. A group of
- * more than one opens in place to list them all, as the web expands it.
+ * The web's filters run along the top, several on at once: Replies, Quotes and
+ * Stars as chips you tap, and the rest under a More button, as the web's phone
+ * layout runs them. What's on is remembered per account (see
+ * NotificationFilters), sent as one ?type= — all six ask for everything, none
+ * asks for nothing, and anything between goes comma-separated in the web's
+ * order. A new selection starts a fresh list at the top, since a list kept
+ * while every row changed under its scroll offset drew blank on iOS; the one
+ * list keeps its key while it refreshes, pages and polls.
  *
- * It opens on the notifications as they were last time, all read by then,
- * then asks devnull behind them. devnull marks everything read as it lists
- * any of it, and says when, so the groups read since then are the new ones:
- * their node is ringed in blue, above the last-visit marker. New ones go in
- * at the top quietly, since a group's id moves on as people join it.
+ * It opens on the notifications as they were last time, all read by then, then
+ * asks devnull behind them. devnull marks everything read as it lists any of
+ * it, and says when, so the groups read since then are the new ones: their
+ * node is ringed in blue, above the last-visit marker.
  *
- * The filters are pages you swipe between, as on the Log (see Log), and the
- * pager draws the filters along the top and moves them with your finger. The
- * filters either side of the one you're on show the first few groups kept
- * for them, ready for a swipe. Each has its own list, and a filter you leave
- * starts again at the top of a fresh one.
+ * While it's showing, devnull is asked every 30 seconds for everything since
+ * the oldest group still showing (through=), as the web asks. Groups that
+ * came in, and groups whose newest event moved on since they were drawn,
+ * wait in the "N new notifications" pill rather than going in under you; a
+ * tap puts them on top and goes back to the top. A group's id stays put as
+ * people join it — only its newest event's id moves — so groups are told
+ * apart and counted by it, its fresh copy taking the old one's place rather
+ * than sitting beside it, and a group opened in place follows the new id.
+ *
+ * A group of more than one opens in place to list them all, as the web
+ * expands it.
  */
 class Notifications extends NativeComponent
 {
@@ -52,10 +64,12 @@ class Notifications extends NativeComponent
     protected bool $forceFullFrames = true;
 
     /**
-     * The web's filters, their labels and what each says when it has nothing.
+     * The web's categories, their labels and what each says alone, when
+     * nothing else is on and it has nothing.
+     *
+     * @var array<string, array{0: string, 1: string}>
      */
-    public const array Types = [
-        'all' => ['All', 'Nothing here yet. Follows, stars, replies, quotes, mentions, level-ups, and moderation updates for your commits will show up here.'],
+    public const array Categories = [
         'replies' => ['Replies', 'No replies yet. When someone replies to one of your commits, it shows up here.'],
         'quotes' => ['Quotes', 'No quotes yet. When someone quotes one of your commits, it shows up here.'],
         'stars' => ['Stars', 'No stars yet. When someone stars one of your commits, it shows up here.'],
@@ -65,23 +79,33 @@ class Notifications extends NativeComponent
     ];
 
     /**
-     * How many kept groups a filter beside the one you're on shows, enough to fill the screen while you swipe to it.
+     * The categories the web's phone layout shows as chips, before its More.
      */
-    public const int PreviewGroups = 6;
+    public const array QuickFilters = ['replies', 'quotes', 'stars'];
 
+    public const string AllEmpty = 'Nothing here yet. Follows, stars, replies, quotes, mentions, level-ups, and moderation updates for your commits will show up here.';
+
+    public const string CombinedEmpty = 'No notifications in the selected categories yet.';
+
+    public const string NoneEmpty = 'All categories are turned off. Enable a category to see notifications.';
+
+    /**
+     * The categories on, in the web's order. All six when nothing was kept.
+     *
+     * @var list<string>
+     */
+    public array $enabled = [];
+
+    /**
+     * The ?type= the selection on asks for, so a filter's answers can be told
+     * from another selection's arriving late.
+     */
     public string $type = 'all';
 
     /**
-     * Mounts a fresh list for the filter you're on when it changes, at the top.
+     * Mounts a fresh list when the selection changes, at the top.
      */
     public int $listKey = 0;
-
-    /**
-     * The list key of each filter you're not on.
-     *
-     * @var array<string, int>
-     */
-    public array $listKeys = [];
 
     /** @var list<Notification> */
     public array $notifications = [];
@@ -117,15 +141,48 @@ class Notifications extends NativeComponent
      */
     public array $failedGroups = [];
 
+    /**
+     * The groups a poll brought in since the oldest one showing, fetched and
+     * waiting for the pill, newest first. Each poll replaces them with its own
+     * answer, so the same groups are never counted twice.
+     *
+     * @var list<Notification>
+     */
+    public array $staged = [];
+
+    /**
+     * The More sheet, holding the filters the web's phone layout keeps in its menu.
+     */
+    public bool $moreOpen = false;
+
+    /**
+     * A poll still out. Another is never sent beside it.
+     */
+    protected bool $polling = false;
+
+    /**
+     * Which ask the poll under way was made under. Selections and resumes
+     * move it on, so a poll from before one of those lands too late to
+     * apply, or to free the place of a poll since sent — its own type being
+     * current again (a switch there and back) would not make it current.
+     */
+    protected int $pollToken = 0;
+
     public function mount(): void
     {
-        $this->type = app(ShownTabs::class)->get($this->me()?->id, 'notifications', array_keys(self::Types), 'all');
+        $this->enabled = app(NotificationFilters::class)->enabled($this->me()?->id);
+        $this->type = NotificationFilters::typeOf($this->enabled);
         $this->fillInAfterFirstFrame('revalidate');
     }
 
     public function onResume(): void
     {
         $this->forgetRefreshes();
+        // Whatever was under way was dropped with the answers it was owed, so
+        // its callback is stale: this moves the poll on, so neither applies
+        // nor frees the one that goes out next.
+        $this->pollToken++;
+        $this->polling = false;
         $this->revalidate();
     }
 
@@ -135,56 +192,85 @@ class Notifications extends NativeComponent
     }
 
     /**
-     * Shows a filter, from a link such as an empty filter's Show all, and the
-     * pager follows: its own list, from what was kept for it, then asked again.
-     * The one you're on goes back to its top.
+     * Shows a selection of the categories, from a link such as an empty
+     * filter's Show all: all, one, none, or several as the comma-separated
+     * ?type= they were sent as. The one already showing goes back to its top.
+     *
+     * Something that names no selection the web's filters could have made —
+     * a stale link, a mistyped ?type= — changes nothing, rather than quietly
+     * selecting none of them and remembering that for the account.
      */
     public function show(string $type): void
     {
-        if (! array_key_exists($type, self::Types)) {
+        if (! self::isSelection($type)) {
             return;
         }
 
-        if ($type === $this->type) {
+        $enabled = NotificationFilters::normalize($type);
+
+        if ($enabled === $this->enabled) {
             $this->listKey++;
 
             return;
         }
 
-        $this->switchTo($type);
+        $this->applySelection($enabled);
     }
 
     /**
-     * The pager settling on a filter, after a swipe or a tap along the top. The one it's already on changes nothing.
+     * Whether $type names a selection the web's filters could have made: all,
+     * none, or a comma list of nothing but its categories.
      */
-    public function showPage(int $index): void
+    private static function isSelection(string $type): bool
     {
-        $type = array_keys(self::Types)[$index] ?? null;
-
-        if ($type !== null && $type !== $this->type) {
-            $this->switchTo($type);
+        if ($type === 'all' || $type === 'none') {
+            return true;
         }
+
+        return array_diff(explode(',', $type), array_keys(self::Categories)) === [];
     }
 
     /**
-     * A tap on the filter you're on, which the pager sends instead of moving: back to the top of it.
+     * A filter chip, or a line in the More sheet: turns a category on or off
+     * with the rest, as the web's checkboxes do.
      */
-    public function backToTop(int $index): void
+    public function toggle(string $category): void
     {
-        $this->show(array_keys(self::Types)[$index] ?? '');
+        if (! array_key_exists($category, self::Categories)) {
+            return;
+        }
+
+        $on = in_array($category, $this->enabled, true);
+
+        $this->applySelection($on
+            ? array_values(array_diff($this->enabled, [$category]))
+            : [...$this->enabled, $category]);
+    }
+
+    public function openMoreFilters(): void
+    {
+        $this->moreOpen = true;
+    }
+
+    public function moreFiltersClosed(): void
+    {
+        $this->moreOpen = false;
     }
 
     /**
-     * The filter you go to keeps the list its first groups were drawn in, which
-     * can't have been scrolled, and fills it. The one you leave starts again at
-     * the top of a fresh one.
+     * The selection goes on for the account, and the list starts over at the
+     * top of a fresh one: what was kept for it, then asked again. A poll's
+     * answer for the selection before is no longer wanted, and what it had
+     * staged for it goes.
+     *
+     * @param  list<string>  $categories
      */
-    private function switchTo(string $type): void
+    private function applySelection(array $categories): void
     {
-        app(ShownTabs::class)->remember($this->me()?->id, 'notifications', $type);
-        $this->listKeys[$this->type] = $this->listKey + 1;
-        $this->listKey = $this->listKeys[$type] ?? 0;
-        $this->type = $type;
+        $this->enabled = NotificationFilters::normalize($categories);
+        $this->type = NotificationFilters::typeOf($this->enabled);
+        app(NotificationFilters::class)->remember($this->me()?->id, $this->enabled);
+
         $this->notifications = [];
         $this->nextCursor = null;
         $this->loaded = false;
@@ -193,6 +279,12 @@ class Notifications extends NativeComponent
         $this->expanded = [];
         $this->expandedCursors = [];
         $this->failedGroups = [];
+        $this->staged = [];
+        // A poll under way for the selection before is stale from here on: it
+        // neither applies nor frees the place of the one that goes out next.
+        $this->pollToken++;
+        $this->polling = false;
+        $this->listKey++;
         $this->showKept();
         $this->revalidate();
     }
@@ -234,17 +326,119 @@ class Notifications extends NativeComponent
         $page = $this->attempt(fn ($devnull) => $devnull->notifications($this->type, $this->nextCursor));
 
         if ($page !== null) {
-            $this->notifications = [...$this->notifications, ...$page->items];
-            $this->nextCursor = $page->nextCursor;
-            $this->refreshUnreadNotifications();
+            $this->appendPage($page);
         }
     }
 
     /**
-     * A tap on a notification opens its commit, the profile of whoever
-     * followed you, or your own for a level-up. A tap on a group of
-     * followers lists them in place instead, as its toggle does, rather
-     * than opening only the latest of them.
+     * The web's poll for new notifications, every 30 seconds while the screen
+     * is showing. devnull is asked for everything since the oldest group still
+     * showing (through=), which it answers on top of a page, so what's new
+     * arrives fetched. Nothing showing yet asks for the first page quietly.
+     *
+     * It is always sent when the timer comes due, never held back by a recent
+     * ask of the same thing, but never beside itself: one at a time.
+     */
+    #[Poll(30000)]
+    public function checkForNewNotifications(): void
+    {
+        if ($this->polling) {
+            return;
+        }
+
+        $through = $this->notifications[count($this->notifications) - 1]->createdAt ?? null;
+        $type = $this->type;
+        $token = ++$this->pollToken;
+        $current = fn (): bool => $token === $this->pollToken;
+
+        if ($through === null || ! $this->loaded) {
+            $this->polling = true;
+
+            $this->refresh('notifications', Client::notificationsQuery($type), function (array $json) use ($type, $current): void {
+                if ($current()) {
+                    $this->polling = false;
+                    $this->takeFresh($type, $json);
+                }
+            }, quiet: true, again: true, failed: function () use ($current): void {
+                if ($current()) {
+                    $this->polling = false;
+                }
+            });
+
+            return;
+        }
+
+        $query = Client::notificationsQuery($type, through: $through->toIso8601ZuluString());
+
+        $this->polling = true;
+
+        $this->refresh('notifications', $query, function (array $json) use ($type, $query, $current): void {
+            // A poll from before a selection change or a resume lands too
+            // late to change anything, not even the pill, or to free the
+            // place of a poll since sent.
+            if ($current()) {
+                $this->polling = false;
+
+                // An answer for a selection you've left changes nothing, not even the pill.
+                if ($type === $this->type) {
+                    $this->takePolled($json);
+                }
+            }
+
+            // A poll's answer is about that moment, keyed by the through= it
+            // was asked with: every poll would keep another one. The list it
+            // staged is in hand, so nothing of it is kept.
+            app(ResponseCache::class)->forget('notifications', $query);
+        }, quiet: true, again: true, failed: function () use ($current): void {
+            if ($current()) {
+                $this->polling = false;
+            }
+        });
+    }
+
+    /**
+     * The pill: "3 new notifications". What it counts is groups, not the
+     * events or the people in them.
+     */
+    public function newNotificationsLabel(): string
+    {
+        $count = count($this->staged);
+
+        return $count.' '.($count === 1 ? 'new notification' : 'new notifications');
+    }
+
+    /**
+     * The pill: puts what a poll staged on top, and goes back to the top.
+     * A group already showing takes its pending copy's place — its newest
+     * event moved on, say — rather than a second row beside it, and what's
+     * loaded further down stays, with its cursor. What the group's row had
+     * learnt of you following its person, a copy that didn't come with the
+     * answer keeps; a group opened in place follows its leader's new id.
+     */
+    public function showNewNotifications(): void
+    {
+        if ($this->staged === []) {
+            return;
+        }
+
+        $before = $this->groupLeaders($this->notifications);
+        $followed = $this->followedByPerson();
+        $staged = $this->groupIds($this->staged);
+
+        $this->notifications = [...$this->carryFollowState($this->staged, $followed), ...array_values(array_filter(
+            $this->notifications,
+            fn (Notification $group): bool => ! isset($staged[$group->groupId]),
+        ))];
+        $this->staged = [];
+        $this->listKey++;
+        $this->migrateExpanded($before);
+    }
+
+    /**
+     * A tap on a notification opens its commit, or the profile of whoever
+     * followed you or of the level it says you reached. A tap on a group of
+     * followers lists them in place instead, as its toggle does, rather than
+     * opening only the latest of them.
      */
     public function open(string $id): void
     {
@@ -268,11 +462,20 @@ class Notifications extends NativeComponent
     }
 
     /**
+     * The quoted commit of yours under a quote, which its card opens, as the
+     * web's does: the commit quoted, not the one quoting it.
+     */
+    public function openCommit(string $id): void
+    {
+        $this->openInTab('/commits/'.$id);
+    }
+
+    /**
      * Names and avatars open their profile independently of the notification's commit.
      */
     public function openActor(string $username): void
     {
-        foreach ([...$this->notifications, ...array_merge([], ...array_values($this->expanded))] as $notification) {
+        foreach ([...$this->notifications, ...$this->staged, ...array_merge([], ...array_values($this->expanded))] as $notification) {
             if ($notification->isModeration()) {
                 continue;
             }
@@ -377,7 +580,11 @@ class Notifications extends NativeComponent
             ? $notification->withActorFollowed($following)
             : $notification;
 
+        // What a poll staged goes with the row: a newer copy of the same
+        // person waiting in the pill must not undo the follow back, or its
+        // rollback, when the pill is tapped.
         $this->notifications = array_map($update, $this->notifications);
+        $this->staged = array_map($update, $this->staged);
         $this->expanded = array_map(fn (array $items): array => array_map($update, $items), $this->expanded);
     }
 
@@ -386,7 +593,7 @@ class Notifications extends NativeComponent
         $type = $this->type;
 
         $this->refresh($this->groupPath($id), Client::notificationsQuery($type), function (array $json) use ($id, $type): void {
-            // Folded away, or another filter, while it was on its way.
+            // Folded away, or another selection, while it was on its way.
             if ($type === $this->type && array_key_exists($id, $this->expanded)) {
                 $this->takeGroup($id, $json);
             }
@@ -400,8 +607,55 @@ class Notifications extends NativeComponent
     {
         $page = Page::fromArray($json, Notification::fromArray(...));
 
-        $this->expanded[$id] = $page->items;
-        $this->setGroupCursor($id, $page->nextCursor);
+        // A group asked for again keeps what was loaded under its page: the
+        // fresh first page covers the members it covers — whatever was
+        // deleted among them gone — and the older ones stay past it, with
+        // the cursor that pages on from them (see mergedGroup).
+        [$items, $cursor] = $this->mergedGroup($this->expanded[$id] ?? [], $page, $this->expandedCursors[$id] ?? null);
+
+        $this->expanded[$id] = $items;
+        $this->setGroupCursor($id, $cursor);
+    }
+
+    /**
+     * A group's members as a refresh left them, told apart by event: the
+     * fresh first page replaces the members it covers, newest first, and
+     * the members loaded under the page stay past the last one it also has,
+     * never twice, with the cursor they were paged on from when any remain.
+     * A group with nothing loaded under its page — opening one kept, say —
+     * is simply the page. A page that shares nothing with what was loaded
+     * says too much came in to line the two up, and stands for the group.
+     *
+     * @param  list<Notification>  $loaded
+     * @param  Page<Notification>  $page
+     * @return array{0: list<Notification>, 1: ?string}
+     */
+    private function mergedGroup(array $loaded, Page $page, ?string $retainedCursor): array
+    {
+        if ($loaded === []) {
+            return [$page->items, $page->nextCursor];
+        }
+
+        $fresh = array_fill_keys(array_map(fn (Notification $item): string => $item->id, $page->items), true);
+
+        $deepest = -1;
+
+        foreach ($loaded as $index => $item) {
+            if (isset($fresh[$item->id])) {
+                $deepest = $index;
+            }
+        }
+
+        $tail = $deepest < 0 ? [] : array_values(array_filter(
+            array_slice($loaded, $deepest + 1),
+            fn (Notification $item): bool => ! isset($fresh[$item->id]),
+        ));
+
+        if ($tail === []) {
+            return [$page->items, $page->nextCursor];
+        }
+
+        return [[...$page->items, ...$tail], $retainedCursor];
     }
 
     private function setGroupCursor(string $id, ?string $cursor): void
@@ -431,6 +685,110 @@ class Notifications extends NativeComponent
         return null;
     }
 
+    /**
+     * @param  list<Notification>  $groups
+     * @return array<string, true>
+     */
+    private function groupIds(array $groups): array
+    {
+        return array_fill_keys(array_map(fn (Notification $group): string => $group->groupId, $groups), true);
+    }
+
+    /**
+     * Each group's newest event, which is the id a group is told apart by its
+     * fresh copy arriving under: same group, newest moved on, is an update to
+     * one showing rather than a new one beside it.
+     *
+     * @param  list<Notification>  $groups
+     * @return array<string, string>
+     */
+    private function groupLeaders(array $groups): array
+    {
+        $leaders = [];
+
+        foreach ($groups as $group) {
+            $leaders[$group->groupId] = $group->id;
+        }
+
+        return $leaders;
+    }
+
+    /**
+     * What the rows showing know of you following each group's person, so a
+     * copy arriving without the word doesn't take it away again.
+     *
+     * @return array<string, ?bool>
+     */
+    private function followedByPerson(): array
+    {
+        $followed = [];
+
+        foreach ($this->notifications as $group) {
+            if ($group->isFollow()) {
+                $followed[$group->actor->username] = $group->actorIsFollowed;
+            }
+        }
+
+        return $followed;
+    }
+
+    /**
+     * @param  list<Notification>  $groups
+     * @param  array<string, ?bool>  $followed  by the person who followed you
+     * @return list<Notification>
+     */
+    private function carryFollowState(array $groups, array $followed): array
+    {
+        return array_map(function (Notification $group) use ($followed): Notification {
+            // Only the same person's word carries: a group's newest person
+            // moves on as others join it, and their copy says nothing of you
+            // following the one before them.
+            if ($group->isFollow()
+                && $group->actorIsFollowed === null
+                && array_key_exists($group->actor->username, $followed)
+                && $followed[$group->actor->username] !== null) {
+                return $group->withActorFollowed($followed[$group->actor->username]);
+            }
+
+            return $group;
+        }, $groups);
+    }
+
+    /**
+     * A group opened in place is keyed by its newest event, which moves on as
+     * people join it. When a fresh or pending copy takes a group's place, what
+     * was opened under the old one moves with it — its members, its older
+     * cursor, a failed open — so it stays open, and is asked for again under
+     * the id devnull knows the group by now.
+     *
+     * @param  array<string, string>  $before  each group's newest id before the change
+     */
+    private function migrateExpanded(array $before): void
+    {
+        foreach ($this->groupLeaders($this->notifications) as $groupId => $id) {
+            $old = $before[$groupId] ?? null;
+
+            if ($old === null || $old === $id || ! array_key_exists($old, $this->expanded)) {
+                continue;
+            }
+
+            $this->expanded[$id] = $this->expanded[$old];
+            unset($this->expanded[$old]);
+
+            if (array_key_exists($old, $this->expandedCursors)) {
+                $this->expandedCursors[$id] = $this->expandedCursors[$old];
+                unset($this->expandedCursors[$old]);
+            }
+
+            $this->failedGroups = array_values(array_map(
+                fn (string $failed): string => $failed === $old ? $id : $failed,
+                $this->failedGroups,
+            ));
+
+            $this->refreshGroup($id);
+        }
+    }
+
     private function showKept(): void
     {
         if (($json = $this->cached('notifications', Client::notificationsQuery($this->type))) === null) {
@@ -445,110 +803,143 @@ class Notifications extends NativeComponent
     }
 
     /**
-     * The fresh first page replaces what's showing. Groups loaded further down
-     * stay, past the last one the fresh page also has.
+     * A page asked for under the list goes in under it. A group is only ever
+     * in once, however its newest event moved on, so paging under a pill that
+     * put a fresh copy of one on top never duplicates it.
+     */
+    private function appendPage(Page $page): void
+    {
+        $shown = $this->groupIds($this->notifications);
+
+        foreach ($page->items as $group) {
+            if (isset($shown[$group->groupId])) {
+                continue;
+            }
+
+            $this->notifications[] = $group;
+            $shown[$group->groupId] = true;
+        }
+
+        $this->nextCursor = $page->nextCursor;
+        $this->refreshUnreadNotifications();
+    }
+
+    /**
+     * The answer to a poll: the groups in it that aren't showing yet, and the
+     * ones whose newest event moved on since they were last drawn, wait for
+     * the pill, as the latest word on what came in. A group back exactly as
+     * it shows — the oldest one, through= being inclusive of it — is nothing
+     * waiting, and neither is anything else unchanged. What arrived replaces
+     * what an earlier poll staged, so nothing is counted twice, and a poll
+     * that brought nothing in leaves the pill away.
+     *
+     * @param  array<string, mixed>  $json
+     */
+    private function takePolled(array $json): void
+    {
+        $page = Page::fromArray($json, Notification::fromArray(...));
+        $showing = $this->groupLeaders($this->notifications);
+
+        $this->staged = array_values(array_filter(
+            $page->items,
+            fn (Notification $group): bool => ! isset($showing[$group->groupId]) || $showing[$group->groupId] !== $group->id,
+        ));
+
+        // Listing any of it marks it read, so the badge is asked for again.
+        $this->refreshUnreadNotifications();
+    }
+
+    /**
+     * The fresh first page replaces what's showing, told apart by group: a
+     * group's newest event moves on as people join it, and its fresh copy
+     * takes the old one's place rather than sitting above it. Groups loaded
+     * further down stay, past the last one the fresh page also has, with the
+     * cursor that pages them. Groups a poll staged that the page brought in
+     * are showing now, so they no longer wait for the pill.
      *
      * @param  array<string, mixed>  $json
      */
     private function takeFresh(string $type, array $json): void
     {
-        // An answer for a filter you've left.
+        // An answer for a selection you've left.
         if ($type !== $this->type) {
             return;
         }
 
         $page = Page::fromArray($json, Notification::fromArray(...));
-        $fresh = array_flip(array_map(fn (Notification $group): string => $group->id, $page->items));
+        $before = $this->groupLeaders($this->notifications);
+        $fresh = $this->groupIds($page->items);
 
         $deepest = -1;
 
         foreach ($this->notifications as $index => $group) {
-            if (isset($fresh[$group->id])) {
+            if (isset($fresh[$group->groupId])) {
                 $deepest = $index;
             }
         }
 
         $later = $deepest < 0 ? [] : array_values(array_filter(
             array_slice($this->notifications, $deepest + 1),
-            fn (Notification $group): bool => ! isset($fresh[$group->id]),
+            fn (Notification $group): bool => ! isset($fresh[$group->groupId]),
         ));
 
         $this->notifications = [...$page->items, ...$later];
         $this->nextCursor = $later === [] ? $page->nextCursor : $this->nextCursor;
         $this->readAt ??= is_string($json['read_at'] ?? null) ? $json['read_at'] : null;
         $this->loaded = true;
+        $this->migrateExpanded($before);
+
+        if ($this->staged !== []) {
+            $shown = $this->groupIds($this->notifications);
+            $this->staged = array_values(array_filter(
+                $this->staged,
+                fn (Notification $group): bool => ! isset($shown[$group->groupId]),
+            ));
+        }
+
         $this->refreshUnreadNotifications();
     }
 
     public function render(): View
     {
         $readAt = $this->readAt === null ? null : CarbonImmutable::parse($this->readAt);
-        $types = array_keys(self::Types);
-        $index = (int) array_search($this->type, $types, true);
-        $from = max(0, $index - 1);
-        $to = min(count($types) - 1, $index + 1);
-
-        $pages = [];
-
-        foreach (array_slice($types, $from, $to - $from + 1) as $type) {
-            $pages[] = $type === $this->type
-                ? $this->page($type, $this->notifications, $this->nextCursor, $this->loaded, $this->error, $readAt, $this->listKey)
-                : $this->preview($type, $readAt);
-        }
+        $all = $this->enabled === array_keys(self::Categories);
 
         return view('native.notifications', [
-            'myColour' => $this->myColour(),
-            'types' => self::Types,
-            'readAt' => $readAt,
-            'pages' => $pages,
-            'pageIndex' => $index,
-            'pagesFrom' => $from,
-            'pagesTo' => $to,
-        ]);
-    }
-
-    /**
-     * A filter beside the one you're on: the first few groups kept for it, as it will open.
-     *
-     * @return array<string, mixed>
-     */
-    private function preview(string $type, ?CarbonImmutable $readAt): array
-    {
-        $json = $this->skeletonFrame ? null : $this->cached('notifications', Client::notificationsQuery($type));
-        $kept = is_array($json['data'] ?? null) ? $json['data'] : [];
-        $page = $json === null ? null : Page::fromArray(['data' => array_slice($kept, 0, self::PreviewGroups)] + $json, Notification::fromArray(...));
-
-        // Groups past the preview are left out, with nothing under them yet.
-        return $this->page($type, $page->items ?? [], $page?->nextCursor, $page !== null, null, $readAt, $this->listKeys[$type] ?? 0, cut: count($kept) > self::PreviewGroups);
-    }
-
-    /**
-     * What a filter's page shows.
-     *
-     * @param  list<Notification>  $notifications
-     * @return array<string, mixed>
-     */
-    private function page(string $type, array $notifications, ?string $nextCursor, bool $loaded, ?string $error, ?CarbonImmutable $readAt, int $listKey, bool $cut = false): array
-    {
-        $showing = $type === $this->type;
-
-        return [
-            'end' => match (true) {
-                $cut || $notifications === [] => null,
-                $nextCursor !== null => 'more',
-                default => 'oldest',
+            'categories' => self::Categories,
+            'quickFilters' => self::QuickFilters,
+            'moreFilters' => array_values(array_diff(array_keys(self::Categories), self::QuickFilters)),
+            'enabled' => $this->enabled,
+            'moreOpen' => $this->moreOpen,
+            'newLabel' => $this->newNotificationsLabel(),
+            'page' => [
+                'end' => match (true) {
+                    $this->notifications === [] => null,
+                    $this->nextCursor !== null => 'more',
+                    default => 'oldest',
+                },
+                'listKey' => $this->listKey,
+                'notifications' => $this->notifications,
+                'loaded' => $this->loaded,
+                'error' => $this->error,
+                'lastVisitBefore' => self::firstSeen($this->notifications, $readAt),
+                'expanded' => $this->expanded,
+                'expandedCursors' => $this->expandedCursors,
+                'failedGroups' => $this->failedGroups,
+            ],
+            'stagedCount' => count($this->staged),
+            'emptyCommand' => $all
+                ? '$ cat /dev/notifications'
+                : '$ cat /dev/notifications | grep -E \''.($this->enabled === [] ? '^$' : implode('|', $this->enabled)).'\'',
+            'emptyCopy' => match (true) {
+                $this->enabled === [] => self::NoneEmpty,
+                $all => self::AllEmpty,
+                count($this->enabled) === 1 => self::Categories[$this->enabled[0]][1],
+                default => self::CombinedEmpty,
             },
-            'type' => $type,
-            'showing' => $showing,
-            'listKey' => $listKey,
-            'notifications' => $notifications,
-            'loaded' => $loaded,
-            'error' => $error,
-            'lastVisitBefore' => self::firstSeen($notifications, $readAt),
-            'expanded' => $showing ? $this->expanded : [],
-            'expandedCursors' => $showing ? $this->expandedCursors : [],
-            'failedGroups' => $showing ? $this->failedGroups : [],
-        ];
+            'allOn' => $all,
+            'readAt' => $readAt,
+        ]);
     }
 
     /**
