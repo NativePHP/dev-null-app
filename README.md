@@ -12,9 +12,9 @@ On iOS you can also link an Apple ID from this device, under your profile. After
 
 ## The API
 
-The app talks to the signed `/api/v1` from [nunomaduro/dev-null.sh#130](https://github.com/nunomaduro/dev-null.sh/pull/130), which isn't merged yet. Until it is, point the app at a devnull instance running that branch.
+The app talks to devnull's signed `/api/v1`, from [dev-null-sh/dev-null.sh#130](https://github.com/dev-null-sh/dev-null.sh/pull/130). It talks to production unless `DEVNULL_URL` says otherwise.
 
-To make that instance work with the app on your phone, create a tunnel (ngrok, Cloudflare etc) and set the `DEVNULL_URL` .env key to that URL before compiling the app.
+To use a local devnull from the app on your phone, create a tunnel (ngrok, Cloudflare etc) and set the `DEVNULL_URL` .env key to that URL before compiling the app.
 
 ## Roadmap
 
@@ -23,7 +23,7 @@ These are the next things we want in the app. If you'd like to take one on, read
 - Search
 - A notifications centre that matches the web
 - A better welcome screen, with sign up and log in that don't mention GitHub, and maybe the public feed
-- Everything Remotes does on the web, including audio recordings and image uploads
+- Everything else Remotes does on the web
 - WebSockets
 
 ## Setup
@@ -37,17 +37,12 @@ composer setup
 
 `nativephp/mobile-secure-storage` is a paid plugin from `plugins.nativephp.com`, so `composer install` needs your NativePHP plugin credentials. See below if you don't have access to the plugin.
 
-For now the app tracks unreleased branches, which Composer pulls straight from GitHub:
+For now the app tracks unreleased code, which Composer pulls straight from GitHub:
 
-- `nativephp/mobile` on `combined/dev-null-app`, a branch just for this app. It's `feat/custom-icons`, which adds custom SVG icons ([NativePHP/mobile-air#544](https://github.com/NativePHP/mobile-air/pull/544)), plus the fix that stops the keyboard-dismiss tap swallowing taps on UIKit controls such as `native:toggle` and the Sign in with Apple button ([NativePHP/mobile-air#545](https://github.com/NativePHP/mobile-air/pull/545)).
-- `nativephp/mobile-ui` on `combined/dev-null-app`, a branch just for this app. It's `feat/custom-icons` ([NativePHP/mobile-ui#132](https://github.com/NativePHP/mobile-ui/pull/132)) plus:
-  - opening the iOS pager at its start page ([#131](https://github.com/NativePHP/mobile-ui/pull/131)) and running a swiping pager's lists under the tab bar ([#134](https://github.com/NativePHP/mobile-ui/pull/134)),
-  - a pager that reports its page once the swipe settles ([#135](https://github.com/NativePHP/mobile-ui/pull/135)) and draws its tabs natively ([#136](https://github.com/NativePHP/mobile-ui/pull/136)),
-  - button variants named after a theme colour ([#137](https://github.com/NativePHP/mobile-ui/pull/137)),
-  - a sticky header for lists ([#138](https://github.com/NativePHP/mobile-ui/pull/138)),
-  - a pager header that scrolls with the page showing ([#139](https://github.com/NativePHP/mobile-ui/pull/139)).
+- `nativephp/mobile` ([NativePHP/mobile-air](https://github.com/NativePHP/mobile-air)) and `nativephp/mobile-ui` on `main`, aliased as 4.6.1 and 0.8.0.
+- `victorycodedev/toastkit` from the `fix/android-toasts-above-sheets` branch of [simonhamp/toastkit](https://github.com/simonhamp/toastkit), which draws Android toasts above bottom sheets instead of behind them ([victorycodedev/toastkit#5](https://github.com/victorycodedev/toastkit/pull/5)).
 
-Once those are released, the app goes back to tagged versions and the combined branches can be deleted.
+Once those are released, the app goes back to tagged versions.
 
 ### Without plugin credentials
 
