@@ -1018,3 +1018,18 @@ function sentTo(string $method, string $path): array
         ->values()
         ->all();
 }
+
+
+/**
+ * What the sign-in screen says about the terms, above its buttons.
+ *
+ * @return list<string>
+ */
+function termsText(): array
+{
+    return [
+        'I agree to the terms of service and privacy policy. There\'s no tolerance for objectionable content or abusive users.',
+        'Terms of service',
+        'Privacy policy',
+    ];
+}
