@@ -126,6 +126,15 @@
         <native:bottom-bar>
             <native:column ref="reply-bar" class="w-full android:bg-theme-surface">
                 <native:column class="w-full h-[1] android:bg-theme-hairline" />
+                {{--
+                    The people to mention keep a slot above the field, empty and no height when there's no one, so the
+                    field's row never moves. Android rebuilds a row that moves among its siblings, field and all, which
+                    drops the keyboard.
+                --}}
+                @php($mentioning = ($mention['field'] ?? null) === 'reply' && ($mentionPeople !== [] || $mentionOrganizations !== []))
+                <native:row native:key="reply-mention-slot" ref="reply-mention-slot" class="w-full {{ $mentioning ? 'pt-1 ios:px-4' : '' }}">
+                    @include('native.partials.mention-suggestions', ['field' => 'reply', 'label' => 'Mention a developer'])
+                </native:row>
                 <native:row ref="reply-row" class="w-full ios:pl-4 android:pl-2 pr-4 py-2 gap-2 items-center">
                     @include('native.partials.composer-plate', [
                         'ref' => 'reply',

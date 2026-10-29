@@ -92,6 +92,9 @@ final readonly class Client
 
     public const string OrgsPath = 'remotes/orgs';
 
+    /** Whom the commit composers suggest for an @mention, as the web's composers ask. */
+    public const string MentionSuggestionsPath = 'search/mentions';
+
     /**
      * Where a `/feature` or `/bug` draft goes, to be opened as an issue upstream.
      */
@@ -358,6 +361,26 @@ final readonly class Client
             ],
             array_filter(is_array($candidates) ? $candidates : [], fn (mixed $candidate): bool => is_array($candidate) && is_array($candidate['user'] ?? null)),
         ));
+    }
+
+    /**
+     * The people to suggest for an @mention of what's typed after the "@",
+     * best first, then the organizations, as the web's commit composer
+     * lists them: in a reply, the people in its thread lead, and in a quote,
+     * the quoted commit's author. A bare "@" in a new commit lists the
+     * people you follow. Never kept: it changes with every letter.
+     *
+     * @return array{people: list<User>, organizations: list<User>}
+     */
+    public function mentionSuggestions(string $query, ?string $reply = null, ?string $quote = null): array
+    {
+        $json = $this->json($this->send('GET', self::MentionSuggestionsPath, array_filter(['q' => $query, 'reply' => $reply, 'quote' => $quote], fn (?string $value): bool => $value !== null)));
+        $people = fn (mixed $list): array => array_values(array_map(
+            fn (array $person): User => User::fromArray($person),
+            array_filter(is_array($list) ? $list : [], fn (mixed $person): bool => is_array($person) && is_string($person['handle'] ?? null)),
+        ));
+
+        return ['people' => $people($json['data'] ?? null), 'organizations' => $people($json['organizations'] ?? null)];
     }
 
     /**
