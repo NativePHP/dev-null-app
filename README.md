@@ -20,7 +20,6 @@ To make that instance work with the app on your phone, create a tunnel (ngrok, C
 
 These are the next things we want in the app. If you'd like to take one on, read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
-- Styling for livestreams
 - Search
 - A notifications centre that matches the web
 - A better welcome screen, with sign up and log in that don't mention GitHub, and maybe the public feed
