@@ -17,6 +17,7 @@ use App\NativeComponents\OrgMembers;
 use App\NativeComponents\Profile;
 use App\NativeComponents\Remotes;
 use App\NativeComponents\Safety;
+use App\NativeComponents\ScheduledCommits;
 use App\NativeComponents\Starred;
 use App\NativeComponents\ThisDevice;
 use Illuminate\Support\Facades\Route;
@@ -36,8 +37,9 @@ Route::nativeGroup(TabsLayout::class, function (): void {
     Route::native('/profile/starred', Starred::class);
 
     // Commits, profiles, their followers, the people you mute and block, and
-    // Remotes threads open beneath the tab they were tapped in, so that tab's
-    // own navigation stack pushes them (see Concerns\OpensInTab).
+    // Remotes threads and your scheduled commits open beneath the tab they were
+    // tapped in, so that tab's own navigation stack pushes them (see
+    // Concerns\OpensInTab).
     foreach (TabsLayout::Tabs as $tab) {
         Route::native("{$tab}/commits/{id}", CommitDetail::class);
         Route::native("{$tab}/users/{username}", Profile::class);
@@ -48,5 +50,6 @@ Route::nativeGroup(TabsLayout::class, function (): void {
         Route::native("{$tab}/orgs/{org}", Conversation::class);
         Route::native("{$tab}/orgs/{org}/members", OrgMembers::class);
         Route::native("{$tab}/orgs/{org}/members/add", AddOrgMembers::class);
+        Route::native("{$tab}/scheduled", ScheduledCommits::class);
     }
 });

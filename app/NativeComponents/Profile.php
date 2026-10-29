@@ -542,6 +542,14 @@ class Profile extends NativeComponent
     }
 
     /**
+     * Your scheduled commits, beneath this tab, from the calendar beside Edit on GitHub.
+     */
+    public function openScheduledCommits(): void
+    {
+        $this->openInTab('/scheduled');
+    }
+
+    /**
      * The website on their GitHub profile: a page on dev/null the app has a
      * screen for here in the app, anything else in the browser. Taps name the
      * link rather than carry a URL, so the URL always comes from what devnull

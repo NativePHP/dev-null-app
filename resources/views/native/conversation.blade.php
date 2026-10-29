@@ -88,8 +88,8 @@
                         empty and no height when there's nothing in it, so the field's row never moves. Android rebuilds
                         a row that moves among its siblings, field and all, which drops the keyboard.
                     --}}
-                    <native:row native:key="mention-slot" ref="mention-slot" class="w-full {{ $mentionSuggestions !== [] ? 'pt-1 ios:px-4' : '' }}">
-                        @include('native.partials.mention-suggestions', ['suggestions' => $mentionSuggestions, 'query' => $mention['query'] ?? ''])
+                    <native:row native:key="mention-slot" ref="mention-slot" class="w-full {{ $mentionPeople !== [] ? 'pt-1 ios:px-4' : '' }}">
+                        @include('native.partials.mention-suggestions', ['field' => 'draft', 'heading' => ($mention['query'] ?? null) === '' ? 'Members' : null])
                     </native:row>
                     <native:row native:key="replying-slot" ref="replying-slot" class="w-full {{ $replyTo ? 'ios:px-4' : '' }}">
                         @if ($replyTo)

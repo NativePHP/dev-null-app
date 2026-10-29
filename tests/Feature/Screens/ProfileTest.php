@@ -406,6 +406,20 @@ it('shows your own profile on the Profile tab', function () {
         ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://github.com/settings/profile');
 });
 
+it('opens your scheduled commits beneath the Profile tab from the calendar beside Edit on GitHub', function () {
+    fakeApi([
+        'GET /api/v1/users/local_dev' => [profileJson(user: ['id' => userJson()['id'], 'handle' => 'local_dev'])],
+        'GET /api/v1/users/local_dev/commits' => [pageJson([])],
+        'GET /api/v1/users/ada' => [profileJson()],
+        'GET /api/v1/users/ada/commits' => [pageJson([])],
+    ]);
+
+    expect(nodeByRef(Native::visit('/profile'), 'profile-scheduled')['props']['a11y_label'] ?? null)->toBe('Scheduled commits');
+
+    Native::visit('/profile')->tap('profile-scheduled')->assertNavigatedTo('/profile/scheduled');
+    Native::visit('/profile/users/ada')->assertMissingElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'profile-scheduled');
+});
+
 it('leads from your own profile to your account with the Settings2 icon', function () {
     fakeApi([
         'GET /api/v1/users/local_dev' => [profileJson(user: ['handle' => 'local_dev'])],

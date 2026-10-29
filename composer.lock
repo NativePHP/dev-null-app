@@ -266,16 +266,16 @@
         },
         {
             "name": "composer/semver",
-            "version": "3.5.2",
+            "version": "3.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/composer/semver.git",
-                "reference": "9dfce66f1e97360ea5e6d3e38ab14277e4cc591e"
+                "reference": "d92543b7ede9c4ec6b59853cefb061e39866d2cf"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/composer/semver/zipball/9dfce66f1e97360ea5e6d3e38ab14277e4cc591e",
-                "reference": "9dfce66f1e97360ea5e6d3e38ab14277e4cc591e",
+                "url": "https://api.github.com/repos/composer/semver/zipball/d92543b7ede9c4ec6b59853cefb061e39866d2cf",
+                "reference": "d92543b7ede9c4ec6b59853cefb061e39866d2cf",
                 "shasum": ""
             },
             "require": {
@@ -327,7 +327,7 @@
             "support": {
                 "irc": "ircs://irc.libera.chat:6697/composer",
                 "issues": "https://github.com/composer/semver/issues",
-                "source": "https://github.com/composer/semver/tree/3.5.2"
+                "source": "https://github.com/composer/semver/tree/3.6.0"
             },
             "funding": [
                 {
@@ -339,7 +339,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-22T15:37:26+00:00"
+            "time": "2026-10-29T09:13:34+00:00"
         },
         {
             "name": "dasprid/enum",
@@ -3230,12 +3230,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/ricardovfreixo/mobile-ui.git",
-                "reference": "2a8f8862068ae97151db9d864407a179cefe8b87"
+                "reference": "0cdd321d24d442d59159d1cb7516609128bb00b1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/ricardovfreixo/mobile-ui/zipball/2a8f8862068ae97151db9d864407a179cefe8b87",
-                "reference": "2a8f8862068ae97151db9d864407a179cefe8b87",
+                "url": "https://api.github.com/repos/ricardovfreixo/mobile-ui/zipball/0cdd321d24d442d59159d1cb7516609128bb00b1",
+                "reference": "0cdd321d24d442d59159d1cb7516609128bb00b1",
                 "shasum": ""
             },
             "require": {
@@ -3293,7 +3293,7 @@
                     "url": "https://nativephp.com/sponsor"
                 }
             ],
-            "time": "2026-10-29T13:03:37+00:00"
+            "time": "2026-10-29T15:17:55+00:00"
         },
         {
             "name": "nesbot/carbon",
@@ -9788,16 +9788,16 @@
         },
         {
             "name": "phpstan/phpdoc-parser",
-            "version": "2.3.12",
+            "version": "2.4.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpdoc-parser.git",
-                "reference": "88d1b98f3bb34b2a1316ed6a85b675bf6c98cbb4"
+                "reference": "e3647094ed8f0f1f67393d812b793a5143e25af3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/88d1b98f3bb34b2a1316ed6a85b675bf6c98cbb4",
-                "reference": "88d1b98f3bb34b2a1316ed6a85b675bf6c98cbb4",
+                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/e3647094ed8f0f1f67393d812b793a5143e25af3",
+                "reference": "e3647094ed8f0f1f67393d812b793a5143e25af3",
                 "shasum": ""
             },
             "require": {
@@ -9829,9 +9829,9 @@
             "description": "PHPDoc parser with support for nullable, intersection and generic types",
             "support": {
                 "issues": "https://github.com/phpstan/phpdoc-parser/issues",
-                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.12"
+                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.4.0"
             },
-            "time": "2026-10-28T20:04:36+00:00"
+            "time": "2026-10-28T20:28:58+00:00"
         },
         {
             "name": "phpunit/php-code-coverage",
@@ -11443,12 +11443,6 @@
     ],
     "aliases": [
         {
-            "package": "victorycodedev/toastkit",
-            "version": "dev-fix/android-toasts-above-sheets",
-            "alias": "1.4.0",
-            "alias_normalized": "1.4.0.0"
-        },
-        {
             "package": "nativephp/mobile",
             "version": "dev-fix/root-tab-reselect",
             "alias": "4.6.1",
@@ -11459,6 +11453,12 @@
             "version": "dev-fix/list-root-tab-scroll-target",
             "alias": "0.8.0",
             "alias_normalized": "0.8.0.0"
+        },
+        {
+            "package": "victorycodedev/toastkit",
+            "version": "dev-fix/android-toasts-above-sheets",
+            "alias": "1.4.0",
+            "alias_normalized": "1.4.0.0"
         }
     ],
     "minimum-stability": "stable",

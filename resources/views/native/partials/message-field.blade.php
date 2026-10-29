@@ -4,7 +4,7 @@
     the reply strip or photos coming and going above it never rebuild it. It mounts afresh only to take focus
     ($composerKey): replying while the field is idle, or attaching photos. EDGE sends no focus event, so a press into
     the field tells the thread it's in use. Where the caret is goes to the thread as it moves, for the "@" suggestions
-    in an org (see SuggestsMentions).
+    in an org (see SuggestsMentions), and a picked mention comes back with where the caret goes, after it.
 --}}
 <native:column native:key="message-field" ref="message-field" class="flex-1 ios:pl-4" @pressUp="fieldPressed">
     <native:bare-text-input
@@ -14,7 +14,8 @@
         :autofocus="$composerKey > 0"
         :placeholder="$placeholder"
         native:model.debounce.150ms="draft"
-        @selectionChange="caretMoved"
+        :selection="$mentionCarets['draft'] ?? null"
+        @selectionChange="caretMoved('draft')"
         multiline
         :max-lines="5"
         :max-length="\App\Devnull\Data\Message::MaxLength"

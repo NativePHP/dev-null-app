@@ -11,9 +11,11 @@ use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\Notification;
 use App\Devnull\Data\Page;
 use App\Devnull\Data\Profile;
+use App\Devnull\Data\ScheduledCommit;
 use App\Devnull\Data\User;
 use App\Devnull\Exceptions\ApiException;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -92,6 +94,9 @@ final readonly class Client
 
     public const string OrgsPath = 'remotes/orgs';
 
+    /** Whom the commit composers suggest for an @mention, as the web's composers ask. */
+    public const string MentionSuggestionsPath = 'search/mentions';
+
     /**
      * Where a `/feature` or `/bug` draft goes, to be opened as an issue upstream.
      */
@@ -102,6 +107,20 @@ final readonly class Client
      * unless it's asked for fewer, and the app never asks for more than this.
      */
     public const int RepliesPerPage = 5;
+
+    /**
+     * Where the signed-in account's timezone is saved, or unset, with whether their profile shows their local time.
+     * devnull sends both with the rest of what only the user sees in the web's settings.
+     */
+    public const string TimezonePath = 'me/timezone';
+
+    public const string SettingsPath = 'me/settings';
+
+    /**
+     * The commits the signed-in account scheduled, as the web's Scheduled
+     * commits page lists them.
+     */
+    public const string ScheduledCommitsPath = 'scheduled-commits';
 
     public function __construct(private DeviceKey $deviceKey, private string $baseUrl, private ResponseCache $cache) {}
 
@@ -287,6 +306,64 @@ final readonly class Client
         };
     }
 
+    /**
+     * Signs a commit to be submitted at $at, as the web's Schedule commit
+     * does, for the background to send. Only you see it until then. With
+     * photos it goes as multipart, as a commit with photos does, and a poll
+     * goes in its JSON.
+     *
+     * @param  list<DraftImage>  $images
+     * @param  array<string, mixed>|null  $poll
+     */
+    public function signedScheduledCommit(string $body, CarbonInterface $at, array $images = [], ?array $poll = null): SignedRequest
+    {
+        $payload = array_filter(['body' => $body, 'scheduled_at' => self::scheduleTime($at), 'poll' => $poll], fn (mixed $value): bool => $value !== null);
+
+        return $images === []
+            ? $this->signedWrite('POST', self::ScheduledCommitsPath, $payload)
+            : $this->signedWithImages(self::ScheduledCommitsPath, $payload, $images);
+    }
+
+    /**
+     * Your scheduled commits, the ones waiting first, 20 a page. They're
+     * paged by number, which a Page carries as its cursor.
+     *
+     * @return Page<ScheduledCommit>
+     */
+    public function scheduledCommits(?string $page = null): Page
+    {
+        return Page::fromArray($this->get(self::ScheduledCommitsPath, ['page' => $page]), ScheduledCommit::fromArray(...));
+    }
+
+    /**
+     * The web's Commit now: one still waiting goes for review now instead of
+     * at its time. devnull answers with it as the list now shows it.
+     */
+    public function submitScheduledCommit(string $id): ScheduledCommit
+    {
+        $scheduled = $this->data($this->send('POST', self::ScheduledCommitsPath.'/'.rawurlencode($id).'/submission'));
+        $this->cache->forget(self::ScheduledCommitsPath);
+
+        return ScheduledCommit::fromArray($scheduled);
+    }
+
+    /**
+     * Cancels a scheduled commit that's still waiting, as the web's Cancel does.
+     */
+    public function cancelScheduledCommit(string $id): void
+    {
+        $this->send('DELETE', self::ScheduledCommitsPath.'/'.rawurlencode($id));
+        $this->cache->forget(self::ScheduledCommitsPath);
+    }
+
+    /**
+     * A time as devnull takes one to schedule for: ISO 8601 with its offset, in UTC.
+     */
+    public static function scheduleTime(CarbonInterface $at): string
+    {
+        return CarbonImmutable::instance($at)->utc()->format('Y-m-d\TH:i:sP');
+    }
+
     public function deleteCommit(string $id): void
     {
         $this->send('DELETE', 'commits/'.rawurlencode($id));
@@ -358,6 +435,26 @@ final readonly class Client
             ],
             array_filter(is_array($candidates) ? $candidates : [], fn (mixed $candidate): bool => is_array($candidate) && is_array($candidate['user'] ?? null)),
         ));
+    }
+
+    /**
+     * The people to suggest for an @mention of what's typed after the "@",
+     * best first, then the organizations, as the web's commit composer
+     * lists them: in a reply, the people in its thread lead, and in a quote,
+     * the quoted commit's author. A bare "@" in a new commit lists the
+     * people you follow. Never kept: it changes with every letter.
+     *
+     * @return array{people: list<User>, organizations: list<User>}
+     */
+    public function mentionSuggestions(string $query, ?string $reply = null, ?string $quote = null): array
+    {
+        $json = $this->json($this->send('GET', self::MentionSuggestionsPath, array_filter(['q' => $query, 'reply' => $reply, 'quote' => $quote], fn (?string $value): bool => $value !== null)));
+        $people = fn (mixed $list): array => array_values(array_map(
+            fn (array $person): User => User::fromArray($person),
+            array_filter(is_array($list) ? $list : [], fn (mixed $person): bool => is_array($person) && is_string($person['handle'] ?? null)),
+        ));
+
+        return ['people' => $people($json['data'] ?? null), 'organizations' => $people($json['organizations'] ?? null)];
     }
 
     /**

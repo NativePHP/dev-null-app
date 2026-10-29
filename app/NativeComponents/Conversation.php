@@ -512,7 +512,7 @@ class Conversation extends NativeComponent
 
         $this->pending[] = $message;
         $this->draft = '';
-        $this->mention = null;
+        $this->forgetMention('draft');
         $this->photos = [];
         $this->describing = null;
         $this->replyToId = null;
@@ -568,6 +568,15 @@ class Conversation extends NativeComponent
         $this->lastActivityAt = self::now();
 
         $this->sendFromOutbox($write);
+    }
+
+    /**
+     * An org thread's message field suggests the org's members (see SuggestsMentions). A thread with one person has
+     * no one else to mention.
+     */
+    protected function mentionFields(): array
+    {
+        return $this->isOrg() ? ['draft' => ['limit' => Message::MaxLength, 'members' => $this->thread->members ?? []]] : [];
     }
 
     protected function takesVoiceNotes(): bool
@@ -1780,7 +1789,6 @@ class Conversation extends NativeComponent
             'myColour' => $this->myColour(),
             'partner' => $thread?->partner,
             'isOrg' => $this->isOrg(),
-            'mentionSuggestions' => $this->isOrg() ? $this->mentionSuggestions($thread->members ?? [], $viewer) : [],
             'access' => $thread->access ?? Thread::Open,
             'items' => $this->items($viewer),
             'composerClearance' => self::composerClearance($this->draft, $this->replyToId !== null, $this->photos !== [], $this->describing !== null),
