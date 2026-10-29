@@ -7,9 +7,10 @@
 @php($disabled ??= false)
 @php($menu ??= null)
 @if ($menu !== null)
+    {{-- iOS's menu reads its icon to VoiceOver rather than the pressable's label, so the icon carries it too. --}}
     <native:pressable ref="{{ $ref }}" :menu="$menu" a11y-label="{{ $label }}">
         <native:column class="min-w-[44] h-[36] items-center justify-center rounded-md">
-            <native:icon :ios="$icon->ios()" :android="$icon->android()" :size="20" class="text-theme-ink-muted" />
+            <native:icon :ios="$icon->ios()" :android="$icon->android()" :size="20" class="text-theme-ink-muted" a11y-label="{{ $label }}" />
         </native:column>
     </native:pressable>
 @elseif ($disabled)
