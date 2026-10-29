@@ -114,6 +114,59 @@
                 </native:column>
 
                 {{--
+                    The web's Timezone section: the timezone picked, or null while it's unset and the phone's is used,
+                    the web's "Show my local time on my profile" once there is one, then Choose timezone, which opens
+                    the list, the web's "Use … from this browser" with the phone's, and Unset. Nothing changes on
+                    devnull until Save timezone, in your colour.
+                --}}
+                <native:column ref="timezone" class="w-full pt-10">
+                    @include('native.partials.settings-heading', [
+                        'title' => 'Timezone',
+                        'description' => "Tap a commit's time on its page to see it in your timezone. On the web, people who hover a time see it in yours as well as theirs. Leave it unset to use this phone's timezone without sharing it. Your local time only shows on your profile if you turn that on below.",
+                    ])
+
+                    <native:column class="mx-4 mt-4 rounded-lg border border-theme-hairline bg-theme-surface">
+                        <native:row ref="chosen-timezone" class="w-full px-3 py-3 gap-3">
+                            <native:text font="mono" class="w-[88] text-[13px] text-theme-ink-muted">timezone</native:text>
+                            @if ($chosenTimezone === null)
+                                <native:text font="mono" class="flex-1 text-[13px] text-theme-ink-muted">null</native:text>
+                            @else
+                                <native:text class="flex-1 text-sm text-theme-ink">{{ \App\Devnull\Timezone::offset($chosenTimezone) }} {{ $chosenTimezone }}</native:text>
+                            @endif
+                        </native:row>
+                        @if ($phoneTimezone !== null)
+                            <native:column class="w-full h-[1] bg-theme-hairline" />
+                            <native:row ref="phone-timezone" class="w-full px-3 py-3 gap-3">
+                                <native:text font="mono" class="w-[88] text-[13px] text-theme-ink-muted">this phone</native:text>
+                                <native:text class="flex-1 text-sm text-theme-ink">{{ \App\Devnull\Timezone::offset($phoneTimezone) }} {{ $phoneTimezone }}</native:text>
+                            </native:row>
+                        @endif
+                    </native:column>
+
+                    {{-- The web's checkbox, as the system's switch, which only counts with a timezone. --}}
+                    @if ($chosenTimezone !== null)
+                        <native:row ref="show-local-time" class="w-full px-4 pt-4 gap-6 items-center">
+                            <native:text class="flex-1 text-sm text-theme-ink">Show my local time on my profile</native:text>
+                            <native:toggle ref="show-local-time-switch" :value="$showLocalTime" @change="setShowLocalTime" a11y-label="Show my local time on my profile" />
+                        </native:row>
+                    @endif
+
+                    <native:column class="w-full px-4 pt-4 gap-2">
+                        <native:button ref="choose-timezone" variant="secondary" size="lg" :ios-icon-trailing="Lucide::ChevronRight->ios()" :android-icon-trailing="Lucide::ChevronRight->android()" @press="pickTimezone" class="w-full">Choose timezone</native:button>
+                        @if ($phoneTimezone !== null && $phoneTimezone !== $chosenTimezone)
+                            <native:button ref="use-phone-timezone" variant="ghost" size="lg" @press="usePhoneTimezone" class="w-full">Use {{ $phoneTimezone }} from this phone</native:button>
+                        @endif
+                        @if ($chosenTimezone !== null)
+                            <native:button ref="unset-timezone" variant="ghost" size="lg" @press="unsetTimezone" class="w-full">Unset</native:button>
+                        @endif
+                        <native:button ref="save-timezone" :variant="$myColour" size="lg" :loading="$savingTimezone" :disabled="$savingTimezone || ! $timezoneChanged" @press="saveTimezone" class="w-full">Save timezone</native:button>
+                        @if ($timezoneError)
+                            <native:text ref="timezone-error" class="text-sm text-theme-destructive">{{ $timezoneError }}</native:text>
+                        @endif
+                    </native:column>
+                </native:column>
+
+                {{--
                     The web's pastéis mode section, word for word: its heading and two lines, with the switch beside them.
                     The switch is the system's own (a UISwitch on iOS), which takes taps since NativePHP/mobile-air#545.
                 --}}
@@ -277,4 +330,8 @@
             </native:column>
         </native:column>
     </native:scroll-view>
+
+    {{-- After the page, so the rows it adds and takes away never change the ids of the page's own nodes, which would
+         scroll it back to the top. --}}
+    @include('native.partials.timezone-sheet')
 </native:column>

@@ -32,6 +32,8 @@ final class Account
      */
     private const string RemotesOff = 'off';
 
+    private const string TimezoneKey = 'devnull.timezone';
+
     public function user(): ?User
     {
         $attributes = Cache::get(self::CacheKey);
@@ -168,8 +170,29 @@ final class Account
     }
 
     /**
-     * Signs this phone out: who it was, the badges, its pastéis and Remotes, every answer, image and voice note kept
-     * for a quick start, and your unsent drafts and recordings.
+     * The timezone you chose on devnull, as it last said, or null while you haven't chosen one.
+     */
+    public function timezone(): ?string
+    {
+        $timezone = Cache::get(self::TimezoneKey);
+
+        return Timezone::isKnown($timezone) ? $timezone : null;
+    }
+
+    public function rememberTimezone(?string $timezone): void
+    {
+        if ($timezone === null) {
+            Cache::forget(self::TimezoneKey);
+
+            return;
+        }
+
+        Cache::forever(self::TimezoneKey, $timezone);
+    }
+
+    /**
+     * Signs this phone out: who it was, the badges, its pastéis and Remotes, your timezone, every answer, image and
+     * voice note kept for a quick start, and your unsent drafts and recordings.
      */
     public function forget(): void
     {
@@ -185,5 +208,6 @@ final class Account
         Cache::forget(self::RemotesKey);
         Cache::forget(self::ProfileKey);
         Cache::forget(self::PinWarningKey);
+        Cache::forget(self::TimezoneKey);
     }
 }

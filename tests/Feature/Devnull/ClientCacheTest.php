@@ -1,10 +1,12 @@
 <?php
 
 use App\Devnull\Client;
+use App\Devnull\Data\DraftImage;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\FetchInBackground;
 use App\Devnull\RequestSigner;
 use App\Devnull\ResponseCache;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -378,3 +380,48 @@ it('leaves the cache alone when a mute or block fails, or devnull answers withou
     'a block' => ['POST /api/v1/users/ada/block', fn (Client $devnull) => $devnull->block('ada')],
     'an answer without the user' => ['POST /api/v1/users/ada/mute', fn (Client $devnull) => $devnull->unmute('ada')],
 ]);
+
+it('keeps the first page of your scheduled commits, paged by number, and lets it go when you change one', function (Closure $change) {
+    serveApi(function (Request $request) {
+        return match ($request->method().' '.$request->url()) {
+            'GET http://devnull.test/api/v1/scheduled-commits' => Http::response(scheduledPageJson([scheduledCommitJson(['id' => 's1'])], nextPage: 2)),
+            'GET http://devnull.test/api/v1/scheduled-commits?page=2' => Http::response(scheduledPageJson([scheduledCommitJson(['id' => 's0'])])),
+            'POST http://devnull.test/api/v1/scheduled-commits/s1/submission' => Http::response(['data' => scheduledCommitJson(['id' => 's1', 'body' => null, 'submitted_at' => '2026-10-19T15:30:00+00:00', 'status' => 'pending'])]),
+            'DELETE http://devnull.test/api/v1/scheduled-commits/s1' => Http::response(null, 204),
+            default => Http::response(['message' => 'No fake.'], 404),
+        };
+    });
+
+    $first = $this->devnull->scheduledCommits();
+
+    expect($first->nextCursor)->toBe('2')
+        ->and($this->devnull->scheduledCommits($first->nextCursor)->items[0]->id)->toBe('s0')
+        ->and(array_column(kept(Client::ScheduledCommitsPath)['data'], 'id'))->toBe(['s1'])
+        ->and(kept(Client::ScheduledCommitsPath, ['page' => '2']))->toBeNull();
+
+    $change($this->devnull);
+
+    expect(kept(Client::ScheduledCommitsPath))->toBeNull();
+})->with([
+    'committing one now' => [fn (Client $devnull) => expect($devnull->submitScheduledCommit('s1')->status)->toBe('pending')],
+    'canceling one' => [fn (Client $devnull) => $devnull->cancelScheduledCommit('s1')],
+]);
+
+it('signs a commit to schedule as JSON, in UTC with its offset, and with its poll', function () {
+    $request = $this->devnull->signedScheduledCommit('Tabs or spaces?', CarbonImmutable::parse('2026-10-20 09:00', 'Europe/Lisbon'), poll: ['options' => ['Tabs', 'Spaces'], 'duration' => 4320]);
+
+    expect($request->url)->toBe('http://devnull.test/api/v1/scheduled-commits')
+        ->and($request->method)->toBe('POST')
+        ->and($request->body)->toBe('{"body":"Tabs or spaces?","scheduled_at":"2026-10-20T08:00:00+00:00","poll":{"options":["Tabs","Spaces"],"duration":4320}}');
+});
+
+it('signs a commit to schedule with photos as multipart, as a commit with photos', function () {
+    $photo = new DraftImage(testPhoto('png'), 'image/png', 40, 30, 'A cabin.');
+
+    $request = $this->devnull->signedScheduledCommit('', CarbonImmutable::parse('2026-10-20T08:00:00Z'), [$photo]);
+
+    expect($request->url)->toBe('http://devnull.test/api/v1/scheduled-commits')
+        ->and($request->contentType)->toStartWith('multipart/form-data; boundary=devnull-')
+        ->and($request->body)->toContain('{"body":"","scheduled_at":"2026-10-20T08:00:00+00:00","image_descriptions":["A cabin."]}')
+        ->and($request->body)->toContain('name="images[]"; filename="image-1.png"');
+});

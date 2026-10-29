@@ -7,8 +7,8 @@
     commit alone in its run ends in a dot of its own, and with replies under the row ($threadBelow) a dashed line in
     the lane carries on down to them, as the web draws it.
 
-    On a commit page the commit it's about ($focused) is the main thing: a larger name and body in full ink, its git
-    date and hash, and its replies behind a toggle in its action row. The commits around it ($muted) step back:
+    On a commit page the commit it's about ($focused) is the main thing: a larger name and body in full ink, its time,
+    which tapped says when in your timezone, its hash, and its replies behind a toggle in its action row. The commits around it ($muted) step back:
     smaller and in muted ink, with a smaller avatar and action row. They still open their own pages.
 
     A commit you just made that devnull doesn't have yet is staged: dimmed, with the staged chip and no actions, until
@@ -37,7 +37,14 @@
         <native:text font="semibold" class="{{ $focused ? 'text-base' : ($muted ? 'text-sm' : 'text-[15px]') }} {{ $muted ? 'text-theme-ink-muted' : 'text-theme-ink' }} flex-shrink" :max-lines="1">{{ $author->name }}</native:text>
         <native:text font="mono" class="{{ $metaSize }} text-theme-ink-muted flex-shrink" :max-lines="1">{{ $author->handle() }}</native:text>
         <native:text class="{{ $metaSize }} text-theme-ink-muted">·</native:text>
-        <native:text font="mono" class="{{ $metaSize }} text-theme-ink-muted flex-shrink-0">{{ \App\Devnull\Display::relativeTime($commit->createdAt) }}</native:text>
+        @if ($focused && $commit->createdAt)
+            {{-- Tapped, it says when in your timezone, as the web's tooltip does on hover. --}}
+            <native:pressable ref="focused-time" @press="showTime('{{ $commit->id }}')" class="flex-shrink-0" a11y-label="{{ \App\Devnull\Display::fullDateTime($commit->createdAt) }}">
+                <native:text font="mono" class="{{ $metaSize }} text-theme-ink-muted">{{ \App\Devnull\Display::relativeTime($commit->createdAt) }}</native:text>
+            </native:pressable>
+        @else
+            <native:text font="mono" class="{{ $metaSize }} text-theme-ink-muted flex-shrink-0">{{ \App\Devnull\Display::relativeTime($commit->createdAt) }}</native:text>
+        @endif
         @if ($commit->isSeriesPart())
             @include('native.partials.series-position')
         @endif

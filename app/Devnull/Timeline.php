@@ -4,7 +4,6 @@ namespace App\Devnull;
 
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\TimelineRow;
-use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
 /**
@@ -37,7 +36,7 @@ final class Timeline
      */
     public static function feed(array $commits, ?string $firstSeenId = null, ?CarbonInterface $now = null, ?int $whoToFollowAfter = null): array
     {
-        $now ??= CarbonImmutable::now();
+        $now ??= $commits === [] ? null : Display::now();
         $rows = [];
         $previous = null;
         $previousDay = null;
