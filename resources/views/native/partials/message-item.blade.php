@@ -12,9 +12,9 @@
     anywhere in the thread, puts them away; a double tap toggles a heart. A pinned message keeps its pin beside it. A message still being pushed takes
     none of them, and nothing reacts, replies or pins while the thread can't take a message.
 
-    A long press on the bubble, or on the images, opens the message's menu (see App\Devnull\MessageMenu), which lifts it
-    out of the thread on iOS: Reply, React and Copy text, and Pin for an org's maintainers. The menu goes on a pressable
-    around the drawn bubble, so the lifted copy keeps the bubble's colour and padding.
+    A long press on the bubble, the voice note or the images opens the message's menu (see App\Devnull\MessageMenu),
+    which lifts it out of the thread on iOS: Reply, React and Copy text, and Pin for an org's maintainers. The menu goes
+    on a pressable around the drawn bubble, so the lifted copy keeps the bubble's colour and padding.
 --}}
 @php($key = $message->id > 0 ? $message->id : $message->clientId)
 @php($laneToken = \App\Devnull\Lane::token(($author ?? null)?->lane()))

@@ -495,3 +495,17 @@ it('calls a voice note a voice note above a reply to it, and while replying to i
 
     $screen->dragEnd('swipe-2', -200)->tap('reply-2')->assertSee('Voice note');
 });
+
+it('opens the message menu on a long press on a voice note, without Copy text, and replies from it', function () {
+    serveVoiceThread([voiceMessageJson()]);
+
+    $screen = voiceThread();
+
+    expect(nodeByRef($screen, 'bubble-2')['props']['has_context_menu'] ?? null)->toBeTrue()
+        ->and(menuItems($screen, 'bubble-2'))->toBe([
+            ['reply-menu-2', 'Reply', 'custom:reply'],
+            ['react-menu-2', 'React', 'custom:smile-plus'],
+        ]);
+
+    $screen->tap('reply-menu-2')->assertSee('Voice note');
+});
