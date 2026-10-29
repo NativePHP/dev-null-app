@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a6e34837e083ae6eb8cc1df7ee22845e",
+    "content-hash": "79323358e7e37b25e59d3cb701ccd8f5",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2723,12 +2723,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-air.git",
-                "reference": "40825383f7a3e381280d83d559ea08f4dd0e2ab5"
+                "reference": "9da9a848ac70140fd5c248c53dd921f70e13381c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/40825383f7a3e381280d83d559ea08f4dd0e2ab5",
-                "reference": "40825383f7a3e381280d83d559ea08f4dd0e2ab5",
+                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/9da9a848ac70140fd5c248c53dd921f70e13381c",
+                "reference": "9da9a848ac70140fd5c248c53dd921f70e13381c",
                 "shasum": ""
             },
             "require": {
@@ -2839,7 +2839,7 @@
                 "source": "https://github.com/NativePHP/mobile-air/tree/main",
                 "issues": "https://github.com/NativePHP/mobile-air/issues"
             },
-            "time": "2026-10-28T19:54:03+00:00"
+            "time": "2026-10-29T09:23:33+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
@@ -2953,20 +2953,20 @@
         },
         {
             "name": "nativephp/mobile-media-player",
-            "version": "1.0.2",
+            "version": "1.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-media-player.git",
-                "reference": "ff249aaa50de0623edd3faeffeeeec9d15124869"
+                "reference": "28653560ea5cf458bf30a6c0f7f64c7f9c003cb1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-media-player/zipball/ff249aaa50de0623edd3faeffeeeec9d15124869",
-                "reference": "ff249aaa50de0623edd3faeffeeeec9d15124869",
+                "url": "https://api.github.com/repos/NativePHP/mobile-media-player/zipball/28653560ea5cf458bf30a6c0f7f64c7f9c003cb1",
+                "reference": "28653560ea5cf458bf30a6c0f7f64c7f9c003cb1",
                 "shasum": ""
             },
             "require": {
-                "nativephp/mobile": "^3.0 || ^4.0",
+                "nativephp/mobile": "^3.3.11 || ^4.6.1",
                 "php": "^8.2"
             },
             "require-dev": {
@@ -3002,22 +3002,22 @@
             "description": "Media player plugin for NativePHP Mobile - shared audio/video playback, full-screen presentation, and a video-player element",
             "support": {
                 "issues": "https://github.com/NativePHP/mobile-media-player/issues",
-                "source": "https://github.com/NativePHP/mobile-media-player/tree/1.0.2"
+                "source": "https://github.com/NativePHP/mobile-media-player/tree/1.1.0"
             },
-            "time": "2026-09-15T18:59:52+00:00"
+            "time": "2026-10-29T09:15:16+00:00"
         },
         {
             "name": "nativephp/mobile-microphone",
-            "version": "1.1.0",
+            "version": "1.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-microphone.git",
-                "reference": "94603d36388fb9b9f897fe146c0b8555e9c3c918"
+                "reference": "9234a6cbb9f5bca853f5ee0c95d8781e10afde08"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-microphone/zipball/94603d36388fb9b9f897fe146c0b8555e9c3c918",
-                "reference": "94603d36388fb9b9f897fe146c0b8555e9c3c918",
+                "url": "https://api.github.com/repos/NativePHP/mobile-microphone/zipball/9234a6cbb9f5bca853f5ee0c95d8781e10afde08",
+                "reference": "9234a6cbb9f5bca853f5ee0c95d8781e10afde08",
                 "shasum": ""
             },
             "require": {
@@ -3057,9 +3057,9 @@
             "description": "Microphone recording plugin for NativePHP Mobile - audio recording with pause/resume support",
             "support": {
                 "issues": "https://github.com/NativePHP/mobile-microphone/issues",
-                "source": "https://github.com/NativePHP/mobile-microphone/tree/1.1.0"
+                "source": "https://github.com/NativePHP/mobile-microphone/tree/1.2.0"
             },
-            "time": "2026-09-03T18:26:19+00:00"
+            "time": "2026-10-29T09:22:03+00:00"
         },
         {
             "name": "nativephp/mobile-secure-storage",
@@ -11394,8 +11394,8 @@
         {
             "package": "nativephp/mobile",
             "version": "dev-main",
-            "alias": "4.6.0",
-            "alias_normalized": "4.6.0.0"
+            "alias": "4.6.1",
+            "alias_normalized": "4.6.1.0"
         },
         {
             "package": "nativephp/mobile-ui",
