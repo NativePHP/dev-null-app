@@ -97,6 +97,12 @@ final readonly class Client
     /** Whom the commit composers suggest for an @mention, as the web's composers ask. */
     public const string MentionSuggestionsPath = 'search/mentions';
 
+    /** The people matching a name or handle, as the web's search finds them, with whether you follow each one. */
+    public const string UserSearchPath = 'search/users';
+
+    /** The commits nearest in meaning to a term, closest first, as the web's search finds them. */
+    public const string CommitSearchPath = 'search/commits';
+
     /**
      * Where a `/feature` or `/bug` draft goes, to be opened as an issue upstream.
      */
