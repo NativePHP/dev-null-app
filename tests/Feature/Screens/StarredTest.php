@@ -104,7 +104,7 @@ it('removes a row only after unstar succeeds and keeps it when devnull refuses',
 })->with(['unstarred' => [200, ['s1']], 'refused' => [500, ['s2', 's1']]]);
 
 it('keeps a commit when only a reply under it is unstarred', function () {
-    $reply = replyJson(['id' => 'r1', 'parent_id' => 's1', 'starred' => true]);
+    $reply = replyJson(['id' => 'r1', 'parent_id' => 's1', 'starred' => true, 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]);
     fakeApi([
         'GET /api/v1/starred' => [starredPage([starredCommit('s1', ['replies_count' => 1, 'reply_preview' => ['data' => [$reply], 'next_cursor' => null]])])],
         'DELETE /api/v1/commits/r1/star' => [['data' => [...$reply, 'starred' => false]]],

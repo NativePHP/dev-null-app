@@ -4,6 +4,7 @@
     @include('native.partials.commit-sheet')
     @include('native.partials.achievements-sheet')
     @include('native.partials.live-stream-sheet')
+    @include('native.partials.stargazers-sheet')
 
     {{-- The pager or the list stays alone in here, so the banners above coming and going never add a node beside it. --}}
     <native:column class="w-full flex-1">

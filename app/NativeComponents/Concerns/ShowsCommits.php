@@ -24,9 +24,10 @@ use Native\Mobile\Facades\Dialog;
 use Native\Mobile\Facades\Share;
 
 /**
- * The actions under a commit: the star, the pastel in pastéis mode, Quote,
- * Reply, and the More menu's Save commit, Share link, Pin to profile, Report
- * commit and Delete commit (Quote and Report open a sheet, see
+ * The actions under a commit: the star, or on your own who starred it (see
+ * OpensStargazers), the pastel in pastéis mode, Quote, Reply, and the More
+ * menu's Save commit, Share link, Pin to profile, Report commit and Delete
+ * commit (Quote and Report open a sheet, see
  * OpensCommitSheet), plus opening its link preview in the in-app browser or,
  * for a page on dev/null, the app (see SiteLink), its
  * images full-screen in the app (see partials/image-viewer), "Show more" on a
@@ -40,6 +41,7 @@ use Native\Mobile\Facades\Share;
 trait ShowsCommits
 {
     use OpensCommitSheet;
+    use OpensStargazers;
     use VotesOnPolls;
     use WritesInBackground;
 
@@ -196,8 +198,9 @@ trait ShowsCommits
      * Stars or unstars straight away, here and in every kept copy, while the
      * star goes to devnull from the outbox (see SyncsOutbox). The commit takes
      * the count devnull sends back, or the star comes back off it if devnull
-     * says no. Like the web, any visible commit can be starred, including
-     * your own and your pending commits.
+     * says no. Like the web, only someone else's published commit can be
+     * starred, as devnull turns down a star on your own (whose star opens who
+     * starred it instead, see OpensStargazers).
      */
     public function toggleStar(string $id): void
     {
@@ -224,7 +227,7 @@ trait ShowsCommits
         $commit = $this->shownCommit($id);
         $pasteis = app(Account::class)->pasteis();
 
-        if ($commit === null || $pasteis === null || ! $this->canGivePastel($commit)) {
+        if ($commit === null || $pasteis === null || ! $this->canReactTo($commit)) {
             return;
         }
 
@@ -507,11 +510,6 @@ trait ShowsCommits
     }
 
     private function canReactTo(Commit $commit): bool
-    {
-        return ! $commit->isDeleted() && ! $commit->isStaged() && ($commit->isApproved() || $commit->author->id === $this->me()?->id);
-    }
-
-    private function canGivePastel(Commit $commit): bool
     {
         return ! $commit->isDeleted() && $commit->isApproved() && $commit->author->id !== $this->me()?->id;
     }
