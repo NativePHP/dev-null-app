@@ -13,10 +13,6 @@
     "repositories": [
         {
             "type": "vcs",
-            "url": "https://github.com/NativePHP/mobile-ui"
-        },
-        {
-            "type": "vcs",
             "url": "https://github.com/simonhamp/toastkit"
         },
         {
