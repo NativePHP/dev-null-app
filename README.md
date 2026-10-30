@@ -38,18 +38,6 @@ composer setup
 
 `nativephp/mobile-secure-storage` is a paid plugin from `plugins.nativephp.com`, so `composer install` needs your NativePHP plugin credentials. See below if you don't have access to the plugin.
 
-For now the app tracks unreleased branches, which Composer pulls straight from GitHub:
-
-- `nativephp/mobile` on `combined/dev-null-app`, a branch just for this app. It's `feat/custom-icons`, which adds custom SVG icons ([NativePHP/mobile-air#544](https://github.com/NativePHP/mobile-air/pull/544)), plus the fix that stops the keyboard-dismiss tap swallowing taps on UIKit controls such as `native:toggle` and the Sign in with Apple button ([NativePHP/mobile-air#545](https://github.com/NativePHP/mobile-air/pull/545)).
-- `nativephp/mobile-ui` on `combined/dev-null-app`, a branch just for this app. It's `feat/custom-icons` ([NativePHP/mobile-ui#132](https://github.com/NativePHP/mobile-ui/pull/132)) plus:
-  - opening the iOS pager at its start page ([#131](https://github.com/NativePHP/mobile-ui/pull/131)) and running a swiping pager's lists under the tab bar ([#134](https://github.com/NativePHP/mobile-ui/pull/134)),
-  - a pager that reports its page once the swipe settles ([#135](https://github.com/NativePHP/mobile-ui/pull/135)) and draws its tabs natively ([#136](https://github.com/NativePHP/mobile-ui/pull/136)),
-  - button variants named after a theme colour ([#137](https://github.com/NativePHP/mobile-ui/pull/137)),
-  - a sticky header for lists ([#138](https://github.com/NativePHP/mobile-ui/pull/138)),
-  - a pager header that scrolls with the page showing ([#139](https://github.com/NativePHP/mobile-ui/pull/139)).
-
-Once those are released, the app goes back to tagged versions and the combined branches can be deleted.
-
 ### Without plugin credentials
 
 ```sh
