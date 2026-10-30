@@ -27,6 +27,7 @@ use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\SuggestsWhoToFollow;
 use App\NativeComponents\Concerns\TalksToDevnull;
+use App\NativeComponents\Concerns\WatchesForCalls;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\View\View;
@@ -112,6 +113,7 @@ class Log extends NativeComponent
     use ShowsCommits;
     use SuggestsWhoToFollow;
     use TalksToDevnull;
+    use WatchesForCalls;
 
     /**
      * Every frame goes in full. EDGE's subtree reuse sometimes refers to rows

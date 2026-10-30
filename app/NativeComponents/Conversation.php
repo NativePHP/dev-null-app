@@ -31,6 +31,7 @@ use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SuggestsMentions;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
+use App\NativeComponents\Concerns\WatchesForCalls;
 use App\NativeComponents\Concerns\WritesInBackground;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
@@ -41,6 +42,7 @@ use Native\Mobile\Edge\Layouts\Builders\NavAction;
 use Native\Mobile\Edge\Layouts\Builders\NavBarOptions;
 use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Edge\SharedValue;
+use Native\Mobile\Edge\Transition;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Facades\Browser;
 use Native\Mobile\Facades\Device;
@@ -108,6 +110,7 @@ class Conversation extends NativeComponent
     use SuggestsMentions;
     use SyncsOutbox;
     use TalksToDevnull;
+    use WatchesForCalls;
     use WritesInBackground;
 
     /**
@@ -437,6 +440,16 @@ class Conversation extends NativeComponent
             ? NavAction::make('unmute')->label('Unmute')->icon(ios: Lucide::Bell->ios(), android: Lucide::Bell->android())->press('unmute')
             : NavAction::make('mute')->label('Mute')->icon(ios: Lucide::BellOff->ios(), android: Lucide::BellOff->android())->press('chooseMute');
 
+        // Calls are one-to-one, where a ping could go, as the web's phone button.
+        if (! $this->isOrg() && $this->thread->access === Thread::Open) {
+            $options->action(
+                NavAction::make('call')
+                    ->icon(ios: Lucide::Phone->ios(), android: Lucide::Phone->android())
+                    ->a11yLabel('Call')
+                    ->press('call'),
+            );
+        }
+
         return $options->action(
             NavAction::make('conversation-actions')
                 ->icon(ios: Lucide::Ellipsis->ios(), android: Lucide::Ellipsis->android())
@@ -661,6 +674,23 @@ class Conversation extends NativeComponent
         }, function (string $error, ?ApiException $exception): void {
             Toasts::failed($exception === null ? 'Could not ping. Try again.' : $error);
         });
+    }
+
+    /**
+     * Calls them, as the web's phone button does, on a screen of its own over the thread (see Call).
+     */
+    public function call(): void
+    {
+        $partner = $this->thread?->partner;
+
+        if ($partner === null || $this->isOrg() || $this->thread->access !== Thread::Open) {
+            return;
+        }
+
+        $this->navigate('/call/'.rawurlencode($partner->username), [
+            'name' => $partner->name,
+            'avatar_url' => $partner->avatarUrl,
+        ])->transition(Transition::SlideFromBottom);
     }
 
     /**
@@ -1929,7 +1959,7 @@ class Conversation extends NativeComponent
             }
 
             if ($message->isEvent()) {
-                $items[] = ['type' => 'event', 'message' => $message, 'text' => $message->eventText($viewer?->id)];
+                $items[] = ['type' => 'event', 'message' => $message, 'text' => $message->eventText($viewer?->id, partner: $this->thread?->partner)];
 
                 continue;
             }

@@ -18,6 +18,7 @@ use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
+use App\NativeComponents\Concerns\WatchesForCalls;
 use App\NativeComponents\Concerns\WritesInBackground;
 use App\NativeComponents\Layouts\TabsLayout;
 use Carbon\CarbonImmutable;
@@ -65,6 +66,7 @@ class Remotes extends NativeComponent
     use RefreshesInBackground;
     use SyncsOutbox;
     use TalksToDevnull;
+    use WatchesForCalls;
     use WritesInBackground;
 
     /**
@@ -843,7 +845,7 @@ class Remotes extends NativeComponent
                 'conversation' => $conversation,
                 'title' => $conversation->title($viewer?->id),
                 'others' => $conversation->others($viewer?->id),
-                'preview' => $conversation->lastMessage?->preview($viewer?->id, $conversation->isOrg()) ?? '',
+                'preview' => $conversation->lastMessage?->preview($viewer?->id, $conversation->isOrg(), $conversation->partner) ?? '',
                 'mine' => $conversation->lastMessage !== null && $conversation->lastMessage->userId === $viewer?->id,
                 'viewer' => $viewer,
                 'myColour' => $this->myColour(),

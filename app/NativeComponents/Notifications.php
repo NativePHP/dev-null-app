@@ -14,6 +14,7 @@ use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
+use App\NativeComponents\Concerns\WatchesForCalls;
 use Carbon\CarbonImmutable;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
@@ -45,6 +46,7 @@ class Notifications extends NativeComponent
     use RefreshesInBackground;
     use SyncsOutbox;
     use TalksToDevnull;
+    use WatchesForCalls;
 
     /**
      * Every frame goes in full, as on the Log (see Log::$forceFullFrames).
