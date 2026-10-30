@@ -3,6 +3,7 @@
     @include('native.partials.refresh-failed')
     @include('native.partials.commit-sheet')
     @include('native.partials.live-stream-sheet')
+    @include('native.partials.stargazers-sheet')
 
     <native:list native:key="starred" ref="starred" class="w-full flex-1 bg-theme-surface" on-refresh="load" on-end-reached="loadMore" :end-reached-buffer="5">
         {{--

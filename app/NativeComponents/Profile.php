@@ -25,6 +25,7 @@ use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
+use App\NativeComponents\Concerns\WatchesForCalls;
 use Closure;
 use Illuminate\View\View;
 use Native\Mobile\Attributes\On;
@@ -75,6 +76,7 @@ class Profile extends NativeComponent
     use RefreshesInBackground;
     use ShowsCommits;
     use TalksToDevnull;
+    use WatchesForCalls;
 
     /**
      * Every frame goes in full, as on the Log (see Log::$forceFullFrames). A tab

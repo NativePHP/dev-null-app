@@ -9,7 +9,7 @@
             native:model.debounce.250ms="query"
             :autofocus="$autofocus ?? false"
             :max-length="100"
-            a11y-label="Find people"
+            :a11y-label="$a11yLabel ?? 'Find people'"
         />
     </native:column>
 </native:row>

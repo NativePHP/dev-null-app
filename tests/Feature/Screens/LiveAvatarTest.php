@@ -140,7 +140,7 @@ it("opens the web's stream sheet from a live author's avatar on the log", functi
 
     $screen = $screen->press("openLiveStream('ada')");
 
-    expect(nodeByRef($screen, 'live-stream-sheet')['props']['visible'])->toBeTrue()
+    expect(nodeByRef($screen, 'live-stream-sheet')['props'])->toMatchArray(['visible' => true, 'detents' => 'fit'])
         ->and(nodeByRef($screen, 'live-stream-thumbnail')['props']['src'])->toBe('https://static-cdn.jtvnw.net/previews-ttv/live_user_ada-1280x720.jpg');
 
     $screen->assertSee('Ada is live')

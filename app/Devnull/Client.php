@@ -7,6 +7,7 @@ use App\Devnull\Data\CommitThread;
 use App\Devnull\Data\Connection;
 use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\DraftImage;
+use App\Devnull\Data\IncomingCall;
 use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\Notification;
 use App\Devnull\Data\Page;
@@ -97,6 +98,12 @@ final readonly class Client
     /** Whom the commit composers suggest for an @mention, as the web's composers ask. */
     public const string MentionSuggestionsPath = 'search/mentions';
 
+    /** The people matching a name or handle, as the web's search finds them, with whether you follow each one. */
+    public const string UserSearchPath = 'search/users';
+
+    /** The commits nearest in meaning to a term, closest first, as the web's search finds them. */
+    public const string CommitSearchPath = 'search/commits';
+
     /**
      * Where a `/feature` or `/bug` draft goes, to be opened as an issue upstream.
      */
@@ -139,6 +146,14 @@ final readonly class Client
     public static function threadPath(string $username = '', ?string $orgId = null): string
     {
         return $orgId === null ? 'remotes/@'.rawurlencode($username) : 'remotes/orgs/'.rawurlencode($orgId);
+    }
+
+    /**
+     * Where a call with someone rings, is answered and ends, beside your thread with them.
+     */
+    public static function callPath(string $username): string
+    {
+        return self::threadPath($username).'/call';
     }
 
     /**
@@ -598,6 +613,67 @@ final readonly class Client
     public function unblock(string $username): void
     {
         $this->cache->blockChanged($this->json($this->send('DELETE', 'users/'.rawurlencode($username).'/block')));
+    }
+
+    /**
+     * The call ringing for you, as the web checks for one every few seconds, or null.
+     */
+    public function incomingCall(): ?IncomingCall
+    {
+        $call = $this->json($this->send('GET', 'remotes/call'))['call'] ?? null;
+
+        return is_array($call) ? IncomingCall::fromArray($call) : null;
+    }
+
+    /**
+     * Fresh relay credentials for one call with them, which devnull only hands out for someone you can call.
+     *
+     * @return array{ice_servers: list<array{urls: list<string>, username: string, credential: string}>, is_relay_only: bool}
+     */
+    public function callIceServers(string $username): array
+    {
+        $json = $this->json($this->send('GET', self::callPath($username).'/ice-servers'));
+        /** @var list<array{urls: list<string>, username: string, credential: string}> $servers */
+        $servers = array_values(array_filter((array) ($json['ice_servers'] ?? []), is_array(...)));
+
+        return ['ice_servers' => $servers, 'is_relay_only' => ($json['is_relay_only'] ?? true) !== false];
+    }
+
+    /**
+     * Rings them with this phone's offer, for 45 seconds.
+     */
+    public function ring(string $username, string $offer): void
+    {
+        $this->send('POST', self::callPath($username), payload: ['sdp' => $offer]);
+    }
+
+    /**
+     * Your call to them while it rings: null once it's gone, with their answer once they pick up.
+     *
+     * @return array{answer: string|null}|null
+     */
+    public function outgoingCall(string $username): ?array
+    {
+        $call = $this->json($this->send('GET', self::callPath($username)))['call'] ?? null;
+
+        return is_array($call) ? ['answer' => is_string($call['answer'] ?? null) ? $call['answer'] : null] : null;
+    }
+
+    /**
+     * Picks up their call with this phone's answer.
+     */
+    public function answerCall(string $username, string $answer): void
+    {
+        $this->send('PUT', self::callPath($username), payload: ['sdp' => $answer]);
+    }
+
+    /**
+     * Ends the call between you, whoever rang. Not picking up one that rang logs it declined, or failed when this
+     * phone tried to answer and couldn't.
+     */
+    public function endCall(string $username, bool $failed = false): void
+    {
+        $this->send('DELETE', self::callPath($username), payload: ['failed' => $failed]);
     }
 
     /**

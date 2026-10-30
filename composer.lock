@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "ef8c20efc81906f3a73bb08333d5c82e",
+    "content-hash": "860c34d693a5afa83bca97fb6690af2c",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -390,6 +390,42 @@
                 "source": "https://github.com/DASPRiD/Enum/tree/1.0.7"
             },
             "time": "2025-09-16T12:23:56+00:00"
+        },
+        {
+            "name": "devnull/nativephp-calls",
+            "version": "1.0.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/calls",
+                "reference": "61931a66d55ea99a272810254b9136be10705f34"
+            },
+            "require": {
+                "nativephp/mobile": "^4.6.1",
+                "php": "^8.3"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Devnull\\Calls\\CallsServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Devnull\\Calls\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "One-to-one WebRTC calls for the devnull app, speaking the same protocol as dev-null.sh's browser calls",
+            "transport-options": {
+                "relative": true
+            }
         },
         {
             "name": "dflydev/dot-access-data",

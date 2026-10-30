@@ -2,12 +2,12 @@
     The web's live stream sheet, which a tap on a live user's avatar opens (see OpensLiveStream): the stream's
     thumbnail in 16:9 with the LIVE badge in its corner, "{name} is live" and where, Watch now, then who it is with
     Open profile, which their own profile leaves out. The thumbnail isn't kept on the device, as it changes while they
-    stream. Nothing is drawn until the sheet opens.
+    stream. The sheet is as tall as what it shows, with or without Open profile. Nothing is drawn until it opens.
 --}}
 @php($streamer = $liveStreamer === null ? null : \App\Devnull\Data\User::fromArray($liveStreamer))
-<native:bottom-sheet ref="live-stream-sheet" :visible="$streamer !== null" detents="medium" @dismiss="liveStreamClosed">
+<native:bottom-sheet ref="live-stream-sheet" :visible="$streamer !== null" detents="fit" @dismiss="liveStreamClosed">
     @if ($streamer?->live)
-        <native:column class="w-full px-5 pt-6 pb-10 gap-4">
+        <native:column class="w-full px-5 pt-6 gap-4">
             <native:stack class="w-full aspect-[16/9] rounded-lg bg-theme-wash">
                 @if ($streamer->live->thumbnailUrl)
                     <native:image ref="live-stream-thumbnail" :src="$streamer->live->thumbnailUrl" :fit="2" alt="{{ $streamer->name }}'s stream" class="w-full h-full rounded-lg" />

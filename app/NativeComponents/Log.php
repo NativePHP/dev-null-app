@@ -17,6 +17,7 @@ use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Android;
 use App\Icons\Ios;
+use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
@@ -27,6 +28,7 @@ use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\SuggestsWhoToFollow;
 use App\NativeComponents\Concerns\TalksToDevnull;
+use App\NativeComponents\Concerns\WatchesForCalls;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\View\View;
@@ -112,6 +114,7 @@ class Log extends NativeComponent
     use ShowsCommits;
     use SuggestsWhoToFollow;
     use TalksToDevnull;
+    use WatchesForCalls;
 
     /**
      * Every frame goes in full. EDGE's subtree reuse sometimes refers to rows
@@ -324,14 +327,32 @@ class Log extends NativeComponent
         return 'devnull';
     }
 
+    /**
+     * Search, as the web's phone header has it, then a new commit.
+     */
     public function navigationOptions(): ?NavBarOptions
     {
-        return NavBarOptions::make()->action(
-            NavAction::make('compose')
-                ->icon(ios: Ios::SquareAndPencil, android: Android::Edit)
-                ->a11yLabel('New commit')
-                ->press('composeInSheet'),
-        );
+        return NavBarOptions::make()
+            ->action(
+                NavAction::make('search')
+                    ->icon(ios: Lucide::Search->ios(), android: Lucide::Search->android())
+                    ->a11yLabel('Search')
+                    ->press('openSearch'),
+            )
+            ->action(
+                NavAction::make('compose')
+                    ->icon(ios: Ios::SquareAndPencil, android: Android::Edit)
+                    ->a11yLabel('New commit')
+                    ->press('composeInSheet'),
+            );
+    }
+
+    /**
+     * Search opens on the Log's own stack, so back comes here.
+     */
+    public function openSearch(): void
+    {
+        $this->openInTab('/search');
     }
 
     /**

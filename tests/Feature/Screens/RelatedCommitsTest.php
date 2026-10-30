@@ -140,7 +140,7 @@ it('opens a related commit and its replies in the current tab', function (string
 ]);
 
 it('stars a related commit in place and updates its kept copies', function () {
-    $related = commitJson(['id' => 'c9', 'body' => 'Closest match']);
+    $related = commitJson(['id' => 'c9', 'body' => 'Closest match', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])]);
     keep('log/following', pageJson([$related]));
     serveRelatedThread([$related], [
         'POST /api/v1/commits/c9/star' => [['data' => [...$related, 'starred' => true, 'stars_count' => 1]]],
@@ -154,7 +154,7 @@ it('stars a related commit in place and updates its kept copies', function () {
 });
 
 it('rolls a refused star back off the related commit and its kept copy', function () {
-    serveRelatedThread([commitJson(['id' => 'c9', 'body' => 'Closest match'])], [
+    serveRelatedThread([commitJson(['id' => 'c9', 'body' => 'Closest match', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])])], [
         'POST /api/v1/commits/c9/star' => [['message' => 'Cannot star now.'], 422],
     ]);
 

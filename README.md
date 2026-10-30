@@ -12,19 +12,18 @@ On iOS you can also link an Apple ID from this device, under your profile. After
 
 ## The API
 
-The app talks to the signed `/api/v1` from [nunomaduro/dev-null.sh#130](https://github.com/nunomaduro/dev-null.sh/pull/130), which isn't merged yet. Until it is, point the app at a devnull instance running that branch.
+The app talks to devnull's signed `/api/v1`, from [dev-null-sh/dev-null.sh#130](https://github.com/dev-null-sh/dev-null.sh/pull/130). It talks to production unless `DEVNULL_URL` says otherwise.
 
-To make that instance work with the app on your phone, create a tunnel (ngrok, Cloudflare etc) and set the `DEVNULL_URL` .env key to that URL before compiling the app.
+To use a local devnull from the app on your phone, create a tunnel (ngrok, Cloudflare etc) and set the `DEVNULL_URL` .env key to that URL before compiling the app.
 
 ## Roadmap
 
 These are the next things we want in the app. If you'd like to take one on, read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
-- Styling for livestreams
 - Search
 - A notifications centre that matches the web
 - A better welcome screen, with sign up and log in that don't mention GitHub, and maybe the public feed
-- Everything Remotes does on the web, including audio recordings and image uploads
+- Everything else Remotes does on the web
 - WebSockets
 
 ## Setup
@@ -37,6 +36,8 @@ composer setup
 ```
 
 `nativephp/mobile-secure-storage` is a paid plugin from `plugins.nativephp.com`, so `composer install` needs your NativePHP plugin credentials. See below if you don't have access to the plugin.
+
+For now the app tracks one unreleased package, which Composer pulls straight from GitHub: `victorycodedev/toastkit` from the `fix/android-toasts-above-sheets` branch of [simonhamp/toastkit](https://github.com/simonhamp/toastkit), which draws Android toasts above bottom sheets instead of behind them ([victorycodedev/toastkit#5](https://github.com/victorycodedev/toastkit/pull/5)). Once that is released, the app goes back to a tagged version.
 
 ### Without plugin credentials
 

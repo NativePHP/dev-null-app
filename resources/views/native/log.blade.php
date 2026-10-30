@@ -3,6 +3,7 @@
     @include('native.partials.refresh-failed')
     @include('native.partials.commit-sheet')
     @include('native.partials.live-stream-sheet')
+    @include('native.partials.stargazers-sheet')
 
     {{--
         The logs as pages you swipe between, under DESIGN.md's page tabs, which the pager draws itself: a full-width

@@ -2,6 +2,7 @@
 
 use App\NativeComponents\AddOrgMembers;
 use App\NativeComponents\AuthCallback;
+use App\NativeComponents\Call;
 use App\NativeComponents\CommitDetail;
 use App\NativeComponents\Connections;
 use App\NativeComponents\Conversation;
@@ -18,6 +19,7 @@ use App\NativeComponents\Profile;
 use App\NativeComponents\Remotes;
 use App\NativeComponents\Safety;
 use App\NativeComponents\ScheduledCommits;
+use App\NativeComponents\Search;
 use App\NativeComponents\Starred;
 use App\NativeComponents\ThisDevice;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +27,9 @@ use Illuminate\Support\Facades\Route;
 Route::native('/', Launch::class);
 Route::native('/onboarding', Onboarding::class);
 Route::native('/auth/callback', AuthCallback::class);
+
+// A call takes the whole screen, over whichever tab rang or placed it.
+Route::native('/call/{username}', Call::class);
 
 Route::nativeGroup(TabsLayout::class, function (): void {
     Route::native('/log', Log::class);
@@ -51,5 +56,6 @@ Route::nativeGroup(TabsLayout::class, function (): void {
         Route::native("{$tab}/orgs/{org}/members", OrgMembers::class);
         Route::native("{$tab}/orgs/{org}/members/add", AddOrgMembers::class);
         Route::native("{$tab}/scheduled", ScheduledCommits::class);
+        Route::native("{$tab}/search", Search::class);
     }
 });
