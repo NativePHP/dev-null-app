@@ -228,10 +228,10 @@ final readonly class Message
      * name in an org for someone else's, "sent a voice note" or "sent an image" for a message with no text, and the
      * event for an org's log line.
      */
-    public function preview(?string $viewerId, bool $inOrg): string
+    public function preview(?string $viewerId, bool $inOrg, ?User $partner = null): string
     {
         if ($this->isEvent()) {
-            return $this->eventText($viewerId);
+            return $this->eventText($viewerId, partner: $partner);
         }
 
         $text = trim((string) preg_replace('/\s+/', ' ', $this->body));
@@ -246,11 +246,12 @@ final readonly class Message
 
     /**
      * An event, as the web logs it between messages: who did it, and to whom. In a thread with one person devnull
-     * leaves the author off a ping, since it can only be them.
+     * leaves the author off a ping or a call, since it can only be them or the partner.
      */
-    public function eventText(?string $viewerId, ?string $orgName = null): string
+    public function eventText(?string $viewerId, ?string $orgName = null, ?User $partner = null): string
     {
-        $actor = $this->userId === $viewerId ? 'you' : ($this->user === null ? 'someone' : $this->user->handle());
+        $author = $this->user ?? $partner;
+        $actor = $this->userId === $viewerId ? 'you' : ($author === null ? 'someone' : $author->handle());
         $subject = $this->subjectId === $viewerId ? 'you' : ($this->subject === null ? 'someone' : $this->subject->handle());
 
         return match ($this->event) {
@@ -262,6 +263,12 @@ final readonly class Message
             'promoted' => "{$actor} made {$subject} a maintainer",
             'demoted' => "{$actor} made {$subject} a contributor",
             'inherited' => "{$actor} inherited maintainer",
+            'call_started' => "{$actor} started a call",
+            'call_answered' => "{$actor} answered the call",
+            'call_cancelled' => "{$actor} cancelled the call",
+            'call_declined' => "{$actor} declined the call",
+            'call_failed' => "{$actor} couldn't answer the call",
+            'call_missed' => $this->userId === $viewerId ? "your call wasn't answered" : "missed call from {$actor}",
             self::Ping => match (true) {
                 $this->userId === $viewerId => 'you sent a ping',
                 $this->user !== null => "{$actor} sent a ping",

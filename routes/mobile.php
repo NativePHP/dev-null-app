@@ -2,6 +2,7 @@
 
 use App\NativeComponents\AddOrgMembers;
 use App\NativeComponents\AuthCallback;
+use App\NativeComponents\Call;
 use App\NativeComponents\CommitDetail;
 use App\NativeComponents\Connections;
 use App\NativeComponents\Conversation;
@@ -26,6 +27,9 @@ use Illuminate\Support\Facades\Route;
 Route::native('/', Launch::class);
 Route::native('/onboarding', Onboarding::class);
 Route::native('/auth/callback', AuthCallback::class);
+
+// A call takes the whole screen, over whichever tab rang or placed it.
+Route::native('/call/{username}', Call::class);
 
 Route::nativeGroup(TabsLayout::class, function (): void {
     Route::native('/log', Log::class);

@@ -106,6 +106,9 @@ enum Lucide
     case RotateCw;
     case Square;
     case Copy;
+    case Phone;
+    case PhoneOff;
+    case MicOff;
 
     /**
      * The icon the web's inbox draws for a kind of notification.
@@ -227,6 +230,9 @@ enum Lucide
             self::RotateCw => 'rotate-cw',
             self::Square => 'square-filled',
             self::Copy => 'copy',
+            self::Phone => 'phone',
+            self::PhoneOff => 'phone-off',
+            self::MicOff => 'mic-off',
             default => null,
         };
 
