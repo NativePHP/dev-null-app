@@ -37,12 +37,7 @@ composer setup
 
 `nativephp/mobile-secure-storage` is a paid plugin from `plugins.nativephp.com`, so `composer install` needs your NativePHP plugin credentials. See below if you don't have access to the plugin.
 
-For now the app tracks unreleased code, which Composer pulls straight from GitHub:
-
-- `nativephp/mobile` ([NativePHP/mobile-air](https://github.com/NativePHP/mobile-air)) and `nativephp/mobile-ui` on `main`, aliased as 4.6.1 and 0.8.0.
-- `victorycodedev/toastkit` from the `fix/android-toasts-above-sheets` branch of [simonhamp/toastkit](https://github.com/simonhamp/toastkit), which draws Android toasts above bottom sheets instead of behind them ([victorycodedev/toastkit#5](https://github.com/victorycodedev/toastkit/pull/5)).
-
-Once those are released, the app goes back to tagged versions.
+For now the app tracks one unreleased package, which Composer pulls straight from GitHub: `victorycodedev/toastkit` from the `fix/android-toasts-above-sheets` branch of [simonhamp/toastkit](https://github.com/simonhamp/toastkit), which draws Android toasts above bottom sheets instead of behind them ([victorycodedev/toastkit#5](https://github.com/victorycodedev/toastkit/pull/5)). Once that is released, the app goes back to a tagged version.
 
 ### Without plugin credentials
 

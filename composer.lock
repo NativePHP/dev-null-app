@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "25fe386e348dba059513740c224ec063",
+    "content-hash": "860c34d693a5afa83bca97fb6690af2c",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2755,16 +2755,16 @@
         },
         {
             "name": "nativephp/mobile",
-            "version": "dev-main",
+            "version": "4.7.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-air.git",
-                "reference": "9da9a848ac70140fd5c248c53dd921f70e13381c"
+                "reference": "0d7e2e6509b1a0514726e67016fecade5e9137b2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/9da9a848ac70140fd5c248c53dd921f70e13381c",
-                "reference": "9da9a848ac70140fd5c248c53dd921f70e13381c",
+                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/0d7e2e6509b1a0514726e67016fecade5e9137b2",
+                "reference": "0d7e2e6509b1a0514726e67016fecade5e9137b2",
                 "shasum": ""
             },
             "require": {
@@ -2789,22 +2789,21 @@
                 "nativephp/mobile-system": "*"
             },
             "require-dev": {
-                "larastan/larastan": "^2.0",
+                "larastan/larastan": "^3.0",
                 "laravel/pint": "^1.0",
-                "nunomaduro/collision": "^7.9",
-                "orchestra/testbench": "^8.18",
-                "pestphp/pest": "^2.7|^3.0|^4.0",
-                "pestphp/pest-plugin-arch": "^2.0",
-                "pestphp/pest-plugin-laravel": "^2.0",
+                "nunomaduro/collision": "^8.0",
+                "orchestra/testbench": "^10.0|^11.0",
+                "pestphp/pest": "^3.0",
+                "pestphp/pest-plugin-arch": "^3.0",
+                "pestphp/pest-plugin-laravel": "^3.0",
                 "phpstan/extension-installer": "^1.1",
-                "phpstan/phpstan-deprecation-rules": "^1.0",
-                "phpstan/phpstan-phpunit": "^1.0",
-                "spatie/laravel-ray": "^1.26"
+                "phpstan/phpstan-deprecation-rules": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "spatie/laravel-ray": "^1.40"
             },
             "suggest": {
                 "ext-zip": "Required by native:install to validate and extract the downloaded Android PHP binary archives"
             },
-            "default-branch": true,
             "type": "library",
             "extra": {
                 "laravel": {
@@ -2814,40 +2813,14 @@
                 }
             },
             "autoload": {
-                "psr-4": {
-                    "Native\\Mobile\\": "src/"
-                },
                 "files": [
                     "src/helpers.php"
-                ]
-            },
-            "autoload-dev": {
+                ],
                 "psr-4": {
-                    "Tests\\": "tests/"
+                    "Native\\Mobile\\": "src/"
                 }
             },
-            "scripts": {
-                "qa": [
-                    "@composer format",
-                    "@composer analyse",
-                    "@composer test"
-                ],
-                "post-autoload-dump": [
-                    "@php ./vendor/bin/testbench package:discover --ansi"
-                ],
-                "analyse": [
-                    "vendor/bin/phpstan analyse"
-                ],
-                "test": [
-                    "vendor/bin/pest"
-                ],
-                "test-coverage": [
-                    "vendor/bin/pest --coverage"
-                ],
-                "format": [
-                    "vendor/bin/pint"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "MIT"
             ],
@@ -2872,10 +2845,10 @@
                 "nativephp"
             ],
             "support": {
-                "source": "https://github.com/NativePHP/mobile-air/tree/main",
-                "issues": "https://github.com/NativePHP/mobile-air/issues"
+                "issues": "https://github.com/NativePHP/mobile-air/issues",
+                "source": "https://github.com/NativePHP/mobile-air/tree/4.7.0"
             },
-            "time": "2026-10-29T09:23:33+00:00"
+            "time": "2026-10-29T17:31:02+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
@@ -3264,20 +3237,20 @@
         },
         {
             "name": "nativephp/mobile-ui",
-            "version": "dev-main",
+            "version": "0.9.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-ui.git",
-                "reference": "d7eca1245efbe1d0afdf19811b8ffed416b25bff"
+                "reference": "9cee87cbc676a6500247bec99be5d19f633a04e9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/d7eca1245efbe1d0afdf19811b8ffed416b25bff",
-                "reference": "d7eca1245efbe1d0afdf19811b8ffed416b25bff",
+                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/9cee87cbc676a6500247bec99be5d19f633a04e9",
+                "reference": "9cee87cbc676a6500247bec99be5d19f633a04e9",
                 "shasum": ""
             },
             "require": {
-                "nativephp/mobile": "^4.6",
+                "nativephp/mobile": "^4.7",
                 "php": "^8.3"
             },
             "require-dev": {
@@ -3285,7 +3258,6 @@
                 "orchestra/testbench": "^10.0",
                 "pestphp/pest": "^3.0"
             },
-            "default-branch": true,
             "type": "nativephp-plugin",
             "extra": {
                 "laravel": {
@@ -3302,17 +3274,7 @@
                     "Native\\Mobile\\UI\\": "src/"
                 }
             },
-            "scripts": {
-                "test": [
-                    "pest"
-                ],
-                "lint": [
-                    "pint"
-                ],
-                "lint:test": [
-                    "pint --test"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "MIT"
             ],
@@ -3324,16 +3286,16 @@
             ],
             "description": "Native SwiftUI and Jetpack Composer components for NativePHP",
             "support": {
-                "source": "https://github.com/NativePHP/mobile-ui/tree/main",
-                "issues": "https://github.com/NativePHP/mobile-ui/issues"
+                "issues": "https://github.com/NativePHP/mobile-ui/issues",
+                "source": "https://github.com/NativePHP/mobile-ui/tree/0.9.0"
             },
             "funding": [
                 {
-                    "type": "other",
-                    "url": "https://nativephp.com/sponsor"
+                    "url": "https://nativephp.com/sponsor",
+                    "type": "other"
                 }
             ],
-            "time": "2026-10-29T13:48:57+00:00"
+            "time": "2026-10-29T17:44:09+00:00"
         },
         {
             "name": "nesbot/carbon",
@@ -11483,18 +11445,6 @@
     ],
     "aliases": [
         {
-            "package": "nativephp/mobile",
-            "version": "dev-main",
-            "alias": "4.6.1",
-            "alias_normalized": "4.6.1.0"
-        },
-        {
-            "package": "nativephp/mobile-ui",
-            "version": "dev-main",
-            "alias": "0.8.0",
-            "alias_normalized": "0.8.0.0"
-        },
-        {
             "package": "victorycodedev/toastkit",
             "version": "dev-fix/android-toasts-above-sheets",
             "alias": "1.4.0",
@@ -11503,8 +11453,6 @@
     ],
     "minimum-stability": "stable",
     "stability-flags": {
-        "nativephp/mobile": 20,
-        "nativephp/mobile-ui": 20,
         "victorycodedev/toastkit": 20
     },
     "prefer-stable": true,
