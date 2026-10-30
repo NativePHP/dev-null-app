@@ -73,6 +73,18 @@ trait ShowsCommits
     public array $viewerImages = [];
 
     /**
+     * The commit being viewed, shown in the pane under its images, kept as it was when the viewer opened, as the images are.
+     */
+    public ?Commit $viewerCommit = null;
+
+    /**
+     * How far the pane under the viewer's image is drawn up: open, as the web
+     * docks the commit, until you drag it down to its author line. It stays
+     * where you left it from one image to the next.
+     */
+    public float $viewerPaneDetent = Display::ViewerPaneOpen;
+
+    /**
      * Which of the viewer's images is showing.
      */
     public int $viewerIndex = 0;
@@ -286,19 +298,22 @@ trait ShowsCommits
      * Opens a commit's image full-screen in the app (see partials/image-viewer),
      * from the one the row tapped: the image whole rather than cropped, pinch
      * zoom between its whole self and four times, a drag to pan, and the
-     * chevrons under it to move between the commit's other images. An image the
+     * chevrons under it to move between the commit's other images. The commit
+     * itself sits under the image in a pane, as the web docks it. An image the
      * screen isn't showing, or one at no web address, opens nothing, as it did
      * in the browser.
      */
     public function openImage(string $id, int $index = 0): void
     {
-        $images = $this->shownCommit($id)?->images ?? [];
+        $commit = $this->shownCommit($id);
+        $images = $commit->images ?? [];
         $image = $images[$index] ?? null;
 
         if ($image === null || ! SiteLink::isWebUrl($image->url)) {
             return;
         }
 
+        $this->viewerCommit = $commit;
         $this->viewerImages = $images;
         $this->viewerIndex = $index;
         $this->restViewerImage();
@@ -326,6 +341,14 @@ trait ShowsCommits
     }
 
     /**
+     * The pane under the viewer's image come to rest at another height, which it's drawn at from now on.
+     */
+    public function viewerPaneMoved(string $height): void
+    {
+        $this->viewerPaneDetent = (float) $height;
+    }
+
+    /**
      * The viewer's close, back or outside tap, however the phone reports it:
      * the viewer goes and forgets the image and what its gestures left behind,
      * so the next one opens as this one did.
@@ -333,6 +356,7 @@ trait ShowsCommits
     public function closeImageViewer(): void
     {
         $this->viewerOpen = false;
+        $this->viewerCommit = null;
         $this->viewerImages = [];
         $this->viewerIndex = 0;
         $this->viewerZoom = null;

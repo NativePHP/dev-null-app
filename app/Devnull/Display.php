@@ -41,6 +41,15 @@ final class Display
      */
     public const int ElbowLevel = 22;
 
+    /**
+     * The heights the pane under the image viewer's picture rests at, in
+     * points: its author line alone, and open on the whole commit, which
+     * scrolls in it when it's longer.
+     */
+    public const int ViewerPaneClosed = 88;
+
+    public const int ViewerPaneOpen = 360;
+
     public static function relativeTime(?CarbonInterface $date, ?CarbonInterface $now = null): string
     {
         if ($date === null) {
