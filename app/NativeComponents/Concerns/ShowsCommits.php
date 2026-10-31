@@ -78,11 +78,11 @@ trait ShowsCommits
     public ?Commit $viewerCommit = null;
 
     /**
-     * How far the pane under the viewer's image is drawn up: open, as the web
-     * docks the commit, until you drag it down to its author line. It stays
-     * where you left it from one image to the next.
+     * Where the pane under the viewer's image rests: `fit`, as tall as the
+     * commit, as the web docks it, or the height in points of its author line
+     * once you drag it down. It stays where you left it from one image to the next.
      */
-    public float $viewerPaneDetent = Display::ViewerPaneOpen;
+    public float|string $viewerPaneDetent = 'fit';
 
     /**
      * Which of the viewer's images is showing.
@@ -341,11 +341,11 @@ trait ShowsCommits
     }
 
     /**
-     * The pane under the viewer's image come to rest at another height, which it's drawn at from now on.
+     * The pane under the viewer's image come to rest: `fit`, or a height in points.
      */
-    public function viewerPaneMoved(string $height): void
+    public function viewerPaneMoved(string $detent): void
     {
-        $this->viewerPaneDetent = (float) $height;
+        $this->viewerPaneDetent = $detent === 'fit' ? 'fit' : (float) $detent;
     }
 
     /**

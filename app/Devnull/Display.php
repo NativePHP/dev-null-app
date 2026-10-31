@@ -42,13 +42,15 @@ final class Display
     public const int ElbowLevel = 22;
 
     /**
-     * The heights the pane under the image viewer's picture rests at, in
-     * points: its author line alone, and open on the whole commit, which
-     * scrolls in it when it's longer.
+     * How far down the pane under the image viewer's picture can go, in
+     * points: its author line. Open, it's as tall as the commit it shows.
      */
-    public const int ViewerPaneClosed = 88;
+    public const int ViewerPaneDown = 88;
 
-    public const int ViewerPaneOpen = 360;
+    /**
+     * The room the picture leaves under it for that pane down, in points, with the pane's inset, so the chevrons stay above it.
+     */
+    public const int ViewerPaneRoom = 104;
 
     public static function relativeTime(?CarbonInterface $date, ?CarbonInterface $now = null): string
     {
