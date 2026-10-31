@@ -302,10 +302,11 @@ class Onboarding extends NativeComponent
 
     /**
      * The app's platform and bundle id, like "ios:com.nativephp.devnull": the
-     * iOS and Android apps share a bundle id, but they are different apps.
+     * iOS and Android apps share a bundle id, but they are different apps. A
+     * build whose .env doesn't carry the bundle id says the release one.
      */
     private function appId(): string
     {
-        return (System::isIos() ? 'ios:' : 'android:').config('nativephp.app_id');
+        return (System::isIos() ? 'ios:' : 'android:').(config('nativephp.app_id') ?: 'com.nativephp.devnull');
     }
 }

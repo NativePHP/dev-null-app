@@ -187,6 +187,15 @@ it('names itself the Android app on Android, a different app from the iOS one', 
     expect(openedAuthQuery($bridge))->toMatchArray(['app_name' => '/dev/null for Android', 'app_id' => 'android:com.nativephp.devnull']);
 });
 
+it('says the release bundle id when the build does not carry one', function () {
+    config(['nativephp.app_id' => null]);
+    $bridge = signInBridge(testSeed());
+
+    Native::visit('/onboarding', platform: 'ios')->tap('sign-in');
+
+    expect(openedAuthQuery($bridge)['app_id'])->toBe('ios:com.nativephp.devnull');
+});
+
 it('makes a fresh verifier and state for every attempt', function () {
     $bridge = signInBridge(testSeed());
     $screen = Native::visit('/onboarding');
