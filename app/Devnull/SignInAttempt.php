@@ -46,13 +46,15 @@ final readonly class SignInAttempt
 
     /**
      * The page on dev-null.sh that signs you in with GitHub and approves this
-     * phone's key, then sends the browser back to the app with a code.
+     * phone's key, then sends the browser back to the app with a code. The
+     * app's name goes with the phone's, so Settings → Devices tells them apart.
      */
-    public function authorizeUrl(string $baseUrl, string $fingerprint, string $deviceName): string
+    public function authorizeUrl(string $baseUrl, string $fingerprint, string $deviceName, string $appName): string
     {
         return rtrim($baseUrl, '/').'/mobile/authorize?'.http_build_query([
             'fingerprint' => $fingerprint,
             'device_name' => $deviceName,
+            'app_name' => $appName,
             'code_challenge' => $this->challenge(),
             'code_challenge_method' => 'S256',
             'state' => $this->state,

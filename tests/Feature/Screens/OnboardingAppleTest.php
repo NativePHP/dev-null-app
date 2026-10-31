@@ -99,7 +99,7 @@ it("signs in with Apple's token and the raw nonce, which approves this phone", f
     Http::assertSentCount(2);
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
         && $request->url() === 'http://devnull.test/api/v1/'.Client::SignInPath
-        && $request->body() === json_encode(['apple_identity_token' => AppleIdentityToken, 'nonce' => $nonce, 'device_name' => 'devnull on iPhone'])
+        && $request->body() === json_encode(['apple_identity_token' => AppleIdentityToken, 'nonce' => $nonce, 'device_name' => 'iPhone'])
         && $request->hasHeader('X-SSH-Signature'));
 
     // Apple's token carries sha256(nonce) as hex, which is what devnull checks against the raw nonce.
