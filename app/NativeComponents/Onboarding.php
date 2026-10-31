@@ -18,6 +18,7 @@ use Native\Mobile\Attributes\Poll;
 use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Facades\Browser;
 use Native\Mobile\Facades\Device;
+use Native\Mobile\Facades\System;
 use SensitiveParameter;
 
 /**
@@ -107,7 +108,7 @@ class Onboarding extends NativeComponent
 
         $attempt = app(SignIn::class)->begin();
 
-        if (! Browser::auth($attempt->authorizeUrl((string) config('devnull.url'), $this->fingerprint, $this->deviceName()))) {
+        if (! Browser::auth($attempt->authorizeUrl((string) config('devnull.url'), $this->fingerprint, $this->deviceName(), $this->appName(), $this->appId()))) {
             $this->error = 'fatal: could not open dev-null.sh to sign in.';
         }
     }
@@ -276,7 +277,8 @@ class Onboarding extends NativeComponent
     }
 
     /**
-     * Names the phone on devnull after its model, so it's clear what to remove later.
+     * Names the phone on devnull after its model, so it's clear what to remove
+     * later. The app says its own name next to it, see appName().
      */
     private function deviceName(): string
     {
@@ -284,9 +286,27 @@ class Onboarding extends NativeComponent
             $info = json_decode((string) Device::getInfo(), true);
             $model = is_array($info) && is_string($info['model'] ?? null) ? trim($info['model']) : '';
 
-            $this->deviceName = 'devnull on '.($model === '' ? 'a phone' : $model);
+            $this->deviceName = $model === '' ? 'a phone' : $model;
         }
 
         return $this->deviceName;
+    }
+
+    /**
+     * What devnull shows next to the phone's name, like "/dev/null for iOS on iPhone".
+     */
+    private function appName(): string
+    {
+        return System::isIos() ? '/dev/null for iOS' : '/dev/null for Android';
+    }
+
+    /**
+     * The app's platform and bundle id, like "ios:com.nativephp.devnull": the
+     * iOS and Android apps share a bundle id, but they are different apps. A
+     * build whose .env doesn't carry the bundle id says the release one.
+     */
+    private function appId(): string
+    {
+        return (System::isIos() ? 'ios:' : 'android:').(config('nativephp.app_id') ?: 'com.nativephp.devnull');
     }
 }
