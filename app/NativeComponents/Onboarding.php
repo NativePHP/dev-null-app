@@ -108,7 +108,7 @@ class Onboarding extends NativeComponent
 
         $attempt = app(SignIn::class)->begin();
 
-        if (! Browser::auth($attempt->authorizeUrl((string) config('devnull.url'), $this->fingerprint, $this->deviceName(), $this->appName()))) {
+        if (! Browser::auth($attempt->authorizeUrl((string) config('devnull.url'), $this->fingerprint, $this->deviceName(), $this->appName(), $this->appId()))) {
             $this->error = 'fatal: could not open dev-null.sh to sign in.';
         }
     }
@@ -298,5 +298,14 @@ class Onboarding extends NativeComponent
     private function appName(): string
     {
         return System::isIos() ? '/dev/null for iOS' : '/dev/null for Android';
+    }
+
+    /**
+     * The app's platform and bundle id, like "ios:com.nativephp.devnull": the
+     * iOS and Android apps share a bundle id, but they are different apps.
+     */
+    private function appId(): string
+    {
+        return (System::isIos() ? 'ios:' : 'android:').config('nativephp.app_id');
     }
 }

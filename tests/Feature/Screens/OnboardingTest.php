@@ -149,6 +149,7 @@ it('keeps the same key across launches', function () {
 });
 
 it('opens dev-null.sh in the auth browser with the key, the device, the app and an S256 challenge', function () {
+    config(['nativephp.app_id' => 'com.nativephp.devnull']);
     $bridge = signInBridge(testSeed());
     $screen = Native::visit('/onboarding', platform: 'ios');
 
@@ -159,16 +160,17 @@ it('opens dev-null.sh in the auth browser with the key, the device, the app and 
     $attempt = pendingAttempt();
 
     expect($url)->toStartWith('http://devnull.test/mobile/authorize?')
-        ->and(array_keys($query))->toBe(['fingerprint', 'device_name', 'app_name', 'code_challenge', 'code_challenge_method', 'state', 'redirect_uri'])
+        ->and(array_keys($query))->toBe(['fingerprint', 'device_name', 'app_name', 'app_id', 'code_challenge', 'code_challenge_method', 'state', 'redirect_uri'])
         ->and($query['fingerprint'])->toBe(testKey()->fingerprint())
         ->and($query['device_name'])->toBe('iPhone')
         ->and($query['app_name'])->toBe('/dev/null for iOS')
+        ->and($query['app_id'])->toBe('ios:com.nativephp.devnull')
         ->and($query['code_challenge_method'])->toBe('S256')
         ->and($query['redirect_uri'])->toBe('devnull://auth/callback')
         ->and($query['state'])->toBe($attempt->state)->toMatch('/^[A-Za-z0-9_-]{22}$/')
         ->and($attempt->verifier())->toMatch('/^[A-Za-z0-9_-]{43}$/')
         ->and($query['code_challenge'])->toBe(rtrim(strtr(base64_encode(hash('sha256', $attempt->verifier(), true)), '+/', '-_'), '='))
-        ->and($url)->toContain('device_name=iPhone&app_name=%2Fdev%2Fnull%20for%20iOS')
+        ->and($url)->toContain('device_name=iPhone&app_name=%2Fdev%2Fnull%20for%20iOS&app_id=ios%3Acom.nativephp.devnull')
         ->and($url)->toContain('redirect_uri=devnull%3A%2F%2Fauth%2Fcallback');
 
     $bridge->assertOpenedAuth();
@@ -176,12 +178,13 @@ it('opens dev-null.sh in the auth browser with the key, the device, the app and 
     Http::assertNothingSent();
 });
 
-it('names itself the Android app on Android', function () {
+it('names itself the Android app on Android, a different app from the iOS one', function () {
+    config(['nativephp.app_id' => 'com.nativephp.devnull']);
     $bridge = signInBridge(testSeed());
 
     Native::visit('/onboarding', platform: 'android')->tap('sign-in');
 
-    expect(openedAuthQuery($bridge)['app_name'])->toBe('/dev/null for Android');
+    expect(openedAuthQuery($bridge))->toMatchArray(['app_name' => '/dev/null for Android', 'app_id' => 'android:com.nativephp.devnull']);
 });
 
 it('makes a fresh verifier and state for every attempt', function () {
@@ -418,13 +421,14 @@ it('says so when the Keychain is locked, and cannot start a sign-in', function (
 
 it('builds the authorize URL and checks state on its own', function () {
     $attempt = SignInAttempt::start();
-    $url = $attempt->authorizeUrl('https://dev-null.sh/', 'SHA256:a+b/c', 'iPhone', '/dev/null for iOS');
+    $url = $attempt->authorizeUrl('https://dev-null.sh/', 'SHA256:a+b/c', 'iPhone', '/dev/null for iOS', 'ios:com.nativephp.devnull');
 
     parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
 
     expect($url)->toStartWith('https://dev-null.sh/mobile/authorize?')
         ->and($query['fingerprint'])->toBe('SHA256:a+b/c')
         ->and($query['app_name'])->toBe('/dev/null for iOS')
+        ->and($query['app_id'])->toBe('ios:com.nativephp.devnull')
         ->and($query['code_challenge'])->toBe($attempt->challenge())
         ->and($attempt->answers($attempt->state))->toBeTrue()
         ->and($attempt->answers(''))->toBeFalse()
