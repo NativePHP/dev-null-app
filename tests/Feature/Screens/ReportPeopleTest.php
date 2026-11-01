@@ -129,9 +129,9 @@ it('shows why devnull said no in the sheet, keeping the reason and details', fun
     $screen->assertDontSee('Report received');
 })->with([
     'your own profile' => [[['message' => 'You cannot report yourself.', 'code' => 'own_profile'], 403], 'You cannot report yourself.'],
-    'someone who blocked you' => [[['message' => "This profile isn't available.", 'code' => 'user_unavailable'], 403], "fatal: this profile isn't available."],
+    'a missing handle' => [[['message' => "This profile isn't available.", 'code' => 'user_unavailable'], 403], "fatal: this profile isn't available."],
     'details too long' => [[['message' => 'Invalid.', 'errors' => ['details' => ['The details field must not be greater than 500 characters.']]], 422], 'The details field must not be greater than 500 characters.'],
-    'too many reports' => [[['message' => 'Too Many Attempts.', 'code' => 'rate_limited'], 429], 'Too Many Attempts.'],
+    'too many reports' => [[['message' => 'Too Many Attempts.', 'code' => 'rate_limited'], 429], 'Too many reports. Please wait a minute and try again.'],
 ]);
 
 it('signs out when devnull no longer takes the key', function () {
@@ -172,7 +172,7 @@ it('offers no report on your own profile, even if asked', function () {
     expect(nodeByRef($screen, 'person-report-sheet')['props']['visible'])->toBeFalse();
 });
 
-it('reports someone you blocked, and not someone who blocked you', function () {
+it('reports someone you blocked, and from a profile that is not available', function () {
     serveApi(fn (Request $request) => match (true) {
         $request->method() === 'POST' => Http::response(null, 204),
         str_contains($request->url(), '/users/grace') => Http::response(['message' => "This profile isn't available.", 'code' => 'user_unavailable'], 403),
@@ -187,9 +187,33 @@ it('reports someone you blocked, and not someone who blocked you', function () {
 
     expect(reportsSent()[0]->url())->toBe('http://devnull.test/api/v1/users/ada/reports');
 
-    $blockedMe = Native::visit('/log/users/grace', platform: 'ios')->call('reportPerson');
+    $unavailable = Native::visit('/log/users/grace', platform: 'ios')
+        ->assertSee("This profile isn't available.")
+        ->call('reportPerson');
 
-    expect(nodeByRef($blockedMe, 'person-report-sheet')['props']['visible'])->toBeFalse();
+    expect(nodeByRef($unavailable, 'person-report-sheet')['props']['visible'])->toBeTrue();
+
+    $unavailable->assertSee('Report @grace')
+        ->selectRadio('report-reason', 'child_safety')
+        ->tap('send-report')
+        ->assertSee('Report received.');
+
+    expect(reportsSent()[1]->url())->toBe('http://devnull.test/api/v1/users/grace/reports')
+        ->and(reportsSent()[1]->body())->toBe('{"reason":"child_safety"}');
+});
+
+it('says only that the profile is not available when devnull refuses a report from that screen', function () {
+    serveApi(fn (Request $request) => Http::response(['message' => "This profile isn't available.", 'code' => 'user_unavailable'], 403));
+
+    $screen = Native::visit('/log/users/ghost', platform: 'ios')
+        ->call('reportPerson')
+        ->selectRadio('report-reason', 'spam')
+        ->tap('send-report');
+
+    expect(nodeByRef($screen, 'sheet-error')['props']['text'])->toBe("fatal: this profile isn't available.")
+        ->and($screen->instance()->unavailable)->toBe('user_unavailable');
+
+    $screen->assertDontSee('Report received')->assertDontSee('blocked');
 });
 
 it('reports the person from a private chat, with nothing from the chat', function () {

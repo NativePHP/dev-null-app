@@ -10,7 +10,8 @@ use App\Devnull\ReportReason;
  * partials/person-report-sheet), as the web's Report dialog does. A report
  * from a chat is about the person: it says who, why and any details you add,
  * and sends nothing from the conversation. There's no way to report one
- * message, and an org has no one to report.
+ * message, and an org has no one person to report, though its members can be
+ * (see OrgMembers).
  */
 trait ReportsPeople
 {

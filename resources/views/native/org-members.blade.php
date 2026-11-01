@@ -72,4 +72,6 @@
             @endif
         </native:column>
     </native:scroll-view>
+
+    @include('native.partials.person-report-sheet')
 </native:column>

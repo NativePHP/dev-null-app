@@ -100,7 +100,7 @@ it('offers Unmute on a profile you mute', function () {
     ]);
 });
 
-it('has no safety menu on your own profile, on one that blocked you, or before devnull says whether you mute them', function () {
+it('has no safety menu on your own profile, or before devnull says whether you mute them, and only Report on one that is not available', function () {
     fakeApi([
         'GET /api/v1/users/local_dev' => [safetyProfileJson(['data' => userWithCountsJson(['handle' => 'local_dev'])])],
         'GET /api/v1/users/local_dev/commits' => [pageJson([])],
@@ -109,7 +109,9 @@ it('has no safety menu on your own profile, on one that blocked you, or before d
     ]);
 
     expect(safetyMenu(Native::visit('/profile')))->toBeNull()
-        ->and(safetyMenu(Native::visit('/log/users/grace')))->toBeNull();
+        ->and(safetyMenu(Native::visit('/log/users/grace')))->toBe([
+            'report' => ['id' => 'report', 'label' => 'Report @grace'],
+        ]);
 
     holdRefreshes();
 
@@ -208,7 +210,7 @@ it("blocks once you confirm with the web's Block dialog, and shows the blocked p
     expect(safetySent('POST', 'users/ada/block'))->toBeTrue()
         ->and(kept('users/ada'))->toBeNull()
         ->and(kept('users/ada/commits'))->toBeNull()
-        // A blocked profile offers only Unblock, as the web's blocked page does.
+        // A blocked profile offers Report and Unblock, as the web's blocked page does.
         ->and(safetyMenu($screen))->toBe([
             'report' => ['id' => 'report', 'icon' => 'custom:flag', 'label' => 'Report @ada'],
             'unblock' => ['id' => 'unblock', 'icon' => 'custom:ban', 'label' => 'Unblock @ada'],

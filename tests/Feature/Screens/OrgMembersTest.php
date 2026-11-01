@@ -168,6 +168,37 @@ it('puts the name back with devnull’s reason when it won’t rename the org', 
         ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Only maintainers can do that.');
 });
 
+it('reports a member from their menu, with nothing from the org’s chat', function () {
+    serveOrg(orgJson());
+    holdRefreshes();
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1/members', platform: 'ios'));
+
+    $screen->tap('report-ada')
+        ->assertSee('Report @ada')
+        ->selectRadio('report-reason', 'child_safety')
+        ->tap('send-report')
+        ->assertSee('Report received.');
+
+    expect(sentTo('POST', 'users/ada/reports'))->toBe(['{"reason":"child_safety"}'])
+        ->and(memberWritesSent())->toBe(['POST users/ada/reports']);
+});
+
+it('reports no one a maintainer has no menu for: yourself, or anyone when you only contribute', function () {
+    serveOrg(orgJson());
+    holdRefreshes();
+
+    $maintaining = finishRefreshes(Native::visit('/remotes/orgs/org-1/members', platform: 'ios'))->call('reportMember', 'local_dev');
+
+    expect(nodeByRef($maintaining, 'person-report-sheet')['props']['visible'])->toBeFalse();
+
+    serveOrg(orgJson('contributor'));
+
+    $contributing = finishRefreshes(Native::visit('/remotes/orgs/org-1/members', platform: 'ios'))->call('reportMember', 'ada');
+
+    expect(nodeByRef($contributing, 'person-report-sheet')['props']['visible'])->toBeFalse();
+});
+
 it('offers a maintainer the web’s menu on everyone else, and makes a contributor a maintainer from it', function (string $platform) {
     serveOrg(orgJson());
     holdRefreshes();
@@ -179,6 +210,7 @@ it('offers a maintainer the web’s menu on everyone else, and makes a contribut
         ->and(menuItems($screen, 'manage-ada'))->toBe([
             ['make-maintainer-ada', 'Make maintainer', 'custom:shield'],
             'divider',
+            ['report-ada', 'Report @ada', 'custom:flag'],
             ['remove-ada', 'Remove from org', 'custom:user-minus'],
         ])
         ->and(menuItems($screen, 'manage-grace')[0])->toBe(['make-contributor-grace', 'Make contributor', 'custom:user-round'])

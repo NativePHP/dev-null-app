@@ -186,7 +186,7 @@ it('shows why devnull said no in the sheet, keeping the reason and details', fun
     $screen->assertDontSee('Report received');
 })->with([
     'a commit devnull no longer shows' => [[['message' => "This commit isn't available.", 'code' => 'commit_unavailable'], 404], "fatal: this commit isn't available."],
-    'too many reports' => [[['message' => 'Too Many Attempts.', 'code' => 'rate_limited'], 429], 'Too Many Attempts.'],
+    'too many reports' => [[['message' => 'Too Many Attempts.', 'code' => 'rate_limited'], 429], 'Too many reports. Please wait a minute and try again.'],
 ]);
 
 it('forgets the draft when the sheet is swiped away', function () {

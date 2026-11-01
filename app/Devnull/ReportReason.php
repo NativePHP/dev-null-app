@@ -19,6 +19,11 @@ enum ReportReason: string
      */
     public const int DetailsMaxLength = 500;
 
+    /**
+     * What the web's Report dialogs say when devnull has had too many reports from you.
+     */
+    public const string TooManyReports = 'Too many reports. Please wait a minute and try again.';
+
     public function label(): string
     {
         return match ($this) {

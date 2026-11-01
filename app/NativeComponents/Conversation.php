@@ -442,7 +442,7 @@ class Conversation extends NativeComponent
             ? NavAction::make('unmute')->label('Unmute')->icon(ios: Lucide::Bell->ios(), android: Lucide::Bell->android())->press('unmute')
             : NavAction::make('mute')->label('Mute')->icon(ios: Lucide::BellOff->ios(), android: Lucide::BellOff->android())->press('chooseMute');
 
-        // As the web's menu has it. An org has no one person to report, and no message is ever reported on its own.
+        // As the web's menu has it. An org has no one person to report, so its members are reported from its members list, and no message is ever reported on its own.
         if (! $this->isOrg()) {
             $items[] = NavAction::divider();
             $items[] = NavAction::make('report')->label('Report @'.$this->username)->icon(ios: Lucide::Flag->ios(), android: Lucide::Flag->android())->press('reportPerson');

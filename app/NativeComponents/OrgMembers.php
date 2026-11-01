@@ -10,6 +10,7 @@ use App\Devnull\ResponseCache;
 use App\Devnull\Toasts;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\ReportsPeople;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Concerns\WritesInBackground;
@@ -24,8 +25,8 @@ use Native\Mobile\Facades\Dialog;
  * The web's org members dialog as a screen, opened from an org thread's menu:
  * everyone in the org with their role, and Leave org for anyone. A maintainer
  * also renames the org, adds people, and from More on someone else makes them
- * a maintainer or a contributor, or removes them, as the web's member menu
- * does (see OrgMemberMenu). A contributor sees who's in it and can leave, and
+ * a maintainer or a contributor, reports them, or removes them, as the web's
+ * member menu does (see OrgMemberMenu). A contributor sees who's in it and can leave, and
  * nothing else.
  *
  * It shows the org as its thread last kept it, then asks devnull behind it.
@@ -38,6 +39,7 @@ class OrgMembers extends NativeComponent
 {
     use OpensInTab;
     use RefreshesInBackground;
+    use ReportsPeople;
     use SyncsOutbox;
     use TalksToDevnull;
     use WritesInBackground;
@@ -162,6 +164,16 @@ class OrgMembers extends NativeComponent
     public function viewProfile(string $username): void
     {
         $this->openInTab('/users/'.rawurlencode($username));
+    }
+
+    /**
+     * Report, from someone's menu: about the person, with nothing from the org's chat (see ReportsPeople).
+     */
+    public function reportMember(string $username): void
+    {
+        if ($this->canManage($username)) {
+            $this->openPersonReport($username);
+        }
     }
 
     /**
