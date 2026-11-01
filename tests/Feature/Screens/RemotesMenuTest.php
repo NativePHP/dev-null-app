@@ -72,6 +72,7 @@ it('opens the web row menu on a long press, in its order and words, and still op
             ['stash-conv-1', 'Stash', 'custom:archive'],
             ['mute-conv-1', 'Mute', 'custom:bell-off'],
             'divider',
+            ['report-conv-1', 'Report @ada', 'custom:flag'],
             ['block-conv-1', 'Block @ada', 'custom:ban'],
         ])
         ->and(menuItems($screen, 'remote-org-1'))->toBe([
@@ -92,7 +93,7 @@ it('offers Unpin, Pop and Unmute on a row that is pinned, stashed and muted', fu
 
     $screen = finishRefreshes(Native::visit('/remotes', platform: 'ios'));
 
-    expect(array_column(array_filter(menuItems($screen, 'remote-conv-1'), is_array(...)), 1))->toBe(['View profile', 'Unpin', 'Pop', 'Unmute', 'Block @ada'])
+    expect(array_column(array_filter(menuItems($screen, 'remote-conv-1'), is_array(...)), 1))->toBe(['View profile', 'Unpin', 'Pop', 'Unmute', 'Report @ada', 'Block @ada'])
         ->and(nodeByRef($screen, 'unpin-conv-1')['props']['icon'] ?? null)->toBe('custom:pin-off')
         ->and(nodeByRef($screen, 'pop-conv-1')['props']['icon'] ?? null)->toBe('custom:archive-restore')
         ->and(nodeByRef($screen, 'unmute-conv-1')['props']['icon'] ?? null)->toBe('custom:bell');
@@ -347,11 +348,11 @@ it('offers Pin and Mute in the thread menu too, in the web\'s order', function (
 
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
 
-    expect(threadMenu($screen))->toBe(['View profile', 'Pin', 'Stash', 'Mute']);
+    expect(threadMenu($screen))->toBe(['View profile', 'Pin', 'Stash', 'Mute', '', 'Report @ada']);
 
     serveAdaThread(['pinned_at' => '2026-10-19T12:00:00.000000Z', 'muted_until_at' => '9999-12-31T00:00:00.000000Z']);
 
-    expect(threadMenu(finishRefreshes(Native::visit('/remotes/conversations/ada'))))->toBe(['View profile', 'Unpin', 'Stash', 'Unmute']);
+    expect(threadMenu(finishRefreshes(Native::visit('/remotes/conversations/ada'))))->toBe(['View profile', 'Unpin', 'Stash', 'Unmute', '', 'Report @ada']);
 });
 
 it('pins and mutes the thread, and the inbox kept for going back shows it', function () {

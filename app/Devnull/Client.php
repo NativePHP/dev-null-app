@@ -517,6 +517,19 @@ final readonly class Client
         $this->send('POST', 'commits/'.rawurlencode($id).'/reports', payload: $payload);
     }
 
+    /**
+     * Reports a person to devnull's moderators, privately, as the web's Report
+     * dialog does. It carries the reason and any details, and nothing from a
+     * conversation. Reporting them again while yours is open keeps the first
+     * report.
+     */
+    public function reportUser(string $username, ReportReason $reason, string $details = ''): void
+    {
+        $payload = $details === '' ? ['reason' => $reason->value] : ['reason' => $reason->value, 'details' => $details];
+
+        $this->send('POST', 'users/'.rawurlencode($username).'/reports', payload: $payload);
+    }
+
     public function profile(string $username): Profile
     {
         return Profile::fromArray($this->profileJson($username));

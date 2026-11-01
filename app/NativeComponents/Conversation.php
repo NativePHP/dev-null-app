@@ -28,6 +28,7 @@ use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\PlaysVoiceNotes;
 use App\NativeComponents\Concerns\RecordsVoiceNotes;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\ReportsPeople;
 use App\NativeComponents\Concerns\SuggestsMentions;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -107,6 +108,7 @@ class Conversation extends NativeComponent
     use PlaysVoiceNotes;
     use RecordsVoiceNotes;
     use RefreshesInBackground;
+    use ReportsPeople;
     use SuggestsMentions;
     use SyncsOutbox;
     use TalksToDevnull;
@@ -439,6 +441,12 @@ class Conversation extends NativeComponent
         $items[] = $this->thread->isMuted()
             ? NavAction::make('unmute')->label('Unmute')->icon(ios: Lucide::Bell->ios(), android: Lucide::Bell->android())->press('unmute')
             : NavAction::make('mute')->label('Mute')->icon(ios: Lucide::BellOff->ios(), android: Lucide::BellOff->android())->press('chooseMute');
+
+        // As the web's menu has it. An org has no one person to report, and no message is ever reported on its own.
+        if (! $this->isOrg()) {
+            $items[] = NavAction::divider();
+            $items[] = NavAction::make('report')->label('Report @'.$this->username)->icon(ios: Lucide::Flag->ios(), android: Lucide::Flag->android())->press('reportPerson');
+        }
 
         // Calls are one-to-one, where a ping could go, as the web's phone button.
         if (! $this->isOrg() && $this->thread->access === Thread::Open) {
@@ -1136,6 +1144,16 @@ class Conversation extends NativeComponent
     {
         if ($this->username !== '') {
             $this->openInTab('/users/'.rawurlencode($this->username), $this->thread?->partner === null ? [] : ['user' => $this->thread->partner]);
+        }
+    }
+
+    /**
+     * Report, from the menu: about the person, with nothing from this conversation (see ReportsPeople).
+     */
+    public function reportPerson(): void
+    {
+        if (! $this->isOrg() && $this->username !== '') {
+            $this->openPersonReport($this->username);
         }
     }
 

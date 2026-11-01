@@ -16,6 +16,7 @@ use App\Icons\Lucide;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\ReportsPeople;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Concerns\WatchesForCalls;
@@ -53,7 +54,7 @@ use Native\Mobile\Facades\Dialog;
  * /remotes, with a 404, and the tab shows the web's page for it.
  *
  * A tap opens a row's thread. A long press opens the web's row menu (see
- * RemoteMenu): View profile, Pin, Stash, Mute, then Block or Leave org. Each
+ * RemoteMenu): View profile, Pin, Stash, Mute, then Report and Block, or Leave org. Each
  * changes the row at once, pinned rows going to the top as devnull sorts
  * them, and tells devnull from the background. If devnull says no, the row
  * goes back and a toast says so in the web's words. Mute asks how long for,
@@ -64,6 +65,7 @@ class Remotes extends NativeComponent
     use DrawsSkeletonFirst;
     use OpensInTab;
     use RefreshesInBackground;
+    use ReportsPeople;
     use SyncsOutbox;
     use TalksToDevnull;
     use WatchesForCalls;
@@ -329,6 +331,18 @@ class Remotes extends NativeComponent
 
         if ($partner !== null) {
             $this->openInTab('/users/'.rawurlencode($partner->username), ['user' => $partner]);
+        }
+    }
+
+    /**
+     * Report, from the menu: about the partner, with nothing from the conversation (see ReportsPeople).
+     */
+    public function reportPartner(string $id): void
+    {
+        $partner = $this->row($id)?->partner;
+
+        if ($partner !== null) {
+            $this->openPersonReport($partner->username);
         }
     }
 
