@@ -55,19 +55,31 @@ function safetyBlockedAnswer(): array
 }
 
 /**
- * The items of the profile's safety menu, by id, or null when it has none.
+ * The items of the profile's ⋯ menu, by id, or null when it has none.
  *
  * @return array<string, array<string, mixed>>|null
  */
-function safetyMenu(TestableComponent $screen): ?array
+function profileMenu(TestableComponent $screen): ?array
 {
-    $menu = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'top_bar_action' && ($node['props']['id'] ?? null) === 'safety');
+    $menu = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'top_bar_action' && ($node['props']['id'] ?? null) === 'more');
 
     if ($menu === null) {
         return null;
     }
 
     return collect($menu['children'] ?? [])->mapWithKeys(fn (array $item): array => [$item['props']['id'] => $item['props']])->all();
+}
+
+/**
+ * The safety items of the profile's ⋯ menu, by id, after Share profile, or null when it has none.
+ *
+ * @return array<string, array<string, mixed>>|null
+ */
+function safetyMenu(TestableComponent $screen): ?array
+{
+    $items = collect(profileMenu($screen) ?? [])->except('share')->all();
+
+    return $items === [] ? null : $items;
 }
 
 /**
@@ -82,7 +94,7 @@ it("offers Mute and Block from a ⋯ in the nav bar of someone else's profile, a
     fakeApi(['GET /api/v1/users/ada' => [safetyProfileJson()], 'GET /api/v1/users/ada/commits' => [pageJson([])]]);
 
     $screen = Native::visit('/log/users/ada', platform: 'ios');
-    $more = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'top_bar_action' && ($node['props']['id'] ?? null) === 'safety');
+    $more = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'top_bar_action' && ($node['props']['id'] ?? null) === 'more');
 
     expect($more['props'])->toMatchArray(['icon' => 'custom:ellipsis', 'a11y_label' => 'More options for @ada'])
         ->and(safetyMenu($screen))->toBe([

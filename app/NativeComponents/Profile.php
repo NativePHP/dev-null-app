@@ -15,6 +15,8 @@ use App\Devnull\ShownTabs;
 use App\Devnull\SiteLink;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
+use App\Icons\AndroidOutlined;
+use App\Icons\Ios;
 use App\Icons\Lucide;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
@@ -35,6 +37,7 @@ use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Facades\Browser;
 use Native\Mobile\Facades\Dialog;
+use Native\Mobile\Facades\Share;
 
 /**
  * A developer's profile: who they are on GitHub, their counts and activity,
@@ -45,13 +48,15 @@ use Native\Mobile\Facades\Dialog;
  * on the web: the one who blocked is told so, the other only that it isn't
  * available. devnull says which by its code (see ErrorCode).
  *
- * Someone else's profile has the web's safety menu in its nav bar: Mute or
- * Unmute, and Block, or on a profile you blocked only Unblock. Each asks
- * first, then changes straight away, and goes back if devnull says no.
+ * Every profile can be shared: Share profile hands its link to the phone's
+ * share sheet. Someone else's has it first in a ⋯ in the nav bar, then the
+ * web's safety menu: Mute or Unmute, and Block, or on a profile you blocked
+ * only Unblock. Each asks first, then changes straight away, and goes back if
+ * devnull says no.
  *
  * The Profile tab shows your own, with no username in the route. Like the web,
- * your own profile swaps Follow for "Edit on GitHub", and its nav bar leads to
- * your account.
+ * your own profile swaps Follow for "Edit on GitHub", and its nav bar has
+ * Share profile, then your starred commits and your account.
  *
  * It opens on the profile as it was last time, or opened from a commit, on
  * what the commit knew of its author, then asks devnull again behind it. The
@@ -178,6 +183,7 @@ class Profile extends NativeComponent
     {
         if ($this->isMe()) {
             return NavBarOptions::make()
+                ->action($this->shareAction()->a11yLabel('Share profile'))
                 ->action(
                     NavAction::make('starred')
                         ->icon(ios: Lucide::Star->ios(), android: Lucide::Star->android())
@@ -192,14 +198,24 @@ class Profile extends NativeComponent
                 );
         }
 
-        $items = $this->safetyActions();
-
-        return $items === [] ? null : NavBarOptions::make()->action(
-            NavAction::make('safety')
+        return NavBarOptions::make()->action(
+            NavAction::make('more')
                 ->icon(ios: Lucide::Ellipsis->ios(), android: Lucide::Ellipsis->android())
                 ->a11yLabel('More options for @'.$this->username)
-                ->items($items),
+                ->items([$this->shareAction()->label('Share profile'), ...$this->safetyActions()]),
         );
+    }
+
+    /**
+     * Share profile, with the phone's own share icon: first in the nav bar on
+     * your own profile, first in the ⋯ on someone else's. It's always there, as
+     * the link needs nothing but the username.
+     */
+    private function shareAction(): NavAction
+    {
+        return NavAction::make('share')
+            ->icon(ios: Ios::SquareAndArrowUp, android: AndroidOutlined::Share)
+            ->press('shareProfile');
     }
 
     /**
@@ -479,6 +495,15 @@ class Profile extends NativeComponent
         }
 
         $this->refreshProfile(showNewer: true);
+    }
+
+    /**
+     * Share profile: the profile's link in the share sheet, which has Copy, and AirDrop and Messages besides. It
+     * takes the link devnull sends, or makes the web's own when there isn't one yet.
+     */
+    public function shareProfile(): void
+    {
+        Share::url('', '', $this->profile?->user->htmlUrl ?? rtrim((string) config('devnull.url'), '/')."/@{$this->username}");
     }
 
     public function isMe(): bool
