@@ -79,7 +79,7 @@ class TabsLayout extends NativeLayout
         return TabBar::make()
             ->activeColor(self::accent())
             ->labelVisibility('labeled')
-            ->add(Tab::link('Log', '/log', ios: Lucide::GitCommitVertical->ios(), android: Lucide::GitCommitVertical->android()))
+            ->add(Tab::link('Log', '/log', ios: Lucide::GitCommitVertical->ios(), android: Lucide::GitCommitVertical->android())->onReselect('backToTopAndFetchNewest'))
             ->add($notifications)
             ->add($remotes)
             ->add(Tab::link('Profile', '/profile', ios: Lucide::UserRound->ios(), android: Lucide::UserRound->android()));

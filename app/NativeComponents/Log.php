@@ -395,6 +395,21 @@ class Log extends NativeComponent
     }
 
     /**
+     * A second tap on the Log tab in the bottom bar: back to the top of the
+     * log you're on, and the newest commits.
+     */
+    public function backToTopAndFetchNewest(): void
+    {
+        $this->listKey++;
+
+        if (! $this->isRanked()) {
+            $this->showNewCommits();
+        }
+
+        $this->load();
+    }
+
+    /**
      * The log you go to keeps the list its first few commits were drawn in,
      * which can't have been scrolled, and fills it. The log you leave starts
      * again at the top of a fresh one.
