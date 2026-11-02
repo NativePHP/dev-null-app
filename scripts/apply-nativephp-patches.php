@@ -1,15 +1,23 @@
 <?php
 
+use Composer\InstalledVersions;
+
 /**
- * Applies the native tab reselect patch to nativephp/mobile 4.7.x.
+ * Applies the native tab reselect patches to nativephp/mobile 4.7.x.
+ *
+ * The PHP patch is applied everywhere, including the staged PHP copy
+ * NativePHP builds on device. The native patch is only applied where the
+ * package's native sources are present (the app root), because the staged
+ * copy deliberately excludes them.
  *
  * The change is carried here until it lands in a released NativePHP
  * version. The script is idempotent and fails loudly when the package
- * version moves or the patch no longer applies.
+ * version moves or a patch no longer applies.
  */
 $root = dirname(__DIR__);
 $package = $root.'/vendor/nativephp/mobile';
-$patch = $root.'/patches/nativephp-mobile-tab-reselect.patch';
+$phpPatch = $root.'/patches/nativephp-mobile-tab-reselect.patch';
+$nativePatch = $root.'/patches/nativephp-mobile-tab-reselect-native.patch';
 
 if (! is_file($package.'/composer.json')) {
     fwrite(STDERR, "nativephp/mobile is not installed; skipping the tab reselect patch.\n");
@@ -22,8 +30,8 @@ $version = is_array($manifest) ? (string) ($manifest['version'] ?? '0.0.0') : '0
 if ($version === '0.0.0' && is_file($root.'/vendor/autoload.php')) {
     require_once $root.'/vendor/autoload.php';
 
-    if (class_exists(\Composer\InstalledVersions::class)) {
-        $version = \Composer\InstalledVersions::getPrettyVersion('nativephp/mobile') ?? '0.0.0';
+    if (class_exists(InstalledVersions::class)) {
+        $version = InstalledVersions::getPrettyVersion('nativephp/mobile') ?? '0.0.0';
     }
 }
 
@@ -39,27 +47,27 @@ if ($version === '0.0.0' && is_file($root.'/composer.lock')) {
 }
 
 if (! str_starts_with($version, '4.7.')) {
-    fwrite(STDERR, "nativephp/mobile {$version} is not 4.7.x; rebase {$patch}.\n");
+    fwrite(STDERR, "nativephp/mobile {$version} is not 4.7.x; rebase the tab reselect patches.\n");
     exit(1);
 }
 
-$markers = [
-    $package.'/src/Edge/Element.php' => 'reselectMethod',
-    $package.'/src/Edge/Layouts/Builders/Tab.php' => 'reselectMethod',
-    $package.'/resources/androidstudio/app/src/main/java/com/nativephp/mobile/ui/nativerender/NativeRootTabsRenderer.kt' => 'on_reselect',
-    $package.'/resources/xcode/NativePHP/NativeRender/NativeRootTabsRenderer.swift' => 'TabBarReselectObserver',
-];
+/**
+ * @param  array<string, string>  $markers  file => marker that proves it is patched
+ */
+$apply = function (string $patch, array $markers) use ($package): void {
+    $applied = true;
 
-$applied = true;
-
-foreach ($markers as $file => $marker) {
-    if (! is_file($file) || ! str_contains((string) file_get_contents($file), $marker)) {
-        $applied = false;
-        break;
+    foreach ($markers as $file => $marker) {
+        if (! is_file($file) || ! str_contains((string) file_get_contents($file), $marker)) {
+            $applied = false;
+            break;
+        }
     }
-}
 
-if (! $applied) {
+    if ($applied) {
+        return;
+    }
+
     $command = sprintf(
         'patch -p1 --forward --batch -d %s < %s',
         escapeshellarg($package),
@@ -69,9 +77,23 @@ if (! $applied) {
     exec($command, $output, $code);
 
     if ($code !== 0) {
-        fwrite(STDERR, "Could not apply the native tab reselect patch:\n".implode("\n", $output)."\n");
+        fwrite(STDERR, "Could not apply {$patch}:\n".implode("\n", $output)."\n");
         exit(1);
     }
+};
+
+$apply($phpPatch, [
+    $package.'/src/Edge/Element.php' => 'reselectMethod',
+    $package.'/src/Edge/Layouts/Builders/Tab.php' => 'reselectMethod',
+]);
+
+$nativeMarkers = [
+    $package.'/resources/androidstudio/app/src/main/java/com/nativephp/mobile/ui/nativerender/NativeRootTabsRenderer.kt' => 'on_reselect',
+    $package.'/resources/xcode/NativePHP/NativeRender/NativeRootTabsRenderer.swift' => 'TabBarReselectObserver',
+];
+
+if (is_file($package.'/resources/xcode/NativePHP/NativeRender/NativeRootTabsRenderer.swift')) {
+    $apply($nativePatch, $nativeMarkers);
 }
 
 $generated = [
