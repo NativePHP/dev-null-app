@@ -12,8 +12,9 @@ use Native\Mobile\Edge\Layouts\Builders\NavAction;
  * What More on someone in an org opens for a maintainer, as the web's member
  * menu has it, in its order and words: Make maintainer, or Make contributor,
  * which is off for the last maintainer since an org needs one, then after a
- * divider Remove from org, in red, which asks first. Each item names the
- * member, so a tap never rebuilds anything from an attribute.
+ * divider Report, which is about the person and carries nothing from the chat,
+ * and Remove from org, in red, which asks first. Each item names the member, so
+ * a tap never rebuilds anything from an attribute.
  */
 final class OrgMemberMenu
 {
@@ -27,6 +28,7 @@ final class OrgMemberMenu
                 ? self::item($member, 'make-contributor', 'Make contributor', Lucide::UserRound, 'makeContributor', disabled: $isLastMaintainer)
                 : self::item($member, 'make-maintainer', 'Make maintainer', Lucide::Shield, 'makeMaintainer'),
             NavAction::divider(),
+            self::item($member, 'report', 'Report '.$member->handle(), Lucide::Flag, 'reportMember'),
             self::item($member, 'remove', 'Remove from org', Lucide::UserMinus, 'confirmRemove', destructive: true),
         ];
     }

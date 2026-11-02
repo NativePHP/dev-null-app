@@ -101,6 +101,7 @@ it("turns the sheet into the web's report form", function () {
             ['spam', 'Spam or misleading links'],
             ['harassment', 'Harassment or hate'],
             ['unsafe', 'Harmful or private information'],
+            ['child_safety', 'Child safety, such as grooming or sexual content involving a minor'],
             ['other', 'Something else'],
         ])
         ->and($details['props'])->toMatchArray([
@@ -154,6 +155,14 @@ it('sends the reason and details, then says the report was received, until Done 
         ->reportDetails->toBe('');
 });
 
+it('sends a child safety report on a commit', function () {
+    reportFormOnLog()->selectRadio('report-reason', 'child_safety')->tap('send-report');
+
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+        && $request->url() === 'http://devnull.test/api/v1/commits/c1/reports'
+        && $request->body() === '{"reason":"child_safety"}');
+});
+
 it('sends a report without details as just its reason', function () {
     reportFormOnLog()->selectRadio('report-reason', 'other')->tap('send-report');
 
@@ -177,7 +186,7 @@ it('shows why devnull said no in the sheet, keeping the reason and details', fun
     $screen->assertDontSee('Report received');
 })->with([
     'a commit devnull no longer shows' => [[['message' => "This commit isn't available.", 'code' => 'commit_unavailable'], 404], "fatal: this commit isn't available."],
-    'too many reports' => [[['message' => 'Too Many Attempts.', 'code' => 'rate_limited'], 429], 'Too Many Attempts.'],
+    'too many reports' => [[['message' => 'Too Many Attempts.', 'code' => 'rate_limited'], 429], 'Too many reports. Please wait a minute and try again.'],
 ]);
 
 it('forgets the draft when the sheet is swiped away', function () {

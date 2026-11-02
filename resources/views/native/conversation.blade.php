@@ -165,6 +165,7 @@
     </native:bottom-sheet>
 
     @include('native.partials.mute-sheet')
+    @include('native.partials.person-report-sheet')
 
     {{-- More reactions, from the bubble or anywhere else: the emoji keyboard on iOS, Jetpack's emoji picker on Android. --}}
     <native:emoji-picker ref="emoji-picker" :visible="$emojiPickerFor !== null" @change="emojiPicked" @dismiss="emojiPickerClosed" />

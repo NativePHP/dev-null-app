@@ -42,5 +42,6 @@
         </native:pager>
 
         @include('native.partials.mute-sheet')
+        @include('native.partials.person-report-sheet')
     @endif
 </native:column>

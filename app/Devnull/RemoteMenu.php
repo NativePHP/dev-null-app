@@ -10,8 +10,8 @@ use Native\Mobile\Edge\Layouts\Builders\NavAction;
 /**
  * What a long press on a Remotes row opens, as the web's row menu has it, in
  * its order, words and icons: View profile on a conversation with a person,
- * Pin or Unpin, Stash or Pop, Mute or Unmute, then after a divider Block and
- * their handle, or Leave org on an org, in red. Each item names the row, so a
+ * Pin or Unpin, Stash or Pop, Mute or Unmute, then after a divider Report and
+ * Block with their handle, or Leave org on an org, in red. Each item names the row, so a
  * tap never rebuilds anything from an attribute (see Remotes).
  */
 final class RemoteMenu
@@ -40,6 +40,10 @@ final class RemoteMenu
             : self::item($conversation, 'mute', 'Mute', Lucide::BellOff, 'chooseMute');
 
         $items[] = NavAction::divider();
+
+        if (! $conversation->isOrg()) {
+            $items[] = self::item($conversation, 'report', 'Report '.$conversation->menuTitle($viewerId), Lucide::Flag, 'reportPartner');
+        }
 
         $items[] = $conversation->isOrg()
             ? self::item($conversation, 'leave', 'Leave org', Lucide::LogOut, 'confirmLeave', destructive: true)

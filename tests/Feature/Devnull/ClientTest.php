@@ -652,6 +652,25 @@ it('reports a commit with a signed POST of its reason, and the details when ther
     'without' => ['', '{"reason":"spam"}'],
 ]);
 
+it('reports a person with a signed POST of their handle, reason and any details', function (string $details, string $body) {
+    Http::fake(['devnull.test/*' => Http::response(null, 204)]);
+
+    app(Client::class)->reportUser('ada', ReportReason::ChildSafety, $details);
+
+    Http::assertSent(function (Request $request) use ($body): bool {
+        expect($request->method())->toBe('POST')
+            ->and($request->url())->toBe('http://devnull.test/api/v1/users/ada/reports')
+            ->and($request->body())->toBe($body)
+            ->and(receivedMessage($request))->toEndWith("\nPOST\n/api/v1/users/ada/reports\n".$body)
+            ->and($request->header('X-SSH-Signature')[0])->toBe(testKey()->sign(receivedMessage($request), 'devnull-api'));
+
+        return true;
+    });
+})->with([
+    'with details' => ['They asked my age.', '{"reason":"child_safety","details":"They asked my age."}'],
+    'without' => ['', '{"reason":"child_safety"}'],
+]);
+
 it('deletes your account with a signed bodiless DELETE of /me', function () {
     Http::fake(['devnull.test/*' => Http::response(null, 204)]);
 

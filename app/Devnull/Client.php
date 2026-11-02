@@ -512,9 +512,34 @@ final readonly class Client
      */
     public function reportCommit(string $id, ReportReason $reason, string $details = ''): void
     {
+        $this->sendReport('commits/'.rawurlencode($id).'/reports', $reason, $details);
+    }
+
+    /**
+     * Reports a person to devnull's moderators, privately, as the web's Report
+     * dialog does. It carries the reason and any details, and nothing from a
+     * conversation. Reporting them again while yours is open keeps the first
+     * report, unless the new one is about child safety, which upgrades it.
+     */
+    public function reportUser(string $username, ReportReason $reason, string $details = ''): void
+    {
+        $this->sendReport('users/'.rawurlencode($username).'/reports', $reason, $details);
+    }
+
+    /**
+     * Too many reports are worded as the web's Report dialogs word them.
+     */
+    private function sendReport(string $path, ReportReason $reason, string $details): void
+    {
         $payload = $details === '' ? ['reason' => $reason->value] : ['reason' => $reason->value, 'details' => $details];
 
-        $this->send('POST', 'commits/'.rawurlencode($id).'/reports', payload: $payload);
+        try {
+            $this->send('POST', $path, payload: $payload);
+        } catch (ApiException $exception) {
+            throw $exception->status === 429
+                ? new ApiException(ReportReason::TooManyReports, 429, retryAfter: $exception->retryAfter, errorCode: $exception->errorCode)
+                : $exception;
+        }
     }
 
     public function profile(string $username): Profile

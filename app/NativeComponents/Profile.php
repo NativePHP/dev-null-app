@@ -23,6 +23,7 @@ use App\NativeComponents\Concerns\OpensAchievements;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\ReportsPeople;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Concerns\WatchesForCalls;
@@ -46,8 +47,10 @@ use Native\Mobile\Facades\Dialog;
  * available. devnull says which by its code (see ErrorCode).
  *
  * Someone else's profile has the web's safety menu in its nav bar: Mute or
- * Unmute, and Block, or on a profile you blocked only Unblock. Each asks
- * first, then changes straight away, and goes back if devnull says no.
+ * Unmute, Report and Block, on a profile you blocked Report and Unblock, and on
+ * one that isn't available only Report. Mute, Block and Unblock ask first, then
+ * change straight away, and go back if devnull says no. Report opens a sheet
+ * (see ReportsPeople).
  *
  * The Profile tab shows your own, with no username in the route. Like the web,
  * your own profile swaps Follow for "Edit on GitHub", and its nav bar leads to
@@ -74,6 +77,7 @@ class Profile extends NativeComponent
     }
     use OpensLiveStream;
     use RefreshesInBackground;
+    use ReportsPeople;
     use ShowsCommits;
     use TalksToDevnull;
     use WatchesForCalls;
@@ -203,10 +207,12 @@ class Profile extends NativeComponent
     }
 
     /**
-     * The web's safety menu: Mute or Unmute, then Block, in red. A profile you
-     * blocked offers only Unblock, as the web's blocked page does, and one that
-     * blocked you offers nothing. It waits for devnull to say whether you mute
-     * them.
+     * The web's safety menu: Mute or Unmute, then Report, then Block, in red. A
+     * profile you blocked offers Report and Unblock, as the web's blocked page
+     * does, since blocking someone shouldn't cost you the report. A profile that
+     * isn't available offers Report, so the menu says no more than the page does
+     * about why. If devnull refuses the report, the sheet says so. It waits for
+     * devnull to say whether you mute them.
      *
      * @return list<NavAction>
      */
@@ -214,8 +220,14 @@ class Profile extends NativeComponent
     {
         $handle = '@'.$this->username;
 
+        $report = NavAction::make('report')->label("Report {$handle}")->icon(ios: Lucide::Flag->ios(), android: Lucide::Flag->android())->press('reportPerson');
+
         if ($this->isBlocking()) {
-            return [NavAction::make('unblock')->label("Unblock {$handle}")->icon(ios: Lucide::Ban->ios(), android: Lucide::Ban->android())->press('confirmBlock')];
+            return [$report, NavAction::make('unblock')->label("Unblock {$handle}")->icon(ios: Lucide::Ban->ios(), android: Lucide::Ban->android())->press('confirmBlock')];
+        }
+
+        if ($this->isUnavailableToYou()) {
+            return [$report];
         }
 
         if (! $this->canChangeSafety()) {
@@ -227,6 +239,7 @@ class Profile extends NativeComponent
 
         return [
             NavAction::make($muting ? 'unmute' : 'mute')->label(($muting ? 'Unmute ' : 'Mute ').$handle)->icon(ios: $muteIcon->ios(), android: $muteIcon->android())->press('confirmMute'),
+            $report,
             NavAction::make('block')->label("Block {$handle}")->icon(ios: Lucide::Ban->ios(), android: Lucide::Ban->android())->destructive()->press('confirmBlock'),
         ];
     }
@@ -333,6 +346,16 @@ class Profile extends NativeComponent
     {
         if (in_array($type, Connections::Types, true) && $this->showsContent() && ! $this->sketched) {
             $this->openInTab('/users/'.rawurlencode($this->username).'/'.$type);
+        }
+    }
+
+    /**
+     * Report, from the menu: on anyone's profile but your own, once devnull has answered for it.
+     */
+    public function reportPerson(): void
+    {
+        if ($this->isBlocking() || $this->isUnavailableToYou() || $this->canChangeSafety()) {
+            $this->openPersonReport($this->username);
         }
     }
 
@@ -699,6 +722,14 @@ class Profile extends NativeComponent
     private function isBlocking(): bool
     {
         return ! $this->isMe() && $this->unavailable === ErrorCode::UserBlocked->value;
+    }
+
+    /**
+     * Whether devnull only says this profile isn't available, as it does for someone who blocked you.
+     */
+    private function isUnavailableToYou(): bool
+    {
+        return ! $this->isMe() && $this->unavailable === ErrorCode::UserUnavailable->value;
     }
 
     /**

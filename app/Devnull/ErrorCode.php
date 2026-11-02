@@ -22,6 +22,7 @@ enum ErrorCode: string
     case AppleNotLinked = 'apple_not_linked';
     case AppleLinkedElsewhere = 'apple_linked_elsewhere';
     case OwnCommit = 'own_commit';
+    case OwnProfile = 'own_profile';
     case CommitUnavailable = 'commit_unavailable';
     case GitHubSyncFailed = 'github_sync_failed';
     case GitHubIssueFailed = 'github_issue_failed';
@@ -30,7 +31,7 @@ enum ErrorCode: string
     /**
      * What the app says for it, or null where devnull's own message says it
      * better, as for a rate limit, whose message names the limit hit, or for
-     * your own commit, whose message names what you can't do to it, or for an
+     * your own commit or profile, whose message names what you can't do to it, or for an
      * issue GitHub didn't open, whose message says whether to check upstream.
      * A blocked or unavailable profile has a screen of its own (see Profile).
      */
@@ -48,7 +49,7 @@ enum ErrorCode: string
             self::CommitUnavailable => "fatal: this commit isn't available.",
             self::GitHubSyncFailed => 'Could not sync from GitHub. Try again in a minute.',
             self::PasteisExhausted => Pasteis::Exhausted,
-            self::RateLimited, self::OwnCommit, self::GitHubIssueFailed => null,
+            self::RateLimited, self::OwnCommit, self::OwnProfile, self::GitHubIssueFailed => null,
         };
     }
 }

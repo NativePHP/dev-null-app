@@ -63,6 +63,7 @@ trait OpensCommitSheet
 {
     use AttachesToCommits;
     use DraftsIssues;
+    use FillsReportForm;
     use SuggestsMentions;
     use SyncsOutbox;
 
@@ -91,13 +92,6 @@ trait OpensCommitSheet
      * with no commit of its own).
      */
     public string $sheetView = 'report';
-
-    /**
-     * The reason picked on the report form, or '' until one is.
-     */
-    public string $reportReason = '';
-
-    public string $reportDetails = '';
 
     /**
      * The commit you're writing in the sheet, quoting its commit or not.
@@ -571,8 +565,7 @@ trait OpensCommitSheet
         $this->sheetOpen = false;
         $this->sheetCommit = null;
         $this->sheetView = 'report';
-        $this->reportReason = '';
-        $this->reportDetails = '';
+        $this->forgetReportForm();
         $this->sheetBody = '';
         $this->sheetRestored = false;
         $this->sheetError = null;
