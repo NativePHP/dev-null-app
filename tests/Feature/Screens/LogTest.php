@@ -127,6 +127,15 @@ it('opens commits and profiles', function () {
     Native::visit('/log')->call('openProfile', 'ada')->assertNavigatedTo('/log/users/ada');
 });
 
+it('opens an organization that posted a commit on its organization page', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
+        'id' => 'c1',
+        'author' => userJson(['type' => 'organization', 'handle' => 'dev-null-sh', 'name' => 'dev-null.sh']),
+    ])]))]);
+
+    Native::visit('/log')->press("openProfile('dev-null-sh')")->assertNavigatedTo('/log/organizations/dev-null-sh');
+});
+
 it('sends you back to onboarding with the server message on a 401', function () {
     Http::fake(['devnull.test/*' => Http::response(['message' => 'This key is not on any devnull account.', 'code' => 'key_not_on_github'], 401)]);
 

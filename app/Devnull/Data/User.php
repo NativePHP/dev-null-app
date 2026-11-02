@@ -26,6 +26,7 @@ final readonly class User
         public ?string $feedUrl = null,
         public ?CarbonImmutable $createdAt = null,
         public ?Live $live = null,
+        public bool $isOrganization = false,
     ) {}
 
     /**
@@ -52,13 +53,14 @@ final readonly class User
             feedUrl: self::text($data['feed_url'] ?? null),
             createdAt: Commit::date($data['created_at'] ?? null),
             live: Live::fromArray($data['live'] ?? null),
+            isOrganization: ($data['type'] ?? null) === 'organization',
         );
     }
 
     /**
      * The user in the API's shape, so it can be kept and read back.
      *
-     * @return array{id: string, handle: string, name: string, avatar_url: ?string, bio: ?string, lane: int|string|null, company: ?string, location: ?string, website: ?string, github_url: ?string, html_url: ?string, feed_url: ?string, created_at: ?string, live: array{platform: ?string, url: string, thumbnail_url: ?string, ends_at: string}|null}
+     * @return array{id: string, handle: string, name: string, avatar_url: ?string, bio: ?string, lane: int|string|null, company: ?string, location: ?string, website: ?string, github_url: ?string, html_url: ?string, feed_url: ?string, created_at: ?string, live: array{platform: ?string, url: string, thumbnail_url: ?string, ends_at: string}|null, type: string}
      */
     public function toArray(): array
     {
@@ -77,6 +79,7 @@ final readonly class User
             'feed_url' => $this->feedUrl,
             'created_at' => $this->createdAt?->toIso8601ZuluString(),
             'live' => $this->live?->toArray(),
+            'type' => $this->isOrganization ? 'organization' : 'user',
         ];
     }
 
@@ -91,11 +94,13 @@ final readonly class User
     /**
      * The lane the user picked on the web, a palette lane or a custom
      * `#rrggbb` colour, or the one devnull gave them. Hashing the id is only
-     * for a server too old to send it.
+     * for a server too old to send it. An organization whose admins haven't
+     * picked one is in Commit Blue, as the web draws it, on its page and on
+     * its commits alike.
      */
     public function lane(): int|string
     {
-        return $this->lane ?? Lane::for($this->id);
+        return $this->lane ?? ($this->isOrganization ? Lane::Primary : Lane::for($this->id));
     }
 
     public function handle(): string

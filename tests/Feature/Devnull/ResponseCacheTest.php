@@ -307,6 +307,21 @@ it('follows and unfollows on the kept profiles', function () {
         ->and($this->cache->get('users/local_dev')['data']['following_count'])->toBe(2);
 });
 
+it('follows and unfollows on a kept organization page', function () {
+    $this->cache->put('organizations/laravel', [], ['data' => ['handle' => 'laravel', 'followers_count' => 45], 'is_following' => false]);
+
+    $this->cache->organizationFollowChanged('laravel', true);
+    $this->cache->organizationFollowChanged('laravel', true);
+
+    expect($this->cache->get('organizations/laravel'))->toMatchArray(['is_following' => true])
+        ->and($this->cache->get('organizations/laravel')['data']['followers_count'])->toBe(46);
+
+    $this->cache->organizationFollowChanged('laravel', false);
+
+    expect($this->cache->get('organizations/laravel'))->toMatchArray(['is_following' => false])
+        ->and($this->cache->get('organizations/laravel')['data']['followers_count'])->toBe(45);
+});
+
 it('counts a follow on your profile when theirs was never kept', function () {
     $this->cache->put('users/local_dev', [], ['data' => userWithCountsJson(following: 2), 'is_following' => false]);
 
