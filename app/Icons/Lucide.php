@@ -11,8 +11,8 @@ use Native\Mobile\Icon\Icon;
  * Most are Lucide's own drawings. Their SVGs, from lucide-react 1.57.0, are in
  * resources/icons, and the NativePHP build turns each one into a template image
  * on iOS and a VectorDrawable on Android, so both platforms draw the web's
- * strokes, tinted like any other icon. `$filled` is the on state of a star or
- * a bookmark, which the web draws as the same shape with `fill-current`.
+ * strokes, tinted like any other icon. `$filled` is the on state of a star, a
+ * bookmark or a pin, which the web draws as the same shape with `fill-current`.
  *
  * The rest still map to the closest SF Symbol and outlined Material icon. To
  * draw one of them as the web does, add its SVG to resources/icons and name it
@@ -34,6 +34,7 @@ enum Lucide
     case ChevronRight;
     case ChevronLeft;
     case ChevronDown;
+    case ChevronsUp;
     case ArrowUpRight;
     case ArrowUp;
     case Pin;
@@ -41,6 +42,7 @@ enum Lucide
     case Building2;
     case MapPin;
     case CalendarDays;
+    case Clock3;
     /** The web draws GitHub's own mark, which neither system has, so this is the code glyph. */
     case Github;
     case Quote;
@@ -68,11 +70,14 @@ enum Lucide
     case Lightbulb;
     case Bug;
     case ImagePlus;
+    case Image;
     case Camera;
     case ChartBar;
     case Eye;
+    case EyeOff;
     case Plus;
     case Maximize2;
+    case Vibrate;
 
     // The achievement badges, named as devnull names their icons (see forBadge()).
     case Terminal;
@@ -86,6 +91,24 @@ enum Lucide
     case GitMerge;
     case Maximize;
     case Key;
+    case Cookie;
+    case BotOff;
+    case Bomb;
+    /** Lucide has no dragon ball, so this is the web's own drawing, from its dragon-ball-icon.tsx. */
+    case DragonBall;
+    case PinOff;
+    case BellOff;
+    case LogOut;
+    case UserMinus;
+    case Mic;
+    case Play;
+    case Pause;
+    case RotateCw;
+    case Square;
+    case Copy;
+    case Phone;
+    case PhoneOff;
+    case MicOff;
 
     /**
      * The icon the web's inbox draws for a kind of notification.
@@ -94,6 +117,7 @@ enum Lucide
     {
         return match ($type) {
             'followed' => self::UserPlus,
+            'leveled_up' => self::ChevronsUp,
             'quoted' => self::Quote,
             'starred' => self::Star,
             'mentioned' => self::AtSign,
@@ -120,6 +144,10 @@ enum Lucide
             'git-merge' => self::GitMerge,
             'maximize' => self::Maximize,
             'key' => self::Key,
+            'cookie' => self::Cookie,
+            'bot-off' => self::BotOff,
+            'bomb' => self::Bomb,
+            'dragon-ball' => self::DragonBall,
             default => self::Terminal,
         };
     }
@@ -141,6 +169,7 @@ enum Lucide
             self::Bookmark => $filled ? 'bookmark-filled' : 'bookmark',
             self::Trash2 => 'trash-2',
             self::ArrowUp => 'arrow-up',
+            self::ChevronsUp => 'chevrons-up',
             self::Quote => 'quote',
             self::Check => 'check',
             self::X => 'x',
@@ -153,6 +182,7 @@ enum Lucide
             self::Flag => 'flag',
             self::RefreshCw => 'refresh-cw',
             self::LockKeyhole => 'lock-keyhole',
+            self::Clock3 => 'clock-3',
             self::VolumeX => 'volume-x',
             self::Volume2 => 'volume-2',
             self::Ban => 'ban',
@@ -166,11 +196,14 @@ enum Lucide
             self::Lightbulb => 'lightbulb',
             self::Bug => 'bug',
             self::ImagePlus => 'image-plus',
+            self::Image => 'image',
             self::Camera => 'camera',
             self::ChartBar => 'chart-bar',
             self::Eye => 'eye',
+            self::EyeOff => 'eye-off',
             self::Plus => 'plus',
             self::Maximize2 => 'maximize-2',
+            self::Vibrate => 'vibrate',
             self::Terminal => 'terminal',
             self::FileCode => 'file-code',
             self::Flame => 'flame',
@@ -182,6 +215,24 @@ enum Lucide
             self::GitMerge => 'git-merge',
             self::Maximize => 'maximize',
             self::Key => 'key',
+            self::Cookie => 'cookie',
+            self::BotOff => 'bot-off',
+            self::Bomb => 'bomb',
+            self::DragonBall => 'dragon-ball',
+            self::Pin => $filled ? 'pin-filled' : 'pin',
+            self::PinOff => 'pin-off',
+            self::BellOff => 'bell-off',
+            self::LogOut => 'log-out',
+            self::UserMinus => 'user-minus',
+            self::Mic => 'mic',
+            self::Play => 'play-filled',
+            self::Pause => 'pause-filled',
+            self::RotateCw => 'rotate-cw',
+            self::Square => 'square-filled',
+            self::Copy => 'copy',
+            self::Phone => 'phone',
+            self::PhoneOff => 'phone-off',
+            self::MicOff => 'mic-off',
             default => null,
         };
 
@@ -196,7 +247,6 @@ enum Lucide
             self::ChevronLeft => Ios::ChevronLeft,
             self::ChevronDown => Ios::ChevronDown,
             self::ArrowUpRight => Ios::ArrowUpRight,
-            self::Pin => Ios::Pin,
             self::ListOrdered => Ios::ListNumber,
             self::Building2 => Ios::Building2,
             self::MapPin => Ios::Mappin,
@@ -214,7 +264,6 @@ enum Lucide
             self::ChevronLeft => AndroidOutlined::ChevronLeft,
             self::ChevronDown => AndroidOutlined::ExpandMore,
             self::ArrowUpRight => AndroidOutlined::ArrowOutward,
-            self::Pin => AndroidOutlined::PushPin,
             self::ListOrdered => AndroidOutlined::FormatListNumbered,
             self::Building2 => AndroidOutlined::Business,
             self::MapPin => AndroidOutlined::LocationOn,

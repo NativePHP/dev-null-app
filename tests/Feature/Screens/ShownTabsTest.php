@@ -18,7 +18,7 @@ beforeEach(function () {
 function shownTabsProfileJson(string $username): array
 {
     return [
-        'data' => userWithCountsJson(['username' => $username, 'id' => $username === 'local_dev' ? '0199e5c4-0000-7000-8000-000000000001' : 'u2']),
+        'data' => userWithCountsJson(['handle' => $username, 'id' => $username === 'local_dev' ? '0199e5c4-0000-7000-8000-000000000001' : 'u2']),
         'is_following' => false,
         'activity' => ['scale' => 'week', 'buckets' => []],
         'streaks' => ['longest' => 0, 'current' => 0],

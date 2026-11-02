@@ -33,6 +33,9 @@ final readonly class Notification
         public string $groupId = '',
         public int $eventCount = 1,
         public ?bool $actorIsFollowed = null,
+        public ?int $level = null,
+        public ?string $rank = null,
+        public ?string $rankDescription = null,
     ) {}
 
     /**
@@ -69,6 +72,9 @@ final readonly class Notification
             groupId: is_string($data['group_id'] ?? null) && $data['group_id'] !== '' ? $data['group_id'] : $id,
             eventCount: max(1, (int) ($data['event_count'] ?? 1)),
             actorIsFollowed: is_bool($actorJson['is_followed'] ?? null) ? $actorJson['is_followed'] : null,
+            level: is_int($data['level'] ?? null) ? $data['level'] : null,
+            rank: is_string($data['rank'] ?? null) && $data['rank'] !== '' ? $data['rank'] : null,
+            rankDescription: is_string($data['rank_description'] ?? null) && trim($data['rank_description']) !== '' ? $data['rank_description'] : null,
         );
     }
 
@@ -106,6 +112,30 @@ final readonly class Notification
     }
 
     /**
+     * You reached a new level. Like a moderator's verdict, devnull names you as its actor.
+     */
+    public function isLevelUp(): bool
+    {
+        return $this->type === 'leveled_up';
+    }
+
+    /**
+     * Whether it happened to you rather than being something someone did, so the web names nobody: a verdict or a level-up.
+     */
+    public function namesNobody(): bool
+    {
+        return $this->isModeration() || $this->isLevelUp();
+    }
+
+    /**
+     * "Lv. 5 · wheel", as the level-up's chip reads, or null when devnull doesn't say which level it was.
+     */
+    public function levelLabel(): ?string
+    {
+        return $this->level === null || $this->rank === null ? null : "Lv. {$this->level} · {$this->rank}";
+    }
+
+    /**
      * The commit is yours, so the web sets it apart in a muted box: a star or a moderator's verdict.
      */
     public function isAboutYourCommit(): bool
@@ -135,15 +165,15 @@ final readonly class Notification
     }
 
     /**
-     * The commit a tap opens, as on the web: the notification's own commit. A follow opens a profile instead.
+     * The commit a tap opens, as on the web: the notification's own commit. A follow or a level-up opens a profile instead.
      */
     public function commitToOpen(): ?string
     {
-        return $this->isFollow() ? null : $this->commitId;
+        return $this->isFollow() || $this->isLevelUp() ? null : $this->commitId;
     }
 
     /**
-     * Everything but a follow is about a commit, and opens it.
+     * Everything but a follow or a level-up is about a commit, and opens it.
      */
     public function opensCommit(): bool
     {
@@ -183,6 +213,7 @@ final readonly class Notification
             'starred' => 'starred your commit',
             'quoted' => 'quoted your commit',
             'approved', 'rejected' => "Your commit was {$this->type}",
+            'leveled_up' => $this->levelLabel() === null ? 'You reached a new level' : "You reached level {$this->level}: {$this->rank}",
             default => 'replied to your commit',
         };
     }

@@ -12,6 +12,7 @@ use App\Devnull\ErrorCode;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\RowCache;
 use App\Devnull\ShownTabs;
+use App\Devnull\SiteLink;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Lucide;
@@ -20,9 +21,11 @@ use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
 use App\NativeComponents\Concerns\OpensAchievements;
 use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
+use App\NativeComponents\Concerns\WatchesForCalls;
 use Closure;
 use Illuminate\View\View;
 use Native\Mobile\Attributes\On;
@@ -69,9 +72,11 @@ class Profile extends NativeComponent
     use OpensInTab {
         isShowing as isShowingPath;
     }
+    use OpensLiveStream;
     use RefreshesInBackground;
     use ShowsCommits;
     use TalksToDevnull;
+    use WatchesForCalls;
 
     /**
      * Every frame goes in full, as on the Log (see Log::$forceFullFrames). A tab
@@ -525,22 +530,36 @@ class Profile extends NativeComponent
         return $remotes !== null && $this->canChangeSafety() && ($this->profile?->followsYou === true || $remotes->requests);
     }
 
+    /**
+     * The profile's owner, who may have no commit showing, or the author of one that is.
+     */
+    protected function streamer(string $username): ?User
+    {
+        return $this->profile?->user->username === $username ? $this->profile->user : $this->shownAuthor($username);
+    }
+
     public function editOnGitHub(): void
     {
         Browser::inApp('https://github.com/settings/profile');
     }
 
     /**
-     * The website on their GitHub profile. Taps name the link rather than carry
-     * a URL, so the URL always comes from what devnull sent.
+     * Your scheduled commits, beneath this tab, from the calendar beside Edit on GitHub.
+     */
+    public function openScheduledCommits(): void
+    {
+        $this->openInTab('/scheduled');
+    }
+
+    /**
+     * The website on their GitHub profile: a page on dev/null the app has a
+     * screen for here in the app, anything else in the browser. Taps name the
+     * link rather than carry a URL, so the URL always comes from what devnull
+     * sent.
      */
     public function openWebsite(): void
     {
-        $url = $this->profile?->user->websiteUrl();
-
-        if ($url !== null && in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true)) {
-            Browser::inApp($url);
-        }
+        $this->openUrl($this->profile?->user->websiteUrl());
     }
 
     /**
@@ -566,8 +585,10 @@ class Profile extends NativeComponent
 
     public function openGitHubProfile(): void
     {
-        if ($this->profile !== null) {
-            Browser::inApp($this->profile->user->gitHubProfileUrl());
+        $url = $this->profile?->user->gitHubProfileUrl();
+
+        if (SiteLink::isWebUrl($url)) {
+            Browser::inApp($url);
         }
     }
 

@@ -8,7 +8,8 @@
 
     Reply opens the commit with its reply composer focused. In a feed ($expandable) the replies link opens the thread in
     place, as on the web; elsewhere it opens the commit with its replies showing. Like the web, someone else's commit
-    that isn't approved gets no star or Quote. Your own commits can be starred too, including ones waiting for approval.
+    that isn't approved gets no star or Quote. devnull doesn't let you star your own commits, so on those the star is
+    the count, which opens who starred it (see OpensStargazers), or a faint star until there are any, as on the web.
 
     Quote opens a sheet to write the quote in, over the commit being quoted (see commit-sheet).
 
@@ -47,7 +48,7 @@
 @php($hasQuoteStash = in_array('quote-'.$commit->id, $stashed, true))
 @php($hasReplyStash = in_array('reply-'.$commit->id, $stashed, true))
 @php($isOwn = $commit->author->id === $viewer?->id)
-@php($canReact = $commit->isApproved() || $isOwn)
+@php($canQuote = $commit->isApproved() || $isOwn)
 @php($hasThread = $expandable && $commit->replyPreview !== null)
 @php($showsReplies = $withReplies && ! $hasThread && $repliesCount > 0)
 @php($pasteis ??= app(\App\Devnull\Account::class)->pasteis())
@@ -56,13 +57,22 @@
 @php($pastelSize = $compact ? 18 : 20)
 @php($starLabel = ($commit->starred ? 'Unstar commit' : 'Star commit').($commit->starsCount > 0 ? ', '.\App\Devnull\Display::count($commit->starsCount, 'star', 'stars') : ''))
 <native:row ref="actions-{{ $commit->id }}" class="w-full -ml-2 -my-[6] items-center">
-    @if ($canReact && $viewer !== null && ! $commit->isDeleted())
+    @if ($commit->isApproved() && ! $isOwn && $viewer !== null && ! $commit->isDeleted())
         <native:pressable ref="star-{{ $commit->id }}" @press="toggleStar('{{ $commit->id }}')" class="flex-row min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="{{ $starLabel }}">
             <native:icon :ios="\App\Icons\Lucide::Star->ios($commit->starred)" :android="\App\Icons\Lucide::Star->android($commit->starred)" :size="$iconSize" class="{{ $commit->starred ? 'text-theme-primary' : 'text-theme-ink-muted' }}" />
             @if ($commit->starsCount > 0)
                 <native:text font="mono" class="{{ $labelSize }} {{ $commit->starred ? 'text-theme-primary' : 'text-theme-ink-muted' }}">{{ \App\Devnull\Display::compactCount($commit->starsCount) }}</native:text>
             @endif
         </native:pressable>
+    @elseif ($isOwn && ! $commit->isDeleted() && $commit->starsCount > 0)
+        <native:pressable ref="star-count-{{ $commit->id }}" @press="openStargazers('{{ $commit->id }}')" class="flex-row min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="{{ \App\Devnull\Display::count($commit->starsCount, 'star', 'stars') }}, show who starred">
+            <native:icon :ios="\App\Icons\Lucide::Star->ios()" :android="\App\Icons\Lucide::Star->android()" :size="$iconSize" class="text-theme-ink-muted" />
+            <native:text font="mono" class="{{ $labelSize }} text-theme-ink-muted">{{ \App\Devnull\Display::compactCount($commit->starsCount) }}</native:text>
+        </native:pressable>
+    @elseif ($isOwn && ! $commit->isDeleted())
+        <native:row ref="star-count-{{ $commit->id }}" class="min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="No stars yet">
+            <native:icon :ios="\App\Icons\Lucide::Star->ios()" :android="\App\Icons\Lucide::Star->android()" :size="$iconSize" class="text-theme-ink-muted/50" />
+        </native:row>
     @endif
 
     @if ($canGivePastel)
@@ -77,7 +87,7 @@
         </native:row>
     @endif
 
-    @if ($withQuote && $canReact)
+    @if ($withQuote && $canQuote)
         <native:pressable ref="quote-{{ $commit->id }}" @press="quoteCommit('{{ $commit->id }}')" class="flex-row min-w-[44] h-[36] px-2 gap-[3] items-center justify-center" a11y-label="{{ $hasQuoteStash ? 'Quote, you have an unsent quote here' : 'Quote' }}">
             <native:icon :ios="\App\Icons\Lucide::Quote->ios()" :android="\App\Icons\Lucide::Quote->android()" :size="$iconSize" class="text-theme-ink-muted" />
             @if ($hasQuoteStash)

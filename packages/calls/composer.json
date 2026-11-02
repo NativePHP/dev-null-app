@@ -1,0 +1,26 @@
+{
+    "name": "devnull/nativephp-calls",
+    "description": "One-to-one WebRTC calls for the devnull app, speaking the same protocol as dev-null.sh's browser calls",
+    "type": "nativephp-plugin",
+    "version": "1.0.0",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "nativephp/mobile": "^4.6.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Devnull\\Calls\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Devnull\\Calls\\CallsServiceProvider"
+            ]
+        },
+        "nativephp": {
+            "manifest": "nativephp.json"
+        }
+    }
+}

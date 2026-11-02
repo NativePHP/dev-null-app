@@ -2,6 +2,7 @@
 
 use App\Devnull\Account;
 use App\Devnull\Data\Pasteis;
+use App\Devnull\Data\StashedDraft;
 use App\Devnull\Display;
 use App\Devnull\Stash;
 use Carbon\CarbonImmutable;
@@ -23,7 +24,7 @@ beforeEach(function () {
  */
 function stashAda(): array
 {
-    return userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']);
+    return userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']);
 }
 
 /**
@@ -44,12 +45,12 @@ function serveStashLog(): void
 
 function stashed(string $name): string
 {
-    return app(Stash::class)->get(app(Account::class)->user()?->id, $name);
+    return app(Stash::class)->get(app(Account::class)->user()?->id, $name)->body;
 }
 
 function stash(string $name, string $body): void
 {
-    app(Stash::class)->put(app(Account::class)->user()?->id, $name, $body);
+    app(Stash::class)->put(app(Account::class)->user()?->id, $name, new StashedDraft($body));
 }
 
 function showsRef(TestableComponent $screen, string $ref): bool
@@ -74,7 +75,7 @@ function stashLabel(TestableComponent $screen, string $ref): array
 
 it('keeps your drafts to you', function () {
     serveStashLog();
-    app(Stash::class)->put('u2', 'commit', "Ada's draft");
+    app(Stash::class)->put('u2', 'commit', new StashedDraft("Ada's draft"));
 
     $screen = Native::visit('/log', platform: 'ios')->press('composeInSheet');
 
@@ -182,7 +183,7 @@ it('keeps a quote that devnull said no to', function () {
 
 it('marks Quote on a profile with a stashed quote', function () {
     fakeApi([
-        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada']), 'is_following' => false, 'activity' => ['scale' => 'week', 'buckets' => []], 'streaks' => ['longest' => 0, 'current' => 0], 'pinned_commit' => null]],
+        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada']), 'is_following' => false, 'activity' => ['scale' => 'week', 'buckets' => []], 'streaks' => ['longest' => 0, 'current' => 0], 'pinned_commit' => null]],
         'GET /api/v1/users/ada/commits' => [pageJson([commitJson(['id' => 'c1', 'author' => stashAda()])])],
     ]);
     stash('quote-c1', 'This, all of it.');

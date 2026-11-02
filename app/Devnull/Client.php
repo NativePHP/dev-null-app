@@ -7,12 +7,16 @@ use App\Devnull\Data\CommitThread;
 use App\Devnull\Data\Connection;
 use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\DraftImage;
+use App\Devnull\Data\IncomingCall;
+use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\Notification;
 use App\Devnull\Data\Page;
 use App\Devnull\Data\Profile;
+use App\Devnull\Data\ScheduledCommit;
 use App\Devnull\Data\User;
 use App\Devnull\Exceptions\ApiException;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -69,6 +73,11 @@ final readonly class Client
     public const string BlockedPath = 'me/blocked';
 
     /**
+     * Who to follow: three people to show and three spares, the next page of the day's picks for each ?round=.
+     */
+    public const string SuggestedUsersPath = 'me/suggested-users';
+
+    /**
      * Where pastéis mode is switched on and off for the signed-in account.
      */
     public const string PasteisModePath = 'me/pasteis-mode';
@@ -92,6 +101,15 @@ final readonly class Client
 
     public const string OrgsPath = 'remotes/orgs';
 
+    /** Whom the commit composers suggest for an @mention, as the web's composers ask. */
+    public const string MentionSuggestionsPath = 'search/mentions';
+
+    /** The people matching a name or handle, as the web's search finds them, with whether you follow each one. */
+    public const string UserSearchPath = 'search/users';
+
+    /** The commits nearest in meaning to a term, closest first, as the web's search finds them. */
+    public const string CommitSearchPath = 'search/commits';
+
     /**
      * Where a `/feature` or `/bug` draft goes, to be opened as an issue upstream.
      */
@@ -102,6 +120,20 @@ final readonly class Client
      * unless it's asked for fewer, and the app never asks for more than this.
      */
     public const int RepliesPerPage = 5;
+
+    /**
+     * Where the signed-in account's timezone is saved, or unset, with whether their profile shows their local time.
+     * devnull sends both with the rest of what only the user sees in the web's settings.
+     */
+    public const string TimezonePath = 'me/timezone';
+
+    public const string SettingsPath = 'me/settings';
+
+    /**
+     * The commits the signed-in account scheduled, as the web's Scheduled
+     * commits page lists them.
+     */
+    public const string ScheduledCommitsPath = 'scheduled-commits';
 
     public function __construct(private DeviceKey $deviceKey, private string $baseUrl, private ResponseCache $cache) {}
 
@@ -123,11 +155,27 @@ final readonly class Client
     }
 
     /**
+     * Where a call with someone rings, is answered and ends, beside your thread with them.
+     */
+    public static function callPath(string $username): string
+    {
+        return self::threadPath($username).'/call';
+    }
+
+    /**
      * Where a message's reactions are left and taken back.
      */
     public static function reactionsPath(int $messageId): string
     {
         return 'remotes/messages/'.$messageId.'/reactions';
+    }
+
+    /**
+     * Where an org's maintainer pins a message for everyone in it, and unpins it.
+     */
+    public static function pinPath(int $messageId): string
+    {
+        return 'remotes/messages/'.$messageId.'/pin';
     }
 
     /**
@@ -255,40 +303,91 @@ final readonly class Client
     /**
      * Signs a commit with images without sending it, for the background to
      * send while the sheet says it's under way, since photos take a while to
-     * upload. devnull takes them as multipart, as from the `devnull commit`
-     * script: the JSON body goes in a payload part beside the images, and the
-     * SHA-256 of each image is signed on a line before it, so the signature
-     * covers them too. Descriptions go along when any photo has one.
+     * upload (see signedWithImages()).
      *
      * @param  list<DraftImage>  $images
      */
     public function signedCommitWithImages(string $body, array $images, ?string $parentId = null, ?string $quotedCommitId = null): SignedRequest
     {
-        $target = $this->target('commits', []);
-        $descriptions = array_map(fn (DraftImage $image): ?string => $image->isDescribed() ? trim($image->description) : null, $images);
-        $payload = self::body(self::commitPayload($body, $parentId, $quotedCommitId, descriptions: array_filter($descriptions) === [] ? [] : $descriptions));
-        $contents = array_map(fn (DraftImage $image): string => (string) file_get_contents($image->path), $images);
-        $boundary = 'devnull-'.bin2hex(random_bytes(16));
+        return $this->signedWithImages('commits', self::commitPayload($body, $parentId, $quotedCommitId), $images);
+    }
 
-        $part = fn (string $name, string $filename, string $type, string $bytes): string => "--{$boundary}\r\n"
-            ."Content-Disposition: form-data; name=\"{$name}\"; filename=\"{$filename}\"\r\n"
-            ."Content-Type: {$type}\r\n\r\n{$bytes}\r\n";
+    /**
+     * Signs a message for a Remotes thread without sending it, for the outbox
+     * to send from the background. devnull stores it once per client id, so
+     * it can go again. One with photos goes as a commit's do (see
+     * signedWithImages()), and may have no text. A voice note goes the same
+     * way, alone, with its waveform and no text (see signedWithVoice()).
+     *
+     * @param  list<DraftImage>  $images
+     */
+    public function signedMessage(string $threadPath, string $body, string $clientId, ?int $replyToId = null, array $images = [], ?MessageVoice $voice = null): SignedRequest
+    {
+        $payload = array_filter(['body' => $body, 'client_id' => $clientId, 'reply_to_id' => $replyToId], fn (mixed $value): bool => $value !== null);
 
-        $body = $part('payload', 'payload.json', 'application/json', $payload);
+        return match (true) {
+            $voice !== null => $this->signedWithVoice($threadPath.'/messages', $clientId, $replyToId, $voice),
+            $images !== [] => $this->signedWithImages($threadPath.'/messages', $payload, $images),
+            default => $this->signedWrite('POST', $threadPath.'/messages', $payload),
+        };
+    }
 
-        foreach ($images as $index => $image) {
-            $body .= $part('images[]', 'image-'.($index + 1).'.'.substr($image->mimeType, 6), $image->mimeType, $contents[$index]);
-        }
+    /**
+     * Signs a commit to be submitted at $at, as the web's Schedule commit
+     * does, for the background to send. Only you see it until then. With
+     * photos it goes as multipart, as a commit with photos does, and a poll
+     * goes in its JSON.
+     *
+     * @param  list<DraftImage>  $images
+     * @param  array<string, mixed>|null  $poll
+     */
+    public function signedScheduledCommit(string $body, CarbonInterface $at, array $images = [], ?array $poll = null): SignedRequest
+    {
+        $payload = array_filter(['body' => $body, 'scheduled_at' => self::scheduleTime($at), 'poll' => $poll], fn (mixed $value): bool => $value !== null);
 
-        $hashes = implode(',', array_map(fn (string $bytes): string => hash('sha256', $bytes), $contents));
+        return $images === []
+            ? $this->signedWrite('POST', self::ScheduledCommitsPath, $payload)
+            : $this->signedWithImages(self::ScheduledCommitsPath, $payload, $images);
+    }
 
-        return new SignedRequest(
-            $this->origin().$target,
-            $this->sign('POST', $target, $hashes."\n".$payload, RequestSigner::ImagesNamespace),
-            'POST',
-            $body."--{$boundary}--\r\n",
-            "multipart/form-data; boundary={$boundary}",
-        );
+    /**
+     * Your scheduled commits, the ones waiting first, 20 a page. They're
+     * paged by number, which a Page carries as its cursor.
+     *
+     * @return Page<ScheduledCommit>
+     */
+    public function scheduledCommits(?string $page = null): Page
+    {
+        return Page::fromArray($this->get(self::ScheduledCommitsPath, ['page' => $page]), ScheduledCommit::fromArray(...));
+    }
+
+    /**
+     * The web's Commit now: one still waiting goes for review now instead of
+     * at its time. devnull answers with it as the list now shows it.
+     */
+    public function submitScheduledCommit(string $id): ScheduledCommit
+    {
+        $scheduled = $this->data($this->send('POST', self::ScheduledCommitsPath.'/'.rawurlencode($id).'/submission'));
+        $this->cache->forget(self::ScheduledCommitsPath);
+
+        return ScheduledCommit::fromArray($scheduled);
+    }
+
+    /**
+     * Cancels a scheduled commit that's still waiting, as the web's Cancel does.
+     */
+    public function cancelScheduledCommit(string $id): void
+    {
+        $this->send('DELETE', self::ScheduledCommitsPath.'/'.rawurlencode($id));
+        $this->cache->forget(self::ScheduledCommitsPath);
+    }
+
+    /**
+     * A time as devnull takes one to schedule for: ISO 8601 with its offset, in UTC.
+     */
+    public static function scheduleTime(CarbonInterface $at): string
+    {
+        return CarbonImmutable::instance($at)->utc()->format('Y-m-d\TH:i:sP');
     }
 
     public function deleteCommit(string $id): void
@@ -344,14 +443,16 @@ final readonly class Client
 
     /**
      * People matching a term, each with the web's reason you can't message
-     * them, or add them to a new org, when there is one. Never kept: who you
-     * can reach changes as people follow, block and turn Remotes off.
+     * them, or add them to a new org or the org $orgId, when there is one.
+     * Never kept: who you can reach changes as people follow, block and turn
+     * Remotes off.
      *
      * @return list<array{user: User, reason: string|null}>
      */
-    public function remoteCandidates(string $term, string $for): array
+    public function remoteCandidates(string $term, string $for, ?string $orgId = null): array
     {
-        $candidates = $this->json($this->send('GET', self::RemoteCandidatesPath, ['q' => $term, 'for' => $for]))['candidates'] ?? null;
+        $query = $orgId === null ? ['q' => $term, 'for' => $for] : ['q' => $term, 'org' => $orgId];
+        $candidates = $this->json($this->send('GET', self::RemoteCandidatesPath, $query))['candidates'] ?? null;
 
         return array_values(array_map(
             fn (array $candidate): array => [
@@ -360,6 +461,26 @@ final readonly class Client
             ],
             array_filter(is_array($candidates) ? $candidates : [], fn (mixed $candidate): bool => is_array($candidate) && is_array($candidate['user'] ?? null)),
         ));
+    }
+
+    /**
+     * The people to suggest for an @mention of what's typed after the "@",
+     * best first, then the organizations, as the web's commit composer
+     * lists them: in a reply, the people in its thread lead, and in a quote,
+     * the quoted commit's author. A bare "@" in a new commit lists the
+     * people you follow. Never kept: it changes with every letter.
+     *
+     * @return array{people: list<User>, organizations: list<User>}
+     */
+    public function mentionSuggestions(string $query, ?string $reply = null, ?string $quote = null): array
+    {
+        $json = $this->json($this->send('GET', self::MentionSuggestionsPath, array_filter(['q' => $query, 'reply' => $reply, 'quote' => $quote], fn (?string $value): bool => $value !== null)));
+        $people = fn (mixed $list): array => array_values(array_map(
+            fn (array $person): User => User::fromArray($person),
+            array_filter(is_array($list) ? $list : [], fn (mixed $person): bool => is_array($person) && is_string($person['handle'] ?? null)),
+        ));
+
+        return ['people' => $people($json['data'] ?? null), 'organizations' => $people($json['organizations'] ?? null)];
     }
 
     /**
@@ -373,6 +494,15 @@ final readonly class Client
         $org = $this->json($this->send('POST', self::OrgsPath, payload: ['name' => $name, 'members' => $members]))['org'] ?? null;
 
         return is_array($org) && is_string($org['id'] ?? null) ? $org['id'] : '';
+    }
+
+    /**
+     * Where an org's members are added, and where one of them is given a role or taken out, which is how you leave
+     * it too, by your own username.
+     */
+    public static function orgMembersPath(string $orgId, ?string $username = null): string
+    {
+        return self::threadPath(orgId: $orgId).'/members'.($username === null ? '' : '/'.rawurlencode($username));
     }
 
     /**
@@ -458,6 +588,14 @@ final readonly class Client
     }
 
     /**
+     * Not interested, as the web's who to follow says it: devnull never suggests them again.
+     */
+    public function dismissSuggestion(string $username): void
+    {
+        $this->send('POST', 'users/'.rawurlencode($username).'/dismiss');
+    }
+
+    /**
      * Mutes someone, as the web's Mute does. It's silent: they aren't told,
      * and the follows between you stay. Their commits leave your logs.
      */
@@ -486,6 +624,67 @@ final readonly class Client
     public function unblock(string $username): void
     {
         $this->cache->blockChanged($this->json($this->send('DELETE', 'users/'.rawurlencode($username).'/block')));
+    }
+
+    /**
+     * The call ringing for you, as the web checks for one every few seconds, or null.
+     */
+    public function incomingCall(): ?IncomingCall
+    {
+        $call = $this->json($this->send('GET', 'remotes/call'))['call'] ?? null;
+
+        return is_array($call) ? IncomingCall::fromArray($call) : null;
+    }
+
+    /**
+     * Fresh relay credentials for one call with them, which devnull only hands out for someone you can call.
+     *
+     * @return array{ice_servers: list<array{urls: list<string>, username: string, credential: string}>, is_relay_only: bool}
+     */
+    public function callIceServers(string $username): array
+    {
+        $json = $this->json($this->send('GET', self::callPath($username).'/ice-servers'));
+        /** @var list<array{urls: list<string>, username: string, credential: string}> $servers */
+        $servers = array_values(array_filter((array) ($json['ice_servers'] ?? []), is_array(...)));
+
+        return ['ice_servers' => $servers, 'is_relay_only' => ($json['is_relay_only'] ?? true) !== false];
+    }
+
+    /**
+     * Rings them with this phone's offer, for 45 seconds.
+     */
+    public function ring(string $username, string $offer): void
+    {
+        $this->send('POST', self::callPath($username), payload: ['sdp' => $offer]);
+    }
+
+    /**
+     * Your call to them while it rings: null once it's gone, with their answer once they pick up.
+     *
+     * @return array{answer: string|null}|null
+     */
+    public function outgoingCall(string $username): ?array
+    {
+        $call = $this->json($this->send('GET', self::callPath($username)))['call'] ?? null;
+
+        return is_array($call) ? ['answer' => is_string($call['answer'] ?? null) ? $call['answer'] : null] : null;
+    }
+
+    /**
+     * Picks up their call with this phone's answer.
+     */
+    public function answerCall(string $username, string $answer): void
+    {
+        $this->send('PUT', self::callPath($username), payload: ['sdp' => $answer]);
+    }
+
+    /**
+     * Ends the call between you, whoever rang. Not picking up one that rang logs it declined, or failed when this
+     * phone tried to answer and couldn't.
+     */
+    public function endCall(string $username, bool $failed = false): void
+    {
+        $this->send('DELETE', self::callPath($username), payload: ['failed' => $failed]);
     }
 
     /**
@@ -564,6 +763,72 @@ final readonly class Client
         $body = self::body($payload);
 
         return new SignedRequest($this->origin().$target, $this->sign($method, $target, $body), $method, $body);
+    }
+
+    /**
+     * Signs a write with images, as devnull takes them from the `devnull
+     * commit` script: multipart, the JSON body in a payload part beside the
+     * images, with the SHA-256 of each image signed on a line before it so the
+     * signature covers them too. Descriptions go along when any photo has one.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  list<DraftImage>  $images
+     */
+    private function signedWithImages(string $path, array $payload, array $images): SignedRequest
+    {
+        $target = $this->target($path, []);
+        $descriptions = array_map(fn (DraftImage $image): ?string => $image->isDescribed() ? trim($image->description) : null, $images);
+        $payload = self::body(array_filter($descriptions) === [] ? $payload : [...$payload, 'image_descriptions' => $descriptions]);
+        $files = array_map(fn (DraftImage $image, int $index): array => [
+            'images[]', 'image-'.($index + 1).'.'.substr($image->mimeType, 6), $image->mimeType, (string) file_get_contents($image->path),
+        ], $images, array_keys($images));
+
+        return $this->signedMultipart($target, $payload, $files);
+    }
+
+    /**
+     * Signs a voice note, as devnull takes one: multipart like a write with
+     * images, the recording alone in a voice part, its SHA-256 the line
+     * signed before the body, and the waveform the phone drew from it in the
+     * payload, since devnull never decodes it.
+     */
+    private function signedWithVoice(string $path, string $clientId, ?int $replyToId, MessageVoice $voice): SignedRequest
+    {
+        $payload = array_filter(['client_id' => $clientId, 'reply_to_id' => $replyToId, 'voice_waveform' => $voice->waveform], fn (mixed $value): bool => $value !== null);
+
+        return $this->signedMultipart($this->target($path, []), self::body($payload), [
+            ['voice', 'voice-note.wav', 'audio/wav', (string) file_get_contents($voice->url)],
+        ]);
+    }
+
+    /**
+     * The payload part, then each file, with the files' SHA-256 signed on a line before the body.
+     *
+     * @param  list<array{string, string, string, string}>  $files  each one's field, filename, type and bytes
+     */
+    private function signedMultipart(string $target, string $payload, array $files): SignedRequest
+    {
+        $boundary = 'devnull-'.bin2hex(random_bytes(16));
+
+        $part = fn (string $name, string $filename, string $type, string $bytes): string => "--{$boundary}\r\n"
+            ."Content-Disposition: form-data; name=\"{$name}\"; filename=\"{$filename}\"\r\n"
+            ."Content-Type: {$type}\r\n\r\n{$bytes}\r\n";
+
+        $body = $part('payload', 'payload.json', 'application/json', $payload);
+
+        foreach ($files as [$name, $filename, $type, $bytes]) {
+            $body .= $part($name, $filename, $type, $bytes);
+        }
+
+        $hashes = implode(',', array_map(fn (array $file): string => hash('sha256', $file[3]), $files));
+
+        return new SignedRequest(
+            $this->origin().$target,
+            $this->sign('POST', $target, $hashes."\n".$payload, RequestSigner::ImagesNamespace),
+            'POST',
+            $body."--{$boundary}--\r\n",
+            "multipart/form-data; boundary={$boundary}",
+        );
     }
 
     /**
@@ -654,19 +919,17 @@ final readonly class Client
     /**
      * What a commit sends, leaving out what it doesn't have.
      *
-     * @param  list<string|null>  $descriptions
      * @param  array{options: list<string>, duration: int}|null  $poll
      * @return array<string, mixed>
      */
-    private static function commitPayload(string $body, ?string $parentId, ?string $quotedCommitId, array $descriptions = [], ?array $poll = null): array
+    private static function commitPayload(string $body, ?string $parentId, ?string $quotedCommitId, ?array $poll = null): array
     {
         return array_filter([
             'body' => $body,
             'parent_id' => $parentId,
             'quoted_commit_id' => $quotedCommitId,
-            'image_descriptions' => $descriptions,
             'poll' => $poll,
-        ], fn (mixed $value): bool => $value !== null && $value !== []);
+        ], fn (mixed $value): bool => $value !== null);
     }
 
     /**

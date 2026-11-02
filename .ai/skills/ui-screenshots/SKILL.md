@@ -18,15 +18,15 @@ Files go in `storage/app/screenshots/{branch}/`, named like `log-ios-dark-after.
 ## Before you edit anything
 
 1. Create the pull request branch first. The commands file everything under the current branch and refuse to run on `main`.
-2. The app has to be running on an iOS simulator and an Android emulator. Never run `php artisan native:run` yourself. Ask the person you're working with to start it on both (`php artisan native:run ios` and `php artisan native:run android`), with `--watch` so later changes hot reload.
-3. Ask them to open the screen you're about to change, in the state that shows it (scrolled, sheet open, signed in, and so on). Both devices should show the same thing.
+2. The app has to be running on an iOS simulator and an Android emulator. Start it on both yourself. Find the devices with `xcrun simctl list devices booted` and `adb devices`, then run `php artisan native:run ios <UDID> --watch --no-tty -n` and `php artisan native:run android <SERIAL> --watch --no-tty -n` in the background. `--watch` makes later changes hot reload, and it never exits, so stop both when the screenshots are published. If no simulator or emulator is booted, say so and give the person the commands.
+3. Ask the person you're working with to open the screen you're about to change, in the state that shows it (scrolled, sheet open, signed in, and so on). Both devices should show the same thing.
 4. Take the before shots: `php artisan screenshots:take before --screen=log`. Give `--screen` a short name whenever the PR touches more than one screen, and repeat for each one.
 
 If you've already started editing, `git stash`, let hot reload bring the old screen back, take the before shots, then `git stash pop`. A brand new screen has no before shots, so skip them.
 
 ## After the change
 
-1. Make sure both devices show the change. Hot reload covers PHP, Blade and config. A change to native code, a plugin or `composer.json` needs the person to run `native:run` again.
+1. Make sure both devices show the change. Hot reload covers PHP, Blade and config. A change to native code, a plugin, an icon in `resources/icons` or `composer.json` needs a fresh build, so stop `native:run` on both and start it again.
 2. Take `php artisan screenshots:take after --screen=log`, with the screen in the same state as the before shots.
 3. Look at every screenshot before publishing. Check the change is actually visible, both appearances look right, and nothing is cut off or still loading. Retake anything that's wrong.
 

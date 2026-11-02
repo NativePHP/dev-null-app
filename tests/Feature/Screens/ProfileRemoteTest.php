@@ -17,7 +17,7 @@ beforeEach(function () {
 function adaRemoteProfile(bool $followsYou): array
 {
     return [
-        'data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace']),
+        'data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace']),
         'is_following' => false,
         'follows_you' => $followsYou,
         'is_muting' => false,

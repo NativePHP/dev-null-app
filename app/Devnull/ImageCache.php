@@ -3,6 +3,7 @@
 namespace App\Devnull;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\File;
 
 /**
  * Remote images kept on the device: avatars, commit images and link preview
@@ -115,6 +116,18 @@ final class ImageCache
         $cache->pruneTaken = true;
 
         return $cache->startedAt - self::hours() * 3600;
+    }
+
+    /**
+     * Deletes every image on the device, on sign-out, so the next person to
+     * sign in never sees what the last one was shown. What's drawn from now on
+     * comes from its URL.
+     */
+    public static function clear(): void
+    {
+        File::deleteDirectory(self::directory());
+
+        app(self::class)->sources = [];
     }
 
     /**

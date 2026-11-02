@@ -13,6 +13,32 @@ final readonly class DraftImage
 {
     public function __construct(public string $path, public string $mimeType, public int $width, public int $height, public string $description = '') {}
 
+    /**
+     * The image as the stash and the outbox keep it, or null when its file has gone from the phone.
+     */
+    public static function fromArray(mixed $image): ?self
+    {
+        if (! is_array($image) || ! is_string($image['path'] ?? null) || ! is_file($image['path'])) {
+            return null;
+        }
+
+        return new self($image['path'], (string) ($image['mime_type'] ?? ''), (int) ($image['width'] ?? 0), (int) ($image['height'] ?? 0), (string) ($image['description'] ?? ''));
+    }
+
+    /**
+     * @return array{path: string, mime_type: string, width: int, height: int, description: string}
+     */
+    public function toArray(): array
+    {
+        return [
+            'path' => $this->path,
+            'mime_type' => $this->mimeType,
+            'width' => $this->width,
+            'height' => $this->height,
+            'description' => $this->description,
+        ];
+    }
+
     public function withDescription(string $description): self
     {
         return new self(...[...get_object_vars($this), 'description' => mb_substr($description, 0, DraftImages::MaxDescriptionLength)]);

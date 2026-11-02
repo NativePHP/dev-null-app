@@ -3,12 +3,16 @@
 namespace App\Providers;
 
 use Codingwithrk\NativephpSocialAuth\NativephpSocialAuthServiceProvider;
+use Devnull\Calls\CallsServiceProvider;
 use Illuminate\Support\ServiceProvider;
 use Native\Mobile\Providers\BrowserServiceProvider;
 use Native\Mobile\Providers\CameraServiceProvider;
+use Native\Mobile\Providers\MicrophoneServiceProvider;
 use Native\Mobile\Providers\SecureStorageServiceProvider;
 use Native\Mobile\Providers\ShareServiceProvider;
 use Native\Mobile\UI\NativeUIServiceProvider;
+use NativePHP\Clipboard\ClipboardServiceProvider;
+use NativePHP\MediaPlayer\MediaPlayerServiceProvider;
 use S2BR\MobileSplashscreen\MobileSplashscreenServiceProvider;
 use Victorycodedev\ToastKit\ToastKitServiceProvider;
 
@@ -48,10 +52,14 @@ class NativeServiceProvider extends ServiceProvider
             NativeUIServiceProvider::class,
             BrowserServiceProvider::class,
             CameraServiceProvider::class,
+            MicrophoneServiceProvider::class,
+            MediaPlayerServiceProvider::class,
             SecureStorageServiceProvider::class,
             ShareServiceProvider::class,
             MobileSplashscreenServiceProvider::class,
             ToastKitServiceProvider::class,
+            ClipboardServiceProvider::class,
+            CallsServiceProvider::class,
             ...(config('devnull.apple_sign_in') ? [NativephpSocialAuthServiceProvider::class] : []),
         ];
     }

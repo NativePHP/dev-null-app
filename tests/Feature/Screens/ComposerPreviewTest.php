@@ -23,12 +23,12 @@ afterEach(function () {
 function previewComposerOnLog(?array $preview = null): TestableComponent
 {
     serveApi([
-        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'A commit to quote', 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada'])])])],
+        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'A commit to quote', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])])])],
         'POST /api/v1/commits/preview' => $preview ?? [['data' => [
             'body' => 'Shipped 🚀 with @ada',
             'body_segments' => [['type' => 'text', 'text' => 'Shipped 🚀 with @ada']],
             'preview_segments' => null,
-            'mentions' => [['username' => 'ada', 'offset' => 15, 'length' => 4]],
+            'mentions' => [['handle' => 'ada', 'offset' => 15, 'length' => 4]],
         ]]],
     ]);
 

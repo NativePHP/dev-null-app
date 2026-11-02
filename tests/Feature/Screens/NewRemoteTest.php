@@ -18,7 +18,7 @@ beforeEach(function () {
  */
 function candidateJson(string $username, string $name, ?string $reason = null): array
 {
-    return ['user' => userJson(['id' => 'u-'.$username, 'username' => $username, 'name' => $name]), 'reason' => $reason];
+    return ['user' => userJson(['id' => 'u-'.$username, 'handle' => $username, 'name' => $name]), 'reason' => $reason];
 }
 
 /**
@@ -124,7 +124,7 @@ it('picks people for a new org, counts them, and takes one back out from their c
 it('says the org is full beside everyone else once it holds the web limit', function () {
     servePeople([candidateJson('ada', 'Ada Lovelace')]);
 
-    $people = array_map(fn (int $index): User => User::fromArray(userJson(['id' => "u{$index}", 'username' => "dev{$index}", 'name' => "Dev {$index}"])), range(1, NewOrg::MaxMembers - 1));
+    $people = array_map(fn (int $index): User => User::fromArray(userJson(['id' => "u{$index}", 'handle' => "dev{$index}", 'name' => "Dev {$index}"])), range(1, NewOrg::MaxMembers - 1));
 
     Native::visit('/remotes/new-org')
         ->set('picked', $people)

@@ -16,7 +16,7 @@ beforeEach(function () {
 function achievementsProfileJson(): array
 {
     return [
-        'data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1], commits: 12),
+        'data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1], commits: 12),
         'is_following' => false,
         'follows_you' => false,
         'is_muting' => false,
@@ -103,6 +103,22 @@ it('opens the web\'s achievements dialog from the shelf, with the rank, the XP a
         ->and(findNodes(nodeByRef($screen, 'sheet-badges'), fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'sheet-badge-progress-')))->toHaveCount(1)
         ->and(nodeByRef($screen, 'sheet-badge-progress-stdout')['children'][0]['layout']['flex_grow'] ?? null)->toEqual(24);
 });
+
+it('draws a badge with the web\'s icon for it, not the terminal', function (string $id, string $icon) {
+    $json = achievementsProfileJson();
+    $json['achievements']['badges'][] = ['id' => $id, 'name' => $id, 'description' => '', 'icon' => $icon, 'unlocked' => false, 'progress' => 0, 'target' => 1];
+
+    fakeApi(['GET /api/v1/users/ada' => [$json], 'GET /api/v1/users/ada/commits' => [pageJson([])]]);
+
+    $screen = Native::visit('/log/users/ada', platform: 'ios')->tap('achievements-open');
+
+    expect(findNode(nodeByRef($screen, "sheet-badge-{$id}"), fn (array $node): bool => ($node['type'] ?? null) === 'icon')['props']['name'] ?? null)->toBe("custom:{$icon}");
+})->with([
+    'sweet tooth' => ['sweet_tooth', 'cookie'],
+    'luddite' => ['luddite', 'bot-off'],
+    'shell shocked' => ['shell_shocked', 'bomb'],
+    'super-saiyan' => ['super_saiyan', 'dragon-ball'],
+]);
 
 it('marks the badge it was opened on in the owner\'s lane', function () {
     $screen = adaWithAchievements();

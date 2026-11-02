@@ -5,7 +5,8 @@ namespace App\Devnull\Data;
 use Closure;
 
 /**
- * One page of a cursor-paginated list.
+ * One page of a cursor-paginated list. A list paged by number, as scheduled
+ * commits are, carries the next page's number as its cursor.
  *
  * @template T
  */
@@ -49,7 +50,8 @@ final readonly class Page
         }
 
         parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+        $cursor = $query['cursor'] ?? $query['page'] ?? null;
 
-        return is_string($query['cursor'] ?? null) ? $query['cursor'] : null;
+        return is_string($cursor) ? $cursor : null;
     }
 }

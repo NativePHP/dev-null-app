@@ -8,9 +8,12 @@ use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitImage;
 use App\Devnull\Data\Pasteis;
 use App\Devnull\Data\User;
+use App\Devnull\Display;
 use App\Devnull\ErrorCode;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\ResponseCache;
+use App\Devnull\SiteLink;
+use App\Devnull\Timezone;
 use App\Devnull\Toasts;
 use Closure;
 use Native\Mobile\Attributes\On;
@@ -21,14 +24,16 @@ use Native\Mobile\Facades\Dialog;
 use Native\Mobile\Facades\Share;
 
 /**
- * The actions under a commit: the star, the pastel in pastéis mode, Quote,
- * Reply, and the More menu's Save commit, Share link, Pin to profile, Report
- * commit and Delete commit (Quote and Report open a sheet, see
- * OpensCommitSheet), plus opening its link preview in the in-app browser, its
+ * The actions under a commit: the star, or on your own who starred it (see
+ * OpensStargazers), the pastel in pastéis mode, Quote, Reply, and the More
+ * menu's Save commit, Share link, Pin to profile, Report commit and Delete
+ * commit (Quote and Report open a sheet, see
+ * OpensCommitSheet), plus opening its link preview in the in-app browser or,
+ * for a page on dev/null, the app (see SiteLink), its
  * images full-screen in the app (see partials/image-viewer), "Show more" on a
- * long one, and voting on its poll (see
- * VotesOnPolls). Taps name the commit rather than a URL, so a URL is never
- * rebuilt from an attribute.
+ * long one, voting on its poll (see VotesOnPolls), and the time of the
+ * commit a page is about. Taps name the commit rather than a URL, so a URL is
+ * never rebuilt from an attribute.
  *
  * A commit can be tapped where a row nests it too: the commit a row quotes,
  * and the replies a feed shows under a commit.
@@ -36,6 +41,7 @@ use Native\Mobile\Facades\Share;
 trait ShowsCommits
 {
     use OpensCommitSheet;
+    use OpensStargazers;
     use VotesOnPolls;
     use WritesInBackground;
 
@@ -144,6 +150,14 @@ trait ShowsCommits
     }
 
     /**
+     * Opens a mentioned GitHub organization's page.
+     */
+    public function openOrganization(string $handle): void
+    {
+        $this->openInTab('/organizations/'.rawurlencode($handle));
+    }
+
+    /**
      * Opens the commit with its reply composer focused.
      */
     public function replyTo(string $id): void
@@ -168,11 +182,25 @@ trait ShowsCommits
     }
 
     /**
+     * The time of the commit a page is about, tapped: when it was made, in your
+     * timezone, as the web's tooltip shows it when you hover the time.
+     */
+    public function showTime(string $id): void
+    {
+        $createdAt = $this->shownCommit($id)?->createdAt;
+
+        if ($createdAt !== null) {
+            Toasts::say(Display::fullDateTime($createdAt).' in '.Timezone::city(app(Timezone::class)->yours()));
+        }
+    }
+
+    /**
      * Stars or unstars straight away, here and in every kept copy, while the
      * star goes to devnull from the outbox (see SyncsOutbox). The commit takes
      * the count devnull sends back, or the star comes back off it if devnull
-     * says no. Like the web, any visible commit can be starred, including
-     * your own and your pending commits.
+     * says no. Like the web, only someone else's published commit can be
+     * starred, as devnull turns down a star on your own (whose star opens who
+     * starred it instead, see OpensStargazers).
      */
     public function toggleStar(string $id): void
     {
@@ -199,7 +227,7 @@ trait ShowsCommits
         $commit = $this->shownCommit($id);
         $pasteis = app(Account::class)->pasteis();
 
-        if ($commit === null || $pasteis === null || ! $this->canGivePastel($commit)) {
+        if ($commit === null || $pasteis === null || ! $this->canReactTo($commit)) {
             return;
         }
 
@@ -210,7 +238,7 @@ trait ShowsCommits
         }
 
         app(Account::class)->rememberPasteis($pasteis->afterGiving());
-        $this->replaceShownCommit($commit->withMorePasteis(1));
+        $this->changeShownCommit($id, fn (Commit $shown): Commit => $shown->withMorePasteis(1));
 
         $this->writeInBackground('POST', Client::pastelPath($id), null, fn (array $json) => $this->pastelGiven($id, $json), function (string $message, ?ApiException $exception = null) use ($id): void {
             $this->pastelTurnedDown($id, $exception);
@@ -248,9 +276,13 @@ trait ShowsCommits
         $this->showPinned($commit->withPinned($fresh->isPinned));
     }
 
+    /**
+     * Opens a commit's link preview: a page on dev/null the app has a screen
+     * for here in the app, anything else in the browser.
+     */
     public function openLinkPreview(string $id): void
     {
-        $this->openInBrowser($this->shownCommit($id)?->linkPreview?->url);
+        $this->openUrl($this->shownCommit($id)?->linkPreview?->url);
     }
 
     /**
@@ -266,7 +298,7 @@ trait ShowsCommits
         $images = $this->shownCommit($id)?->images ?? [];
         $image = $images[$index] ?? null;
 
-        if ($image === null || ! $this->isWebUrl($image->url)) {
+        if ($image === null || ! SiteLink::isWebUrl($image->url)) {
             return;
         }
 
@@ -313,7 +345,8 @@ trait ShowsCommits
 
     /**
      * Opens a link in a commit's body, by its place among the body's links: a
-     * commit on dev/null here in the app, anything else in the browser.
+     * commit or another page on dev/null the app has a screen for here in the
+     * app, anything else in the browser.
      */
     public function openLink(string $id, int $index): void
     {
@@ -325,7 +358,7 @@ trait ShowsCommits
             return;
         }
 
-        $this->openInBrowser($link?->href);
+        $this->openUrl($link?->href);
     }
 
     /**
@@ -395,11 +428,8 @@ trait ShowsCommits
     private function pastelGiven(string $id, array $json): void
     {
         $fresh = Commit::fromArray(is_array($json['data'] ?? null) ? $json['data'] : []);
-        $shown = $this->shownCommit($id);
 
-        if ($shown !== null && $fresh->pasteisCount > $shown->pasteisCount) {
-            $this->replaceShownCommit($shown->withMorePasteis($fresh->pasteisCount - $shown->pasteisCount));
-        }
+        $this->changeShownCommit($id, fn (Commit $shown): Commit => $shown->withMorePasteis(max(0, $fresh->pasteisCount - $shown->pasteisCount)));
 
         app(ResponseCache::class)->pastelGiven($json);
 
@@ -463,11 +493,7 @@ trait ShowsCommits
      */
     private function pastelTurnedDown(string $id, ?ApiException $exception): void
     {
-        $shown = $this->shownCommit($id);
-
-        if ($shown !== null) {
-            $this->replaceShownCommit($shown->withMorePasteis(-1));
-        }
+        $this->changeShownCommit($id, fn (Commit $shown): Commit => $shown->withMorePasteis(-1));
 
         $exhausted = $exception?->is(ErrorCode::PasteisExhausted) === true;
         $pasteis = app(Account::class)->pasteis();
@@ -484,11 +510,6 @@ trait ShowsCommits
     }
 
     private function canReactTo(Commit $commit): bool
-    {
-        return ! $commit->isDeleted() && ! $commit->isStaged() && ($commit->isApproved() || $commit->author->id === $this->me()?->id);
-    }
-
-    private function canGivePastel(Commit $commit): bool
     {
         return ! $commit->isDeleted() && $commit->isApproved() && $commit->author->id !== $this->me()?->id;
     }
@@ -508,18 +529,22 @@ trait ShowsCommits
      */
     protected function showStar(string $id, bool $starred, ?Commit $fresh = null): void
     {
-        $shown = $this->shownCommit($id);
-
-        if ($shown !== null) {
-            $this->replaceShownCommit($fresh === null ? $shown->withStar($starred) : $shown->withReactionsFrom($fresh));
-        }
+        $this->changeShownCommit($id, fn (Commit $shown): Commit => $fresh === null ? $shown->withStar($starred) : $shown->withReactionsFrom($fresh));
     }
 
-    private function replaceShownCommit(Commit $replacement): void
+    /**
+     * Runs $change over every copy of a commit showing: its row, and the ones
+     * nested in rows, as a quote or a reply under another commit. Each copy
+     * keeps what only it has, such as the replies its row shows under it,
+     * which a copy nested in a quote or a thread doesn't carry.
+     *
+     * @param  Closure(Commit): Commit  $change
+     */
+    private function changeShownCommit(string $id, Closure $change): void
     {
-        $replace = fn (Commit $commit): Commit => $commit->id === $replacement->id ? $replacement : $commit;
+        $changeCopy = fn (Commit $commit): Commit => $commit->id === $id ? $change($commit) : $commit;
 
-        $this->updateShownCommits(fn (Commit $commit): Commit => $replace($commit)->withPreviewReplies($replace));
+        $this->updateShownCommits(fn (Commit $commit): Commit => $changeCopy($commit)->withPreviewReplies($changeCopy)->withQuotedCommit($changeCopy));
     }
 
     /**
@@ -562,20 +587,28 @@ trait ShowsCommits
         return null;
     }
 
-    private function openInBrowser(?string $url): void
+    /**
+     * Opens a page on dev/null in the app's own screen for it, in this tab,
+     * and anything else in the browser (see SiteLink).
+     */
+    private function openUrl(?string $url): void
     {
-        if ($this->isWebUrl($url)) {
-            Browser::inApp($url);
+        $screen = SiteLink::screen($url);
+
+        if ($screen !== null) {
+            $this->openInTab($screen);
+
+            return;
         }
+
+        $this->openInBrowser($url);
     }
 
-    /**
-     * Only an http or https address is opened, in the browser or the viewer, so
-     * nothing else a row might carry can take the phone somewhere unexpected.
-     */
-    private function isWebUrl(?string $url): bool
+    private function openInBrowser(?string $url): void
     {
-        return $url !== null && in_array(parse_url($url, PHP_URL_SCHEME), ['http', 'https'], true);
+        if (SiteLink::isWebUrl($url)) {
+            Browser::inApp($url);
+        }
     }
 
     /**
@@ -599,7 +632,7 @@ trait ShowsCommits
     {
         $image = $this->viewerImages[$index] ?? null;
 
-        if (! $this->viewerOpen || $image === null || ! $this->isWebUrl($image->url)) {
+        if (! $this->viewerOpen || $image === null || ! SiteLink::isWebUrl($image->url)) {
             return;
         }
 

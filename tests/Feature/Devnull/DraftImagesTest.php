@@ -1,8 +1,13 @@
 <?php
 
+use App\Devnull\Account;
 use App\Devnull\Data\DraftImage;
+use App\Devnull\Data\StashedDraft;
 use App\Devnull\DraftImages;
 use App\Devnull\Exceptions\InvalidDraftImage;
+use App\Devnull\Outbox;
+use App\Devnull\Stash;
+use App\Models\PendingWrite;
 use Illuminate\Support\Facades\File;
 
 afterEach(function () {
@@ -76,4 +81,26 @@ it('deletes the photos of drafts left for more than a day', function () {
 
     expect(file_exists($old->path))->toBeFalse()
         ->and(file_exists($recent->path))->toBeTrue();
+});
+
+it('keeps the photos a stashed draft or the outbox holds, however old', function () {
+    signIn();
+    $me = app(Account::class)->user()?->id;
+    $stashed = app(DraftImages::class)->keep(testPhoto());
+    $failed = app(DraftImages::class)->keep(testPhoto());
+    $orphan = app(DraftImages::class)->keep(testPhoto());
+
+    app(Stash::class)->put($me, 'commit', new StashedDraft('', [$stashed]));
+    $write = app(Outbox::class)->add(PendingWrite::Commit, null, ['body' => '', 'images' => PendingWrite::imagePayload([$failed])]);
+    app(Outbox::class)->failed($write, 'Something went wrong.');
+
+    foreach ([$stashed, $failed, $orphan] as $photo) {
+        touch($photo->path, time() - 86_401 * 7);
+    }
+
+    app(DraftImages::class)->keep(testPhoto());
+
+    expect(file_exists($stashed->path))->toBeTrue()
+        ->and(file_exists($failed->path))->toBeTrue()
+        ->and(file_exists($orphan->path))->toBeFalse();
 });

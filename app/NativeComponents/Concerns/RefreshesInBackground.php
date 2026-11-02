@@ -11,6 +11,7 @@ use App\Devnull\Exceptions\Unauthenticated;
 use App\Devnull\FetchInBackground;
 use App\Devnull\ImageCache;
 use App\Devnull\ResponseCache;
+use App\Devnull\Timezone;
 use Closure;
 use Throwable;
 
@@ -159,6 +160,21 @@ trait RefreshesInBackground
     }
 
     /**
+     * Asks devnull for what only you see in the web's settings, and keeps the
+     * timezone you chose there, which `/me` doesn't carry, so the app shows
+     * times in it (see Timezone). It's a nicety, so a failure is never shown.
+     */
+    protected function refreshSettings(): void
+    {
+        $this->refresh(Client::SettingsPath, [], function (array $json): void {
+            $settings = is_array($json['data'] ?? null) ? $json['data'] : [];
+            $timezone = $settings['timezone'] ?? null;
+
+            app(Account::class)->rememberTimezone(Timezone::isKnown($timezone) ? $timezone : null);
+        }, quiet: true);
+    }
+
+    /**
      * A screen that has its own way of saying devnull refused it, such as a
      * profile across a block, says so here and returns true. Anything else
      * prints the error.
@@ -198,8 +214,11 @@ trait RefreshesInBackground
                 ImageCache::prefetch($json);
             }
 
-            $this->refreshFailed = false;
-            $this->error = null;
+            if (! $quiet) {
+                $this->refreshFailed = false;
+                $this->error = null;
+            }
+
             $apply($json);
 
             return;

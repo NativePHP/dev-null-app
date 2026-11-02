@@ -17,7 +17,7 @@ it('lists your conversations, the latest first, as the web inbox does', function
         conversationJson(['ahead' => 2, 'last_message' => remoteMessageJson(['id' => 7, 'body' => 'did you see the PR?'])]),
         conversationJson([
             'id' => 'conv-2',
-            'partner' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace Hopper']),
+            'partner' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace Hopper']),
             'last_message' => remoteMessageJson(['id' => 5, 'user_id' => '0199e5c4-0000-7000-8000-000000000001', 'body' => "thanks!\nsee you"]),
             'last_message_at' => '2026-10-19T13:30:00.000000Z',
             'partner_read_through_id' => 5,
@@ -48,10 +48,10 @@ it('lists an org by its name, with how many are in it', function () {
         'partner' => null,
         'members' => [
             ['user' => userJson(), 'role' => 'maintainer'],
-            ['user' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace']), 'role' => 'contributor'],
-            ['user' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace Hopper']), 'role' => 'contributor'],
+            ['user' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace']), 'role' => 'contributor'],
+            ['user' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace Hopper']), 'role' => 'contributor'],
         ],
-        'last_message' => remoteMessageJson(['user' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace'])]),
+        'last_message' => remoteMessageJson(['user' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace'])]),
     ])])]]);
 
     finishRefreshes(Native::visit('/remotes'))
@@ -71,7 +71,7 @@ it('opens a conversation in the Remotes tab', function () {
 it('opens on the inbox kept last time, with no skeleton, then refreshes behind it', function () {
     holdRefreshes();
     keep('remotes', remotesInboxJson([conversationJson()]));
-    serveApi(['GET /api/v1/remotes' => [remotesInboxJson([conversationJson(['id' => 'conv-2', 'partner' => userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace Hopper'])]), conversationJson()])]]);
+    serveApi(['GET /api/v1/remotes' => [remotesInboxJson([conversationJson(['id' => 'conv-2', 'partner' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace Hopper'])]), conversationJson()])]]);
 
     $screen = Native::visit('/remotes')->assertSee('Ada Lovelace')->assertDontSee('Grace Hopper');
 
@@ -146,7 +146,7 @@ it('shows the first rows kept for the tab beside the one you are on, ready for a
 
         return Http::response(remotesInboxJson(($query['tab'] ?? 'open') === 'stashed'
             ? [conversationJson(['id' => 'conv-stashed', 'is_archived' => true])]
-            : [conversationJson(['id' => 'conv-open', 'partner' => userJson(['id' => 'u-grace', 'username' => 'grace', 'name' => 'Grace Hopper'])])]));
+            : [conversationJson(['id' => 'conv-open', 'partner' => userJson(['id' => 'u-grace', 'handle' => 'grace', 'name' => 'Grace Hopper'])])]));
     });
 
     // Stashed has been seen before, so it was kept.
@@ -183,7 +183,7 @@ it('leaves out an answer for a tab you have left', function () {
 
         return Http::response(remotesInboxJson(($query['tab'] ?? 'open') === 'stashed'
             ? [conversationJson(['id' => 'conv-stashed', 'is_archived' => true])]
-            : [conversationJson(['id' => 'conv-open', 'partner' => userJson(['id' => 'u-grace', 'username' => 'grace', 'name' => 'Grace Hopper'])])]));
+            : [conversationJson(['id' => 'conv-open', 'partner' => userJson(['id' => 'u-grace', 'handle' => 'grace', 'name' => 'Grace Hopper'])])]));
     });
 
     // A swipe to Stashed and back while Open is still on its way, so Stashed's answer lands on Open.
@@ -201,7 +201,7 @@ it('loads older conversations before the last one showing', function () {
         $before = str_contains($request->url(), 'before=conv-1');
 
         return Http::response(remotesInboxJson($before
-            ? [conversationJson(['id' => 'conv-0', 'partner' => userJson(['id' => 'u4', 'username' => 'linus', 'name' => 'Linus'])])]
+            ? [conversationJson(['id' => 'conv-0', 'partner' => userJson(['id' => 'u4', 'handle' => 'linus', 'name' => 'Linus'])])]
             : [conversationJson()], hasMore: ! $before));
     });
 

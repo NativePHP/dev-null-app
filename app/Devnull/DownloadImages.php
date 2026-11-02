@@ -66,6 +66,11 @@ final class DownloadImages extends AsyncTask
                 $batch,
             ));
 
+            // Signing out empties the cache (see Account::forget), and this thread can't tell it happened otherwise.
+            if (app(Account::class)->user() === null) {
+                break;
+            }
+
             foreach ($batch as $index => $url) {
                 $response = $responses[$index] ?? null;
 

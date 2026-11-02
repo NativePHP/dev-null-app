@@ -225,6 +225,22 @@ final readonly class Commit
     }
 
     /**
+     * This commit with $update applied to the commit it quotes, as its card draws it.
+     *
+     * @param  Closure(Commit): Commit  $update
+     */
+    public function withQuotedCommit(Closure $update): self
+    {
+        $quoted = $this->quotedCommit === null ? null : $update($this->quotedCommit);
+
+        if ($quoted === $this->quotedCommit) {
+            return $this;
+        }
+
+        return new self(...[...get_object_vars($this), 'quotedCommit' => $quoted]);
+    }
+
+    /**
      * Whether it quotes a commit, even one you may no longer see.
      */
     public function isQuote(): bool

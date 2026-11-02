@@ -14,13 +14,14 @@ use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
+use App\NativeComponents\Concerns\WatchesForCalls;
 use Carbon\CarbonImmutable;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
 
 /**
- * Follows, stars, replies, quotes, mentions, and moderation updates for your
- * commits, grouped as the web groups them, on a Rail Gray rail.
+ * Follows, stars, replies, quotes, mentions, level-ups, and moderation updates
+ * for your commits, grouped as the web groups them, on a Rail Gray rail.
  *
  * The web's filters run along the top: All, Replies, Quotes, Stars, Mentions,
  * Follows and Moderation, each kept on its own for next time. A group of
@@ -45,6 +46,7 @@ class Notifications extends NativeComponent
     use RefreshesInBackground;
     use SyncsOutbox;
     use TalksToDevnull;
+    use WatchesForCalls;
 
     /**
      * Every frame goes in full, as on the Log (see Log::$forceFullFrames).
@@ -55,7 +57,7 @@ class Notifications extends NativeComponent
      * The web's filters, their labels and what each says when it has nothing.
      */
     public const array Types = [
-        'all' => ['All', 'Nothing here yet. Follows, stars, replies, quotes, mentions, and moderation updates for your commits will show up here.'],
+        'all' => ['All', 'Nothing here yet. Follows, stars, replies, quotes, mentions, level-ups, and moderation updates for your commits will show up here.'],
         'replies' => ['Replies', 'No replies yet. When someone replies to one of your commits, it shows up here.'],
         'quotes' => ['Quotes', 'No quotes yet. When someone quotes one of your commits, it shows up here.'],
         'stars' => ['Stars', 'No stars yet. When someone stars one of your commits, it shows up here.'],
@@ -241,9 +243,10 @@ class Notifications extends NativeComponent
     }
 
     /**
-     * A tap on a notification opens its commit, or the profile of whoever
-     * followed you. A tap on a group of followers lists them in place instead,
-     * as its toggle does, rather than opening only the latest of them.
+     * A tap on a notification opens its commit, the profile of whoever
+     * followed you, or your own for a level-up. A tap on a group of
+     * followers lists them in place instead, as its toggle does, rather
+     * than opening only the latest of them.
      */
     public function open(string $id): void
     {

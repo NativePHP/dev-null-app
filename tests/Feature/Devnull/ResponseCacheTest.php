@@ -66,7 +66,7 @@ it('shows an answer for seven days and treats anything older as missing', functi
 it('keeps each user apart', function () {
     $this->cache->put('log/following', [], pageJson([commitJson(['body' => "Local Dev's log"])]));
 
-    app(Account::class)->remember(User::fromArray(userJson(['id' => 'u2', 'username' => 'ada'])));
+    app(Account::class)->remember(User::fromArray(userJson(['id' => 'u2', 'handle' => 'ada'])));
 
     expect($this->cache->get('log/following'))->toBeNull();
 
@@ -87,7 +87,7 @@ it('keeps nothing when nobody is signed in', function () {
 
 it('empties the cache for everyone on sign-out', function () {
     $this->cache->put('log/following', [], pageJson([commitJson()]));
-    app(Account::class)->remember(User::fromArray(userJson(['id' => 'u2', 'username' => 'ada'])));
+    app(Account::class)->remember(User::fromArray(userJson(['id' => 'u2', 'handle' => 'ada'])));
     $this->cache->put('log/following', [], pageJson([commitJson()]));
 
     app(Account::class)->forget();
@@ -291,7 +291,7 @@ it('keeps a quote of a commit you deleted, saying it was deleted', function () {
 });
 
 it('follows and unfollows on the kept profiles', function () {
-    $this->cache->put('users/ada', [], ['data' => userWithCountsJson(['username' => 'ada'], followers: 3), 'is_following' => false]);
+    $this->cache->put('users/ada', [], ['data' => userWithCountsJson(['handle' => 'ada'], followers: 3), 'is_following' => false]);
     $this->cache->put('users/local_dev', [], ['data' => userWithCountsJson(following: 2), 'is_following' => false]);
 
     $this->cache->followChanged('ada', true);
@@ -321,12 +321,12 @@ it('counts a follow on your profile when theirs was never kept', function () {
 });
 
 it('marks them followed in every kept list of people that says so', function () {
-    $grace = userJson(['id' => 'g1', 'username' => 'grace', 'is_followed' => false, 'follows_you' => true]);
-    $linus = userJson(['id' => 'l1', 'username' => 'linus', 'is_followed' => false]);
+    $grace = userJson(['id' => 'g1', 'handle' => 'grace', 'is_followed' => false, 'follows_you' => true]);
+    $linus = userJson(['id' => 'l1', 'handle' => 'linus', 'is_followed' => false]);
     $this->cache->put('users/ada/followers', [], pageJson([$grace, $linus]));
     $this->cache->put('users/ada/following', [], pageJson([$grace]));
-    $this->cache->put('notifications', [], pageJson([notificationJson('followed', ['actor' => $grace, 'actors' => [userJson(['id' => 'g1', 'username' => 'grace'])]])]));
-    $this->cache->put('log/following', [], pageJson([commitJson(['author' => userJson(['id' => 'g1', 'username' => 'grace'])])]));
+    $this->cache->put('notifications', [], pageJson([notificationJson('followed', ['actor' => $grace, 'actors' => [userJson(['id' => 'g1', 'handle' => 'grace'])]])]));
+    $this->cache->put('log/following', [], pageJson([commitJson(['author' => userJson(['id' => 'g1', 'handle' => 'grace'])])]));
 
     $this->cache->followChanged('grace', true);
 
@@ -351,7 +351,7 @@ it('keeps the Apple link on the kept you', function () {
 });
 
 it('takes a fresh you into the kept you, and your profile into every other kept copy of you', function () {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada', 'lane' => 2]);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 2]);
     $this->cache->put('me', [], currentUserJson(['name' => 'Old Name', 'lane' => 3], ['apple_linked' => true, 'unread_notifications_count' => 2]));
     $this->cache->put('users/local_dev', [], ['data' => userWithCountsJson(['name' => 'Old Name', 'lane' => 3], commits: 7), 'is_following' => false]);
     $this->cache->put('log/following', [], pageJson([

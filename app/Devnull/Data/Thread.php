@@ -8,11 +8,20 @@ use Carbon\CarbonImmutable;
  * A Remotes thread as devnull sends it, for the first load, the page before a
  * message, or a poll for what came after one: its messages, oldest first, the
  * reactions that changed since the version a poll last saw, how far you and
- * the others have pulled, who is typing, and what the composer can do.
+ * the others have pulled, who is typing, and what the composer can do. An
+ * org's also says which messages it pinned, latest pinned first, whatever
+ * history you were given, unless a poll found them unchanged since the
+ * reactions version it sent (pinning and unpinning move that version).
  *
  * `access` is the web's: open to push, a request of theirs to merge first,
  * your own request waiting on them, or nothing at all because they don't
  * follow you while requests are off (restricted) or have Remotes off (closed).
+ * You may have pinned it in your inbox, or muted it until some time.
+ *
+ * An org's members may each say whether to suggest them for a mention (not
+ * someone you've muted or blocked) and whether you follow them, as the web's
+ * thread does. Where devnull leaves that out, everyone is suggested and no one
+ * is followed.
  */
 final readonly class Thread
 {
@@ -29,8 +38,9 @@ final readonly class Thread
     /**
      * @param  list<Message>  $messages
      * @param  array<int, list<array{user_id: string, emoji: string}>>  $reactionChanges
-     * @param  list<array{user: User, role: ?string, read_through_id: int}>  $members
+     * @param  list<array{user: User, role: ?string, read_through_id: int, suggests_mentions: bool, is_followed: bool}>  $members
      * @param  list<string>  $typing
+     * @param  list<Message>|null  $pinned
      */
     public function __construct(
         public array $messages,
@@ -48,6 +58,9 @@ final readonly class Thread
         public ?string $orgName = null,
         public array $members = [],
         public ?string $role = null,
+        public ?array $pinned = null,
+        public ?CarbonImmutable $pinnedAt = null,
+        public ?CarbonImmutable $mutedUntilAt = null,
     ) {}
 
     /**
@@ -71,6 +84,8 @@ final readonly class Thread
                     'user' => User::fromArray($member['user']),
                     'role' => is_string($member['role'] ?? null) ? $member['role'] : null,
                     'read_through_id' => is_int($member['read_through_id'] ?? null) ? $member['read_through_id'] : 0,
+                    'suggests_mentions' => ($member['suggests_mentions'] ?? true) !== false,
+                    'is_followed' => ($member['is_followed'] ?? false) === true,
                 ];
             }
         }
@@ -80,10 +95,7 @@ final readonly class Thread
         $typing = is_array($data['typing'] ?? null) ? array_values(array_filter($data['typing'], is_string(...))) : [];
 
         return new self(
-            messages: array_values(array_map(
-                fn (array $message): Message => Message::fromArray($message),
-                array_filter(is_array($data['messages'] ?? null) ? $data['messages'] : [], is_array(...)),
-            )),
+            messages: self::messagesFrom(is_array($data['messages'] ?? null) ? $data['messages'] : []),
             hasOlder: ($data['has_older'] ?? false) === true,
             reactionsVersion: is_int($data['reactions_version'] ?? null) ? $data['reactions_version'] : 0,
             reactionChanges: $changes,
@@ -98,11 +110,28 @@ final readonly class Thread
             orgName: is_string($org['name'] ?? null) && $org['name'] !== '' ? $org['name'] : null,
             members: $members,
             role: is_string($data['role'] ?? null) ? $data['role'] : null,
+            pinned: is_array($data['pinned'] ?? null) ? self::messagesFrom($data['pinned']) : null,
+            pinnedAt: Commit::date($data['pinned_at'] ?? null),
+            mutedUntilAt: Commit::date($data['muted_until_at'] ?? null),
         );
+    }
+
+    /**
+     * @param  array<mixed>  $messages
+     * @return list<Message>
+     */
+    private static function messagesFrom(array $messages): array
+    {
+        return array_values(array_map(fn (array $message): Message => Message::fromArray($message), array_filter($messages, is_array(...))));
     }
 
     public function isOrg(): bool
     {
         return $this->orgId !== null;
+    }
+
+    public function isMuted(): bool
+    {
+        return $this->mutedUntilAt !== null && $this->mutedUntilAt->isFuture();
     }
 }

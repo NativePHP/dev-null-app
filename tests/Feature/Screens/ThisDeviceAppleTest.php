@@ -53,7 +53,8 @@ it('shows that no Apple ID is linked, with a line on what linking is for and App
         ->and(nodeByRef($screen, 'link-apple')['props'])->toMatchArray(['label' => 'Sign in with Apple', 'variant' => 'accent', 'leading_icon' => 'apple.logo'])
         ->and(nodeByRef($screen, 'link-apple')['layout'])->toEqual(['width' => 'fill']);
 
-    Http::assertSentCount(1);
+    // You, and your settings for your timezone.
+    Http::assertSentCount(2);
     Http::assertSent(fn (Request $request): bool => $request->method() === 'GET' && $request->url() === 'http://devnull.test/api/v1/me');
 });
 
@@ -152,7 +153,8 @@ it("returns quietly when Apple's sheet is closed, and says so when it fails", fu
         ->emitNative(SignInFailed::class, ['provider' => 'apple', 'error' => 'Something broke.', 'errorCode' => 'SIGN_IN_FAILED'])
         ->assertSee('fatal: Sign in with Apple failed. Something broke.');
 
-    Http::assertSentCount(1);
+    // Only you and your settings, when the screen opened.
+    Http::assertSentCount(2);
 });
 
 it('rejects an answer it never asked for', function () {
@@ -163,7 +165,8 @@ it('rejects an answer it never asked for', function () {
         ->assertSet('error', AppleSignIn::NotStartedHere)
         ->assertSet('appleLinked', false);
 
-    Http::assertSentCount(1);
+    // Only you and your settings, when the screen opened.
+    Http::assertSentCount(2);
 });
 
 it('unlinks the Apple ID only after a confirm', function () {

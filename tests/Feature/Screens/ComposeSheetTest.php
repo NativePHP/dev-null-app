@@ -20,7 +20,7 @@ beforeEach(function () {
 function composeSheetOnLog(?array $answer = null, string $platform = 'ios'): TestableComponent
 {
     fakeApi([
-        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'An older commit', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])],
+        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'An older commit', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])])],
         'POST /api/v1/commits' => $answer ?? [['data' => commitJson(['id' => '0199e5c4-2222-7000-8000-00000000cafe', 'body' => 'Shipped from the sheet.'])], 201],
     ]);
 
@@ -282,7 +282,7 @@ it('keeps the field the same view while what is drawn above it changes, so the k
 });
 
 it('only commits from a sheet that has a composer in it', function () {
-    fakeApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])]]);
+    fakeApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])])]]);
 
     Native::visit('/log', platform: 'ios')
         ->tap('report-c1')

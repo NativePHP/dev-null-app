@@ -24,7 +24,7 @@ final class Display
     public const int ReplyBarCharactersPerLine = 34;
 
     /**
-     * The row under the reply bar's field that marks a restored draft (see partials/stash-label).
+     * The row under the reply bar's field that marks a restored draft (see partials/stash-label) and counts its photos.
      */
     public const int ReplyBarStashLabelHeight = 28;
 
@@ -87,11 +87,11 @@ final class Display
     /**
      * The label of a day marker in a feed, worded like the web: "Today", "Yesterday",
      * then "Tue, Oct 13", with the year once it isn't this year. Days are counted in
-     * the app's time zone, since PHP can't see the device's.
+     * the phone's timezone, as the web counts them in the browser's (see Timezone).
      */
     public static function dayLabel(CarbonInterface $date, ?CarbonInterface $now = null): string
     {
-        $now = CarbonImmutable::instance($now ?? CarbonImmutable::now());
+        $now = CarbonImmutable::instance($now ?? self::now());
         $day = CarbonImmutable::instance($date)->setTimezone($now->getTimezone());
         $daysAgo = (int) round(($now->startOfDay()->getTimestamp() - $day->startOfDay()->getTimestamp()) / 86400);
 
@@ -108,7 +108,7 @@ final class Display
      */
     public static function dayKey(CarbonInterface $date, ?CarbonInterface $now = null): string
     {
-        $timezone = ($now ?? CarbonImmutable::now())->getTimezone();
+        $timezone = ($now ?? self::now())->getTimezone();
 
         return CarbonImmutable::instance($date)->setTimezone($timezone)->toDateString();
     }
@@ -118,7 +118,33 @@ final class Display
      */
     public static function clock(CarbonInterface $date, ?CarbonInterface $now = null): string
     {
-        return CarbonImmutable::instance($date)->setTimezone(($now ?? CarbonImmutable::now())->getTimezone())->format('H:i');
+        return CarbonImmutable::instance($date)->setTimezone(($now ?? self::now())->getTimezone())->format('H:i');
+    }
+
+    /**
+     * Now, in the phone's timezone, which days are counted in.
+     */
+    public static function now(): CarbonImmutable
+    {
+        return CarbonImmutable::now(app(Timezone::class)->here());
+    }
+
+    /**
+     * When a commit was made, as the web prints it under the commit a page is
+     * about: "3:04 PM · Oct 19, 2026", in your timezone (see Timezone).
+     */
+    public static function fullDateTime(CarbonInterface $date, ?string $timezone = null): string
+    {
+        return CarbonImmutable::instance($date)->setTimezone($timezone ?? app(Timezone::class)->yours())->format('g:i A · M j, Y');
+    }
+
+    /**
+     * When a scheduled commit is due, as the web's Scheduled commits page
+     * prints it: "Oct 16, 2026, 10:30 AM", in the phone's timezone.
+     */
+    public static function scheduleTime(CarbonInterface $date, ?string $timezone = null): string
+    {
+        return CarbonImmutable::instance($date)->setTimezone($timezone ?? app(Timezone::class)->here())->format('M j, Y, g:i A');
     }
 
     /**
@@ -179,21 +205,30 @@ final class Display
      * indicator, with no inset for either, so the page pads its own end: the
      * bar as the draft grows to its five lines, and the indicator below it.
      * With the keyboard up the bar sits on the keyboard instead, which only
-     * leaves a little more room. A restored draft adds the row that marks it.
+     * leaves a little more room. A restored draft, or one with photos, adds
+     * the row under the field ($draftRow).
      */
-    public static function replyBarClearance(string $draft, bool $restored = false): int
+    public static function replyBarClearance(string $draft, bool $draftRow = false): int
+    {
+        return self::ReplyBarHeight
+            + (min(self::ReplyBarMaxLines, self::lineCount($draft, self::ReplyBarCharactersPerLine)) - 1) * self::ReplyBarLineHeight
+            + ($draftRow ? self::ReplyBarStashLabelHeight : 0)
+            + (CommitBody::hasOversizedUrl($draft) ? 3 * self::ReplyBarLineHeight : 0)
+            + self::HomeIndicatorHeight;
+    }
+
+    /**
+     * About how many lines some text wraps to where $perLine characters fit on one, counting each of its own lines.
+     */
+    public static function lineCount(string $text, int $perLine): int
     {
         $lines = 0;
 
-        foreach (explode("\n", $draft) as $line) {
-            $lines += max(1, (int) ceil(mb_strlen($line) / self::ReplyBarCharactersPerLine));
+        foreach (explode("\n", $text) as $line) {
+            $lines += max(1, (int) ceil(mb_strlen($line) / $perLine));
         }
 
-        return self::ReplyBarHeight
-            + (min(self::ReplyBarMaxLines, $lines) - 1) * self::ReplyBarLineHeight
-            + ($restored ? self::ReplyBarStashLabelHeight : 0)
-            + (CommitBody::hasOversizedUrl($draft) ? 3 * self::ReplyBarLineHeight : 0)
-            + self::HomeIndicatorHeight;
+        return $lines;
     }
 
     public static function count(int $count, string $singular, string $plural): string

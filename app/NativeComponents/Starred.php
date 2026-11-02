@@ -11,6 +11,7 @@ use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -37,6 +38,7 @@ class Starred extends NativeComponent
 {
     use ExpandsThreads;
     use OpensInTab;
+    use OpensLiveStream;
     use RefreshesInBackground;
     use ShowsCommits {
         toggleStar as private toggleShownStar;

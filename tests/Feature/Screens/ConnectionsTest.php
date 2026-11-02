@@ -17,7 +17,7 @@ beforeEach(function () {
  */
 function connectionJson(string $username, array $overrides = []): array
 {
-    return userJson(['id' => "id-{$username}", 'username' => $username, 'name' => ucfirst($username), 'bio' => null, 'lane' => 2, 'is_followed' => false, 'follows_you' => false, ...$overrides]);
+    return userJson(['id' => "id-{$username}", 'handle' => $username, 'name' => ucfirst($username), 'bio' => null, 'lane' => 2, 'is_followed' => false, 'follows_you' => false, ...$overrides]);
 }
 
 /**
@@ -38,7 +38,7 @@ function connectionsJson(array $people, ?string $nextCursor = null, string $path
 function profileWithCounts(array $extra = []): array
 {
     return [
-        'data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1], commits: 1, followers: 5, following: 2),
+        'data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1], commits: 1, followers: 5, following: 2),
         'is_following' => false,
         'activity' => null,
         'streaks' => ['longest' => 0, 'current' => 0],

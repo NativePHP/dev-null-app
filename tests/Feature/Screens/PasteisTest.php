@@ -23,7 +23,7 @@ beforeEach(function () {
  */
 function pastelAuthor(): array
 {
-    return userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace']);
+    return userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace']);
 }
 
 /**
@@ -161,7 +161,7 @@ it('gives a pastel at once, then takes the count devnull sends back and keeps it
     pasteisOn(3);
     holdRefreshes();
     $commit = commitJson(['id' => 'c1', 'pasteis_count' => 2, 'author' => pastelAuthor()]);
-    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada']), 'pasteis_received' => 8]);
+    keep('users/ada', ['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada']), 'pasteis_received' => 8]);
     keep('me', currentUserJson(['pasteis_mode' => true, 'pasteis_remaining' => 3, 'pasteis_resets_at' => '2026-10-18T00:00:00Z']));
     serveApi([
         'GET /api/v1/log/following' => [pageJson([$commit])],
@@ -296,7 +296,7 @@ it("shows how many pastéis a profile was given in pastéis mode, as the web doe
     }
 
     fakeApi([
-        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada']), 'is_following' => false, 'pasteis_received' => 12]],
+        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada']), 'is_following' => false, 'pasteis_received' => 12]],
         'GET /api/v1/users/ada/commits' => [pageJson([])],
     ]);
 

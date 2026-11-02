@@ -20,7 +20,7 @@ function cardJson(array $overrides = []): array
         'body' => 'Tabs or spaces?',
         'status' => 'approved',
         'created_at' => '2026-10-16T12:00:00Z',
-        'author' => ['id' => 'u1', 'username' => 'ada', 'name' => 'Ada', 'lane' => 2],
+        'author' => ['id' => 'u1', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 2],
         'body_segments' => [['type' => 'text', 'text' => 'Tabs or spaces?']],
         'preview_segments' => null,
         'quoted_commit_id' => null,
@@ -92,7 +92,7 @@ it('keeps the results of a poll you have not voted on back, as devnull sends it'
 it('reads the commit it quotes, a deleted one, and one you may no longer see', function () {
     $quoted = Commit::fromArray(cardJson([
         'quoted_commit_id' => 'q1',
-        'quoted_commit' => cardJson(['id' => 'q1', 'body' => 'The original', 'author' => ['id' => 'u2', 'username' => 'grace', 'name' => 'Grace'], 'poll' => pollJson()]),
+        'quoted_commit' => cardJson(['id' => 'q1', 'body' => 'The original', 'author' => ['id' => 'u2', 'handle' => 'grace', 'name' => 'Grace'], 'poll' => pollJson()]),
     ]));
     $deleted = Commit::fromArray(cardJson(['quoted_commit_id' => 'q1', 'quoted_commit' => ['id' => 'q1', 'parent_id' => null, 'deleted_at' => '2026-10-16T13:00:00Z']]));
     $hidden = Commit::fromArray(cardJson(['quoted_commit_id' => 'q1', 'quoted_commit' => null]));
@@ -115,7 +115,7 @@ it("reads a long commit's preview, ellipsis and mentions included", function () 
         'body' => $body,
         'body_segments' => [['type' => 'text', 'text' => $body]],
         'preview_segments' => [['type' => 'text', 'text' => $preview]],
-        'mentions' => [['username' => 'ada', 'offset' => 4, 'length' => 4]],
+        'mentions' => [['handle' => 'ada', 'offset' => 4, 'length' => 4]],
     ]));
     $runs = $commit->previewContent[0]->runs;
 

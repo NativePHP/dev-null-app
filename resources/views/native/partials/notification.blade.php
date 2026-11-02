@@ -3,7 +3,8 @@
     holding the type's icon in the person's lane (a moderator's stays muted), ringed in Commit Blue when it's new
     ($isNew). A line of stacked avatars and the time, then the sentence: the person's name, their handle when they act
     alone, otherwise "and N others", and what they did. Someone else's words follow at 15pt like a commit; your own
-    commit sits under a star or a verdict in a muted hairline box. A rejection gives the moderator's reason.
+    commit sits under a star or a verdict in a muted hairline box. A rejection gives the moderator's reason. A level-up
+    names nobody either: a chip in your lane with the level and rank, and what the rank means under the sentence.
 
     A group of more than one opens in place from a Commit Blue toggle ("5 stars"), listing each event behind a Rail
     Gray guide line, each follower with their own follow back. A group of followers has none of its own, as the web
@@ -15,17 +16,24 @@
     weight from font_weight over the face it was given, so the face alone draws regular.
 --}}
 @php($icon = \App\Icons\Lucide::forNotification($notification->type))
-@php($iconColour = $notification->isModeration() ? 'text-theme-ink-muted' : 'text-theme-'.\App\Devnull\Lane::token($notification->actor->lane()))
+@php($lane = \App\Devnull\Lane::token($notification->actor->lane()))
+@php($iconColour = $notification->isModeration() ? 'text-theme-ink-muted' : 'text-theme-'.$lane)
 @php($open = array_key_exists($notification->id, $expanded))
 @php($failed = in_array($notification->id, $failedGroups, true))
 @php($noun = $notification->groupNoun())
-<native:pressable native:key="notification-{{ $notification->id }}" ref="notification-{{ $notification->id }}" @press="open('{{ $notification->id }}')" class="w-full bg-theme-surface" a11y-label="{{ $isNew ? 'New. ' : '' }}{{ $notification->isModeration() ? $notification->sentence() : $notification->actor->name.' '.$notification->sentence() }}">
+<native:pressable native:key="notification-{{ $notification->id }}" ref="notification-{{ $notification->id }}" @press="open('{{ $notification->id }}')" class="w-full bg-theme-surface" a11y-label="{{ $isNew ? 'New. ' : '' }}{{ $notification->namesNobody() ? $notification->sentence() : $notification->actor->name.' '.$notification->sentence() }}">
     <native:row class="w-full">
         <native:column :width="64" />
         <native:column class="flex-1">
             <native:column class="w-full py-3 pr-4 gap-1">
                 <native:row class="w-full min-h-[40] gap-2 items-center">
-                    @if ($notification->isModeration())
+                    @if ($notification->isLevelUp())
+                        @if ($notification->levelLabel() !== null)
+                            <native:column ref="level-{{ $notification->id }}" class="px-2 py-[2] rounded-full border border-theme-{{ $lane }}/25 bg-theme-{{ $lane }}/8">
+                                <native:text font="mono-medium" class="text-xs text-theme-{{ $lane }}">{{ $notification->levelLabel() }}</native:text>
+                            </native:column>
+                        @endif
+                    @elseif ($notification->isModeration())
                         <native:column ref="verdict-{{ $notification->id }}" class="px-2 py-[2] rounded-full {{ $notification->isRejection() ? 'bg-theme-destructive/10' : 'bg-theme-wash' }}">
                             <native:text font="mono" class="text-xs {{ $notification->isRejection() ? 'text-theme-destructive' : 'text-theme-ink-muted' }}">{{ $notification->type }}</native:text>
                         </native:column>
@@ -39,7 +47,7 @@
                     @endif
                 </native:row>
 
-                @if ($notification->isModeration())
+                @if ($notification->namesNobody())
                     <native:text class="w-full text-[15px] text-theme-ink">{{ $notification->sentence() }}.</native:text>
                 @else
 <native:text class="w-full text-[15px] text-theme-ink whitespace-pre-wrap"><native:text ref="actor-name-{{ $notification->id }}" :text="$notification->actor->name" font="semibold" class="font-semibold" @press="openActor('{{ $notification->actor->username }}')" a11y-label="{{ $notification->actor->handle() }}'s profile" />
@@ -61,6 +69,10 @@
                     @else
                         <native:text ref="excerpt-{{ $notification->id }}" class="w-full text-[15px] leading-relaxed text-theme-ink" :max-lines="6">{{ $notification->body }}</native:text>
                     @endif
+                @endif
+
+                @if ($notification->isLevelUp() && $notification->rankDescription !== null)
+                    <native:text ref="rank-description-{{ $notification->id }}" class="w-full mt-1 text-sm text-theme-ink-muted">{{ $notification->rankDescription }}</native:text>
                 @endif
 
                 @if ($notification->isRejection())

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitBody;
 use App\Devnull\Data\DraftImage;
+use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
@@ -104,6 +105,17 @@ class PendingWrite extends Model
         return $this->isStar() || $this->isMessage();
     }
 
+    /**
+     * Whether devnull had the commit starred before a star or an unstar went:
+     * as it said in answer to the one before it, when that one waited ahead
+     * of it (see Outbox::starOnItsWay()), and otherwise the other way round
+     * from what this one does.
+     */
+    public function wasStarred(): bool
+    {
+        return is_bool($this->payload['was_starred'] ?? null) ? $this->payload['was_starred'] : $this->kind !== self::Star;
+    }
+
     public function body(): string
     {
         return is_string($this->payload['body'] ?? null) ? $this->payload['body'] : '';
@@ -132,6 +144,14 @@ class PendingWrite extends Model
     }
 
     /**
+     * The message a Remotes message replies to.
+     */
+    public function replyToId(): ?int
+    {
+        return is_int($this->payload['reply_to_id'] ?? null) ? $this->payload['reply_to_id'] : null;
+    }
+
+    /**
      * The draft a commit was written under (see App\Devnull\Stash), which it goes back to if devnull turns it down.
      */
     public function stashName(): ?string
@@ -148,21 +168,25 @@ class PendingWrite extends Model
     }
 
     /**
-     * The commit's photos still on the phone. Photos of a draft are deleted after a day (see DraftImages).
+     * The photos of a commit or a message still on the phone. Photos nothing holds any more are deleted after a day
+     * (see DraftImages).
      *
      * @return list<DraftImage>
      */
     public function images(): array
     {
-        $images = [];
+        $images = is_array($this->payload['images'] ?? null) ? $this->payload['images'] : [];
 
-        foreach (is_array($this->payload['images'] ?? null) ? $this->payload['images'] : [] as $image) {
-            if (is_array($image) && is_string($image['path'] ?? null) && is_file($image['path'])) {
-                $images[] = new DraftImage($image['path'], (string) ($image['mime_type'] ?? ''), (int) ($image['width'] ?? 0), (int) ($image['height'] ?? 0), (string) ($image['description'] ?? ''));
-            }
-        }
+        return array_values(array_filter(array_map(DraftImage::fromArray(...), $images)));
+    }
 
-        return $images;
+    /**
+     * The voice note of a message still on the phone, or null for any other write, or when its recording has gone
+     * (see VoiceNotes).
+     */
+    public function voice(): ?MessageVoice
+    {
+        return MessageVoice::fromOutbox($this->payload['voice'] ?? null);
     }
 
     /**
@@ -171,13 +195,7 @@ class PendingWrite extends Model
      */
     public static function imagePayload(array $images): array
     {
-        return array_map(fn (DraftImage $image): array => [
-            'path' => $image->path,
-            'mime_type' => $image->mimeType,
-            'width' => $image->width,
-            'height' => $image->height,
-            'description' => $image->description,
-        ], $images);
+        return array_map(fn (DraftImage $image): array => $image->toArray(), $images);
     }
 
     /**

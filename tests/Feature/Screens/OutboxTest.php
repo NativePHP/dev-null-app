@@ -25,7 +25,7 @@ beforeEach(function () {
  */
 function adasCommit(array $overrides = []): array
 {
-    return commitJson(['id' => 'c1', 'body' => 'Shipped it.', 'stars_count' => 1, 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']), ...$overrides]);
+    return commitJson(['id' => 'c1', 'body' => 'Shipped it.', 'stars_count' => 1, 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']), ...$overrides]);
 }
 
 /**
@@ -53,6 +53,16 @@ function leftover(string $kind, ?string $target, array $payload = []): PendingWr
 function pressToastAction(TestableComponent $screen, string $action, array $data): TestableComponent
 {
     return $screen->emitNative(ToastActionPressed::class, ['toastId' => 'toast-1', 'actionId' => $action, 'data' => $data]);
+}
+
+/**
+ * The methods of the writes sent to devnull so far, in the order they went.
+ *
+ * @return list<string>
+ */
+function writesSent(): array
+{
+    return collect(Http::recorded())->map(fn (array $sent): string => $sent[0]->method())->reject(fn (string $method): bool => $method === 'GET')->values()->all();
 }
 
 it('stars at once from the outbox, then takes the count devnull sends back', function () {
@@ -94,6 +104,100 @@ it('lets the last of several quick taps on a star have the last word', function 
 
     expect($screen->instance()->commits[0])->starred->toBeFalse()->starsCount->toBe(8)
         ->and(kept('log/following')['data'][0])->toMatchArray(['starred' => false, 'stars_count' => 8])
+        ->and(PendingWrite::query()->count())->toBe(0);
+});
+
+it('sends a quick unstar only once the star before it has gone, so devnull ends up where the last tap left it', function () {
+    holdRefreshes();
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([adasCommit()])],
+        'POST /api/v1/commits/c1/star' => [['data' => adasCommit(['starred' => true, 'stars_count' => 2])]],
+        'DELETE /api/v1/commits/c1/star' => [['data' => adasCommit(['starred' => false, 'stars_count' => 1])]],
+    ]);
+
+    $screen = finishRefreshes(Native::visit('/log'))->tap('star-c1')->tap('star-c1');
+
+    finishRefreshes($screen, newestFirst: true);
+
+    expect($screen->instance()->commits[0])->starred->toBeFalse()->starsCount->toBe(1)
+        ->and(kept('log/following')['data'][0])->toMatchArray(['starred' => false, 'stars_count' => 1])
+        ->and(writesSent())->toBe(['POST', 'DELETE'])
+        ->and(PendingWrite::query()->count())->toBe(0);
+});
+
+it('still sends a quick unstar when devnull turns down the star before it', function () {
+    holdRefreshes();
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([adasCommit()])],
+        'POST /api/v1/commits/c1/star' => [['message' => 'Server Error'], 500],
+        'DELETE /api/v1/commits/c1/star' => [['data' => adasCommit(['starred' => false, 'stars_count' => 1])]],
+    ]);
+
+    $screen = finishRefreshes(finishRefreshes(Native::visit('/log'))->tap('star-c1')->tap('star-c1'));
+
+    expect($screen->instance()->commits[0])->starred->toBeFalse()->starsCount->toBe(1)
+        ->and(sentTo('DELETE', 'commits/c1/star'))->toHaveCount(1)
+        ->and(PendingWrite::query()->count())->toBe(0);
+});
+
+it('puts the star back when devnull took it but turned down the quick unstar after it', function () {
+    holdRefreshes();
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([adasCommit()])],
+        'POST /api/v1/commits/c1/star' => [['data' => adasCommit(['starred' => true, 'stars_count' => 2])]],
+        'DELETE /api/v1/commits/c1/star' => [['message' => 'Server Error'], 500],
+    ]);
+
+    $screen = finishRefreshes(finishRefreshes(Native::visit('/log'))->tap('star-c1')->tap('star-c1'));
+
+    expect($screen->instance()->commits[0])->starred->toBeTrue()->starsCount->toBe(2)
+        ->and(kept('log/following')['data'][0])->toMatchArray(['starred' => true, 'stars_count' => 2])
+        ->and(PendingWrite::query()->count())->toBe(0);
+});
+
+it('says nothing when devnull turns down a quick unstar and the star after it, as it still has the star', function () {
+    holdRefreshes();
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([adasCommit(['starred' => true, 'stars_count' => 2])])],
+        'POST /api/v1/commits/c1/star' => [['message' => 'Server Error'], 500],
+        'DELETE /api/v1/commits/c1/star' => [['message' => 'Server Error'], 500],
+    ]);
+
+    $screen = finishRefreshes(finishRefreshes(Native::visit('/log'))->tap('star-c1')->tap('star-c1'))->assertNativeNotCalled('ToastKit.Show');
+
+    expect($screen->instance()->commits[0])->starred->toBeTrue()->starsCount->toBe(2)
+        ->and(PendingWrite::query()->count())->toBe(0);
+});
+
+it('leaves a commit as devnull has it when a quick star and the unstar after it are both turned down', function () {
+    holdRefreshes();
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([adasCommit()])],
+        'POST /api/v1/commits/c1/star' => [['message' => 'Server Error'], 500],
+        'DELETE /api/v1/commits/c1/star' => [['message' => 'Server Error'], 500],
+    ]);
+
+    $screen = finishRefreshes(finishRefreshes(Native::visit('/log'))->tap('star-c1')->tap('star-c1'));
+
+    expect($screen->instance()->commits[0])->starred->toBeFalse()->starsCount->toBe(1)
+        ->and(kept('log/following')['data'][0])->toMatchArray(['starred' => false, 'stars_count' => 1])
+        ->and(writesSent())->toBe(['POST', 'DELETE'])
+        ->and(PendingWrite::query()->count())->toBe(0);
+});
+
+it('sends a star and an unstar of one commit left over from when the app closed one after the other', function () {
+    leftover(PendingWrite::Star, 'c1');
+    leftover(PendingWrite::Unstar, 'c1');
+    holdRefreshes();
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([adasCommit()])],
+        'POST /api/v1/commits/c1/star' => [['data' => adasCommit(['starred' => true, 'stars_count' => 2])]],
+        'DELETE /api/v1/commits/c1/star' => [['data' => adasCommit(['starred' => false, 'stars_count' => 1])]],
+    ]);
+
+    finishRefreshes(Native::visit('/log'), newestFirst: true);
+
+    expect(writesSent())->toBe(['POST', 'DELETE'])
         ->and(PendingWrite::query()->count())->toBe(0);
 });
 
@@ -148,7 +252,7 @@ it('never sends a commit left over from when the app closed, and offers it back 
     // It isn't opened on you as the app opens. It waits for Edit, with its draft back in the stash.
     expect(sentTo('POST', 'commits'))->toBe([])
         ->and($commit->fresh())->status->toBe(PendingWrite::Failed)->error->toBe(Outbox::ClosedBeforeAnswer)
-        ->and(app(Stash::class)->get($this->userId, 'commit'))->toBe('Lost in transit')
+        ->and(app(Stash::class)->get($this->userId, 'commit')->body)->toBe('Lost in transit')
         ->and($screen->instance()->sheetOpen)->toBeFalse()
         ->and(array_map(fn ($shown): string => $shown->id, $screen->instance()->commits))->toBe(['c1']);
 
@@ -182,7 +286,7 @@ it('brings back the photos and poll of a commit devnull turned down when its com
 
 it("hears a reply devnull turned down after you've left its commit, and Edit takes you back to it", function () {
     holdRefreshes();
-    keep('commits/c2', commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])));
+    keep('commits/c2', commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])));
     keep('commits/c2/replies', pageJson([]));
     fakeApi(['POST /api/v1/commits' => [['message' => 'Too Many Attempts.', 'code' => 'rate_limited'], 429]]);
 
@@ -196,7 +300,7 @@ it("hears a reply devnull turned down after you've left its commit, and Edit tak
             && $params['data'] === ['write' => $write->id]);
 
     expect($write->fresh()->status)->toBe(PendingWrite::Failed)
-        ->and(app(Stash::class)->get($this->userId, 'reply-c2'))->toBe('Hold on');
+        ->and(app(Stash::class)->get($this->userId, 'reply-c2')->body)->toBe('Hold on');
 
     pressToastAction($elsewhere, 'edit', ['write' => $write->id])
         ->assertNavigatedTo('/notifications/commits/c2');

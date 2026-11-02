@@ -6,10 +6,17 @@ use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Draft;
 use App\Devnull\Data\PollDraft;
+use App\Devnull\Data\StashedDraft;
+use App\Devnull\DraftImages;
 use App\Devnull\Outbox;
 use App\Devnull\ReportReason;
+use App\Devnull\ResponseCache;
+use App\Devnull\SignedRequest;
 use App\Devnull\Stash;
+use App\Devnull\Timezone;
+use App\Devnull\Toasts;
 use App\Models\PendingWrite;
+use Carbon\CarbonImmutable;
 use Closure;
 use Native\Mobile\Facades\System;
 
@@ -25,12 +32,17 @@ use Native\Mobile\Facades\System;
  * (see SyncsOutbox), and a screen that lists your new commits puts it in
  * place, staged, until devnull has it (see showCommitted()).
  *
- * What you write in it is stashed as you type, as on the web (see Stash): a
- * quote per commit quoted, and a new commit under the web's composer draft.
- * Opened again, it starts from the draft, marked as restored. It's forgotten
- * once it's sent. If devnull turns the commit down, it goes back to its
- * draft, photos and poll too, and the screen it was written on opens the
- * sheet with it again (see reopenFailedCommit()).
+ * A new commit can be scheduled instead, as the web's composer schedules one:
+ * the clock button opens "Submit at" with the system's date and time picker,
+ * in the phone's timezone (see Timezone), and Commit becomes Schedule commit.
+ * Only you see it until it's due, on the Scheduled commits page it links to.
+ *
+ * What you write in it is stashed as you go, as on the web (see Stash): a
+ * quote per commit quoted, and a new commit under the web's composer draft,
+ * with its photos and its poll. Opened again, it starts from the draft,
+ * marked as restored. It's forgotten once it's sent. If devnull turns the
+ * commit down, it goes back to its draft, photos and poll too, and the screen
+ * it was written on opens the sheet with it again (see reopenFailedCommit()).
  *
  * A new commit's draft can become a `/feature` or `/bug` issue, as on the web
  * (see DraftsIssues).
@@ -40,7 +52,9 @@ use Native\Mobile\Facades\System;
  * is the reply bar's, and goes back to it when the sheet closes.
  *
  * The composer can attach photos, a poll and show a preview, as the web's
- * does (see AttachesToCommits).
+ * does (see AttachesToCommits), and suggests people to @mention, as the
+ * web's does: devnull's people for a new commit, a reply or a quote (see
+ * SuggestsMentions).
  *
  * The sheet keeps its commit while it slides away, so it doesn't empty on the
  * way down, and lets go of it once iOS says it's gone, however it was closed.
@@ -49,7 +63,18 @@ trait OpensCommitSheet
 {
     use AttachesToCommits;
     use DraftsIssues;
+    use SuggestsMentions;
     use SyncsOutbox;
+
+    /**
+     * What the web says once a commit is scheduled.
+     */
+    public const string Scheduled = 'Commit scheduled. Only you can see it until it is submitted.';
+
+    /**
+     * What the web says of a time the timezone skips.
+     */
+    public const string SkippedTime = 'This time does not exist in your timezone. Choose another time.';
 
     /**
      * Whether the sheet is up, or on its way up.
@@ -107,6 +132,32 @@ trait OpensCommitSheet
      * Why devnull didn't take the report or the commit, shown in the sheet.
      */
     public ?string $sheetError = null;
+
+    /**
+     * Whether the new commit is to be scheduled for later, as the web's clock button toggles it.
+     */
+    public bool $scheduling = false;
+
+    /**
+     * When to submit it, as the picker's wall clock in the phone's timezone (`2026-10-20T09:00`), or '' until one is
+     * picked.
+     */
+    public string $scheduledAt = '';
+
+    /**
+     * Whether the time picked is one to schedule for: there is one, and the phone's timezone doesn't skip it.
+     */
+    public bool $hasScheduledTime = false;
+
+    /**
+     * Whether Scheduled commits → was tapped, so the list opens once the sheet has gone.
+     */
+    public bool $opensScheduledCommits = false;
+
+    /**
+     * Whether the commit being scheduled is on its way to devnull.
+     */
+    public bool $sendingSchedule = false;
 
     /**
      * Report commit, in the More menu of someone else's published commit.
@@ -199,36 +250,63 @@ trait OpensCommitSheet
     }
 
     /**
-     * Stashes the draft as it changes. An empty field forgets it, and isn't restored any more.
+     * The web's clock button, in a new commit's composer: it opens "Submit at" under the field, with no time picked,
+     * or closes it, and the commit goes now again. Its photos or its poll go with it either way, as on the web.
+     */
+    public function toggleSchedule(): void
+    {
+        if ($this->sheetView !== 'compose' || $this->sheetIssue !== null) {
+            return;
+        }
+
+        $this->scheduling = ! $this->scheduling;
+        $this->scheduledAt = '';
+        $this->hasScheduledTime = false;
+        $this->sheetError = null;
+    }
+
+    /**
+     * A time picked: the web says when the phone's timezone skips it, as on the night the clocks go forward.
+     */
+    public function updatedScheduledAt(): void
+    {
+        $this->hasScheduledTime = $this->scheduledTime() !== null;
+        $this->sheetError = $this->scheduledAt === '' || $this->hasScheduledTime ? null : self::SkippedTime;
+    }
+
+    /**
+     * Scheduled commits →, under "Submit at": the sheet goes, keeping the draft, and the list opens once it has.
+     * Pushed while the sheet slides away, the list comes in without its title.
+     */
+    public function openScheduledCommits(): void
+    {
+        $this->opensScheduledCommits = true;
+        $this->sheetOpen = false;
+    }
+
+    /**
+     * Stashes the draft as it changes (see stashSheetDraft()).
      */
     public function updatedSheetBody(): void
     {
         $this->typeIssueCommand();
-        $name = $this->sheetStashName();
-
-        if (! $this->sheetOpen || $name === null) {
-            return;
-        }
-
-        app(Stash::class)->put($this->me()?->id, $name, $this->sheetBody);
-
-        if ($this->sheetBody === '') {
-            $this->sheetRestored = false;
-        }
+        $this->stashSheetDraft();
     }
 
     /**
-     * The web's drop, beside a restored draft: it's thrown away, and the field starts again empty.
+     * The web's drop, beside a restored draft: it's thrown away, photos and poll too, and the sheet starts again
+     * empty.
      */
     public function dropSheetStash(): void
     {
         $this->sheetBody = '';
-        $this->updatedSheetBody();
+        $this->forgetAttachments(discardPhotos: true);
+        $this->stashSheetDraft();
     }
 
     /**
      * Commits what's written in the sheet, quoting its commit if it's a quote, or replying to it, with its photos or
-     * its poll. The sheet goes at once, and the commit shows staged where the screen lists your new ones, while it
+     * its poll, or schedules it (see scheduleFromSheet()). The sheet goes at once, and the commit shows staged where the screen lists your new ones, while it
      * goes to devnull from the outbox (see SyncsOutbox). The photos go with it, so closing the sheet keeps them.
      */
     public function commitFromSheet(): void
@@ -240,6 +318,12 @@ trait OpensCommitSheet
         $me = $this->me();
 
         if (! $this->sheetOpen || $me === null || $stashName === null || $this->sheetIssue !== null || ! Draft::canCommit($body, $this->sheetImages, $this->sheetPoll)) {
+            return;
+        }
+
+        if ($this->scheduling && $this->sheetView === 'compose') {
+            $this->scheduleFromSheet($body, $stashName);
+
             return;
         }
 
@@ -257,7 +341,7 @@ trait OpensCommitSheet
             return;
         }
 
-        app(Stash::class)->put($me->id, $stashName, '');
+        app(Stash::class)->put($me->id, $stashName, new StashedDraft);
         $this->sheetImages = [];
         $this->closeCommitSheet();
         $this->showCommitted($write->stagedCommit($me));
@@ -265,12 +349,29 @@ trait OpensCommitSheet
     }
 
     /**
+     * The time picked to submit at, or null until one is, or when the phone's timezone skips it, like 01:30 on the
+     * night the clocks go forward.
+     */
+    private function scheduledTime(): ?CarbonImmutable
+    {
+        if ($this->scheduledAt === '') {
+            return null;
+        }
+
+        $at = CarbonImmutable::createFromFormat('!Y-m-d\TH:i', $this->scheduledAt, app(Timezone::class)->here());
+
+        return $at instanceof CarbonImmutable && $at->format('Y-m-d\TH:i') === $this->scheduledAt ? $at : null;
+    }
+
+    /**
      * Done, after a report, and Cancel, in the composer's bar: the sheet goes. A draft in it stays stashed, as when
-     * it's swiped away, so this mustn't forget it.
+     * it's swiped away, so this mustn't forget it. A screen whose composer handed it the draft takes it back now,
+     * since Android never says when a sheet closed from here has gone (see $sheetClosing).
      */
     public function hideCommitSheet(): void
     {
         $this->closeCommitSheet();
+        $this->commitSheetGone($this->sheetView);
     }
 
     /**
@@ -280,6 +381,7 @@ trait OpensCommitSheet
     {
         $view = $this->sheetView;
         $held = $this->reopenAfterSheet;
+        $opensScheduledCommits = $this->opensScheduledCommits;
 
         $this->sheetClosing = false;
         $this->reopenAfterSheet = null;
@@ -290,6 +392,12 @@ trait OpensCommitSheet
 
         if ($write !== null && $write->isCommit() && $write->isFailed()) {
             $this->openFailedCommit($write);
+
+            return;
+        }
+
+        if ($opensScheduledCommits) {
+            $this->openInTab('/scheduled');
         }
     }
 
@@ -364,6 +472,26 @@ trait OpensCommitSheet
     {
         $this->sheetClosing = $this->sheetClosing || ($this->sheetOpen && System::isIos());
         $this->sheetOpen = false;
+        $this->forgetMention('sheetBody');
+    }
+
+    /**
+     * The composer's field, while it's up, suggests whom devnull suggests for a new commit, a reply to the sheet's
+     * commit or a quote of it, as the web's composers ask.
+     */
+    protected function mentionFields(): array
+    {
+        if (! $this->sheetOpen || ! in_array($this->sheetView, ['compose', 'quote', 'reply'], true)) {
+            return [];
+        }
+
+        $about = match ($this->sheetView) {
+            'reply' => ['reply' => $this->sheetCommit?->id],
+            'quote' => ['quote' => $this->sheetCommit?->id],
+            default => [],
+        };
+
+        return ['sheetBody' => ['limit' => Commit::MaxRawLength, ...array_filter($about)]];
     }
 
     /**
@@ -405,6 +533,39 @@ trait OpensCommitSheet
         return $viewer !== null && ! $commit->isDeleted() && $commit->isApproved() && $commit->author->id !== $viewer->id;
     }
 
+    /**
+     * Schedules what's written for the time picked, with its photos or its poll, as the web schedules them. It goes
+     * from the background, photos and all, while the bar's check spins. Once devnull has it the sheet goes, the
+     * photos with it, and says so as the web does; otherwise it keeps the draft and says why.
+     */
+    private function scheduleFromSheet(string $body, string $stashName): void
+    {
+        $at = $this->scheduledTime();
+        $me = $this->me();
+
+        if ($at === null || $me === null || $this->sendingSchedule) {
+            return;
+        }
+
+        $images = $this->sheetImages;
+        $poll = $this->sheetPollPayload();
+        $this->sendingSchedule = true;
+        $this->sheetError = null;
+
+        $this->sendInBackground(fn (Client $devnull): SignedRequest => $devnull->signedScheduledCommit($body, $at, $images, $poll), function () use ($me, $stashName, $images): void {
+            $this->sendingSchedule = false;
+            app(ResponseCache::class)->forget(Client::ScheduledCommitsPath);
+            app(Stash::class)->put($me->id, $stashName, new StashedDraft);
+            app(DraftImages::class)->discard($images);
+            $this->sheetImages = [];
+            $this->closeCommitSheet();
+            Toasts::say(self::Scheduled);
+        }, function (string $message): void {
+            $this->sendingSchedule = false;
+            $this->sheetError = $message;
+        }, timeout: $images === [] ? 30 : 120);
+    }
+
     private function forgetCommitSheet(): void
     {
         $this->sheetOpen = false;
@@ -415,8 +576,14 @@ trait OpensCommitSheet
         $this->sheetBody = '';
         $this->sheetRestored = false;
         $this->sheetError = null;
+        $this->forgetMention('sheetBody');
         $this->forgetAttachments();
         $this->forgetIssueDraft();
+        $this->scheduling = false;
+        $this->scheduledAt = '';
+        $this->hasScheduledTime = false;
+        $this->opensScheduledCommits = false;
+        $this->sendingSchedule = false;
     }
 
     /**
@@ -433,8 +600,29 @@ trait OpensCommitSheet
     }
 
     /**
-     * The sheet starts from its stashed draft. A commit devnull turned down
-     * that was written under it comes back whole, with its photos and poll,
+     * Stashes the draft as it changes: what's written, its photos and its
+     * poll. With nothing left in it, it's forgotten, and isn't marked as
+     * restored any more.
+     */
+    protected function stashSheetDraft(): void
+    {
+        $name = $this->sheetStashName();
+
+        if (! $this->sheetOpen || $name === null) {
+            return;
+        }
+
+        $draft = new StashedDraft($this->sheetBody, $this->sheetImages, $this->sheetView === 'reply' ? null : $this->sheetPoll, $this->sheetPollLength);
+        app(Stash::class)->put($this->me()?->id, $name, $draft);
+
+        if ($draft->isEmpty()) {
+            $this->sheetRestored = false;
+        }
+    }
+
+    /**
+     * The sheet starts from its stashed draft, with its photos and poll. A
+     * commit devnull turned down that was written under it comes back whole,
      * and leaves the outbox: from here it's a draft again.
      */
     private function restoreSheetDraft(): void
@@ -446,18 +634,25 @@ trait OpensCommitSheet
             $this->takeFailedCommit($failed);
         }
 
-        $this->sheetBody = $name === null ? '' : app(Stash::class)->get($this->me()?->id, $name);
-        $this->sheetRestored = $this->sheetBody !== '';
+        $draft = $name === null ? new StashedDraft : app(Stash::class)->get($this->me()?->id, $name);
+
+        $this->sheetBody = $draft->body;
+        $this->sheetImages = $draft->images;
+        $this->sheetPoll = $this->sheetView === 'reply' ? null : $draft->poll;
+        $this->sheetPollLength = $draft->pollLength;
+        $this->sheetRestored = ! $draft->isEmpty();
     }
 
     private function takeFailedCommit(PendingWrite $write): void
     {
         $poll = $write->poll();
 
-        app(Stash::class)->put($this->me()?->id, (string) $write->stashName(), $write->body());
-        $this->sheetImages = $write->images();
-        $this->sheetPoll = $poll === null || $this->sheetView === 'reply' ? null : $poll['options'];
-        $this->sheetPollLength = $poll === null ? PollDraft::DefaultLength : (string) (array_search($poll['duration'], PollDraft::Lengths, true) ?: PollDraft::DefaultLength);
+        app(Stash::class)->put($this->me()?->id, (string) $write->stashName(), new StashedDraft(
+            $write->body(),
+            $write->images(),
+            $poll === null || $this->sheetView === 'reply' ? null : $poll['options'],
+            $poll === null ? PollDraft::DefaultLength : (string) (array_search($poll['duration'], PollDraft::Lengths, true) ?: PollDraft::DefaultLength),
+        ));
         app(Outbox::class)->forget($write);
     }
 

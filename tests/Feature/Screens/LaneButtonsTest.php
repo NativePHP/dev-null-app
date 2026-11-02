@@ -46,7 +46,7 @@ function buttonProps(TestableComponent $screen, string $ref): array
 function laneLog(): TestableComponent
 {
     serveApi(fn (Request $request) => Http::response(pageJson([
-        commitJson(['id' => 'c1', 'body' => 'Required reading.', 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada'])]),
+        commitJson(['id' => 'c1', 'body' => 'Required reading.', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])]),
     ])));
 
     return Native::visit('/log', platform: 'ios');
@@ -55,20 +55,20 @@ function laneLog(): TestableComponent
 dataset('main buttons', [
     'Send report' => [fn (): TestableComponent => laneLog()->tap('report-c1'), 'send-report'],
     'Follow, on a suggestion in an empty log' => [function (): TestableComponent {
-        serveApi(fn (Request $request) => Http::response([...pageJson([]), 'suggestions' => [commitJson(['id' => 's1', 'author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada'])])]]));
+        serveApi(fn (Request $request) => Http::response([...pageJson([]), 'suggestions' => [commitJson(['id' => 's1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])])]]));
 
         return Native::visit('/log');
     }, 'follow-ada'],
     'Follow, on a profile' => [function (): TestableComponent {
         serveApi([
-            'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']), 'is_following' => false]],
+            'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']), 'is_following' => false]],
             'GET /api/v1/users/ada/commits' => [pageJson([])],
         ]);
 
         return Native::visit('/log/users/ada');
     }, 'follow'],
     'Follow, in a profile\'s followers' => [function (): TestableComponent {
-        serveApi(['GET /api/v1/users/ada/followers' => [pageJson([userJson(['id' => 'u3', 'username' => 'grace', 'name' => 'Grace', 'is_followed' => false, 'follows_you' => false])])]]);
+        serveApi(['GET /api/v1/users/ada/followers' => [pageJson([userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace', 'is_followed' => false, 'follows_you' => false])])]]);
 
         return Native::visit('/log/users/ada/followers');
     }, 'follow-grace'],

@@ -3,7 +3,7 @@
 namespace App\Devnull\Data;
 
 /**
- * One row on the graph rail: a commit, a day marker or the last-visit marker.
+ * One row on the graph rail: a commit, a day marker, the last-visit marker or who to follow.
  *
  * $previousLane is the lane of the segment running into the row from above,
  * or null when nothing runs into it. In a feed a commit carries on its
@@ -56,6 +56,22 @@ final readonly class TimelineRow
         return new self('last-visit', $previousLane);
     }
 
+    /**
+     * Who to follow, between two commits, with no rail running through it.
+     */
+    public static function whoToFollow(): self
+    {
+        return new self('who-to-follow', null);
+    }
+
+    /**
+     * This commit row starting a run of its own, as the first under a row that breaks the rail.
+     */
+    public function startingRun(): self
+    {
+        return new self($this->kind, null, $this->commit, label: $this->label);
+    }
+
     public function isCommit(): bool
     {
         return $this->kind === 'commit';
@@ -69,5 +85,10 @@ final readonly class TimelineRow
     public function isLastVisitMarker(): bool
     {
         return $this->kind === 'last-visit';
+    }
+
+    public function isWhoToFollow(): bool
+    {
+        return $this->kind === 'who-to-follow';
     }
 }

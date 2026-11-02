@@ -174,9 +174,9 @@ it('syncs from GitHub with a spinner until devnull answers, then shows the fresh
 
     $screen = Native::visit('/profile/device')->tap('sync-github')->tap('sync-github');
 
-    // Signed on the UI thread and sent in the background, once, while the button spins.
+    // Signed on the UI thread and sent in the background, once, while the button spins, after you and your settings.
     expect(nodeByRef($screen, 'sync-github')['props'])->toMatchArray(['label' => 'Sync from GitHub', 'loading' => true, 'disabled' => true])
-        ->and(refreshesSent($screen))->toBe(2)
+        ->and(refreshesSent($screen))->toBe(3)
         ->and(count(Http::recorded()))->toBe(0);
 
     $screen->assertSet('syncing', true)->assertSee('Old Name');

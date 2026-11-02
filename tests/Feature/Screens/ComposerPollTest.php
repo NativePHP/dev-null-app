@@ -19,7 +19,7 @@ afterEach(function () {
 function pollComposerOnLog(): TestableComponent
 {
     fakeApi([
-        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])],
+        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])])],
         'POST /api/v1/commits' => [['data' => commitJson(['id' => 'p1', 'body' => 'Tabs or spaces?', 'status' => 'pending', 'poll' => [
             'id' => 'poll1', 'closes_at' => null, 'is_closed' => false, 'has_voted' => false, 'total_votes' => null,
             'options' => [['id' => 'o1', 'label' => 'Tabs', 'votes_count' => null, 'voted' => false, 'percentage' => null], ['id' => 'o2', 'label' => 'Spaces', 'votes_count' => null, 'voted' => false, 'percentage' => null]],
@@ -91,7 +91,7 @@ it('keeps an option to 50 characters', function () {
     expect($screen->instance()->sheetPoll[0])->toBe(str_repeat('a', 50));
 });
 
-it('drops the poll with Remove poll, and with the sheet', function () {
+it('drops the poll with Remove poll, and an empty one with the sheet', function () {
     $screen = pollComposerOnLog()->tap('sheet-poll')->tap('poll-remove');
 
     expect($screen->instance()->sheetPoll)->toBeNull()
@@ -100,7 +100,31 @@ it('drops the poll with Remove poll, and with the sheet', function () {
 
     $screen->tap('sheet-poll')->dismissSheet('sheet')->press('composeInSheet');
 
-    expect($screen->instance()->sheetPoll)->toBeNull();
+    expect($screen->instance()->sheetPoll)->toBeNull()
+        ->and($screen->instance()->sheetRestored)->toBeFalse();
+});
+
+it('keeps the poll with the draft when the sheet goes, until the draft is dropped', function () {
+    $screen = pollComposerOnLog()
+        ->tap('sheet-poll')
+        ->tap('poll-add-option')
+        ->input('poll-option-0', 'Tabs')
+        ->select('poll-length', '3 days')
+        ->dismissSheet('sheet')
+        ->press('composeInSheet');
+
+    expect($screen->instance())
+        ->sheetPoll->toBe(['Tabs', '', ''])
+        ->sheetPollLength->toBe('3 days')
+        ->sheetRestored->toBeTrue()
+        ->and(nodeByRef($screen, 'poll-option-0')['props']['value'])->toBe('Tabs');
+
+    $screen->tap('sheet-stash-drop')->dismissSheet('sheet')->press('composeInSheet');
+
+    expect($screen->instance())
+        ->sheetPoll->toBeNull()
+        ->sheetPollLength->toBe('1 day')
+        ->sheetRestored->toBeFalse();
 });
 
 it('offers no poll once there are photos', function () {
@@ -115,7 +139,7 @@ it('offers no poll once there are photos', function () {
 
 it('quotes with a poll, as the web lets you', function () {
     fakeApi([
-        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'username' => 'ada'])])])],
+        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])])],
         'POST /api/v1/commits' => [['data' => commitJson(['id' => 'q1', 'quoted_commit_id' => 'c1'])], 201],
     ]);
 

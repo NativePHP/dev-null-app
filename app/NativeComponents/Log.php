@@ -17,14 +17,18 @@ use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Android;
 use App\Icons\Ios;
+use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
 use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
+use App\NativeComponents\Concerns\SuggestsWhoToFollow;
 use App\NativeComponents\Concerns\TalksToDevnull;
+use App\NativeComponents\Concerns\WatchesForCalls;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\View\View;
@@ -105,9 +109,12 @@ class Log extends NativeComponent
     use ExpandsThreads;
     use HoldsNewCommits;
     use OpensInTab;
+    use OpensLiveStream;
     use RefreshesInBackground;
     use ShowsCommits;
+    use SuggestsWhoToFollow;
     use TalksToDevnull;
+    use WatchesForCalls;
 
     /**
      * Every frame goes in full. EDGE's subtree reuse sometimes refers to rows
@@ -298,6 +305,7 @@ class Log extends NativeComponent
         $this->showKept();
         $this->revalidate();
         $this->prefetchNextPage();
+        $this->openWhoToFollow(again: true);
     }
 
     /**
@@ -319,14 +327,32 @@ class Log extends NativeComponent
         return 'devnull';
     }
 
+    /**
+     * Search, as the web's phone header has it, then a new commit.
+     */
     public function navigationOptions(): ?NavBarOptions
     {
-        return NavBarOptions::make()->action(
-            NavAction::make('compose')
-                ->icon(ios: Ios::SquareAndPencil, android: Android::Edit)
-                ->a11yLabel('New commit')
-                ->press('composeInSheet'),
-        );
+        return NavBarOptions::make()
+            ->action(
+                NavAction::make('search')
+                    ->icon(ios: Lucide::Search->ios(), android: Lucide::Search->android())
+                    ->a11yLabel('Search')
+                    ->press('openSearch'),
+            )
+            ->action(
+                NavAction::make('compose')
+                    ->icon(ios: Ios::SquareAndPencil, android: Android::Edit)
+                    ->a11yLabel('New commit')
+                    ->press('composeInSheet'),
+            );
+    }
+
+    /**
+     * Search opens on the Log's own stack, so back comes here.
+     */
+    public function openSearch(): void
+    {
+        $this->openInTab('/search');
     }
 
     /**
@@ -489,10 +515,13 @@ class Log extends NativeComponent
 
     /**
      * Opening a log: Trending is ranked afresh, as a page load does on the web. The others refresh behind what's kept.
+     * Your settings come too, for the timezone the app shows times in.
      */
     private function open(): void
     {
         $this->isRanked() ? $this->rank() : $this->revalidate();
+        $this->openWhoToFollow();
+        $this->refreshSettings();
     }
 
     /**
@@ -1187,7 +1216,9 @@ class Log extends NativeComponent
         $commits = $state['commits'];
         /** @var list<Commit> $latestCommits */
         $latestCommits = $state['latestCommits'];
-        $rows = $this->timeline($log, $latestCommits, $commits, $log === self::Ranked ? null : LastVisit::firstSeenId($commits, $state['lastVisitAt'], $viewer?->id));
+        // Only the log you're on has who to follow: the others show their first few commits.
+        $showsWhoToFollow = $log === $this->log && $this->showsWhoToFollow();
+        $rows = $this->timeline($log, $latestCommits, $commits, $log === self::Ranked ? null : LastVisit::firstSeenId($commits, $state['lastVisitAt'], $viewer?->id), $showsWhoToFollow);
 
         return [
             'log' => $log,
@@ -1204,6 +1235,7 @@ class Log extends NativeComponent
             'isEmpty' => $commits === [] && $latestCommits === [],
             'lastCommit' => $commits[array_key_last($commits) ?? -1] ?? $latestCommits[array_key_last($latestCommits) ?? -1] ?? null,
             'rows' => $rows,
+            'whoToFollow' => $showsWhoToFollow ? $this->whoToFollow() : null,
         ];
     }
 
@@ -1214,10 +1246,11 @@ class Log extends NativeComponent
      * @param  list<Commit>  $commits
      * @return list<TimelineRow>
      */
-    private function timeline(string $log, array $latestCommits, array $commits, ?string $firstSeenId): array
+    private function timeline(string $log, array $latestCommits, array $commits, ?string $firstSeenId, bool $showsWhoToFollow = false): array
     {
+        $whoToFollowAfter = $showsWhoToFollow ? self::WhoToFollowAfter : null;
         // Commits are readonly, so the same ones lay out the same way until the day changes.
-        $key = implode(',', [Display::dayKey(CarbonImmutable::now()), $firstSeenId, count($latestCommits), ...array_map(spl_object_id(...), [...$latestCommits, ...$commits])]);
+        $key = implode(',', [Display::dayKey(CarbonImmutable::now()), $firstSeenId, $whoToFollowAfter, count($latestCommits), ...array_map(spl_object_id(...), [...$latestCommits, ...$commits])]);
 
         if (($this->timelines[$log][0] ?? null) !== $key) {
             $latest = array_flip(array_map(fn (Commit $commit): string => $commit->id, $latestCommits));
@@ -1227,8 +1260,9 @@ class Log extends NativeComponent
                     $latestCommits,
                     // The web lists a commit put above the ranking only there.
                     array_values(array_filter($commits, fn (Commit $commit): bool => ! isset($latest[$commit->id]))),
+                    $whoToFollowAfter,
                 )
-                : Timeline::feed($commits, firstSeenId: $firstSeenId)];
+                : Timeline::feed($commits, firstSeenId: $firstSeenId, whoToFollowAfter: $whoToFollowAfter)];
         }
 
         return $this->timelines[$log][1];

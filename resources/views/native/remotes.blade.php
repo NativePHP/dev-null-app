@@ -40,5 +40,7 @@
                 @include('native.partials.remotes-page', ['page' => $page])
             @endforeach
         </native:pager>
+
+        @include('native.partials.mute-sheet')
     @endif
 </native:column>

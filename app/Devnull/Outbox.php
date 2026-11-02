@@ -12,7 +12,8 @@ use Native\Mobile\Support\AsyncTaskRegistry;
  * What you did and devnull hasn't answered for yet, kept in the app's own
  * database so a tap never waits on devnull: your stars, commits, replies and
  * Remotes messages are written here first, the screen shows them at once, and
- * they go from the background straight away (see Concerns\SyncsOutbox).
+ * they go from the background straight away, but for a star or an unstar of a
+ * commit with one still on its way (see starOnItsWay() and Concerns\SyncsOutbox).
  *
  * Each one stays here until devnull answers. Once it has, a star or a commit
  * goes, and the screen takes devnull's answer. If devnull turns it down, a
@@ -151,12 +152,37 @@ final class Outbox
      */
     public function starsAfter(PendingWrite $write): bool
     {
-        return $this->mine()
-            ->whereIn('kind', [PendingWrite::Star, PendingWrite::Unstar])
-            ->where('target', $write->target)
+        return $this->starsOf($write->target)
             ->where('id', '>', $write->id)
             ->whereIn('status', [PendingWrite::Queued, PendingWrite::Sending])
             ->exists();
+    }
+
+    /**
+     * Whether a star or an unstar of the commit is on its way from this run of
+     * the app. The next one waits for its answer, since the background lane
+     * runs a few at once and devnull would take them in whatever order they
+     * land, so a quick unstar could reach it before the star it undoes.
+     */
+    public function starOnItsWay(string $target): bool
+    {
+        return $this->starsOf($target)
+            ->where('status', PendingWrite::Sending)
+            ->get()
+            ->contains(fn (PendingWrite $write): bool => $this->isOnItsWay($write));
+    }
+
+    /**
+     * The oldest star or unstar of the commit waiting for the one before it,
+     * or left over from when the app closed, to go next.
+     */
+    public function nextStar(string $target): ?PendingWrite
+    {
+        return $this->starsOf($target)
+            ->whereIn('status', [PendingWrite::Queued, PendingWrite::Sending])
+            ->orderBy('id')
+            ->get()
+            ->first(fn (PendingWrite $write): bool => ! $this->isOnItsWay($write));
     }
 
     /**
@@ -176,6 +202,7 @@ final class Outbox
      * What was waiting or on its way when the app last closed: anything not
      * sent from this run of the app, since a background task doesn't outlive
      * the app, and one still on its way is known to it (see AsyncTaskRegistry).
+     * A star or an unstar waiting for the one before it is among them too.
      *
      * @return Collection<int, PendingWrite>
      */
@@ -185,7 +212,7 @@ final class Outbox
             ->whereIn('status', [PendingWrite::Queued, PendingWrite::Sending])
             ->orderBy('id')
             ->get()
-            ->filter(fn (PendingWrite $write): bool => $write->task_id === null || AsyncTaskRegistry::scope($write->task_id) === null)
+            ->reject(fn (PendingWrite $write): bool => $this->isOnItsWay($write))
             ->values();
     }
 
@@ -205,6 +232,24 @@ final class Outbox
     private function mine()
     {
         return PendingWrite::query()->where('user_id', $this->userId() ?? '');
+    }
+
+    /**
+     * Your stars and unstars of a commit.
+     *
+     * @return Builder<PendingWrite>
+     */
+    private function starsOf(?string $target)
+    {
+        return $this->mine()->whereIn('kind', [PendingWrite::Star, PendingWrite::Unstar])->where('target', $target);
+    }
+
+    /**
+     * Whether it went from this run of the app and hasn't been answered yet.
+     */
+    private function isOnItsWay(PendingWrite $write): bool
+    {
+        return $write->task_id !== null && AsyncTaskRegistry::scope($write->task_id) !== null;
     }
 
     private function userId(): ?string

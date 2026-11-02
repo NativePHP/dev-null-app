@@ -131,8 +131,8 @@ it('reads mentions and segments straight from the API', function () {
         'id' => 'c1',
         'body' => '😀 @ada `x` @bob',
         'body_segments' => [['type' => 'text', 'text' => '😀 @ada '], ['type' => 'code', 'code' => 'x'], ['type' => 'text', 'text' => ' @bob']],
-        'mentions' => [['username' => 'ada', 'offset' => 2, 'length' => 4], ['username' => 'bob', 'offset' => 11, 'length' => 4], ['username' => 'bad']],
-        'author' => ['username' => 'local_dev'],
+        'mentions' => [['handle' => 'ada', 'offset' => 2, 'length' => 4], ['handle' => 'bob', 'offset' => 11, 'length' => 4], ['handle' => 'bad']],
+        'author' => ['handle' => 'local_dev'],
     ]);
 
     expect($commit->mentions)->toHaveCount(2)

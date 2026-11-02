@@ -2,13 +2,15 @@
 
 namespace App\Devnull\Data;
 
+use App\Devnull\Client;
 use Carbon\CarbonImmutable;
 
 /**
  * A row of the Remotes inbox, as devnull sends it: the person you talk to, or
  * an org's name and members, the last message, how many messages from others
  * you haven't pulled yet (the web's "ahead"), how far the partner pulled when
- * you both share pulls, and whether you stashed it.
+ * you both share pulls, whether you stashed it, when you pinned it, and until
+ * when you muted it.
  */
 final readonly class Conversation
 {
@@ -26,6 +28,8 @@ final readonly class Conversation
         public int $ahead = 0,
         public int $partnerReadThroughId = 0,
         public bool $isArchived = false,
+        public ?CarbonImmutable $pinnedAt = null,
+        public ?CarbonImmutable $mutedUntilAt = null,
     ) {}
 
     /**
@@ -52,12 +56,53 @@ final readonly class Conversation
             ahead: is_int($data['ahead'] ?? null) ? max(0, $data['ahead']) : 0,
             partnerReadThroughId: is_int($data['partner_read_through_id'] ?? null) ? $data['partner_read_through_id'] : 0,
             isArchived: ($data['is_archived'] ?? false) === true,
+            pinnedAt: Commit::date($data['pinned_at'] ?? null),
+            mutedUntilAt: Commit::date($data['muted_until_at'] ?? null),
         );
+    }
+
+    /**
+     * The same row with some of it changed, as a write changes it before devnull answers.
+     *
+     * @param  array<string, mixed>  $changes
+     */
+    public function with(array $changes): self
+    {
+        return new self(...[...get_object_vars($this), ...$changes]);
     }
 
     public function isOrg(): bool
     {
         return $this->kind === 'org';
+    }
+
+    public function isPinned(): bool
+    {
+        return $this->pinnedAt !== null;
+    }
+
+    /**
+     * Muted until a moment still to come, as the web reads it.
+     */
+    public function isMuted(): bool
+    {
+        return $this->mutedUntilAt !== null && $this->mutedUntilAt->isFuture();
+    }
+
+    /**
+     * What the web's menu and toasts call it: the partner's handle, or the org's title.
+     */
+    public function menuTitle(?string $viewerId): string
+    {
+        return $this->isOrg() ? $this->title($viewerId) : ($this->partner?->handle() ?? '');
+    }
+
+    /**
+     * Where devnull keeps its thread, and takes its pin, mute and stash.
+     */
+    public function threadPath(): string
+    {
+        return Client::threadPath($this->partner->username ?? '', $this->isOrg() ? $this->id : null);
     }
 
     /**

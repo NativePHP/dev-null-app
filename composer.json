@@ -12,12 +12,9 @@
     "license": "MIT",
     "repositories": [
         {
-            "type": "vcs",
-            "url": "https://github.com/NativePHP/mobile-air"
-        },
-        {
-            "type": "vcs",
-            "url": "https://github.com/NativePHP/mobile-ui"
+            "name": "calls",
+            "type": "path",
+            "url": "packages/calls"
         },
         {
             "type": "vcs",
@@ -32,15 +29,19 @@
     "require": {
         "php": "^8.3",
         "codingwithrk/nativephp-social-auth": "^1.0",
+        "devnull/nativephp-calls": "^1.0",
         "laravel/boost": "^2.0",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
-        "nativephp/mobile": "dev-main as 4.6.0",
+        "nativephp/mobile": "^4.7",
         "nativephp/mobile-browser": "^1.2",
         "nativephp/mobile-camera": "^1.1",
+        "nativephp/mobile-clipboard": "^1.0",
+        "nativephp/mobile-media-player": "^1.1",
+        "nativephp/mobile-microphone": "^1.2",
         "nativephp/mobile-secure-storage": "^1.1",
         "nativephp/mobile-share": "^1.1",
-        "nativephp/mobile-ui": "dev-main as 0.8.0",
+        "nativephp/mobile-ui": "^0.9",
         "s2br/nativephp-mobile-splashscreen": "^1.4",
         "victorycodedev/toastkit": "dev-fix/android-toasts-above-sheets as 1.4.0"
     },

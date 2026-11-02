@@ -100,6 +100,11 @@ return [
             'on-lane-3' => '#ffffff',
             'on-lane-4' => '#ffffff',
             'on-lane-5' => '#121417',
+
+            // Someone streaming: the web's red-600 ring and LIVE badge, the
+            // same in both appearances.
+            'live' => '#dc2626',
+            'on-live' => '#ffffff',
         ],
 
         // A faithful mirror on graphite, with the lanes and primary lifted.
@@ -151,6 +156,9 @@ return [
             'on-lane-3' => '#111112',
             'on-lane-4' => '#111112',
             'on-lane-5' => '#111112',
+
+            'live' => '#dc2626',
+            'on-live' => '#ffffff',
         ],
 
         // Corner radii (points / dp): 6px controls, 8px groups, circles for people and commits.

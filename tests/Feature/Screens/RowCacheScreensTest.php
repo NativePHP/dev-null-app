@@ -44,9 +44,9 @@ function expectKeptRowsMatchFreshOnes(TestableComponent $screen, string $class, 
 }
 
 it("keeps a profile's unchanged rows between renders, on both its tabs", function () {
-    $ada = userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']);
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']);
     fakeApi([
-        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada']), 'is_following' => false]],
+        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']), 'is_following' => false]],
         'GET /api/v1/users/ada/commits' => [pageJson([commitJson(['id' => 'a2', 'author' => $ada]), commitJson(['id' => 'a1', 'body' => 'Older', 'author' => $ada])])],
         'POST /api/v1/commits/a1/star' => [['data' => commitJson(['id' => 'a1', 'body' => 'Older', 'author' => $ada, 'stars_count' => 1, 'starred' => true])]],
     ]);
@@ -82,6 +82,7 @@ it("keeps a thread's unchanged replies between renders, and only builds the ones
             $path === '/api/v1/commits/c2/replies' => Http::response(str_contains($request->url(), 'cursor=page2')
                 ? pageJson([replyJson(['id' => 'r3', 'parent_id' => 'c2', 'body' => 'Third reply'])])
                 : pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply']), replyJson(['id' => 'r2', 'parent_id' => 'c2', 'body' => 'Second reply'])], 'page2', 'http://devnull.test/api/v1/commits/c2/replies')),
+            $path === '/api/v1/commits/c2/related' => Http::response(['data' => []]),
             default => Http::response(commitPageJson(commitJson(['id' => 'c2', 'replies_count' => 3]))),
         };
     });

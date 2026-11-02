@@ -17,7 +17,7 @@ beforeEach(function () {
 function adaProfile(int $followers = 5, bool $following = false): array
 {
     return [
-        'data' => userWithCountsJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'bio' => 'Wrote the first program.', 'lane' => 1], commits: 2, followers: $followers, following: 2),
+        'data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'bio' => 'Wrote the first program.', 'lane' => 1], commits: 2, followers: $followers, following: 2),
         'is_following' => $following,
         'activity' => null,
         'streaks' => ['longest' => 0, 'current' => 0],
@@ -31,7 +31,7 @@ function adaProfile(int $followers = 5, bool $following = false): array
  */
 function adaCommit(array $overrides = []): array
 {
-    return commitJson(['author' => userJson(['id' => 'u2', 'username' => 'ada', 'name' => 'Ada Lovelace', 'bio' => 'Wrote the first program.', 'lane' => 1]), ...$overrides]);
+    return commitJson(['author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'bio' => 'Wrote the first program.', 'lane' => 1]), ...$overrides]);
 }
 
 /**
