@@ -604,3 +604,60 @@ it('opens on skeleton rows, and fills in what it kept straight after, so a tab t
         ->assertSee('Kept following')
         ->assertSee('Kept latest');
 });
+
+it('takes the log back to the top and puts the newest commits in when the Log tab is selected again', function () {
+    holdRefreshes();
+    keep('log/latest', pageJson([commitJson(['id' => 'c1', 'body' => 'Seen before'])]));
+
+    $newer = array_map(
+        fn (int $n): array => commitJson(['id' => "n{$n}", 'body' => "New {$n}", 'author' => ada()]),
+        range(1, 3),
+    );
+
+    serveApi([
+        'GET /api/v1/log/following' => [pageJson([])],
+        'GET /api/v1/log/latest' => [[...pageJson($newer), 'new_commits_count' => 3]],
+        'GET /api/v1/me' => [['data' => userWithCountsJson(), 'unread_notifications_count' => 0]],
+    ]);
+
+    $screen = finishRefreshes(tapLogTab(Native::visit('/log'), 'latest'))
+        ->assertSee('Seen before')
+        ->assertSee('3 new commits');
+
+    $tab = findNode(
+        $screen->tree(),
+        fn (array $node): bool => ($node['type'] ?? null) === 'bottom_nav_item'
+            && ($node['props']['label'] ?? null) === 'Log',
+    );
+
+    expect($tab['props']['on_reselect'] ?? null)->toBeInt()->toBeGreaterThan(0);
+
+    $listKey = $screen->get('listKey');
+
+    $screen = finishRefreshes($screen->call('backToTopAndFetchNewest'))
+        ->assertSee('New 1')
+        ->assertDontSee('3 new commits');
+
+    expect($screen->get('listKey'))->toBeGreaterThan($listKey)
+        ->and(logRequestsSent())->toContain('log/latest');
+});
+
+it('re-ranks Trending when the Log tab is selected again, without carrying the pill over', function () {
+    holdRefreshes();
+    serveApi([
+        'GET /api/v1/log/trending' => [trendingJson([commitJson(['id' => 'a', 'body' => 'First'])], newest: 'a')],
+        'GET /api/v1/log/following' => [pageJson([])],
+        'GET /api/v1/me' => [['data' => userWithCountsJson(), 'unread_notifications_count' => 0]],
+    ]);
+
+    $screen = finishRefreshes(tapLogTab(Native::visit('/log'), 'trending'));
+    $listKey = $screen->get('listKey');
+
+    $screen->call('backToTopAndFetchNewest');
+
+    expect($screen->get('listKey'))->toBe($listKey + 1);
+
+    finishRefreshes($screen);
+
+    expect(logRequestsSent())->toContain('log/trending');
+});
