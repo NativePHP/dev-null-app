@@ -12,9 +12,10 @@
     element tells the app nothing about either, there's nothing of the app's to draw here.
 
     Always in the tree, shown or not, like the sheet, so the phone can animate it away and say when it's gone.
-    Included beside the sheet, so every screen that shows commits has it once.
+    Included beside the sheet, so every screen that shows commits has it once. Keyed so its picture coming and going
+    doesn't shift the ids of whatever the screen draws after it, which would draw it anew, back at its top.
 --}}
-<native:modal ref="image-viewer" :visible="$viewerOpen" a11y-label="Image viewer" @dismiss="closeImageViewer">
+<native:modal native:key="image-viewer" ref="image-viewer" :visible="$viewerOpen" a11y-label="Image viewer" @dismiss="closeImageViewer">
     @if ($viewerImages !== [])
         @php($image = $viewerImages[$viewerIndex])
         <native:column class="w-full h-full bg-black safe-area-bottom">
