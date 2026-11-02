@@ -6,8 +6,11 @@
     @include('native.partials.live-stream-sheet')
     @include('native.partials.stargazers-sheet')
 
-    {{-- The pager or the list stays alone in here, so the banners above coming and going never add a node beside it. --}}
-    <native:column class="w-full flex-1">
+    {{--
+        The pager or the list stays alone in here, so the banners above coming and going never add a node beside it.
+        Keyed so nothing above it, like the image viewer opening, gives it a new id and the pager a new list at the top.
+    --}}
+    <native:column native:key="profile-content" class="w-full flex-1">
     @if ($profile && ! $unavailable)
         @php($user = $profile->user)
         {{--
