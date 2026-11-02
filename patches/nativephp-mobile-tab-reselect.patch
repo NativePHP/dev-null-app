@@ -1,0 +1,256 @@
+--- a/src/Edge/Element.php
++++ b/src/Edge/Element.php
+@@ -55,6 +55,8 @@
+     protected ?string $longPressMethod = null;
+ 
+     protected ?string $doubleTapMethod = null;
++
++    protected ?string $reselectMethod = null;
+ 
+     protected ?string $pressDownMethod = null;
+ 
+@@ -632,6 +634,18 @@
+     public function onDoubleTap(string $method): static
+     {
+         $this->doubleTapMethod = $method;
++
++        return $this;
++    }
++
++    /**
++     * Tab-reselect handler for bottom-nav items: fires when the tab is
++     * already selected and tapped again. Carried in the props dict as
++     * `on_reselect`, so it needs no binary wire-format change.
++     */
++    public function onReselect(string $method): static
++    {
++        $this->reselectMethod = $method;
+ 
+         return $this;
+     }
+@@ -788,6 +802,10 @@
+ 
+         if ($this->doubleTapMethod !== null) {
+             $props['on_double_tap'] = $registry->register($this->doubleTapMethod);
++        }
++
++        if ($this->reselectMethod !== null) {
++            $props['on_reselect'] = $registry->register($this->reselectMethod);
+         }
+ 
+         if ($this->pressDownMethod !== null) {
+--- a/src/Edge/Layouts/Builders/Tab.php
++++ b/src/Edge/Layouts/Builders/Tab.php
+@@ -68,6 +68,8 @@
+ 
+     private ?string $pressMethod = null;
+ 
++    private ?string $reselectMethod = null;
++
+     private function __construct(string $id, string $label, string $url)
+     {
+         $this->id = $id;
+@@ -162,6 +164,17 @@
+         return $this;
+     }
+ 
++    /**
++     * Fires when this tab is already the selected tab and is tapped again.
++     * The normal URL navigation still handles taps from other tabs.
++     */
++    public function onReselect(string $method): self
++    {
++        $this->reselectMethod = $method;
++
++        return $this;
++    }
++
+     public function id(string $id): self
+     {
+         $this->id = $id;
+@@ -284,6 +297,10 @@
+             $item->onPress($this->pressMethod);
+         }
+ 
++        if ($this->reselectMethod !== null) {
++            $item->onReselect($this->reselectMethod);
++        }
++
+         return $item;
+     }
+ }
+--- a/resources/androidstudio/app/src/main/java/com/nativephp/mobile/ui/nativerender/NativeRootTabsRenderer.kt
++++ b/resources/androidstudio/app/src/main/java/com/nativephp/mobile/ui/nativerender/NativeRootTabsRenderer.kt
+@@ -249,6 +249,18 @@
+         val requestedId = tabIds[actualIdx]
+         val isSearchTab = tab.props.getBool("search")
+         selection = actualIdx
++
++        val tabUrl = tab.props.getString("url", "")
++        val atTabRoot = tabUrl.isNotEmpty() && tabUrl == currentUri.substringBefore('?')
++
++        if (!isSearchTab && actualIdx == activeTabIdx && pendingTabId == null) {
++            val reselect = tab.props.getCallbackId("on_reselect")
++            if (atTabRoot && reselect != 0) {
++                NativeElementBridge.sendPressEvent(reselect, tab.id)
++            }
++            return@activate
++        }
++
+         val tapNavigates = actualIdx != activeTabIdx || pendingTabId != null
+         if (!isSearchTab && tapNavigates && tab.onPress != 0) {
+             if (tab.props.getString("url", "").isNotEmpty()) {
+--- a/resources/xcode/NativePHP/NativeRender/NativeRootTabsRenderer.swift
++++ b/resources/xcode/NativePHP/NativeRender/NativeRootTabsRenderer.swift
+@@ -1,4 +1,5 @@
+ import SwiftUI
++import UIKit
+ 
+ /// Native chrome renderer for the `native_root_tabs` sentinel. Uses
+ /// SwiftUI's `TabView` — system tab styling, selection
+@@ -194,6 +195,21 @@
+ 
+         let visibleTabEntries = tabs.enumerated().compactMap { index, tab in
+             (!tab.props.getBool("search") || shouldShowSearchTab) ? (index, tab) : nil
++        }
++
++        // A tap on the tab that's already selected: SwiftUI's TabView does
++        // not report it, so the observer below watches the system tab bar.
++        let canReselect = pendingTabId == nil
++        let visibleIndices = visibleTabEntries.map { $0.0 }
++        let reselect: (Int) -> Void = { visibleIndex in
++            guard canReselect, tabs.indices.contains(visibleIndex) else { return }
++            let tab = tabs[visibleIndex]
++            let tabUrl = tab.props.getString("url", default: "")
++            let currentPath = PerTabNavigationCoordinator.path(of: currentUri)
++            guard !tabUrl.isEmpty, tabUrl == currentPath else { return }
++            let callback = tab.props.getCallbackId("on_reselect")
++            guard callback != 0 else { return }
++            NativeElementBridge.sendPressEvent(callback, nodeId: tab.id)
+         }
+         let presentationIdentifier = node.props.getString("tab_presentation_id", default: "")
+         let requestsCustomPresentation = !presentationIdentifier.isEmpty && presentationIdentifier != "system"
+@@ -420,6 +436,11 @@
+         .onChange(of: selection) { newId in
+             activateSelection(newId, tabs: tabs, owningId: owningId)
+         }
++        .background(
++            TabBarReselectObserver(visibleIndices: visibleIndices, onReselect: reselect)
++                .frame(width: 1, height: 1)
++                .allowsHitTesting(false)
++        )
+     }
+ 
+     private func requestTabActivation(at index: Int, tabs: [NativeUINode], owningId: String) {
+@@ -1442,3 +1463,111 @@
+         .disabled(tapCallback == 0)
+     }
+ }
++
++/// Watches the system tab bar for a tap on the already-selected item.
++/// SwiftUI's TabView does not report that tap, so this attaches a
++/// non-cancelling recognizer to the underlying UITabBar. It only
++/// observes; it does not replace the bar or its delegate.
++private struct TabBarReselectObserver: UIViewRepresentable {
++    let visibleIndices: [Int]
++    let onReselect: (Int) -> Void
++
++    func makeCoordinator() -> Coordinator {
++        Coordinator(visibleIndices: visibleIndices, onReselect: onReselect)
++    }
++
++    func makeUIView(context: Context) -> UIView {
++        let view = UIView(frame: .zero)
++        view.isUserInteractionEnabled = false
++        context.coordinator.attach(from: view)
++
++        return view
++    }
++
++    func updateUIView(_ uiView: UIView, context: Context) {
++        context.coordinator.visibleIndices = visibleIndices
++        context.coordinator.onReselect = onReselect
++        context.coordinator.attach(from: uiView)
++    }
++
++    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
++        var visibleIndices: [Int]
++        var onReselect: (Int) -> Void
++        private weak var tabBar: UITabBar?
++        private var recognizer: UITapGestureRecognizer?
++
++        init(visibleIndices: [Int], onReselect: @escaping (Int) -> Void) {
++            self.visibleIndices = visibleIndices
++            self.onReselect = onReselect
++        }
++
++        func attach(from view: UIView) {
++            guard tabBar == nil else { return }
++
++            DispatchQueue.main.async { [weak self, weak view] in
++                guard let self, let view, let bar = Self.findTabBar(in: view) else { return }
++
++                let tap = UITapGestureRecognizer(target: self, action: #selector(self.tapped(_:)))
++                tap.cancelsTouchesInView = false
++                tap.delegate = self
++                bar.addGestureRecognizer(tap)
++
++                self.tabBar = bar
++                self.recognizer = tap
++            }
++        }
++
++        @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
++            guard let bar = recognizer.view as? UITabBar,
++                  let items = bar.items, !items.isEmpty,
++                  let selected = bar.selectedItem,
++                  let selectedIndex = items.firstIndex(where: { $0 === selected }) else { return }
++
++            let location = recognizer.location(in: bar)
++
++            guard let tappedIndex = Self.tabIndex(at: location, in: bar, count: items.count),
++                  tappedIndex == selectedIndex,
++                  visibleIndices.indices.contains(tappedIndex) else { return }
++
++            onReselect(visibleIndices[tappedIndex])
++        }
++
++        private static func tabIndex(at location: CGPoint, in bar: UITabBar, count: Int) -> Int? {
++            let buttons = bar.subviews.filter {
++                String(describing: type(of: $0)).contains("TabBarButton")
++            }
++
++            if buttons.count == count,
++               let index = buttons.firstIndex(where: { $0.frame.contains(location) }) {
++                return index
++            }
++
++            guard bar.bounds.width > 0 else { return nil }
++
++            let index = Int((location.x / bar.bounds.width) * CGFloat(count))
++
++            return min(max(index, 0), count - 1)
++        }
++
++        private static func findTabBar(in view: UIView) -> UITabBar? {
++            if let bar = view as? UITabBar, !bar.isHidden, let items = bar.items, !items.isEmpty {
++                return bar
++            }
++
++            for subview in view.subviews {
++                if let found = findTabBar(in: subview) {
++                    return found
++                }
++            }
++
++            return nil
++        }
++
++        func gestureRecognizer(
++            _ gestureRecognizer: UIGestureRecognizer,
++            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
++        ) -> Bool {
++            true
++        }
++    }
++}
