@@ -1,5 +1,5 @@
 {{--
-    The achievements shelf under the streaks, as the web draws it: the Unix rank and level with the XP, how many badges
+    The achievements shelf under the streaks, as the web draws it: the Unix rank and level, how many badges
     are unlocked, a bar of the way to the next rank in the owner's lane, and the badges. An unlocked badge is a hairline
     chip in ink; a locked one is muted, with its progress when it takes more than one step.
 
@@ -13,11 +13,9 @@
             <native:row class="w-full gap-2 items-center">
                 <native:icon :ios="\App\Icons\Lucide::Award->ios()" :android="\App\Icons\Lucide::Award->android()" :size="16" class="text-theme-ink" />
                 <native:text font="mono-medium" class="text-[13px] text-theme-ink flex-shrink" :max-lines="1">{{ $achievements->label() }}</native:text>
-                <native:text font="mono" class="text-[13px] text-theme-ink-muted">·</native:text>
-                <native:text font="mono" class="text-[13px] text-theme-ink-muted">{{ $achievements->xp }} XP</native:text>
                 <native:spacer />
                 <native:row class="gap-1 items-center">
-                    <native:text ref="badges-unlocked" font="mono" class="text-xs text-theme-ink-muted">{{ $achievements->unlockedCount() }} / {{ count($achievements->badges) }} unlocked</native:text>
+                    <native:text ref="badges-unlocked" font="mono" class="text-xs text-theme-ink-muted" :max-lines="1">{{ $achievements->unlockedCount() }} / {{ count($achievements->badges) }} unlocked</native:text>
                     <native:icon :ios="\App\Icons\Lucide::ChevronRight->ios()" :android="\App\Icons\Lucide::ChevronRight->android()" :size="14" class="text-theme-ink-muted" />
                 </native:row>
             </native:row>
