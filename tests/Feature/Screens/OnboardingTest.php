@@ -206,7 +206,7 @@ it('follows the deep link back, redeems the code with the verifier and signs in'
     Http::assertSentCount(2);
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
         && $request->url() === 'http://devnull.test/api/v1/'.Client::SignInPath
-        && $request->body() === json_encode(['code' => 'the-code', 'code_verifier' => $verifier])
+        && $request->body() === json_encode(['code' => 'the-code', 'code_verifier' => $verifier, 'terms_accepted' => true])
         && $request->hasHeader('X-SSH-Signature'));
 });
 
@@ -215,6 +215,7 @@ it('finishes when the callback screen pops back to onboarding', function () {
     fakeApi(['POST /api/v1/devices' => [['data' => userWithCountsJson()]]]);
     $screen = Native::visit('/onboarding');
     $state = tapSignIn($screen, $bridge);
+    $verifier = pendingAttempt()->verifier();
 
     // On a phone the callback screen is pushed over onboarding, so it pops back rather than replacing.
     $callback = new AuthCallback;
@@ -229,6 +230,9 @@ it('finishes when the callback screen pops back to onboarding', function () {
     expect($callback->getNavigationIntent()?->type)->toBe(NavigationIntent::BACK);
 
     $screen->call('onResume')->assertReplacedWith('/log');
+
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+        && $request->body() === json_encode(['code' => 'c', 'code_verifier' => $verifier, 'terms_accepted' => true]));
 });
 
 it('rejects a callback whose state is not the one it sent, and redeems nothing', function () {
@@ -450,7 +454,6 @@ it('has no GitHub device flow, pairing codes or copy-and-paste path left', funct
         ->and(file_get_contents(base_path('.env.example')))->not->toContain('DEVNULL_GITHUB_CLIENT_ID')->toContain("NATIVEPHP_DEEPLINK_SCHEME=devnull\n")
         ->and(file_get_contents(base_path('README.md')))->not->toContain('DEVNULL_GITHUB_CLIENT_ID')->not->toContain('device flow');
 });
-
 
 it('keeps both ways in shut until the terms and privacy policy are agreed to, and links to them', function () {
     $bridge = signInBridge();

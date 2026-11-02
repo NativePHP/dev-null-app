@@ -54,8 +54,8 @@ class Onboarding extends NativeComponent
     public ?string $appleError = null;
 
     /**
-     * Whether the box for the terms and privacy policy is ticked. Neither way in works until it is, and devnull is told
-     * which version was accepted as the phone signs in.
+     * Whether the box for the terms and privacy policy is ticked. Neither way in starts until it is. Don't read it when
+     * a sign-in finishes: the browser's answer can land on a new screen, where it's false again.
      */
     public bool $acceptedTerms = false;
 
@@ -170,7 +170,7 @@ class Onboarding extends NativeComponent
     protected function useAppleToken(#[SensitiveParameter] string $identityToken, #[SensitiveParameter] string $nonce): void
     {
         try {
-            $user = app(Client::class)->signInWithApple($identityToken, $nonce, $this->deviceName(), $this->acceptedTerms ? Client::TermsVersion : null);
+            $user = app(Client::class)->signInWithApple($identityToken, $nonce, $this->deviceName());
         } catch (ApiException $exception) {
             $this->appleError = $exception->firstError();
 
@@ -241,7 +241,7 @@ class Onboarding extends NativeComponent
         }
 
         try {
-            $user = app(Client::class)->redeemSignIn($code, $attempt->verifier(), $this->acceptedTerms ? Client::TermsVersion : null);
+            $user = app(Client::class)->redeemSignIn($code, $attempt->verifier());
         } catch (ApiException $exception) {
             $this->error = $exception->firstError();
 

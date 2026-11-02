@@ -43,12 +43,6 @@ final readonly class Client
     public const string SignInPath = 'devices';
 
     /**
-     * The version of the terms and privacy policy the sign-in screen asks people to accept, which devnull records when
-     * the phone signs in. It's the date they took effect, and has to be the one devnull has in force.
-     */
-    public const string TermsVersion = '2026-10-23';
-
-    /**
      * Where the signed-in account's Apple ID is linked and unlinked.
      */
     public const string ApplePath = 'me/apple';
@@ -190,13 +184,16 @@ final readonly class Client
      * Trades the code dev-null.sh sent back, with the PKCE verifier only this
      * phone knows, for the user it approved this phone for. It's signed like
      * every request, so the code only works for the key it was made for.
+     *
+     * No sign-in starts until the terms are accepted, so this says they were.
+     * devnull works out which version that means from when it hears.
      */
-    public function redeemSignIn(string $code, #[SensitiveParameter] string $verifier, ?string $termsVersion = null): User
+    public function redeemSignIn(string $code, #[SensitiveParameter] string $verifier): User
     {
         return User::fromArray($this->data($this->send('POST', self::SignInPath, payload: [
             'code' => $code,
             'code_verifier' => $verifier,
-            ...($termsVersion === null ? [] : ['terms_version' => $termsVersion]),
+            'terms_accepted' => true,
         ])));
     }
 
@@ -204,14 +201,15 @@ final readonly class Client
      * Signs in on a phone devnull doesn't know yet with an Apple ID linked to
      * an account, which approves this phone's key. Apple's identity token
      * carries sha256 of the nonce, and devnull checks it against the raw one.
+     * It says the terms were accepted, as redeemSignIn() does.
      */
-    public function signInWithApple(#[SensitiveParameter] string $identityToken, #[SensitiveParameter] string $nonce, string $deviceName, ?string $termsVersion = null): User
+    public function signInWithApple(#[SensitiveParameter] string $identityToken, #[SensitiveParameter] string $nonce, string $deviceName): User
     {
         return User::fromArray($this->data($this->send('POST', self::SignInPath, payload: [
             'apple_identity_token' => $identityToken,
             'nonce' => $nonce,
             'device_name' => $deviceName,
-            ...($termsVersion === null ? [] : ['terms_version' => $termsVersion]),
+            'terms_accepted' => true,
         ])));
     }
 
