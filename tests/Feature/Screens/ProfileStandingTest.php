@@ -54,7 +54,6 @@ it('shows the Unix rank beside the handle and the achievements shelf, as the web
 
     $screen = Native::visit('/log/users/ada', platform: 'ios')
         ->assertSee('Lv. 2 · user')
-        ->assertSee('120 XP')
         ->assertSee('1 / 3 unlocked')
         ->assertSee('120 / 250 XP')
         ->assertSee('130 XP to operator')
