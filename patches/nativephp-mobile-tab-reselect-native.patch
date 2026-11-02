@@ -61,10 +61,12 @@
      }
  
      private func requestTabActivation(at index: Int, tabs: [NativeUINode], owningId: String) {
-@@ -1442,3 +1463,111 @@
+@@ -1440,5 +1461,114 @@
+         }
+         .buttonStyle(.plain)
          .disabled(tapCallback == 0)
-     }
- }
++    }
++}
 +
 +/// Watches the system tab bar for a tap on the already-selected item.
 +/// SwiftUI's TabView does not report that tap, so this attaches a
@@ -107,7 +109,8 @@
 +            guard tabBar == nil else { return }
 +
 +            DispatchQueue.main.async { [weak self, weak view] in
-+                guard let self, let view, let bar = Self.findTabBar(in: view) else { return }
++                guard let self, let view, let window = view.window,
++                      let bar = Self.findTabBar(in: window) else { return }
 +
 +                let tap = UITapGestureRecognizer(target: self, action: #selector(self.tapped(_:)))
 +                tap.cancelsTouchesInView = false
@@ -171,5 +174,5 @@
 +        ) -> Bool {
 +            true
 +        }
-+    }
-+}
+     }
+ }
