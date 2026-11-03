@@ -1,5 +1,6 @@
 <?php
 
+use App\Devnull\Display;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Events\Gallery\MediaSelected;
@@ -305,4 +306,40 @@ it('hangs over the sheet, and leaves a photo being written in the sheet alone, a
     expect(array_search('image-viewer', $refs, true))->toBeGreaterThan(array_search('sheet', $refs, true))
         ->and(nodeByRef($screen, 'image-viewer')['props']['visible'])->toBeTrue()
         ->and($screen->instance()->sheetOpen)->toBeTrue();
+});
+
+it('shows the commit under the image in a pane as tall as it, as the web docks it', function (string $platform) {
+    $screen = logWithImages(platform: $platform)->tap('image-i1');
+    $pane = nodeByRef($screen, 'viewer-pane');
+
+    expect($pane['type'])->toBe('sheet_pane')
+        ->and($pane['props'])->toMatchArray([
+            'detents' => Display::ViewerPaneDown.',fit',
+            'detent' => 'fit',
+        ])
+        ->and(treeShows($pane, 'Local Dev'))->toBeTrue()
+        ->and(treeShows($pane, '@local_dev'))->toBeTrue()
+        ->and(treeShows($pane, 'Shipped the mobile app.'))->toBeTrue();
+})->with(['ios', 'android']);
+
+it('keeps the pane where you drag it, from one image to the next', function (string $moved, float|string $kept) {
+    $screen = logWithImages(2)->tap('image-i1');
+
+    $screen->call('viewerPaneMoved', $moved)->tap('viewed-next');
+
+    expect(nodeByRef($screen, 'viewer-pane')['props']['detent'])->toBe($kept);
+})->with([
+    'down to its author' => [(string) Display::ViewerPaneDown, (float) Display::ViewerPaneDown],
+    'back up to the commit' => ['fit', 'fit'],
+]);
+
+it('forgets the commit with the image when the viewer closes', function () {
+    $screen = logWithImages()->tap('image-i1');
+
+    expect($screen->instance()->viewerCommit?->id)->toBe('c1');
+
+    $screen->dismissSheet('image-viewer');
+
+    expect($screen->instance()->viewerCommit)->toBeNull()
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'viewer-pane'))->toBeNull();
 });

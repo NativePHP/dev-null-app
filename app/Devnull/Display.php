@@ -41,6 +41,17 @@ final class Display
      */
     public const int ElbowLevel = 22;
 
+    /**
+     * How far down the pane under the image viewer's picture can go, in
+     * points: its author line. Open, it's as tall as the commit it shows.
+     */
+    public const int ViewerPaneDown = 88;
+
+    /**
+     * The room the picture leaves under it for that pane down, in points, with the pane's inset, so the chevrons stay above it.
+     */
+    public const int ViewerPaneRoom = 104;
+
     public static function relativeTime(?CarbonInterface $date, ?CarbonInterface $now = null): string
     {
         if ($date === null) {
