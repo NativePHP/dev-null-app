@@ -1,6 +1,7 @@
 {{--
     The web's IssueCommandBadge, over the field of a draft that's an issue: $command in a soft chip, whose X turns the
-    draft back into a commit, then where the issue goes. The X's target is the chip's full height.
+    draft back into a commit, then where the issue goes and what goes with it (see IssueEnvironment). That line wraps
+    rather than truncating, so the device details it mentions are never cut off. The X's target is the chip's full height.
 --}}
 <native:row ref="issue-badge" class="w-full gap-2 items-center">
     <native:row class="gap-[6] items-center pl-2 rounded-md bg-theme-primary-soft">
@@ -12,5 +13,5 @@
             </native:column>
         </native:pressable>
     </native:row>
-    <native:text class="flex-1 text-[13px] text-theme-ink-muted" :max-lines="1">Public issue on {{ \App\Devnull\IssueCommand::Repository }}, crediting you</native:text>
+    <native:text class="flex-1 text-[13px] text-theme-ink-muted">Public issue on {{ \App\Devnull\IssueCommand::Repository }}, crediting you, with your app and device details</native:text>
 </native:row>
