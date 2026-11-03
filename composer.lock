@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "860c34d693a5afa83bca97fb6690af2c",
+    "content-hash": "2588425ca9159a6ccae695e685bdc40f",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -1464,6 +1464,67 @@
                 }
             ],
             "time": "2026-08-24T17:13:02+00:00"
+        },
+        {
+            "name": "jubianchi/nativephp-lottie-refresh-indicator",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/jubianchi/nativephp-lottie-refresh-indicator.git",
+                "reference": "974d66cd22f2bb5a031d84c60e7416185078906a"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/jubianchi/nativephp-lottie-refresh-indicator/zipball/974d66cd22f2bb5a031d84c60e7416185078906a",
+                "reference": "974d66cd22f2bb5a031d84c60e7416185078906a",
+                "shasum": ""
+            },
+            "require": {
+                "ext-zip": "*",
+                "nativephp/mobile": "^4.7",
+                "nativephp/mobile-ui": "*",
+                "php": "^8.3"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^3.0"
+            },
+            "default-branch": true,
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Jubianchi\\NativePHP\\LottieRefreshIndicator\\LottieRefreshIndicatorServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Jubianchi\\NativePHP\\LottieRefreshIndicator\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Jubianchi\\NativePHP\\LottieRefreshIndicator\\Tests\\": "tests/php/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "pest"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "A Lottie pull-to-refresh indicator for nativephp/mobile-ui lists, on Android and iOS",
+            "support": {
+                "source": "https://github.com/jubianchi/nativephp-lottie-refresh-indicator/tree/main",
+                "issues": "https://github.com/jubianchi/nativephp-lottie-refresh-indicator/issues"
+            },
+            "time": "2026-11-03T22:25:09+00:00"
         },
         {
             "name": "laravel/boost",
@@ -3237,16 +3298,16 @@
         },
         {
             "name": "nativephp/mobile-ui",
-            "version": "0.9.0",
+            "version": "dev-feat/refresh-indicator-registry",
             "source": {
                 "type": "git",
-                "url": "https://github.com/NativePHP/mobile-ui.git",
-                "reference": "9cee87cbc676a6500247bec99be5d19f633a04e9"
+                "url": "https://github.com/jubianchi/mobile-ui.git",
+                "reference": "fcedb3145679c9d1982cfc9773a5154ca0874e08"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/9cee87cbc676a6500247bec99be5d19f633a04e9",
-                "reference": "9cee87cbc676a6500247bec99be5d19f633a04e9",
+                "url": "https://api.github.com/repos/jubianchi/mobile-ui/zipball/fcedb3145679c9d1982cfc9773a5154ca0874e08",
+                "reference": "fcedb3145679c9d1982cfc9773a5154ca0874e08",
                 "shasum": ""
             },
             "require": {
@@ -3274,7 +3335,17 @@
                     "Native\\Mobile\\UI\\": "src/"
                 }
             },
-            "notification-url": "https://packagist.org/downloads/",
+            "scripts": {
+                "test": [
+                    "pest"
+                ],
+                "lint": [
+                    "pint"
+                ],
+                "lint:test": [
+                    "pint --test"
+                ]
+            },
             "license": [
                 "MIT"
             ],
@@ -3286,16 +3357,15 @@
             ],
             "description": "Native SwiftUI and Jetpack Composer components for NativePHP",
             "support": {
-                "issues": "https://github.com/NativePHP/mobile-ui/issues",
-                "source": "https://github.com/NativePHP/mobile-ui/tree/0.9.0"
+                "source": "https://github.com/jubianchi/mobile-ui/tree/feat/refresh-indicator-registry"
             },
             "funding": [
                 {
-                    "url": "https://nativephp.com/sponsor",
-                    "type": "other"
+                    "type": "other",
+                    "url": "https://nativephp.com/sponsor"
                 }
             ],
-            "time": "2026-10-29T17:44:09+00:00"
+            "time": "2026-11-03T20:49:42+00:00"
         },
         {
             "name": "nesbot/carbon",
@@ -11445,6 +11515,12 @@
     ],
     "aliases": [
         {
+            "package": "nativephp/mobile-ui",
+            "version": "dev-feat/refresh-indicator-registry",
+            "alias": "0.9.0",
+            "alias_normalized": "0.9.0.0"
+        },
+        {
             "package": "victorycodedev/toastkit",
             "version": "dev-fix/android-toasts-above-sheets",
             "alias": "1.4.0",
@@ -11453,6 +11529,8 @@
     ],
     "minimum-stability": "stable",
     "stability-flags": {
+        "jubianchi/nativephp-lottie-refresh-indicator": 20,
+        "nativephp/mobile-ui": 20,
         "victorycodedev/toastkit": 20
     },
     "prefer-stable": true,

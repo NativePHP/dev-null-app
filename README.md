@@ -37,7 +37,11 @@ composer setup
 
 `nativephp/mobile-secure-storage` is a paid plugin from `plugins.nativephp.com`, so `composer install` needs your NativePHP plugin credentials. See below if you don't have access to the plugin.
 
-For now the app tracks one unreleased package, which Composer pulls straight from GitHub: `victorycodedev/toastkit` from the `fix/android-toasts-above-sheets` branch of [simonhamp/toastkit](https://github.com/simonhamp/toastkit), which draws Android toasts above bottom sheets instead of behind them ([victorycodedev/toastkit#5](https://github.com/victorycodedev/toastkit/pull/5)). Once that is released, the app goes back to a tagged version.
+For now the app tracks unreleased packages, which Composer pulls straight from GitHub. Once each is released, the app goes back to a tagged version.
+
+- `victorycodedev/toastkit` from the `fix/android-toasts-above-sheets` branch of [simonhamp/toastkit](https://github.com/simonhamp/toastkit), which draws Android toasts above bottom sheets instead of behind them ([victorycodedev/toastkit#5](https://github.com/victorycodedev/toastkit/pull/5)).
+- `nativephp/mobile-ui` from the `feat/refresh-indicator-registry` branch of [jubianchi/mobile-ui](https://github.com/jubianchi/mobile-ui), which lets a plugin draw a list's pull-to-refresh indicator ([NativePHP/mobile-ui#198](https://github.com/NativePHP/mobile-ui/pull/198)).
+- `jubianchi/nativephp-lottie-refresh-indicator` from the `main` branch of [jubianchi/nativephp-lottie-refresh-indicator](https://github.com/jubianchi/nativephp-lottie-refresh-indicator), the plugin that plays the logo animation when the Log is pulled.
 
 ### Without plugin credentials
 

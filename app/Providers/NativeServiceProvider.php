@@ -5,6 +5,7 @@ namespace App\Providers;
 use Codingwithrk\NativephpSocialAuth\NativephpSocialAuthServiceProvider;
 use Devnull\Calls\CallsServiceProvider;
 use Illuminate\Support\ServiceProvider;
+use Jubianchi\NativePHP\LottieRefreshIndicator\LottieRefreshIndicatorServiceProvider;
 use Native\Mobile\Providers\BrowserServiceProvider;
 use Native\Mobile\Providers\CameraServiceProvider;
 use Native\Mobile\Providers\MicrophoneServiceProvider;
@@ -60,6 +61,7 @@ class NativeServiceProvider extends ServiceProvider
             ToastKitServiceProvider::class,
             ClipboardServiceProvider::class,
             CallsServiceProvider::class,
+            LottieRefreshIndicatorServiceProvider::class,
             ...(config('devnull.apple_sign_in') ? [NativephpSocialAuthServiceProvider::class] : []),
         ];
     }

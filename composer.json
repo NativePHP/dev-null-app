@@ -21,6 +21,14 @@
             "url": "https://github.com/simonhamp/toastkit"
         },
         {
+            "type": "vcs",
+            "url": "https://github.com/jubianchi/mobile-ui"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/jubianchi/nativephp-lottie-refresh-indicator"
+        },
+        {
             "name": "nativephp-plugins",
             "type": "composer",
             "url": "https://plugins.nativephp.com"
@@ -30,6 +38,7 @@
         "php": "^8.3",
         "codingwithrk/nativephp-social-auth": "^1.0",
         "devnull/nativephp-calls": "^1.0",
+        "jubianchi/nativephp-lottie-refresh-indicator": "dev-main",
         "laravel/boost": "^2.0",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
@@ -41,7 +50,7 @@
         "nativephp/mobile-microphone": "^1.2",
         "nativephp/mobile-secure-storage": "^1.1",
         "nativephp/mobile-share": "^1.1",
-        "nativephp/mobile-ui": "^0.9",
+        "nativephp/mobile-ui": "dev-feat/refresh-indicator-registry as 0.9.0",
         "s2br/nativephp-mobile-splashscreen": "^1.4",
         "victorycodedev/toastkit": "dev-fix/android-toasts-above-sheets as 1.4.0"
     },
