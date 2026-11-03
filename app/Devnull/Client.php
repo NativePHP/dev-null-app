@@ -564,6 +564,36 @@ final readonly class Client
         return 'users/'.rawurlencode($username).'/'.($type === 'following' ? 'following' : 'followers');
     }
 
+    /**
+     * A tab of an organization's page: the commits it posted, or with 'mentions' the commits that mention it.
+     *
+     * @return Page<Commit>
+     */
+    public function organizationCommits(string $handle, string $tab = 'commits', ?string $cursor = null): Page
+    {
+        return Page::fromArray($this->get(self::organizationCommitsPath($handle, $tab), ['cursor' => $cursor]), Commit::fromArray(...));
+    }
+
+    /**
+     * Where an organization's commits are, or with 'mentions' the commits that mention it.
+     */
+    public static function organizationCommitsPath(string $handle, string $tab): string
+    {
+        return 'organizations/'.rawurlencode($handle).'/'.($tab === 'mentions' ? 'mentions' : 'commits');
+    }
+
+    public function followOrganization(string $handle): void
+    {
+        $this->send('POST', 'organizations/'.rawurlencode($handle).'/follow');
+        $this->cache->organizationFollowChanged(rawurlencode($handle), true);
+    }
+
+    public function unfollowOrganization(string $handle): void
+    {
+        $this->send('DELETE', 'organizations/'.rawurlencode($handle).'/follow');
+        $this->cache->organizationFollowChanged(rawurlencode($handle), false);
+    }
+
     public function follow(string $username): void
     {
         $this->send('POST', 'users/'.rawurlencode($username).'/follow');

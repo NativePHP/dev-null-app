@@ -27,6 +27,12 @@ final class Lane
     public const string Rail = 'rail';
 
     /**
+     * Commit Blue, which an organization is drawn in until its admins pick a lane, as the web's
+     * organizationLaneColor() draws it.
+     */
+    public const string Primary = 'primary';
+
+    /**
      * Reads a lane from the API: a palette lane, a custom colour as lowercase
      * `#rrggbb`, or null when it's missing or neither.
      */
@@ -76,7 +82,7 @@ final class Lane
     public static function token(int|string|null $lane): string
     {
         return match (true) {
-            $lane === null => 'primary',
+            $lane === null, $lane === self::Primary => 'primary',
             $lane === self::Rail => 'rail',
             is_string($lane) => self::isCustom($lane) ? self::customToken(strtolower($lane)) : 'primary',
             default => 'lane-'.$lane,

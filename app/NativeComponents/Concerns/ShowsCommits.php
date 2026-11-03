@@ -140,11 +140,19 @@ trait ShowsCommits
     }
 
     /**
-     * Opens a profile with what a row already knows of its author.
+     * Opens a profile with what a row already knows of its author. An
+     * organization that posted the commit opens on its organization page,
+     * since devnull has no user by its handle.
      */
     public function openProfile(string $username): void
     {
         $author = $this->shownAuthor($username);
+
+        if ($author?->isOrganization === true) {
+            $this->openOrganization($username);
+
+            return;
+        }
 
         $this->openInTab('/users/'.$username, $author === null ? [] : ['user' => $author]);
     }
