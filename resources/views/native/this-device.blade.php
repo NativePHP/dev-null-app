@@ -319,31 +319,7 @@
             </native:column>
 
             <native:column ref="terms-section" class="w-full pt-10">
-                @include('native.partials.settings-heading', [
-                    'title' => 'Terms and privacy',
-                    'description' => 'What you agreed to, beside the terms in force now. Each version goes by the day it took effect.',
-                ])
-
-                @if ($terms !== null)
-                    <native:column class="mx-4 mt-4 rounded-lg border border-theme-hairline bg-theme-surface">
-                        <native:row class="w-full px-3 py-3 gap-3">
-                            <native:text font="mono" class="w-[88] text-[13px] text-theme-ink-muted">current</native:text>
-                            <native:text ref="terms-current" font="mono" class="flex-1 text-[13px] text-theme-ink">{{ $terms['current'] }}</native:text>
-                        </native:row>
-                        <native:column class="w-full h-[1] bg-theme-hairline" />
-                        <native:row class="w-full px-3 py-3 gap-3">
-                            <native:text font="mono" class="w-[88] text-[13px] text-theme-ink-muted">agreed to</native:text>
-                            <native:text ref="terms-agreed" font="mono" class="flex-1 text-[13px] text-theme-ink">{{ $terms['agreed'] }}</native:text>
-                        </native:row>
-                        @if ($terms['accepted'] !== null)
-                            <native:column class="w-full h-[1] bg-theme-hairline" />
-                            <native:row class="w-full px-3 py-3 gap-3">
-                                <native:text font="mono" class="w-[88] text-[13px] text-theme-ink-muted">accepted</native:text>
-                                <native:text ref="terms-accepted" font="mono" class="flex-1 text-[13px] text-theme-ink">{{ $terms['accepted'] }}</native:text>
-                            </native:row>
-                        @endif
-                    </native:column>
-                @endif
+                @include('native.partials.settings-heading', ['title' => 'Terms and privacy', 'description' => $terms])
 
                 <native:column class="w-full px-4 pt-4 gap-2">
                     <native:button ref="terms-link" variant="secondary" size="lg" :ios-icon-trailing="Lucide::ArrowUpRight->ios()" :android-icon-trailing="Lucide::ArrowUpRight->android()" @press="openTerms" class="w-full">Terms of service</native:button>

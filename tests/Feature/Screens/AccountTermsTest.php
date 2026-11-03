@@ -3,7 +3,6 @@
 use App\Devnull\Account;
 use App\NativeComponents\AcceptTerms;
 use Native\Mobile\Testing\Native;
-use Native\Mobile\Testing\TestableComponent;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -11,54 +10,42 @@ beforeEach(function () {
     app(Account::class)->rememberTimezone('Europe/Lisbon');
 });
 
-function termsRow(TestableComponent $screen, string $ref): ?string
-{
-    $node = nodeByRef($screen, $ref);
-
-    return $node['text'] ?? $node['props']['text'] ?? null;
-}
-
-it('shows the terms in force beside the version you agreed to, just before deleting the account', function () {
-    fakeApi(['GET /api/v1/me' => [currentUserTermsJson(true, '2026-11-02T09:00:00Z')]]);
+it('says which terms you accepted and when, just before deleting the account', function (?string $acceptedAt, string $sentence) {
+    fakeApi(['GET /api/v1/me' => [currentUserTermsJson(true, $acceptedAt)]]);
 
     $screen = Native::visit('/profile/device')
         ->assertNoNavigation()
         ->assertSee('Terms and privacy')
-        ->assertSee('current')
-        ->assertSee('agreed to')
-        ->assertSee('accepted');
+        ->assertSee($sentence);
 
     $sections = findNodes($screen->tree(), fn (array $node): bool => in_array($node['ref'] ?? null, ['sign-out', 'terms-section', 'delete-section'], true));
 
-    expect(termsRow($screen, 'terms-current'))->toBe('Nov 1, 2026')
-        ->and(termsRow($screen, 'terms-agreed'))->toBe('Nov 1, 2026')
-        ->and(termsRow($screen, 'terms-accepted'))->toBe('Nov 2, 2026')
-        ->and(array_column($sections, 'ref'))->toBe(['sign-out', 'terms-section', 'delete-section']);
-});
+    expect(array_column($sections, 'ref'))->toBe(['sign-out', 'terms-section', 'delete-section']);
+})->with([
+    'with the day' => ['2026-11-02T09:00:00Z', 'You accepted the terms of Nov 1, 2026 on Nov 2, 2026.'],
+    'without the day' => [null, 'You accepted the terms of Nov 1, 2026.'],
+]);
 
-it('says when what you agreed to is not the version in force, until devnull sends you to accept it', function (?string $acceptedAt, string $agreed, ?string $accepted) {
+it('says when you have not accepted the terms in force, until devnull sends you to accept them', function (?string $acceptedAt, string $sentence) {
     keep('me', currentUserTermsJson(false, $acceptedAt));
     holdRefreshes();
     fakeApi(['GET /api/v1/me' => [currentUserTermsJson(false, $acceptedAt)]]);
 
-    $screen = Native::visit('/profile/device');
-
-    expect(termsRow($screen, 'terms-current'))->toBe('Nov 1, 2026')
-        ->and(termsRow($screen, 'terms-agreed'))->toBe($agreed)
-        ->and(rendersRef($screen, 'terms-accepted') ? termsRow($screen, 'terms-accepted') : null)->toBe($accepted);
+    $screen = Native::visit('/profile/device')->assertSee($sentence);
 
     finishRefreshes($screen)->assertReplacedWith(AcceptTerms::Path);
 })->with([
-    'an older version' => ['2026-10-05T10:00:00Z', 'an older version', 'Oct 5, 2026'],
-    'never accepted' => [null, 'none yet', null],
+    'an earlier version' => ['2026-10-05T10:00:00Z', 'You accepted an earlier version on Oct 5, 2026. The terms changed on Nov 1, 2026.'],
+    'never accepted' => [null, "You haven't accepted the terms of Nov 1, 2026 yet."],
 ]);
 
 it('shows only the links when devnull does not say which terms are in force', function () {
     fakeApi(['GET /api/v1/me' => [currentUserJson()]]);
 
-    $screen = Native::visit('/profile/device')->assertSee('Terms of service')->assertSee('Privacy policy');
-
-    expect(rendersRef($screen, 'terms-current'))->toBeFalse();
+    Native::visit('/profile/device')
+        ->assertSee('Terms of service')
+        ->assertSee('Privacy policy')
+        ->assertDontSee('accepted');
 });
 
 it('opens the terms and privacy policy in the app', function () {

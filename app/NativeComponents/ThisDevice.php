@@ -36,8 +36,8 @@ use SensitiveParameter;
  * settings: your profile as devnull mirrors it from GitHub, with a sync, your
  * colour, your timezone, pastéis mode, Remotes and their settings, the people
  * you mute and block, then this phone's fingerprint, signing out, the terms
- * and privacy policy with the version you agreed to beside the one in force,
- * and deleting the account.
+ * and privacy policy with which version you accepted and when, and deleting
+ * the account.
  * Where the app talks to only shows when it isn't dev-null.sh.
  *
  * It opens on you as devnull last said (or as this phone remembers you) and
@@ -669,12 +669,10 @@ class ThisDevice extends NativeComponent
     }
 
     /**
-     * The terms in force, by the day they took effect, beside the version you agreed to and when. devnull keeps only
-     * when you accepted, so a version older than the one in force can't be named. Null until devnull has said.
-     *
-     * @return array{current: string, agreed: string, accepted: ?string}|null
+     * Which terms you accepted and when, each version named by the day it took effect. devnull keeps only when you
+     * accepted, so a version older than the one in force can't be named. Null until devnull has said.
      */
-    private static function terms(CurrentUser $current): ?array
+    private static function terms(CurrentUser $current): ?string
     {
         $tookEffect = $current->termsTookEffect();
 
@@ -682,15 +680,15 @@ class ThisDevice extends NativeComponent
             return null;
         }
 
-        return [
-            'current' => Display::day($tookEffect),
-            'agreed' => match (true) {
-                $current->termsAccepted => Display::day($tookEffect),
-                $current->termsAcceptedAt === null => 'none yet',
-                default => 'an older version',
-            },
-            'accepted' => $current->termsAcceptedAt === null ? null : Display::day($current->termsAcceptedAt),
-        ];
+        $terms = Display::day($tookEffect);
+        $acceptedOn = $current->termsAcceptedAt === null ? null : Display::day($current->termsAcceptedAt);
+
+        return match (true) {
+            $current->termsAccepted && $acceptedOn !== null => "You accepted the terms of {$terms} on {$acceptedOn}.",
+            $current->termsAccepted => "You accepted the terms of {$terms}.",
+            $acceptedOn !== null => "You accepted an earlier version on {$acceptedOn}. The terms changed on {$terms}.",
+            default => "You haven't accepted the terms of {$terms} yet.",
+        };
     }
 
     /**
