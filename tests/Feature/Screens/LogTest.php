@@ -114,6 +114,17 @@ it('reloads on pull to refresh', function () {
     expect(Http::recorded(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/log/following'))->toHaveCount(2);
 });
 
+it('draws the logo while pulling to refresh', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
+
+    Native::visit('/log')
+        ->assertElement('list', fn (array $node): bool => ($node['props']['refresh_indicator'] ?? null) === 'lottie'
+            && json_decode($node['props']['refresh_indicator_options'] ?? '[]', true) === [
+                'asset' => 'animations/refresh.lottie',
+                'dark_asset' => 'animations/refresh-dark.lottie',
+            ]);
+});
+
 it('marks pending commits', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson(['status' => 'pending', 'body' => 'Waiting on a mod'])]))]);
 

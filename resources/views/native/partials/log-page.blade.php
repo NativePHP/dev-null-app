@@ -18,6 +18,8 @@
         :ref="$page['showing'] ? 'log' : 'log-'.$page['log']"
         class="w-full flex-1 bg-theme-surface"
         on-refresh="load"
+        refresh-indicator="lottie"
+        :refresh-indicator-options="['asset' => 'animations/refresh.lottie', 'dark_asset' => 'animations/refresh-dark.lottie']"
         :on-end-reached="$page['showing'] ? 'loadMore' : null"
         :end-reached-buffer="5"
         :on-visible-range="$page['showing'] ? 'showRows' : null"
