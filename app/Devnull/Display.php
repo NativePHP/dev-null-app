@@ -139,6 +139,14 @@ final class Display
     }
 
     /**
+     * The day something happened, with no time: "Nov 1, 2026", in your timezone.
+     */
+    public static function day(CarbonInterface $date, ?string $timezone = null): string
+    {
+        return CarbonImmutable::instance($date)->setTimezone($timezone ?? app(Timezone::class)->yours())->format('M j, Y');
+    }
+
+    /**
      * When a scheduled commit is due, as the web's Scheduled commits page
      * prints it: "Oct 16, 2026, 10:30 AM", in the phone's timezone.
      */

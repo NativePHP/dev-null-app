@@ -124,6 +124,11 @@ final readonly class Client
     public const string SettingsPath = 'me/settings';
 
     /**
+     * Where the signed-in account accepts the terms and privacy policy in force.
+     */
+    public const string TermsPath = 'me/terms';
+
+    /**
      * The commits the signed-in account scheduled, as the web's Scheduled
      * commits page lists them.
      */
@@ -239,6 +244,19 @@ final readonly class Client
     public function me(): CurrentUser
     {
         return CurrentUser::fromArray($this->get('me'));
+    }
+
+    /**
+     * Accepts the terms and privacy policy, naming the version devnull said is in force. When they changed again
+     * since, devnull refuses with a 422 rather than take a yes to a version nobody showed you. It answers as
+     * `GET /me` does, and every kept copy of you takes it.
+     */
+    public function acceptTerms(string $version): CurrentUser
+    {
+        $json = $this->json($this->send('PUT', self::TermsPath, payload: ['version' => $version]));
+        $this->cache->meChanged($json);
+
+        return CurrentUser::fromArray($json);
     }
 
     /**

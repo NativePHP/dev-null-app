@@ -34,6 +34,8 @@ final class Account
 
     private const string TimezoneKey = 'devnull.timezone';
 
+    private const string TermsKey = 'devnull.terms-to-accept';
+
     public function user(): ?User
     {
         $attributes = Cache::get(self::CacheKey);
@@ -191,8 +193,30 @@ final class Account
     }
 
     /**
-     * Signs this phone out: who it was, the badges, its pastéis and Remotes, your timezone, every answer, image and
-     * voice note kept for a quick start, and your unsent drafts and recordings.
+     * The version of the terms devnull last said you have yet to accept, so the app opens on them (see AcceptTerms),
+     * or null when you're up to date.
+     */
+    public function termsToAccept(): ?string
+    {
+        $version = Cache::get(self::TermsKey);
+
+        return is_string($version) && $version !== '' ? $version : null;
+    }
+
+    public function rememberTermsToAccept(?string $version): void
+    {
+        if ($version === null) {
+            Cache::forget(self::TermsKey);
+
+            return;
+        }
+
+        Cache::forever(self::TermsKey, $version);
+    }
+
+    /**
+     * Signs this phone out: who it was, the badges, its pastéis and Remotes, your timezone, the terms you owe, every
+     * answer, image and voice note kept for a quick start, and your unsent drafts and recordings.
      */
     public function forget(): void
     {
@@ -209,5 +233,6 @@ final class Account
         Cache::forget(self::ProfileKey);
         Cache::forget(self::PinWarningKey);
         Cache::forget(self::TimezoneKey);
+        Cache::forget(self::TermsKey);
     }
 }

@@ -10,6 +10,7 @@ use App\Devnull\DeviceKey;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\SignIn;
+use App\NativeComponents\Concerns\OpensLegalPages;
 use App\NativeComponents\Concerns\SignsInWithApple;
 use App\NativeComponents\Layouts\TabsLayout;
 use Illuminate\Support\Facades\Log;
@@ -40,6 +41,7 @@ use SensitiveParameter;
  */
 class Onboarding extends NativeComponent
 {
+    use OpensLegalPages;
     use SignsInWithApple;
 
     public const string NotStartedHere = "fatal: that sign-in didn't start on this phone, so it was ignored.";
@@ -103,16 +105,6 @@ class Onboarding extends NativeComponent
     public function toggleTerms(): void
     {
         $this->acceptedTerms = ! $this->acceptedTerms;
-    }
-
-    public function openTerms(): void
-    {
-        Browser::inApp(rtrim((string) config('devnull.url'), '/').'/terms');
-    }
-
-    public function openPrivacy(): void
-    {
-        Browser::inApp(rtrim((string) config('devnull.url'), '/').'/privacy');
     }
 
     /**
@@ -260,8 +252,9 @@ class Onboarding extends NativeComponent
 
     /**
      * A key devnull already knows and approved signs in with nothing to do,
-     * as after the app's stored sign-in was lost. Any other answer leaves
-     * onboarding as it is, without an error: there was nothing to ask for.
+     * as after the app's stored sign-in was lost, then asks for any terms
+     * still to accept. Any other answer leaves onboarding as it is, without
+     * an error: there was nothing to ask for.
      */
     private function signInWithExistingKey(): void
     {
@@ -279,8 +272,9 @@ class Onboarding extends NativeComponent
         app(Account::class)->rememberUnreadNotifications($current->unreadNotificationsCount);
         app(Account::class)->rememberPasteis($current->pasteis());
         app(Account::class)->rememberRemotes($current->remotes);
+        app(Account::class)->rememberTermsToAccept($current->termsToAccept());
         $this->keepProfile($current->user);
-        $this->replace('/log');
+        $this->replace($current->termsToAccept() === null ? '/log' : AcceptTerms::Path);
     }
 
     /**
