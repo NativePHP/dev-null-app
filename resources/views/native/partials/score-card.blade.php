@@ -23,7 +23,7 @@
             <native:text font="semibold" class="flex-1 text-[13px] font-semibold tracking-tight text-theme-nata" :max-lines="1">Nata Nu/&#x2060;<native:text text="/" class="text-outline text-theme-nata" />&#x2060;ers</native:text>
             @if ($card->signed)
                 <native:row ref="score-signed-{{ $commit->id }}" class="gap-1 items-center">
-                    <native:icon :ios="\App\Icons\Ios::CheckmarkSeal" :android="\App\Icons\Android::Verified" :size="13" class="text-theme-ink-muted" />
+                    <native:icon :ios="\App\Icons\Lucide::BadgeCheck->ios()" :android="\App\Icons\Lucide::BadgeCheck->android()" :size="13" class="text-theme-ink-muted" />
                     <native:text class="text-xs text-theme-ink-muted" :max-lines="1">Signed by their device</native:text>
                 </native:row>
             @endif
@@ -35,7 +35,7 @@
             </native:column>
             @if ($playable)
                 <native:row class="px-3 py-[6] gap-1 items-center rounded-full bg-theme-nata">
-                    <native:icon :ios="\App\Icons\Ios::GamecontrollerFill" :android="\App\Icons\Android::SportsEsports" :size="14" class="text-theme-on-nata" />
+                    <native:icon :ios="\App\Icons\Lucide::Gamepad->ios()" :android="\App\Icons\Lucide::Gamepad->android()" :size="16" class="text-theme-on-nata" />
                     <native:text font="semibold" class="text-[13px] font-semibold text-theme-on-nata" :max-lines="1">Beat {{ $score }}</native:text>
                 </native:row>
             @endif

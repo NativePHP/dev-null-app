@@ -15,8 +15,6 @@ use App\Devnull\RowWindow;
 use App\Devnull\ShownTabs;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
-use App\Icons\Android;
-use App\Icons\Ios;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
@@ -341,7 +339,7 @@ class Log extends NativeComponent
             )
             ->action(
                 NavAction::make('compose')
-                    ->icon(ios: Ios::SquareAndPencil, android: Android::Edit)
+                    ->icon(ios: Lucide::SquarePen->ios(), android: Lucide::SquarePen->android())
                     ->a11yLabel('New commit')
                     ->press('composeInSheet'),
             );

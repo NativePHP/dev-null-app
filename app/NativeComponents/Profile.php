@@ -15,8 +15,6 @@ use App\Devnull\ShownTabs;
 use App\Devnull\SiteLink;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
-use App\Icons\AndroidOutlined;
-use App\Icons\Ios;
 use App\Icons\Lucide;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
@@ -183,7 +181,12 @@ class Profile extends NativeComponent
     {
         if ($this->isMe()) {
             return NavBarOptions::make()
-                ->action($this->shareAction()->a11yLabel('Share profile'))
+                ->action(
+                    NavAction::make('scheduled')
+                        ->icon(ios: Lucide::CalendarDays->ios(), android: Lucide::CalendarDays->android())
+                        ->a11yLabel('Scheduled commits')
+                        ->press('openScheduledCommits'),
+                )
                 ->action(
                     NavAction::make('starred')
                         ->icon(ios: Lucide::Star->ios(), android: Lucide::Star->android())
@@ -191,10 +194,16 @@ class Profile extends NativeComponent
                         ->press('openStarred'),
                 )
                 ->action(
-                    NavAction::make('account')
-                        ->icon(ios: Lucide::Settings2->ios(), android: Lucide::Settings2->android())
-                        ->a11yLabel('Account')
-                        ->press('openAccount'),
+                    NavAction::make('more')
+                        ->icon(ios: Lucide::Ellipsis->ios(), android: Lucide::Ellipsis->android())
+                        ->a11yLabel('More options')
+                        ->items([
+                            $this->shareAction()->label('Share profile'),
+                            NavAction::make('account')
+                                ->label('Account')
+                                ->icon(ios: Lucide::Settings2->ios(), android: Lucide::Settings2->android())
+                                ->press('openAccount'),
+                        ]),
                 );
         }
 
@@ -207,14 +216,14 @@ class Profile extends NativeComponent
     }
 
     /**
-     * Share profile, with the phone's own share icon: first in the nav bar on
-     * your own profile, first in the ⋯ on someone else's. It's always there, as
-     * the link needs nothing but the username.
+     * Share profile, under the share shape each phone uses (Lucide's share on
+     * iOS, share-2 on Android), first in the ⋯ of every profile. It's always
+     * there, as the link needs nothing but the username.
      */
     private function shareAction(): NavAction
     {
         return NavAction::make('share')
-            ->icon(ios: Ios::SquareAndArrowUp, android: AndroidOutlined::Share)
+            ->icon(ios: Lucide::Share->ios(), android: Lucide::Share2->android())
             ->press('shareProfile');
     }
 
@@ -569,7 +578,7 @@ class Profile extends NativeComponent
     }
 
     /**
-     * Your scheduled commits, beneath this tab, from the calendar beside Edit on GitHub.
+     * Your scheduled commits, beneath this tab, from the calendar in your profile's nav bar.
      */
     public function openScheduledCommits(): void
     {

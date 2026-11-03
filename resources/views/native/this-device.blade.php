@@ -1,6 +1,5 @@
 @use('App\Devnull\Lane')
 @use('App\Icons\Ios')
-@use('App\Icons\Android')
 @use('App\Icons\Lucide')
 
 {{--
@@ -309,7 +308,7 @@
                 </native:column>
 
                 <native:column class="w-full px-4 pt-4">
-                    <native:button ref="devices" variant="secondary" size="lg" :ios-icon="Ios::Iphone" :android-icon="Android::Smartphone" @press="openDevices" class="w-full">Your devices on dev-null.sh</native:button>
+                    <native:button ref="devices" variant="secondary" size="lg" :ios-icon="Lucide::TabletSmartphone->ios()" :android-icon="Lucide::TabletSmartphone->android()" @press="openDevices" class="w-full">Your devices on dev-null.sh</native:button>
                 </native:column>
             </native:column>
 

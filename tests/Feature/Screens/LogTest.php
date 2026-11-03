@@ -473,7 +473,7 @@ it('puts the web action row under each commit: the star, Quote, Reply and replie
         ->and($icon('star-c1')['props']['color'] ?? null)->toBe($muted)
         ->and($text('star-c1', '1')['props']['color'] ?? null)->toBe($muted)
         ->and($icon('reply-to-c1')['props']['name'] ?? null)->toBe('custom:message-square-reply')
-        ->and($icon('replies-c2')['props']['name'] ?? null)->toBe('chevron.right')
+        ->and($icon('replies-c2')['props']['name'] ?? null)->toBe('custom:chevron-right')
         ->and($text('replies-c2', '1 reply')['props']['color'] ?? null)->toBe($primary)
         ->and($icon('more-c1')['props']['name'] ?? null)->toBe('custom:ellipsis')
         ->and($icon('more-c1')['props']['color'] ?? null)->toBe($muted);
@@ -607,7 +607,7 @@ it('opens a thread in place, as the web does, and closes it again', function () 
         ->assertSee('This commit was deleted.')
         ->assertSee('Hide replies');
 
-    expect(findNode(nodeByRef($screen, 'replies-c2'), fn (array $node): bool => ($node['type'] ?? null) === 'icon')['props']['name'] ?? null)->toBe('chevron.down');
+    expect(findNode(nodeByRef($screen, 'replies-c2'), fn (array $node): bool => ($node['type'] ?? null) === 'icon')['props']['name'] ?? null)->toBe('custom:chevron-down');
 
     // Its replies get the same actions, and open their own page.
     $screen->tap('star-r1');
