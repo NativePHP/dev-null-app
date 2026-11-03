@@ -598,6 +598,103 @@ it("opens an org member's profile from the name above their messages", function 
     finishRefreshes(Native::visit('/remotes/orgs/org-1'))->tap('author-2')->assertNavigatedTo('/remotes/users/ada');
 });
 
+/**
+ * Someone in dev/null core, with their own avatar.
+ *
+ * @return array<string, mixed>
+ */
+function pullerJson(string $handle): array
+{
+    return userJson(['id' => 'u-'.$handle, 'handle' => $handle, 'name' => ucfirst($handle), 'avatar_url' => "https://avatars.test/{$handle}"]);
+}
+
+/**
+ * dev/null core's members: you, pulled through the message given, then everyone else by handle with theirs.
+ *
+ * @param  array<string, int>  $pulledThrough
+ * @return list<array<string, mixed>>
+ */
+function pullersJson(int $mine, array $pulledThrough): array
+{
+    return [
+        ['user' => userJson(), 'role' => 'maintainer', 'read_through_id' => $mine],
+        ...array_map(fn (string $handle, int $through): array => ['user' => pullerJson($handle), 'role' => 'contributor', 'read_through_id' => $through], array_keys($pulledThrough), $pulledThrough),
+    ];
+}
+
+/**
+ * The words on a message's status line, in order, with the "+N" after the avatars but not the initials under them.
+ *
+ * @return list<string>
+ */
+function statusTexts(TestableComponent $screen, int $id): array
+{
+    $isText = fn (array $node): bool => ($node['type'] ?? null) === 'text';
+    $initials = rendersRef($screen, 'pulled-by-avatars-'.$id) ? findNodes(nodeByRef($screen, 'pulled-by-avatars-'.$id), $isText) : [];
+    $words = array_filter(findNodes(nodeByRef($screen, 'status-'.$id), $isText), fn (array $node): bool => ! in_array($node, $initials, true));
+
+    return array_values(array_map(fn (array $node): string => $node['props']['text'] ?? '', $words));
+}
+
+/**
+ * The avatars stacked after "pulled by", as the image URLs drawn bottom to top.
+ *
+ * @return list<string>
+ */
+function pulledAvatars(TestableComponent $screen, int $id): array
+{
+    return array_map(fn (array $image): string => $image['props']['src'] ?? '', findNodes(nodeByRef($screen, 'pulled-by-avatars-'.$id), fn (array $node): bool => ($node['type'] ?? null) === 'image'));
+}
+
+it('stacks the avatars of who in an org pulled your latest message, five of them and a count for the rest', function () {
+    serveOrgThread(orgThreadJson([
+        orgMessageJson(['id' => 1, 'body' => 'standup in 10?']),
+        orgMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => 'on my way']),
+    ], ['members' => pullersJson(2, ['ada' => 2, 'grace' => 2, 'linus' => 2, 'margaret' => 2, 'ken' => 2, 'barbara' => 2, 'dennis' => 1])]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'));
+
+    // Like your own messages anywhere, it goes without its time. Dennis hasn't pulled it yet.
+    expect(statusTexts($screen, 2))->toBe(['pulled by', '+1'])
+        ->and(pulledAvatars($screen, 2))->toBe(['https://avatars.test/ada', 'https://avatars.test/grace', 'https://avatars.test/linus', 'https://avatars.test/margaret', 'https://avatars.test/ken'])
+        ->and(nodeByRef($screen, 'pulled-by-2')['props']['a11y_label'] ?? null)->toBe('@ada, @grace, @linus, @margaret, @ken and 1 other');
+});
+
+it("puts the time before who pulled someone else's message, you among them", function () {
+    serveOrgThread(orgThreadJson([
+        orgMessageJson(['id' => 1, 'user_id' => 'u-grace', 'user' => pullerJson('grace'), 'body' => 'standup in 10?', 'created_at' => '2026-10-19T14:00:00Z']),
+    ], ['members' => pullersJson(1, ['grace' => 1, 'linus' => 1, 'ken' => 0])]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'));
+
+    expect(statusTexts($screen, 1))->toBe(['14:00 · pulled by'])
+        ->and(pulledAvatars($screen, 1))->toBe([userJson()['avatar_url'], 'https://avatars.test/linus'])
+        ->and(nodeByRef($screen, 'pulled-by-1')['props']['a11y_label'] ?? null)->toBe('@local_dev, @linus');
+});
+
+it('says everyone pulled a message once all of more than three have, as the web does', function (array $pulledThrough, array $words) {
+    serveOrgThread(orgThreadJson([orgMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => 'on my way'])], ['members' => pullersJson(2, $pulledThrough)]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'));
+
+    expect(statusTexts($screen, 2))->toBe($words)
+        ->and(rendersRef($screen, 'pulled-by-2'))->toBe($words === ['pulled by']);
+})->with([
+    'four of four' => [['ada' => 2, 'grace' => 2, 'linus' => 2, 'ken' => 2], ['pulled by everyone']],
+    'three of three' => [['ada' => 2, 'grace' => 2, 'linus' => 2], ['pulled by']],
+]);
+
+it("says pushed under your org message nobody has pulled, and only the time under someone else's", function (string $author, array $words) {
+    serveOrgThread(orgThreadJson([
+        orgMessageJson(['id' => 1, 'user_id' => $author, 'user' => $author === RemotesViewerId ? userJson() : pullerJson('ada'), 'body' => 'standup in 10?', 'created_at' => '2026-10-19T14:00:00Z']),
+    ], ['members' => pullersJson(0, ['ada' => 0, 'grace' => 0])]));
+
+    expect(statusTexts(finishRefreshes(Native::visit('/remotes/orgs/org-1')), 1))->toBe($words);
+})->with([
+    'yours' => [RemotesViewerId, ['pushed']],
+    'theirs' => ['u-ada', ['14:00']],
+]);
+
 it('stashes the conversation from its menu and goes back', function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
 

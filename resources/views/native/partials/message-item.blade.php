@@ -105,13 +105,16 @@
         @if ($status !== null)
             <native:row ref="status-{{ $key }}" class="gap-[6] items-center px-1">
                 @if ($mine)
-                    @include('native.partials.message-status', ['status' => $status['state'], 'ref' => 'glyph-'.$key, 'lane' => $viewer?->lane(), 'partnerLane' => $partner?->lane()])
+                    @include('native.partials.message-status', ['status' => $status['state'], 'ref' => 'glyph-'.$key, 'lane' => $viewer?->lane(), 'partnerLane' => $status['partnerLane'] ?? $partner?->lane()])
                 @endif
                 @if ($message->status === 'rejected')
                     <native:text font="mono" class="text-[11px] text-theme-destructive">rejected ·</native:text>
                     <native:text ref="retry-{{ $key }}" font="mono-medium" class="text-[11px] text-theme-destructive" @press="retry('{{ $message->clientId }}')">retry</native:text>
                 @else
                     <native:text font="mono" class="text-[11px] text-theme-ink-muted">{{ $status['text'] }}</native:text>
+                    @if (($status['pulledBy'] ?? []) !== [])
+                        @include('native.partials.pulled-by', ['people' => $status['pulledBy']])
+                    @endif
                 @endif
             </native:row>
         @elseif ($endsRun)

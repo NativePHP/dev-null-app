@@ -2013,10 +2013,12 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * What the status line says under the message: staged, pushed or pulled (with when, with one person), or who
-     * in an org has pulled it.
+     * What the status line says under the message, as the web words it: staged, pushed or pulled (with when, with one
+     * person). In an org it's "pulled by" and the avatars of who pulled it (see partials/pulled-by), or "everyone"
+     * once all of more than three have, with the second dot of your glyph in the first one's lane. Someone else's
+     * message keeps its time in front, and says nothing more until someone pulls it.
      *
-     * @return array{state: string, text: string}
+     * @return array{state: string, text: string, pulledBy?: list<User>, partnerLane?: int|string}
      */
     private function statusOf(Message $message): array
     {
@@ -2025,11 +2027,22 @@ class Conversation extends NativeComponent
         }
 
         if ($this->isOrg()) {
-            $pulled = array_values(array_filter($this->thread->members ?? [], fn (array $member): bool => $member['user']->id !== $message->userId && $member['read_through_id'] >= $message->id));
+            $mine = $message->userId === $this->me()?->id;
+            $readers = array_filter($this->thread->members ?? [], fn (array $member): bool => $member['user']->id !== $message->userId);
+            $pulled = array_values(array_column(array_filter($readers, fn (array $member): bool => $member['read_through_id'] >= $message->id), 'user'));
 
-            return $pulled === []
-                ? ['state' => 'pushed', 'text' => $message->time().' · pushed']
-                : ['state' => 'pulled', 'text' => $message->time().' · pulled by '.implode(', ', array_map(fn (array $member): string => $member['user']->handle(), array_slice($pulled, 0, 5))).(count($pulled) > 5 ? ' +'.(count($pulled) - 5) : '')];
+            if ($pulled === []) {
+                return ['state' => 'pushed', 'text' => $mine ? 'pushed' : $message->time()];
+            }
+
+            $everyone = count($pulled) === count($readers) && count($readers) > 3;
+
+            return [
+                'state' => 'pulled',
+                'text' => ($mine ? '' : $message->time().' · ').'pulled by'.($everyone ? ' everyone' : ''),
+                'pulledBy' => $everyone ? [] : $pulled,
+                'partnerLane' => $pulled[0]->lane(),
+            ];
         }
 
         $pulledAt = $this->thread?->partnerReadAt;
