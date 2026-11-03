@@ -1183,6 +1183,23 @@ class Conversation extends NativeComponent
     }
 
     /**
+     * Opens a link in a message's body, by its place among the body's links: a
+     * commit or another page on dev/null the app has a screen for here in the
+     * app, anything else in the browser.
+     */
+    public function openMessageLink(int $id, int $index): void
+    {
+        $link = $this->findMessage($id)?->links()[$index] ?? null;
+        $screen = $link?->commit !== null ? '/commits/'.$link->commit : SiteLink::screen($link?->href);
+
+        if ($screen !== null) {
+            $this->openInTab($screen);
+        } elseif (SiteLink::isWebUrl($link?->href)) {
+            Browser::inApp((string) $link?->href);
+        }
+    }
+
+    /**
      * Pins the message at once, first in the list as the latest pinned, as the web does.
      */
     private function pinMessage(int $id): void

@@ -50,7 +50,9 @@
 
     @if ($message->body !== '')
         @if ($isLong && ! $isExpanded)
-            <native:text :text="$message->body" class="w-full text-[15px] leading-snug text-theme-ink whitespace-pre-wrap" :max-lines="\App\NativeComponents\Conversation::PinnedLines" />
+            <native:column class="w-full">
+                @include('native.partials.message-body', ['ink' => 'text-theme-ink', 'mentionInk' => 'text-theme-primary', 'quoteRule' => 'border-theme-lane-5', 'maxLines' => \App\NativeComponents\Conversation::PinnedLines])
+            </native:column>
         @else
             <native:column class="w-full">
                 @include('native.partials.message-body', ['ink' => 'text-theme-ink', 'mentionInk' => 'text-theme-primary', 'quoteRule' => 'border-theme-lane-5'])
