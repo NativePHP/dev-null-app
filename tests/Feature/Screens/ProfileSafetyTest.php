@@ -71,13 +71,13 @@ function profileMenu(TestableComponent $screen): ?array
 }
 
 /**
- * The safety items of the profile's ⋯ menu, by id, after Share profile, or null when it has none.
+ * The safety items of the profile's ⋯ menu, by id, leaving out Share profile and your own Account, or null when it has none.
  *
  * @return array<string, array<string, mixed>>|null
  */
 function safetyMenu(TestableComponent $screen): ?array
 {
-    $items = collect(profileMenu($screen) ?? [])->except('share')->all();
+    $items = collect(profileMenu($screen) ?? [])->except(['share', 'account'])->all();
 
     return $items === [] ? null : $items;
 }

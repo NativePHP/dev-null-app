@@ -20,7 +20,7 @@
             </native:stack>
 
             <native:row class="gap-2 items-center">
-                <native:button ref="share" variant="secondary" size="sm" :ios-icon="\App\Icons\Lucide::Share2->ios()" :android-icon="\App\Icons\Lucide::Share2->android()" @press="share" a11y-label="Share {{ $user->handle() }}" />
+                <native:button ref="share" variant="secondary" size="sm" :ios-icon="\App\Icons\Lucide::Share->ios()" :android-icon="\App\Icons\Lucide::Share2->android()" @press="share" a11y-label="Share {{ $user->handle() }}" />
                 @if ($organization->isFollowing)
                     <native:button ref="follow" variant="secondary" size="sm" @press="toggleFollow" a11y-hint="Unfollows {{ $user->handle() }}">Unfollow</native:button>
                 @else

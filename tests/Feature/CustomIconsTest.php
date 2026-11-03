@@ -35,6 +35,18 @@ it('has an SVG in resources/icons for every custom icon the app draws', function
     expect($missing)->toBe([]);
 });
 
+it('draws no system icon but the Apple logo, which Sign in with Apple has to show', function () {
+    $systemIcons = collect([...File::allFiles(app_path()), ...File::allFiles(resource_path('views'))])
+        ->reject(fn (SplFileInfo $file): bool => str_starts_with($file->getPathname(), app_path('Icons')))
+        ->flatMap(function (SplFileInfo $file): array {
+            preg_match_all('/\b(?:Ios|Android|AndroidOutlined)::(?!AppleLogo\b)\w+/', (string) file_get_contents($file->getPathname()), $matches);
+
+            return array_map(fn (string $icon): string => $file->getFilename().': '.$icon, $matches[0]);
+        });
+
+    expect($systemIcons->all())->toBe([]);
+});
+
 it('converts each SVG in resources/icons for both platforms', function (string $path) {
     // The build runs the same conversion and stops at the first SVG it can't draw.
     $icon = SvgParser::parse((string) file_get_contents($path), 'resources/icons/'.basename($path));
