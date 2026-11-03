@@ -59,7 +59,7 @@ function openedAuthQuery(FakeBridge $bridge): array
  */
 function tapSignIn(TestableComponent $screen, FakeBridge $bridge): string
 {
-    $screen->tap('sign-in');
+    $screen->set('acceptedTerms', true)->tap('sign-in');
 
     return openedAuthQuery($bridge)['state'];
 }
@@ -96,7 +96,7 @@ it('makes a key on first launch and shows only the logo and the button', functio
 
     $screen = Native::visit('/onboarding');
 
-    expect(shownText($screen))->toBe([]);
+    expect(shownText($screen))->toBe(termsText());
 
     $screen->assertDontSee('This phone makes its own key')
         ->assertSet('fingerprint', app(DeviceKey::class)->current()->fingerprint())
@@ -128,7 +128,7 @@ it("centres the Log header's logo, two thirds of the screen wide, above the butt
         ->and($space['layout'])->toMatchArray(['width' => 'fill', 'flex_grow' => 1, 'align_items' => AlignItems::Center->value, 'justify_content' => JustifyContent::Center->value])
         ->and(array_column($screen->tree()['children'], 'ref'))->toBe(['logo-space', 'actions'])
         ->and($screen->tree()['layout'])->toMatchArray(['height' => 'fill', 'safe_area' => 1])
-        ->and(childRefs($screen, 'actions'))->toBe(['sign-in'])
+        ->and(childRefs($screen, 'actions'))->toBe(['terms', 'sign-in'])
         // Drawn at up to 293pt on the widest iPhone, so it's rendered 300pt wide at @3x, at the lockup's own 15:4.
         ->and([$width, $height])->toBe([900, 240])
         ->and(getimagesize(public_path(TabsLayout::DarkLogo))[0])->toBe(900);
@@ -153,7 +153,7 @@ it('opens dev-null.sh in the auth browser with the key, the device, the app and 
     $bridge = signInBridge(testSeed());
     $screen = Native::visit('/onboarding', platform: 'ios');
 
-    $screen->tap('sign-in')->assertNoNavigation();
+    $screen->set('acceptedTerms', true)->tap('sign-in')->assertNoNavigation();
 
     $url = $bridge->callsTo('Browser.OpenAuth')[0]['params']['url'];
     $query = openedAuthQuery($bridge);
@@ -182,7 +182,7 @@ it('names itself the Android app on Android, a different app from the iOS one', 
     config(['nativephp.app_id' => 'com.nativephp.devnull']);
     $bridge = signInBridge(testSeed());
 
-    Native::visit('/onboarding', platform: 'android')->tap('sign-in');
+    Native::visit('/onboarding', platform: 'android')->set('acceptedTerms', true)->tap('sign-in');
 
     expect(openedAuthQuery($bridge))->toMatchArray(['app_name' => '/dev/null for Android', 'app_id' => 'android:com.nativephp.devnull']);
 });
@@ -191,7 +191,7 @@ it('says the release bundle id when the build does not carry one', function () {
     config(['nativephp.app_id' => null]);
     $bridge = signInBridge(testSeed());
 
-    Native::visit('/onboarding', platform: 'ios')->tap('sign-in');
+    Native::visit('/onboarding', platform: 'ios')->set('acceptedTerms', true)->tap('sign-in');
 
     expect(openedAuthQuery($bridge)['app_id'])->toBe('ios:com.nativephp.devnull');
 });
@@ -227,7 +227,7 @@ it('follows the deep link back, redeems the code with the verifier and signs in'
     Http::assertSentCount(2);
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
         && $request->url() === 'http://devnull.test/api/v1/'.Client::SignInPath
-        && $request->body() === json_encode(['code' => 'the-code', 'code_verifier' => $verifier])
+        && $request->body() === json_encode(['code' => 'the-code', 'code_verifier' => $verifier, 'terms_accepted' => true])
         && $request->hasHeader('X-SSH-Signature'));
 });
 
@@ -236,6 +236,7 @@ it('finishes when the callback screen pops back to onboarding', function () {
     fakeApi(['POST /api/v1/devices' => [['data' => userWithCountsJson()]]]);
     $screen = Native::visit('/onboarding');
     $state = tapSignIn($screen, $bridge);
+    $verifier = pendingAttempt()->verifier();
 
     // On a phone the callback screen is pushed over onboarding, so it pops back rather than replacing.
     $callback = new AuthCallback;
@@ -250,6 +251,9 @@ it('finishes when the callback screen pops back to onboarding', function () {
     expect($callback->getNavigationIntent()?->type)->toBe(NavigationIntent::BACK);
 
     $screen->call('onResume')->assertReplacedWith('/log');
+
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+        && $request->body() === json_encode(['code' => 'c', 'code_verifier' => $verifier, 'terms_accepted' => true]));
 });
 
 it('rejects a callback whose state is not the one it sent, and redeems nothing', function () {
@@ -297,7 +301,7 @@ it('says nothing when you cancel on dev-null.sh', function () {
         ->assertNoNavigation()
         ->assertSet('error', null);
 
-    expect(shownText($screen))->toBe([]);
+    expect(shownText($screen))->toBe(termsText());
 
     $screen
         ->assertElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'sign-in' && $node['props']['label'] === 'Sign in on dev-null.sh');
@@ -316,8 +320,8 @@ it("shows dev-null.sh's error and offers to try again with a new attempt", funct
         ->assertElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'sign-in' && $node['props']['label'] === 'Try again');
 
     // Just above the buttons, and the only text on the screen.
-    expect(childRefs($screen, 'actions'))->toBe(['error', 'sign-in'])
-        ->and(shownText($screen))->toBe(['Something broke on our side.']);
+    expect(childRefs($screen, 'actions'))->toBe(['error', 'terms', 'sign-in'])
+        ->and(shownText($screen))->toBe(['Something broke on our side.', ...termsText()]);
 
     $retry = tapSignIn($screen, $bridge);
 
@@ -398,7 +402,7 @@ it('never writes the verifier or the state down', function () {
 it('says so when the auth browser does not open', function () {
     fakeKeychain(testSeed())->respondTo('Browser.OpenAuth', ['success' => false]);
 
-    Native::visit('/onboarding')->tap('sign-in')->assertSee('fatal: could not open dev-null.sh to sign in.');
+    Native::visit('/onboarding')->set('acceptedTerms', true)->tap('sign-in')->assertSee('fatal: could not open dev-null.sh to sign in.');
 });
 
 it("doesn't say why a 401 sent it here: the buttons are enough", function (string $message) {
@@ -406,8 +410,8 @@ it("doesn't say why a 401 sent it here: the buttons are enough", function (strin
 
     $screen = Native::visit('/onboarding', ['message' => $message])->assertDontSee($message);
 
-    expect(shownText($screen))->toBe([])
-        ->and(childRefs($screen, 'actions'))->toBe(['sign-in']);
+    expect(shownText($screen))->toBe(termsText())
+        ->and(childRefs($screen, 'actions'))->toBe(['terms', 'sign-in']);
 })->with([
     'a key devnull no longer takes' => ['This key is no longer accepted.'],
     'a phone to approve' => [ErrorCode::DeviceNotApproved->message()],
@@ -423,7 +427,7 @@ it('says so when the Keychain is locked, and cannot start a sign-in', function (
         ->assertSee('fatal: could not read the device key from the Keychain. Device is locked.')
         ->assertSet('fingerprint', '')
         ->assertElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'sign-in' && ($node['props']['disabled'] ?? false) === true)
-        ->call('signIn');
+        ->set('acceptedTerms', true)->call('signIn');
 
     $bridge->assertNotCalled('SecureStorage.Set')->assertNotCalled('Browser.OpenAuth');
 });
@@ -472,4 +476,30 @@ it('has no GitHub device flow, pairing codes or copy-and-paste path left', funct
         ->and(config('devnull'))->not->toHaveKey('github_client_id')
         ->and(file_get_contents(base_path('.env.example')))->not->toContain('DEVNULL_GITHUB_CLIENT_ID')->toContain("NATIVEPHP_DEEPLINK_SCHEME=devnull\n")
         ->and(file_get_contents(base_path('README.md')))->not->toContain('DEVNULL_GITHUB_CLIENT_ID')->not->toContain('device flow');
+});
+
+it('keeps both ways in shut until the terms and privacy policy are agreed to, and links to them', function () {
+    $bridge = signInBridge();
+    $bridge->respondTo('Browser.OpenInApp', ['success' => true]);
+
+    $screen = Native::visit('/onboarding');
+
+    $disabled = fn (string $ref): bool => (bool) ($screen->tree() && (nodeByRef($screen, $ref)['props']['disabled'] ?? false));
+
+    expect($disabled('sign-in'))->toBeTrue();
+
+    $screen->call('signIn');
+
+    expect($bridge->callsTo('Browser.OpenAuth'))->toBe([]);
+
+    $screen->press('accept-terms')->assertSet('acceptedTerms', true)->call('signIn');
+
+    expect($bridge->callsTo('Browser.OpenAuth'))->toHaveCount(1);
+
+    $screen->press('terms-link')
+        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'http://devnull.test/terms')
+        ->press('privacy-link')
+        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'http://devnull.test/privacy');
+
+    $screen->press('accept-terms')->assertSet('acceptedTerms', false);
 });

@@ -3,6 +3,7 @@
 use App\Devnull\Account;
 use App\Devnull\DeviceKey;
 use App\Devnull\ErrorCode;
+use App\NativeComponents\AcceptTerms;
 use App\NativeComponents\Launch;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -33,6 +34,18 @@ it('signs straight back in when the stored sign-in is gone but the key is still 
         ->and(app(DeviceKey::class)->current()->openSsh())->toBe(testKey()->openSsh());
 
     $bridge->assertNotCalled('SecureStorage.Set');
+});
+
+it('signs straight back in to the terms when they are still to be accepted', function () {
+    fakeKeychain(testSeed());
+    fakeApi(['GET /api/v1/me' => [currentUserTermsJson(false)]]);
+
+    $screen = Native::visit('/onboarding');
+
+    $this->travel(1)->seconds();
+    $screen->firePoll('tick')->assertReplacedWith(AcceptTerms::Path);
+
+    expect(app(Account::class)->termsToAccept())->toBe('2026-11-01T14:35:00Z');
 });
 
 it('asks only once, and says nothing, when devnull does not know the key', function (int $status) {

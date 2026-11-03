@@ -297,7 +297,7 @@ it('redeems a sign-in code with the verifier, signed, for the user', function ()
         ->and($user->username)->toBe('local_dev');
 
     Http::assertSent(function (Request $request): bool {
-        $body = '{"code":"the-code","code_verifier":"the-verifier"}';
+        $body = '{"code":"the-code","code_verifier":"the-verifier","terms_accepted":true}';
 
         expect($request->method())->toBe('POST')
             ->and($request->url())->toBe('http://devnull.test/api/v1/'.Client::SignInPath)
@@ -677,7 +677,7 @@ it('signs in with Apple on the sign-in endpoint, signed, for the user', function
     expect($user->username)->toBe('local_dev');
 
     Http::assertSent(function (Request $request): bool {
-        $body = '{"apple_identity_token":"the.identity.token","nonce":"raw-nonce","device_name":"devnull on iPhone"}';
+        $body = '{"apple_identity_token":"the.identity.token","nonce":"raw-nonce","device_name":"devnull on iPhone","terms_accepted":true}';
 
         expect($request->method())->toBe('POST')
             ->and($request->url())->toBe('http://devnull.test/api/v1/'.Client::SignInPath)

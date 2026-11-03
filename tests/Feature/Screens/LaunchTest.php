@@ -2,6 +2,7 @@
 
 use App\Devnull\Account;
 use App\Devnull\Data\User;
+use App\NativeComponents\AcceptTerms;
 use App\NativeComponents\Launch;
 use Native\Mobile\Testing\Native;
 
@@ -15,6 +16,13 @@ it('sends a verified device straight to the log', function () {
     signIn();
 
     Native::visit('/')->assertReplacedWith('/log');
+});
+
+it('sends a verified device to accept the terms first when devnull last said they are owed', function () {
+    signIn();
+    app(Account::class)->rememberTermsToAccept('2026-11-01T14:35:00Z');
+
+    Native::visit('/')->assertReplacedWith(AcceptTerms::Path);
 });
 
 it('stays signed in across a rebuild, which keeps the key and the stored sign-in', function () {

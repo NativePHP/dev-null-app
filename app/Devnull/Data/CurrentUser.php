@@ -15,6 +15,10 @@ use Carbon\CarbonImmutable;
  * it only was when you signed in). It has whether pastéis mode is on, how
  * many pastéis you can still give today, and how many others have given you,
  * and your Remotes settings, or null while you have Remotes off.
+ *
+ * And the terms: the version in force, which is the moment it took effect, when
+ * you last accepted them, and whether that was this version. A devnull too old
+ * to say leaves all three null.
  */
 final readonly class CurrentUser
 {
@@ -30,6 +34,9 @@ final readonly class CurrentUser
         public Pasteis $pasteisToday = new Pasteis,
         public int $pasteisReceived = 0,
         public ?Remotes $remotes = null,
+        public ?string $termsVersion = null,
+        public ?CarbonImmutable $termsAcceptedAt = null,
+        public ?bool $termsAccepted = null,
     ) {}
 
     /**
@@ -59,7 +66,26 @@ final readonly class CurrentUser
             pasteisReceived: is_int($data['pasteis_received'] ?? null) ? max(0, $data['pasteis_received']) : 0,
             // Only devnull saying null means they're off: a devnull too old to say has them on, as everyone starts.
             remotes: array_key_exists('remotes', $data) ? Remotes::fromArray($data['remotes']) : new Remotes,
+            termsVersion: is_string($data['terms_version'] ?? null) && $data['terms_version'] !== '' ? $data['terms_version'] : null,
+            termsAcceptedAt: Commit::date($data['terms_accepted_at'] ?? null),
+            termsAccepted: is_bool($data['terms_accepted'] ?? null) ? $data['terms_accepted'] : null,
         );
+    }
+
+    /**
+     * The version of the terms devnull is waiting for you to accept, exactly as it sent it, or null when you have.
+     */
+    public function termsToAccept(): ?string
+    {
+        return $this->termsAccepted === false ? $this->termsVersion : null;
+    }
+
+    /**
+     * When the terms in force took effect.
+     */
+    public function termsTookEffect(): ?CarbonImmutable
+    {
+        return Commit::date($this->termsVersion);
     }
 
     /**

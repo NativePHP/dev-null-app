@@ -460,6 +460,17 @@ function currentUserJson(array $overrides = [], array $extra = []): array
 }
 
 /**
+ * `GET /me` with the terms in force since Nov 1, 2026, or the version given, for someone who last accepted the terms
+ * when given (null for never), and whether that was this version.
+ *
+ * @return array<string, mixed>
+ */
+function currentUserTermsJson(bool $accepted, ?string $acceptedAt = '2026-10-05T10:00:00Z', string $version = '2026-11-01T14:35:00Z'): array
+{
+    return currentUserJson(['terms_version' => $version, 'terms_accepted_at' => $acceptedAt, 'terms_accepted' => $accepted]);
+}
+
+/**
  * A commit as the API sends it to a signed request. The short hash and the link
  * follow the id and the author, and the body's segments follow the body, unless
  * a test sends its own, as the server always works them out from what it stores.
@@ -1019,6 +1030,20 @@ function sentTo(string $method, string $path): array
         ->map(fn (array $sent): string => $sent[0]->body())
         ->values()
         ->all();
+}
+
+/**
+ * What the sign-in screen says about the terms, above its buttons.
+ *
+ * @return list<string>
+ */
+function termsText(): array
+{
+    return [
+        'I agree to the terms of service and privacy policy. There\'s no tolerance for objectionable content or abusive users.',
+        'Terms of service',
+        'Privacy policy',
+    ];
 }
 
 /**
