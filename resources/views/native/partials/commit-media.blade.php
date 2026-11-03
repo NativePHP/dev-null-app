@@ -1,10 +1,15 @@
 {{--
     What hangs under a commit's body on the web: its images, its poll, the commit it quotes, then the link preview.
+    A Nata Nu//ers high score has its card first, which the web doesn't draw (see partials/score-card).
     A reply in a thread shows only its images and link preview ($withEmbeds false), as the web's thread does.
     Images hold their space at their aspect ratio on a wash, so one that fails to load leaves the row as it was. Each is
     read out by the description its author gave it, as the web's alt text. Images come from the device once ImageCache has
     them, so they don't load again each time they scroll into view.
 --}}
+@if ($commit->scoreCard)
+    @include('native.partials.score-card')
+@endif
+
 @php($images = $commit->images)
 @if (count($images) === 1)
     <native:pressable ref="image-{{ $images[0]->id }}" @press="openImage('{{ $commit->id }}', 0)" class="w-full mt-2" a11y-label="{{ $images[0]->label() }}">

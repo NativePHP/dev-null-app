@@ -9,7 +9,7 @@
         <native:text class="w-full text-[15px] leading-relaxed text-theme-ink-muted">Nothing to preview yet.</native:text>
     @else
         @include('native.partials.commit-body', ['commit' => $draftCommit, 'focused' => true])
-        @include('native.partials.commit-media', ['commit' => $draftCommit, 'withEmbeds' => false])
+        @include('native.partials.commit-media', ['commit' => $draftCommit, 'withEmbeds' => false, 'scoreAction' => false])
         @if ($draftCommit->poll)
             <native:column ref="sheet-draft-poll" class="w-full mt-3 gap-2" a11y-label="Poll options">
                 @foreach ($draftCommit->poll->options as $option)

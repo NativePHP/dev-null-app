@@ -11,6 +11,7 @@ use App\Devnull\Data\User;
 use App\Devnull\Display;
 use App\Devnull\ErrorCode;
 use App\Devnull\Exceptions\ApiException;
+use App\Devnull\NataNullers\Game;
 use App\Devnull\ResponseCache;
 use App\Devnull\SiteLink;
 use App\Devnull\Timezone;
@@ -30,7 +31,8 @@ use Native\Mobile\Facades\Share;
  * commit (Quote and Report open a sheet, see
  * OpensCommitSheet), plus opening its link preview in the in-app browser or,
  * for a page on dev/null, the app (see SiteLink), its
- * images full-screen in the app (see partials/image-viewer), "Show more" on a
+ * images full-screen in the app (see partials/image-viewer), the game behind
+ * a shared Nata Nu//ers score, "Show more" on a
  * long one, voting on its poll (see VotesOnPolls), and the time of the
  * commit a page is about. Taps name the commit rather than a URL, so a URL is
  * never rebuilt from an attribute.
@@ -291,6 +293,17 @@ trait ShowsCommits
     public function openLinkPreview(string $id): void
     {
         $this->openUrl($this->shownCommit($id)?->linkPreview?->url);
+    }
+
+    /**
+     * Opens Nata Nu//ers from a shared high score's card, to have a go at
+     * beating it. A build without the Skia plugin has no game to open.
+     */
+    public function playNataNullers(): void
+    {
+        if (Game::available()) {
+            $this->navigate(Game::Route);
+        }
     }
 
     /**

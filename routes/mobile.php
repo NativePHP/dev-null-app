@@ -1,5 +1,6 @@
 <?php
 
+use App\Devnull\NataNullers\Game;
 use App\NativeComponents\AddOrgMembers;
 use App\NativeComponents\AuthCallback;
 use App\NativeComponents\Call;
@@ -9,6 +10,7 @@ use App\NativeComponents\Conversation;
 use App\NativeComponents\Launch;
 use App\NativeComponents\Layouts\TabsLayout;
 use App\NativeComponents\Log;
+use App\NativeComponents\NataNullers;
 use App\NativeComponents\NewOrg;
 use App\NativeComponents\NewRemote;
 use App\NativeComponents\Notifications;
@@ -30,6 +32,12 @@ Route::native('/auth/callback', AuthCallback::class);
 
 // A call takes the whole screen, over whichever tab rang or placed it.
 Route::native('/call/{username}', Call::class);
+
+// The Easter egg, over the tabs, from a long press on the Log's logo or a
+// shared score's card. Only a build with the Skia plugin has it.
+if (Game::available()) {
+    Route::native(Game::Route, NataNullers::class);
+}
 
 Route::nativeGroup(TabsLayout::class, function (): void {
     Route::native('/log', Log::class);

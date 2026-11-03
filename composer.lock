@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "860c34d693a5afa83bca97fb6690af2c",
+    "content-hash": "847b76889db0a6fb94632b18587ff996",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -3234,6 +3234,68 @@
                 "source": "https://github.com/NativePHP/mobile-share/tree/1.1.0"
             },
             "time": "2026-09-03T18:26:20+00:00"
+        },
+        {
+            "name": "nativephp/mobile-skia",
+            "version": "1.0.0",
+            "dist": {
+                "type": "zip",
+                "url": "https://plugins.nativephp.com/dist/nativephp/mobile-skia/nativephp-mobile-skia-ffc7fa9101c1e5183497773ea47cd16fdfbbc72d-zip-f04ec9.zip",
+                "reference": "ffc7fa9101c1e5183497773ea47cd16fdfbbc72d",
+                "shasum": "c468d6182ad2ca8e66c7d8827bff9e75499067b8"
+            },
+            "require": {
+                "nativephp/mobile": "^4.5.1",
+                "php": "^8.3"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Native\\Mobile\\Skia\\SkiaServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Native\\Mobile\\Skia\\": "src/"
+                }
+            },
+            "archive": {
+                "exclude": [
+                    "/.deps",
+                    "/.build",
+                    "/vendor",
+                    "/tests",
+                    "/.github",
+                    "/**/__pycache__",
+                    "/docs/verification.md",
+                    "/docs/completion-plan.md"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "NativePHP",
+                    "email": "support@nativephp.com"
+                }
+            ],
+            "description": "Native Skia drawing scenes for NativePHP Mobile on iOS and Android",
+            "homepage": "https://nativephp.com",
+            "keywords": [
+                "android",
+                "animation",
+                "graphics",
+                "ios",
+                "nativephp",
+                "skia"
+            ],
+            "time": "2026-10-07T13:32:43+00:00"
         },
         {
             "name": "nativephp/mobile-ui",

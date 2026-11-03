@@ -105,6 +105,12 @@ return [
             // same in both appearances.
             'live' => '#dc2626',
             'on-live' => '#ffffff',
+
+            // Nata Nu//ers score cards: a custard wash under a caramelised
+            // crust, the colours of a pastel de nata. Crust on custard is 5.6:1.
+            'nata' => '#a35a12',
+            'on-nata' => '#ffffff',
+            'nata-soft' => '#fdf3d7',
         ],
 
         // A faithful mirror on graphite, with the lanes and primary lifted.
@@ -159,6 +165,10 @@ return [
 
             'live' => '#dc2626',
             'on-live' => '#ffffff',
+
+            'nata' => '#f5c463',
+            'on-nata' => '#111112',
+            'nata-soft' => '#2b2312',
         ],
 
         // Corner radii (points / dp): 6px controls, 8px groups, circles for people and commits.
