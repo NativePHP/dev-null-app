@@ -12,8 +12,8 @@ use Native\Mobile\AsyncTask;
 use Native\Mobile\Testing\Native;
 
 beforeEach(function () {
-    config(['devnull.url' => 'http://devnull.test', 'devnull.image_cache_hours' => 24]);
     app()->useStoragePath(sys_get_temp_dir().'/devnull-image-cache-'.bin2hex(random_bytes(4)));
+    config(['devnull.url' => 'http://devnull.test', 'devnull.image_cache_hours' => 24]);
     File::ensureDirectoryExists(ImageCache::directory());
 });
 

@@ -18,6 +18,7 @@ use Native\Mobile\AsyncTask;
 use Native\Mobile\Events\Async\AsyncTaskFailed;
 use Native\Mobile\Events\Async\AsyncTaskFinished;
 use Native\Mobile\Events\Gallery\MediaSelected;
+use Native\Mobile\Skia\SkiaServiceProvider;
 use Native\Mobile\Support\AsyncTaskRunner;
 use Native\Mobile\Support\AsyncTaskTransport;
 use Native\Mobile\Testing\FakeBridge;
@@ -1073,4 +1074,15 @@ function phoneIn(string $timezone): void
     symlink($directory.'/zone', $directory.'/localtime');
 
     app()->instance(Timezone::class, new Timezone(localtime: $directory.'/localtime'));
+}
+
+/**
+ * Skips the test in a build without the paid Skia plugin, which `composer setup:free`
+ * takes out. Call it before anything that needs the plugin's classes or bridge.
+ */
+function skipWithoutSkia(): void
+{
+    if (! class_exists(SkiaServiceProvider::class)) {
+        test()->markTestSkipped('needs the Skia plugin installed');
+    }
 }

@@ -12,10 +12,11 @@ use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 
 beforeEach(function () {
+    app()->useStoragePath(sys_get_temp_dir().'/devnull-log-frames-'.bin2hex(random_bytes(4)));
+
     // Every commit was made at 11:55, as devnull keeps it, however late a page is asked for.
     $this->travelTo(CarbonImmutable::parse('2026-10-21 12:00:00', 'UTC'));
     config(['devnull.url' => 'http://devnull.test', 'devnull.image_cache_hours' => 24]);
-    app()->useStoragePath(sys_get_temp_dir().'/devnull-log-frames-'.bin2hex(random_bytes(4)));
     signIn();
     holdRefreshes();
 
