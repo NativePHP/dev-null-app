@@ -10,6 +10,7 @@ use App\Devnull\DeviceKey;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\SignIn;
+use App\NativeComponents\Concerns\OpensLegalPages;
 use App\NativeComponents\Concerns\SignsInWithApple;
 use App\NativeComponents\Layouts\TabsLayout;
 use Illuminate\Support\Facades\Log;
@@ -40,6 +41,7 @@ use SensitiveParameter;
  */
 class Onboarding extends NativeComponent
 {
+    use OpensLegalPages;
     use SignsInWithApple;
 
     public const string NotStartedHere = "fatal: that sign-in didn't start on this phone, so it was ignored.";
@@ -53,6 +55,12 @@ class Onboarding extends NativeComponent
      * dev-null.sh button into "Try again".
      */
     public ?string $appleError = null;
+
+    /**
+     * Whether the box for the terms and privacy policy is ticked. Neither way in starts until it is. Don't read it when
+     * a sign-in finishes: the browser's answer can land on a new screen, where it's false again.
+     */
+    public bool $acceptedTerms = false;
 
     private string $deviceName = '';
 
@@ -94,13 +102,18 @@ class Onboarding extends NativeComponent
         $this->finishSignIn();
     }
 
+    public function toggleTerms(): void
+    {
+        $this->acceptedTerms = ! $this->acceptedTerms;
+    }
+
     /**
      * Opens dev-null.sh with a fresh verifier and state. Dismissing the sheet
      * sends nothing back, so the screen simply stays as it is.
      */
     public function signIn(): void
     {
-        if ($this->fingerprint === '') {
+        if ($this->fingerprint === '' || ! $this->acceptedTerms) {
             return;
         }
 
@@ -118,7 +131,7 @@ class Onboarding extends NativeComponent
      */
     public function signInWithApple(): void
     {
-        if ($this->fingerprint === '' || ! AppleSignIn::isAvailable()) {
+        if ($this->fingerprint === '' || ! $this->acceptedTerms || ! AppleSignIn::isAvailable()) {
             return;
         }
 
@@ -239,8 +252,9 @@ class Onboarding extends NativeComponent
 
     /**
      * A key devnull already knows and approved signs in with nothing to do,
-     * as after the app's stored sign-in was lost. Any other answer leaves
-     * onboarding as it is, without an error: there was nothing to ask for.
+     * as after the app's stored sign-in was lost, then asks for any terms
+     * still to accept. Any other answer leaves onboarding as it is, without
+     * an error: there was nothing to ask for.
      */
     private function signInWithExistingKey(): void
     {
@@ -258,8 +272,9 @@ class Onboarding extends NativeComponent
         app(Account::class)->rememberUnreadNotifications($current->unreadNotificationsCount);
         app(Account::class)->rememberPasteis($current->pasteis());
         app(Account::class)->rememberRemotes($current->remotes);
+        app(Account::class)->rememberTermsToAccept($current->termsToAccept());
         $this->keepProfile($current->user);
-        $this->replace('/log');
+        $this->replace($current->termsToAccept() === null ? '/log' : AcceptTerms::Path);
     }
 
     /**

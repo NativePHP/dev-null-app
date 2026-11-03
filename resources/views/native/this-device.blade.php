@@ -317,6 +317,15 @@
                 <native:text class="text-xs leading-relaxed text-theme-ink-muted">Deletes the key from this phone and signs you out.</native:text>
             </native:column>
 
+            <native:column ref="terms-section" class="w-full pt-10">
+                @include('native.partials.settings-heading', ['title' => 'Terms and privacy', 'description' => $terms])
+
+                <native:column class="w-full px-4 pt-4 gap-2">
+                    <native:button ref="terms-link" variant="secondary" size="lg" :ios-icon-trailing="Lucide::ArrowUpRight->ios()" :android-icon-trailing="Lucide::ArrowUpRight->android()" @press="openTerms" class="w-full">Terms of service</native:button>
+                    <native:button ref="privacy-link" variant="secondary" size="lg" :ios-icon-trailing="Lucide::ArrowUpRight->ios()" :android-icon-trailing="Lucide::ArrowUpRight->android()" @press="openPrivacy" class="w-full">Privacy policy</native:button>
+                </native:column>
+            </native:column>
+
             <native:column ref="delete-section" class="w-full pt-12">
                 @include('native.partials.settings-heading', [
                     'title' => 'Delete account',

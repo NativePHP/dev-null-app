@@ -17,6 +17,11 @@ use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 
 beforeEach(function () {
+    // Faces are fetched into the image cache, so it's somewhere of the test's own. That comes first,
+    // before anything that can skip or throw, because afterEach deletes whatever storage_path() is.
+    app()->useStoragePath(sys_get_temp_dir().'/devnull-nata-nullers-'.bin2hex(random_bytes(4)));
+    skipWithoutSkia();
+
     config(['devnull.url' => 'http://devnull.test']);
     $this->bridge = signIn();
     $this->clock = 10.0;
@@ -33,9 +38,6 @@ beforeEach(function () {
 
     $this->bus = new Bus(10.0, seed: 1);
     app()->bind(Bus::class, fn () => $this->bus);
-
-    // Faces are fetched into the image cache, so it's somewhere of the test's own.
-    app()->useStoragePath(sys_get_temp_dir().'/devnull-nata-nullers-'.bin2hex(random_bytes(4)));
 
     // No faces unless a test serves one, so the characters get drawn faces.
     $this->face = null;

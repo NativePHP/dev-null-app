@@ -295,6 +295,26 @@ final readonly class Message
         return self::snippetOf($this->body, count($this->images), $this->voice !== null);
     }
 
+    /**
+     * The links in its body, in the order it draws them, which its rows open by their place among them.
+     *
+     * @return list<BodyLink>
+     */
+    public function links(): array
+    {
+        $links = [];
+
+        foreach ($this->content as $block) {
+            foreach ($block->runs as $run) {
+                if ($run->link !== null) {
+                    $links[] = $run->link;
+                }
+            }
+        }
+
+        return $links;
+    }
+
     private static function snippetOf(string $body, int $images, bool $hasVoice = false): string
     {
         if ($hasVoice) {

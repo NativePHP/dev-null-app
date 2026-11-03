@@ -7,6 +7,7 @@ use App\Devnull\Data\StashedDraft;
 use App\Devnull\DraftImages;
 use App\Devnull\Exceptions\ApiException;
 use App\Devnull\IssueCommand;
+use App\Devnull\IssueEnvironment;
 use App\Devnull\SiteLink;
 use App\Devnull\Stash;
 use App\Devnull\Toasts;
@@ -37,14 +38,16 @@ use Native\Mobile\Facades\Browser;
  * it, which offers the command with the draft kept. Its X stops the hints
  * on this phone, as the web's stops them in that browser.
  *
- * Opening the issue waits on GitHub, so it's sent in the background while the
- * button spins (see WritesInBackground). Once it's open the draft goes, with
- * any photos it had, and the sheet says "Opened issue #123." with View issue,
- * as the web's toast does, or a toast does, with View issue as its button, if
- * the sheet was swiped away by then (see SyncsOutbox::toastActionPressed()).
- * When it isn't, the draft stays an issue, with why under it: devnull's own
- * words when it sends them, else the web's, which say to check upstream when
- * the issue might have been opened anyway.
+ * Opening the issue waits on GitHub, so it's sent in the background while
+ * the button spins (see WritesInBackground), with the app and device
+ * details the web sends about its browser (see IssueEnvironment). Once it's
+ * open the draft goes, with any photos it had, and the sheet says "Opened
+ * issue #123." with View issue, as the web's toast does, or a toast does,
+ * with View issue as its button, if the sheet was swiped away by then (see
+ * SyncsOutbox::toastActionPressed()). When it isn't, the draft stays an
+ * issue, with why under it: devnull's own words when it sends them, else
+ * the web's, which say to check upstream when the issue might have been
+ * opened anyway.
  */
 trait DraftsIssues
 {
@@ -134,7 +137,7 @@ trait DraftsIssues
         $this->openingIssue = true;
         $this->sheetError = null;
 
-        $this->writeInBackground('POST', Client::IssuesPath, ['command' => $command->command(), 'body' => $body], function (array $json): void {
+        $this->writeInBackground('POST', Client::IssuesPath, ['command' => $command->command(), 'body' => $body, 'environment' => IssueEnvironment::collect()], function (array $json): void {
             $number = is_int($json['number'] ?? null) ? $json['number'] : null;
             $url = is_string($json['url'] ?? null) ? $json['url'] : null;
             $stash = app(Stash::class);

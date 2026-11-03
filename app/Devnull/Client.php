@@ -124,6 +124,11 @@ final readonly class Client
     public const string SettingsPath = 'me/settings';
 
     /**
+     * Where the signed-in account accepts the terms and privacy policy in force.
+     */
+    public const string TermsPath = 'me/terms';
+
+    /**
      * The commits the signed-in account scheduled, as the web's Scheduled
      * commits page lists them.
      */
@@ -184,16 +189,24 @@ final readonly class Client
      * Trades the code dev-null.sh sent back, with the PKCE verifier only this
      * phone knows, for the user it approved this phone for. It's signed like
      * every request, so the code only works for the key it was made for.
+     *
+     * No sign-in starts until the terms are accepted, so this says they were.
+     * devnull works out which version that means from when it hears.
      */
     public function redeemSignIn(string $code, #[SensitiveParameter] string $verifier): User
     {
-        return User::fromArray($this->data($this->send('POST', self::SignInPath, payload: ['code' => $code, 'code_verifier' => $verifier])));
+        return User::fromArray($this->data($this->send('POST', self::SignInPath, payload: [
+            'code' => $code,
+            'code_verifier' => $verifier,
+            'terms_accepted' => true,
+        ])));
     }
 
     /**
      * Signs in on a phone devnull doesn't know yet with an Apple ID linked to
      * an account, which approves this phone's key. Apple's identity token
      * carries sha256 of the nonce, and devnull checks it against the raw one.
+     * It says the terms were accepted, as redeemSignIn() does.
      */
     public function signInWithApple(#[SensitiveParameter] string $identityToken, #[SensitiveParameter] string $nonce, string $deviceName): User
     {
@@ -201,6 +214,7 @@ final readonly class Client
             'apple_identity_token' => $identityToken,
             'nonce' => $nonce,
             'device_name' => $deviceName,
+            'terms_accepted' => true,
         ])));
     }
 
@@ -230,6 +244,19 @@ final readonly class Client
     public function me(): CurrentUser
     {
         return CurrentUser::fromArray($this->get('me'));
+    }
+
+    /**
+     * Accepts the terms and privacy policy, naming the version devnull said is in force. When they changed again
+     * since, devnull refuses with a 422 rather than take a yes to a version nobody showed you. It answers as
+     * `GET /me` does, and every kept copy of you takes it.
+     */
+    public function acceptTerms(string $version): CurrentUser
+    {
+        $json = $this->json($this->send('PUT', self::TermsPath, payload: ['version' => $version]));
+        $this->cache->meChanged($json);
+
+        return CurrentUser::fromArray($json);
     }
 
     /**

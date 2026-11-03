@@ -18,6 +18,7 @@ use Native\Mobile\AsyncTask;
 use Native\Mobile\Events\Async\AsyncTaskFailed;
 use Native\Mobile\Events\Async\AsyncTaskFinished;
 use Native\Mobile\Events\Gallery\MediaSelected;
+use Native\Mobile\Skia\SkiaServiceProvider;
 use Native\Mobile\Support\AsyncTaskRunner;
 use Native\Mobile\Support\AsyncTaskTransport;
 use Native\Mobile\Testing\FakeBridge;
@@ -456,6 +457,17 @@ function currentUserJson(array $overrides = [], array $extra = []): array
         'unread_notifications_count' => 0,
         ...$extra,
     ];
+}
+
+/**
+ * `GET /me` with the terms in force since Nov 1, 2026, or the version given, for someone who last accepted the terms
+ * when given (null for never), and whether that was this version.
+ *
+ * @return array<string, mixed>
+ */
+function currentUserTermsJson(bool $accepted, ?string $acceptedAt = '2026-10-05T10:00:00Z', string $version = '2026-11-01T14:35:00Z'): array
+{
+    return currentUserJson(['terms_version' => $version, 'terms_accepted_at' => $acceptedAt, 'terms_accepted' => $accepted]);
 }
 
 /**
@@ -1021,6 +1033,20 @@ function sentTo(string $method, string $path): array
 }
 
 /**
+ * What the sign-in screen says about the terms, above its buttons.
+ *
+ * @return list<string>
+ */
+function termsText(): array
+{
+    return [
+        'I agree to the terms of service and privacy policy. There\'s no tolerance for objectionable content or abusive users.',
+        'Terms of service',
+        'Privacy policy',
+    ];
+}
+
+/**
  * A commit you scheduled, as devnull lists it: still waiting, until a test says otherwise. Its body's segments
  * follow its body, as the server works them out.
  *
@@ -1073,4 +1099,15 @@ function phoneIn(string $timezone): void
     symlink($directory.'/zone', $directory.'/localtime');
 
     app()->instance(Timezone::class, new Timezone(localtime: $directory.'/localtime'));
+}
+
+/**
+ * Skips the test in a build without the paid Skia plugin, which `composer setup:free`
+ * takes out. Call it before anything that needs the plugin's classes or bridge.
+ */
+function skipWithoutSkia(): void
+{
+    if (! class_exists(SkiaServiceProvider::class)) {
+        test()->markTestSkipped('needs the Skia plugin installed');
+    }
 }

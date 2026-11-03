@@ -136,6 +136,26 @@ it('opens an organization that posted a commit on its organization page', functi
     Native::visit('/log')->press("openProfile('dev-null-sh')")->assertNavigatedTo('/log/organizations/dev-null-sh');
 });
 
+it('draws an organization on the rail as a rounded square and a person as a circle, as the web does', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([
+        commitJson(['id' => 'c2', 'author' => userJson(['type' => 'organization', 'id' => 'o1', 'handle' => 'dev-null-sh', 'name' => 'dev-null.sh', 'avatar_url' => 'https://avatars.githubusercontent.com/u/2'])]),
+        commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'avatar_url' => 'https://avatars.githubusercontent.com/u/3'])]),
+    ]))]);
+
+    $tree = Native::visit('/log')->tree();
+    $shapes = function (string $avatarUrl) use ($tree): array {
+        $ring = findNode($tree, fn (array $node): bool => ($node['type'] ?? null) === 'stack'
+            && ($node['style']['border_width'] ?? null) == 2
+            && findNode($node, fn (array $child): bool => ($child['props']['src'] ?? null) === $avatarUrl) !== null);
+        $avatar = $ring['children'][0];
+
+        return [$ring['style']['border_radius'], $avatar['style']['border_radius'], $avatar['style']['border_width'] ?? null, $avatar['children'][1]['style']['border_radius']];
+    };
+
+    expect($shapes('https://avatars.githubusercontent.com/u/2'))->toEqual([8, 6, 1, 5])
+        ->and($shapes('https://avatars.githubusercontent.com/u/3'))->toEqual([9999, 9999, null, 9999]);
+});
+
 it('sends you back to onboarding with the server message on a 401', function () {
     Http::fake(['devnull.test/*' => Http::response(['message' => 'This key is not on any devnull account.', 'code' => 'key_not_on_github'], 401)]);
 

@@ -15,6 +15,8 @@ use App\Devnull\Lane;
 use App\Devnull\ResponseCache;
 use App\Devnull\Timezone;
 use App\Devnull\WhoToFollow;
+use App\NativeComponents\Concerns\LeavesDevnull;
+use App\NativeComponents\Concerns\OpensLegalPages;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SignsInWithApple;
 use App\NativeComponents\Concerns\SyncsOutbox;
@@ -33,7 +35,8 @@ use SensitiveParameter;
  * Your account, reached from your own profile, laid out like the web's profile
  * settings: your profile as devnull mirrors it from GitHub, with a sync, your
  * colour, your timezone, pastéis mode, Remotes and their settings, the people
- * you mute and block, then this phone's fingerprint, signing out and deleting
+ * you mute and block, then this phone's fingerprint, signing out, the terms
+ * and privacy policy with which version you accepted and when, and deleting
  * the account.
  * Where the app talks to only shows when it isn't dev-null.sh.
  *
@@ -47,17 +50,15 @@ use SensitiveParameter;
  */
 class ThisDevice extends NativeComponent
 {
+    use LeavesDevnull;
+    use OpensLegalPages;
     use RefreshesInBackground;
     use SignsInWithApple;
     use SyncsOutbox;
     use TalksToDevnull;
     use WritesInBackground;
 
-    public const string SignOutAlert = 'sign-out';
-
     public const string UnlinkAppleAlert = 'unlink-apple';
-
-    public const string DeleteAccountAlert = 'delete-account';
 
     /**
      * Where Edit on GitHub goes, as on the web.
@@ -583,30 +584,6 @@ class ThisDevice extends NativeComponent
         Browser::inApp(rtrim((string) config('devnull.url'), '/').'/settings/devices');
     }
 
-    public function confirmSignOut(): void
-    {
-        Dialog::alert(
-            'Sign out?',
-            'This deletes the key from this phone. The phone stays listed on dev-null.sh until you remove it there, and signing in again makes a new key.',
-            [
-                ['label' => 'Cancel', 'style' => 'cancel'],
-                ['label' => 'Sign out', 'style' => 'destructive'],
-            ],
-        )->id(self::SignOutAlert);
-    }
-
-    public function confirmDeleteAccount(): void
-    {
-        Dialog::alert(
-            'Delete your account?',
-            'Your profile, commits, replies, stars and follows are removed from /dev/null. There is no undo.',
-            [
-                ['label' => 'Cancel', 'style' => 'cancel'],
-                ['label' => 'Delete', 'style' => 'destructive'],
-            ],
-        )->id(self::DeleteAccountAlert);
-    }
-
     /**
      * Opens Apple's sheet. Its answer arrives as an event (see SignsInWithApple).
      */
@@ -661,35 +638,6 @@ class ThisDevice extends NativeComponent
         }
     }
 
-    /**
-     * Signs out: the key goes from this phone, and with it who you are and
-     * every answer kept for you (see Account::forget).
-     */
-    public function forget(): void
-    {
-        app(DeviceKey::class)->forget();
-        app(Account::class)->forget();
-
-        $this->replace('/onboarding');
-    }
-
-    /**
-     * Deletes the account on devnull, which takes its devices with it, then
-     * signs out. When devnull can't, the error shows and you stay signed in.
-     */
-    public function deleteAccount(): void
-    {
-        $deleted = $this->attempt(function (Client $devnull): bool {
-            $devnull->deleteAccount();
-
-            return true;
-        });
-
-        if ($deleted === true) {
-            $this->forget();
-        }
-    }
-
     public function render(): View
     {
         $current = $this->current;
@@ -716,7 +664,31 @@ class ThisDevice extends NativeComponent
                 false => 'not linked',
                 null => 'unknown',
             },
+            'terms' => $current === null ? null : self::terms($current),
         ]);
+    }
+
+    /**
+     * Which terms you accepted and when, each version named by the day it took effect. devnull keeps only when you
+     * accepted, so a version older than the one in force can't be named. Null until devnull has said.
+     */
+    private static function terms(CurrentUser $current): ?string
+    {
+        $tookEffect = $current->termsTookEffect();
+
+        if ($tookEffect === null || $current->termsAccepted === null) {
+            return null;
+        }
+
+        $terms = Display::day($tookEffect);
+        $acceptedOn = $current->termsAcceptedAt === null ? null : Display::day($current->termsAcceptedAt);
+
+        return match (true) {
+            $current->termsAccepted && $acceptedOn !== null => "You accepted the terms of {$terms} on {$acceptedOn}.",
+            $current->termsAccepted => "You accepted the terms of {$terms}.",
+            $acceptedOn !== null => "You accepted an earlier version on {$acceptedOn}. The terms changed on {$terms}.",
+            default => "You haven't accepted the terms of {$terms} yet.",
+        };
     }
 
     /**
@@ -913,6 +885,7 @@ class ThisDevice extends NativeComponent
         app(Account::class)->rememberPasteis($current->pasteis());
         app(Account::class)->rememberRemotes($current->remotes);
         app(ResponseCache::class)->meChanged($json);
+        $this->takeTerms($current);
     }
 
     /**
