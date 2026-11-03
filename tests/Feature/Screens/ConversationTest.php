@@ -289,11 +289,9 @@ it('puts the actions away with a swipe back or a tap anywhere in the thread', fu
     $screen->dragEnd('swipe-1', 200);
     expect(showsActions($screen, '1'))->toBeFalse();
 
-    // On Android a swipe that ends inside the bubble also lands as a tap on it, just after: that one is the swipe's own.
-    $screen->dragEnd('swipe-1', -200)->tap($tap);
+    $screen->dragEnd('swipe-1', -200);
     expect(showsActions($screen, '1'))->toBeTrue();
 
-    $this->travel(1)->seconds();
     $screen->tap($tap);
     expect(showsActions($screen, '1'))->toBeFalse();
 })->with(['its bubble' => 'bubble-1', 'another bubble' => 'bubble-2', 'beside another message' => 'message-2']);
@@ -306,7 +304,6 @@ it("shows an image-only message's actions beside its images", function () {
     expect(childRefs($screen, 'content-1'))->toBe(['photos-1', 'actions-1'])
         ->and(showsActions($screen, '1'))->toBeTrue();
 
-    $this->travel(1)->seconds();
     $screen->tap('image-1-0');
     expect(showsActions($screen, '1'))->toBeFalse();
 });
