@@ -733,6 +733,32 @@ it('opens a link preview of a page on dev/null here, in the tab it is in, and an
         ->assertNativeCalledTimes('Browser.OpenInApp', 1);
 });
 
+it('opens a link in a message body, in the app for a page on dev/null and in the browser for any other', function () {
+    $commit = '0199e5c4-0000-7000-8000-0000000000c1';
+
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => "read https://nativephp.com/docs or https://dev-null.sh/@grace then https://dev-null.sh/@ada/commits/{$commit}"]),
+    ], ['read_through_id' => 1]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+
+    expect(paragraphRuns($screen, 'read'))->toBe([
+        ['read '],
+        ['nativephp.com/docs', 'link'],
+        [' or '],
+        ['dev-null.sh/@grace', 'link'],
+        [' then '],
+        ['ada/00000c1', 'link'],
+    ]);
+
+    $screen->press('openMessageLink(1, 0)')
+        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://nativephp.com/docs')
+        ->assertNoNavigation();
+
+    finishRefreshes(Native::visit('/remotes/conversations/ada'))->press('openMessageLink(1, 1)')->assertNavigatedTo('/remotes/users/grace');
+    finishRefreshes(Native::visit('/remotes/conversations/ada'))->press('openMessageLink(1, 2)')->assertNavigatedTo('/remotes/commits/'.$commit);
+});
+
 it("opens a mentioned organization's page, and a mentioned user's profile, in the tab", function () {
     serveRemoteThread(threadJson([
         remoteMessageJson(['id' => 1, 'body' => 'ask @laravel or @grace', 'mentions' => [
@@ -1146,6 +1172,31 @@ it('shows three lines of a long pinned message, and the rest with Show more', fu
     $screen->tap('pin-1-more')->assertSee('Show less');
 
     expect(findNode(nodeByRef($screen, 'pin-1'), fn (array $node): bool => ($node['props']['max_lines'] ?? null) === 3))->toBeNull();
+});
+
+it('opens a link in a pinned message, in the sheet and in its three-line preview', function () {
+    $commit = '0199e5c4-0000-7000-8000-0000000000c1';
+    $long = "release checklist: https://nativephp.com/docs\n1. tag 2.4\n2. post the changelog\n3. ping the mobile folks";
+
+    serveOrgThread(orgThreadJson([], ['pinned' => [
+        orgMessageJson(['id' => 1, 'body' => $long]),
+        orgMessageJson(['id' => 2, 'body' => 'fixed in https://dev-null.sh/@ada/commits/'.$commit]),
+    ]]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))->tap('pinned-bar');
+
+    $preview = findNode(nodeByRef($screen, 'pin-1'), fn (array $node): bool => ($node['props']['max_lines'] ?? null) === 3);
+    $link = $preview === null ? null : findNode($preview, fn (array $node): bool => ($node['props']['text'] ?? null) === 'nativephp.com/docs');
+
+    expect($preview)->not->toBeNull()
+        ->and($link['on_press'] ?? null)->not->toBeNull();
+
+    $screen->press('openMessageLink(1, 0)')
+        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://nativephp.com/docs');
+
+    finishRefreshes(Native::visit('/remotes/orgs/org-1'))->tap('pinned-bar')
+        ->press('openMessageLink(2, 0)')
+        ->assertNavigatedTo('/remotes/commits/'.$commit);
 });
 
 it('opens Reply, React and Copy text on a long press on a message, yours or theirs, and keeps its tap and double tap', function () {
