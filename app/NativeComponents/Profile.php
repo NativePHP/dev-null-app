@@ -680,10 +680,17 @@ class Profile extends NativeComponent
 
     /**
      * A profile across a block has its own page, as on the web, whatever devnull's message says. devnull sends who
-     * you blocked with it, for the page's name and avatar.
+     * you blocked with it, for the page's name and avatar. A handle no user has may be an organization's, which shares
+     * its link on the web, so until devnull has sent anything for it, the organization's screen takes this one's place.
      */
     protected function refused(ApiException $exception): bool
     {
+        if ($exception->status === 404 && ! $this->commitsLoaded && ($this->profile === null || $this->sketched)) {
+            $this->replace($this->tabRoot().'/organizations/'.rawurlencode($this->username));
+
+            return true;
+        }
+
         if ($exception->is(ErrorCode::UserBlocked)) {
             if ($exception->user !== null && $exception->user->username === $this->username) {
                 $this->profile = new ProfileData($exception->user);
