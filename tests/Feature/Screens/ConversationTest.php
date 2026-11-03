@@ -657,7 +657,7 @@ it('stacks the avatars of who in an org pulled your latest message, five of them
     // Like your own messages anywhere, it goes without its time. Dennis hasn't pulled it yet.
     expect(statusTexts($screen, 2))->toBe(['pulled by', '+1'])
         ->and(pulledAvatars($screen, 2))->toBe(['https://avatars.test/ada', 'https://avatars.test/grace', 'https://avatars.test/linus', 'https://avatars.test/margaret', 'https://avatars.test/ken'])
-        ->and(nodeByRef($screen, 'pulled-by-2')['props']['a11y_label'] ?? null)->toBe('@ada, @grace, @linus, @margaret, @ken, @barbara');
+        ->and(nodeByRef($screen, 'pulled-by-2')['props']['a11y_label'] ?? null)->toBe('@ada, @grace, @linus, @margaret, @ken and 1 other');
 });
 
 it("puts the time before who pulled someone else's message, you among them", function () {
