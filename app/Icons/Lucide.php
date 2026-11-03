@@ -109,6 +109,7 @@ enum Lucide
     case Phone;
     case PhoneOff;
     case MicOff;
+    case Share2;
 
     /**
      * The icon the web's inbox draws for a kind of notification.
@@ -233,6 +234,7 @@ enum Lucide
             self::Phone => 'phone',
             self::PhoneOff => 'phone-off',
             self::MicOff => 'mic-off',
+            self::Share2 => 'share-2',
             default => null,
         };
 

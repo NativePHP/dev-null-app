@@ -6,6 +6,7 @@ use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitBody;
 use App\Devnull\Data\DraftImage;
 use App\Devnull\Data\MessageVoice;
+use App\Devnull\Data\ScoreCard;
 use App\Devnull\Data\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
@@ -213,8 +214,9 @@ class PendingWrite extends Model
             createdAt: $this->created_at ?? CarbonImmutable::now(),
             parentId: $this->parentId(),
             images: array_map(fn (DraftImage $image, int $index) => $image->asCommitImage($index), $this->images(), array_keys($this->images())),
-            content: CommitBody::blocks($this->body(), null, []),
+            content: CommitBody::blocks(ScoreCard::withoutRun($this->body()), null, []),
             quotedCommitId: $this->quotedCommitId(),
+            scoreCard: ScoreCard::fromCommit($this->body(), $author),
         );
     }
 

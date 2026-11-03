@@ -17,6 +17,9 @@ use Throwable;
  * Like the web's cards it can carry a poll, the commit it quotes, the start of
  * a body too long to show whole in a list ($previewContent), and in a list the
  * thread the web shows under it ($replyPreview).
+ *
+ * A Nata Nu//ers high score carries its signed run in a fenced block, which
+ * shows as a card ($scoreCard) instead of as code.
  */
 final readonly class Commit
 {
@@ -78,6 +81,7 @@ final readonly class Commit
         public ?array $previewContent = null,
         public ?ReplyPreview $replyPreview = null,
         public int $pasteisCount = 0,
+        public ?ScoreCard $scoreCard = null,
     ) {}
 
     /**
@@ -108,12 +112,20 @@ final readonly class Commit
         $mentions = self::listOf($data['mentions'] ?? null, Mention::fromArray(...));
         $segments = is_array($data['body_segments'] ?? null) ? array_values(array_filter($data['body_segments'], is_array(...))) : null;
         $previewSegments = is_array($data['preview_segments'] ?? null) ? array_values(array_filter($data['preview_segments'], is_array(...))) : null;
+        $author = User::fromArray(is_array($data['author'] ?? null) ? $data['author'] : []);
+        $scoreCard = ScoreCard::fromCommit($body, $author);
+
+        // A shared high score draws its run as a card, so the body is the line above it, whole.
+        if ($scoreCard !== null) {
+            $segments = null;
+            $previewSegments = null;
+        }
 
         return new self(
             id: $id,
             body: $body,
             status: (string) ($data['status'] ?? 'approved'),
-            author: User::fromArray(is_array($data['author'] ?? null) ? $data['author'] : []),
+            author: $author,
             createdAt: self::date($data['created_at'] ?? null),
             parentId: $parentId,
             repliesCount: $repliesCount,
@@ -124,7 +136,7 @@ final readonly class Commit
             mentions: $mentions,
             linkPreview: is_array($data['link_preview'] ?? null) ? LinkPreview::fromArray($data['link_preview']) : null,
             images: self::listOf($data['images'] ?? null, CommitImage::fromArray(...)),
-            content: CommitBody::blocks($body, $segments, $mentions),
+            content: CommitBody::blocks($scoreCard === null ? $body : ScoreCard::withoutRun($body), $segments, $mentions),
             parent: is_array($data['parent'] ?? null) ? self::fromArray($data['parent']) : null,
             shortHash: is_string($data['short_hash'] ?? null) && $data['short_hash'] !== '' ? $data['short_hash'] : Display::shortHash($id),
             seriesId: is_string($data['series_id'] ?? null) ? $data['series_id'] : null,
@@ -136,6 +148,7 @@ final readonly class Commit
             previewContent: $previewSegments === null ? null : CommitBody::blocks($body, $previewSegments, $mentions),
             replyPreview: is_array($data['reply_preview'] ?? null) ? ReplyPreview::fromArray($data['reply_preview']) : null,
             pasteisCount: max(0, (int) ($data['pasteis_count'] ?? 0)),
+            scoreCard: $scoreCard,
         );
     }
 

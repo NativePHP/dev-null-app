@@ -41,6 +41,7 @@
         "nativephp/mobile-microphone": "^1.2",
         "nativephp/mobile-secure-storage": "^1.1",
         "nativephp/mobile-share": "^1.1",
+        "nativephp/mobile-skia": "^1.0",
         "nativephp/mobile-ui": "^0.9",
         "s2br/nativephp-mobile-splashscreen": "^1.4",
         "victorycodedev/toastkit": "dev-fix/android-toasts-above-sheets as 1.4.0"
@@ -78,7 +79,7 @@
             "@php -r \"copy('composer.json', 'composer.free.json'); copy('composer.lock', 'composer.free.lock');\"",
             "@putenv COMPOSER=composer.free.json",
             "@composer config --unset repositories.nativephp-plugins",
-            "@composer remove nativephp/mobile-secure-storage --no-interaction",
+            "@composer remove nativephp/mobile-secure-storage nativephp/mobile-skia --no-interaction",
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
             "@php artisan key:generate",
             "@php artisan migrate --force"

@@ -32,6 +32,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Nata Nu//ers
+    |--------------------------------------------------------------------------
+    |
+    | The Easter egg game. It needs the paid Skia plugin, so a build without
+    | it never offers the game whatever this says. Set it false to hide the
+    | game from a build that has the plugin.
+    |
+    */
+
+    'nata_nullers' => (bool) env('DEVNULL_NATA_NULLERS', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Skeleton first
     |--------------------------------------------------------------------------
     |

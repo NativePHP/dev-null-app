@@ -48,6 +48,7 @@ final class Draft
         return new Commit(...[
             ...get_object_vars($commit),
             'author' => $author,
+            'scoreCard' => ScoreCard::fromCommit($body, $author),
             'images' => array_map(fn (DraftImage $image, int $index): CommitImage => $image->asCommitImage($index), $images, array_keys($images)),
             'poll' => $poll === null ? null : PollDraft::preview($poll),
             'quotedCommitId' => $quoted?->id,

@@ -4,6 +4,7 @@ namespace App\NativeComponents\Layouts;
 
 use App\Devnull\Account;
 use App\Devnull\Lane;
+use App\Devnull\NataNullers\Game;
 use App\Icons\Lucide;
 use App\NativeComponents\Log;
 use Native\Mobile\Edge\Elements\Image;
@@ -54,6 +55,7 @@ class TabsLayout extends NativeLayout
 
     /**
      * The Log wears the logo in place of its title, as the web's header does.
+     * Holding it down opens Nata Nu//ers, in a build that has it.
      */
     public function navBar(NativeComponent $screen): ?NavBar
     {
@@ -62,7 +64,9 @@ class TabsLayout extends NativeLayout
             ->displayMode('inline');
 
         if ($screen instanceof Log) {
-            $navBar->titleView(Image::make(self::logo())->height(28)->alt('devnull'));
+            $logo = Image::make(self::logo())->height(28)->alt('devnull')->ref('wordmark');
+
+            $navBar->titleView(Game::available() ? $logo->onLongPress('playNataNullers') : $logo);
         }
 
         return $navBar;

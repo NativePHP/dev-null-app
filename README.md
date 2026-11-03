@@ -35,7 +35,7 @@ cd dev-null-app
 composer setup
 ```
 
-`nativephp/mobile-secure-storage` is a paid plugin from `plugins.nativephp.com`, so `composer install` needs your NativePHP plugin credentials. See below if you don't have access to the plugin.
+`nativephp/mobile-secure-storage` and `nativephp/mobile-skia` are paid plugins from `plugins.nativephp.com`, so `composer install` needs your NativePHP plugin credentials. See below if you don't have access to them.
 
 For now the app tracks one unreleased package, which Composer pulls straight from GitHub: `victorycodedev/toastkit` from the `fix/android-toasts-above-sheets` branch of [simonhamp/toastkit](https://github.com/simonhamp/toastkit), which draws Android toasts above bottom sheets instead of behind them ([victorycodedev/toastkit#5](https://github.com/victorycodedev/toastkit/pull/5)). Once that is released, the app goes back to a tagged version.
 
@@ -45,7 +45,7 @@ For now the app tracks one unreleased package, which Composer pulls straight fro
 composer setup:free
 ```
 
-This installs everything except the Secure Storage plugin, from a copy of `composer.json` and `composer.lock` that it writes to `composer.free.*`. To install again later, run `COMPOSER=composer.free.json composer install`.
+This installs everything except the Secure Storage and Skia plugins, from a copy of `composer.json` and `composer.lock` that it writes to `composer.free.*`. To install again later, run `COMPOSER=composer.free.json composer install`.
 
 Build the same way, since `native:run` runs its own `composer install` on a copy of the app:
 
@@ -53,7 +53,9 @@ Build the same way, since `native:run` runs its own `composer install` on a copy
 COMPOSER=composer.free.json php artisan native:run ios
 ```
 
-Without the plugin, the app keeps its key in a file encrypted with `APP_KEY` instead of in the Keychain. That's fine for a simulator, but don't ship it. On a real phone the app works this out for itself and refuses to make a key. `DEVNULL_KEY_STORE` (`keychain` or `file`) overrides the choice, so `file` makes it use the file on a phone too.
+Without Skia there's no Nata Nu//ers, the hidden game. Score cards in the feed still show.
+
+Without Secure Storage, the app keeps its key in a file encrypted with `APP_KEY` instead of in the Keychain. That's fine for a simulator, but don't ship it. On a real phone the app works this out for itself and refuses to make a key. `DEVNULL_KEY_STORE` (`keychain` or `file`) overrides the choice, so `file` makes it use the file on a phone too.
 
 These can be set in `.env`:
 

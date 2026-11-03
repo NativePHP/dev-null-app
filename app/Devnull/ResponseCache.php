@@ -492,6 +492,18 @@ final class ResponseCache
     }
 
     /**
+     * You followed or unfollowed an organization: its kept page says so, with its followers counted to match.
+     */
+    public function organizationFollowChanged(string $handle, bool $following): void
+    {
+        $kept = $this->get("organizations/{$handle}");
+
+        if ($kept !== null && ($kept['is_following'] ?? false) !== $following) {
+            $this->patch("organizations/{$handle}", [], fn (array $json): array => [...self::count($json, 'followers_count', $following ? 1 : -1), 'is_following' => $following]);
+        }
+    }
+
+    /**
      * Marks someone followed, or not, wherever a kept list of people says whether you follow them.
      */
     private function patchFollowedPeople(string $username, bool $following): void
