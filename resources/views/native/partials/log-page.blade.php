@@ -12,11 +12,11 @@
     Every page keeps pull to refresh, which can only be pulled on the log you're on anyway: iOS builds a new list when a
     list gains or loses it, and the new one starts at the top.
 --}}
-<native:column native:key="page-{{ $page['log'] }}" class="w-full h-full bg-theme-surface">
+<native:column native:key="page-{{ $page['log'] }}" class="w-full h-full bg-theme-surface items-center">
     <native:list
         native:key="log-{{ $page['log'] }}-{{ $page['listKey'] }}"
         :ref="$page['showing'] ? 'log' : 'log-'.$page['log']"
-        class="w-full flex-1 bg-theme-surface"
+        class="w-full flex-1 bg-theme-surface {{ \App\Devnull\Display::ReadableColumn }}"
         on-refresh="load"
         :on-end-reached="$page['showing'] ? 'loadMore' : null"
         :end-reached-buffer="5"

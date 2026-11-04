@@ -768,11 +768,10 @@ it('ends the page above the reply bar, and further as the draft grows', function
     fakeThread(replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'The last reply'])]);
 
     $screen = Native::visit('/log/commits/c2', platform: 'ios');
-    $scroller = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'scroll_view');
-    $page = $scroller['children'][0]['children'];
+    $page = childRefs($screen, 'thread-page');
 
     // The clearance is the last thing on the page, under the last reply: the bar's line and the home indicator.
-    expect(end($page)['ref'] ?? null)->toBe('reply-bar-clearance')
+    expect(end($page))->toBe('reply-bar-clearance')
         ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual(24 + 53 + 34);
 
     $screen->input('reply-input', "Three lines\nof a\ndraft");
