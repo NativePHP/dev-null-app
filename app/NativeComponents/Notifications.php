@@ -10,6 +10,7 @@ use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Exceptions\Unauthenticated;
 use App\Devnull\ShownTabs;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
+use App\NativeComponents\Concerns\OffersPush;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SyncsOutbox;
@@ -42,6 +43,7 @@ use Native\Mobile\Edge\NativeComponent;
 class Notifications extends NativeComponent
 {
     use DrawsSkeletonFirst;
+    use OffersPush;
     use OpensInTab;
     use RefreshesInBackground;
     use SyncsOutbox;
@@ -122,12 +124,14 @@ class Notifications extends NativeComponent
     public function mount(): void
     {
         $this->type = app(ShownTabs::class)->get($this->me()?->id, 'notifications', array_keys(self::Types), 'all');
+        $this->checkPushPrompt();
         $this->fillInAfterFirstFrame('revalidate');
     }
 
     public function onResume(): void
     {
         $this->forgetRefreshes();
+        $this->checkPushPrompt();
         $this->revalidate();
     }
 

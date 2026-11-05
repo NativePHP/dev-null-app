@@ -1,6 +1,7 @@
 <native:column class="w-full h-full bg-theme-background">
     @include('native.partials.error')
     @include('native.partials.refresh-failed')
+    @include('native.partials.push-prompt')
 
     {{--
         The filters as pages you swipe between, as on the Log: the one you're on and one either side, which show the

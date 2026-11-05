@@ -298,11 +298,6 @@
                         <native:text font="mono" class="w-[88] text-[13px] text-theme-ink-muted">fingerprint</native:text>
                         <native:text font="mono" class="flex-1 text-[13px] text-theme-ink">{{ $fingerprint ?: 'null' }}</native:text>
                     </native:row>
-                    <native:column class="w-full h-[1] bg-theme-hairline" />
-                    <native:row ref="push" class="w-full px-3 py-3 gap-3">
-                        <native:text font="mono" class="w-[88] text-[13px] text-theme-ink-muted">push</native:text>
-                        <native:text ref="push-status" font="mono" class="flex-1 text-[13px] text-theme-ink">{{ $pushStatus }}</native:text>
-                    </native:row>
                     @if ($remote !== null)
                         <native:column class="w-full h-[1] bg-theme-hairline" />
                         <native:row ref="remote" class="w-full px-3 py-3 gap-3">
@@ -312,16 +307,13 @@
                     @endif
                 </native:column>
 
-                {{-- The phone only asks once. After a no, turning it back on happens in the phone's own Settings. --}}
-                @if (! $hasPushToken && $pushPermission !== 'denied')
-                    <native:column class="w-full px-4 pt-4">
-                        <native:button ref="enroll-push" variant="secondary" size="lg" :ios-icon="Lucide::Bell->ios()" :android-icon="Lucide::Bell->android()" @press="enrollPush" class="w-full">Turn on notifications</native:button>
-                    </native:column>
-                @elseif ($pushPermission === 'denied')
-                    <native:column class="w-full px-4 pt-2">
+                {{-- Always here, even once the tabs' prompt is dismissed. The phone only asks once: after a no, they come back on in its own Settings. --}}
+                <native:column class="w-full px-4 pt-4 gap-2">
+                    <native:button ref="enroll-push" variant="secondary" size="lg" :ios-icon="Lucide::Bell->ios()" :android-icon="Lucide::Bell->android()" @press="enrollPush" class="w-full">Turn on notifications</native:button>
+                    @if ($pushPermission === 'denied')
                         <native:text class="text-xs leading-relaxed text-theme-ink-muted">Notifications are off for devnull. Turn them on in your phone's Settings.</native:text>
-                    </native:column>
-                @endif
+                    @endif
+                </native:column>
 
                 <native:column class="w-full px-4 pt-4">
                     <native:button ref="devices" variant="secondary" size="lg" :ios-icon="Lucide::TabletSmartphone->ios()" :android-icon="Lucide::TabletSmartphone->android()" @press="openDevices" class="w-full">Your devices on dev-null.sh</native:button>
