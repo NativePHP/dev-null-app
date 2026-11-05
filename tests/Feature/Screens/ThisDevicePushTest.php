@@ -50,3 +50,63 @@ it('sends you to the phone\'s Settings once notifications were turned off there'
     $bridge->assertCalled('System.OpenAppSettings');
     $bridge->assertNotCalled('PushNotification.RequestPermission');
 });
+
+/**
+ * `GET /me/settings` as devnull answers it, with the push notifications given.
+ *
+ * @param  array<string, bool>  $push
+ * @return array<string, mixed>
+ */
+function settingsWithPush(array $push = []): array
+{
+    return ['data' => [
+        'timezone' => null,
+        'show_local_time' => false,
+        'push' => [...['follows' => true, 'replies' => true, 'mentions' => true, 'direct_remotes' => true, 'org_remotes' => true], ...$push],
+    ]];
+}
+
+it('shows which push notifications you get, as devnull says', function () {
+    serveApi(['GET /api/v1/me' => [currentUserJson()], 'GET /api/v1/me/settings' => [settingsWithPush(['mentions' => false])]]);
+    signIn();
+
+    $screen = Native::visit('/profile/device')
+        ->assertSee('Push notifications')
+        ->assertSee('Follows')
+        ->assertSee('Replies')
+        ->assertSee('Mentions')
+        ->assertSee('Remotes messages')
+        ->assertSee('Org messages');
+
+    expect(nodeByRef($screen, 'push-mentions-switch')['props']['value'] ?? null)->toBeFalse()
+        ->and(nodeByRef($screen, 'push-follows-switch')['props']['value'] ?? null)->toBeTrue();
+});
+
+it('saves a push notification switch with all five', function () {
+    serveApi([
+        'GET /api/v1/me' => [currentUserJson()],
+        'GET /api/v1/me/settings' => [settingsWithPush()],
+        'PUT /api/v1/me/push-preferences' => [['data' => settingsWithPush(['org_remotes' => false])['data']['push']]],
+    ]);
+    signIn();
+
+    $screen = Native::visit('/profile/device')->toggle('push-org_remotes-switch', false);
+
+    expect(sentTo('PUT', 'me/push-preferences'))->toBe(['{"follows":true,"replies":true,"mentions":true,"direct_remotes":true,"org_remotes":false}'])
+        ->and(nodeByRef($screen, 'push-org_remotes-switch')['props']['value'] ?? null)->toBeFalse();
+});
+
+it('puts the switch back when devnull can\'t save it', function () {
+    serveApi([
+        'GET /api/v1/me' => [currentUserJson()],
+        'GET /api/v1/me/settings' => [settingsWithPush()],
+        'PUT /api/v1/me/push-preferences' => [['message' => 'Server Error'], 500],
+    ]);
+    signIn();
+
+    $screen = Native::visit('/profile/device')
+        ->toggle('push-replies-switch', false)
+        ->assertSee('Could not save your notification settings. Try again.');
+
+    expect(nodeByRef($screen, 'push-replies-switch')['props']['value'] ?? null)->toBeTrue();
+});

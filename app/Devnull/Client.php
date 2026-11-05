@@ -124,6 +124,14 @@ final readonly class Client
     public const string SettingsPath = 'me/settings';
 
     /**
+     * This phone's push token, which devnull keeps on the device the request is signed with, and which push
+     * notifications you get.
+     */
+    public const string PushTokenPath = 'me/push-token';
+
+    public const string PushPreferencesPath = 'me/push-preferences';
+
+    /**
      * Where the signed-in account accepts the terms and privacy policy in force.
      */
     public const string TermsPath = 'me/terms';

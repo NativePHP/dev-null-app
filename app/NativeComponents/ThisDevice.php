@@ -18,6 +18,7 @@ use App\Devnull\WhoToFollow;
 use App\NativeComponents\Concerns\LeavesDevnull;
 use App\NativeComponents\Concerns\OpensLegalPages;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SendsPushToken;
 use App\NativeComponents\Concerns\SignsInWithApple;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -56,6 +57,7 @@ class ThisDevice extends NativeComponent
     use LeavesDevnull;
     use OpensLegalPages;
     use RefreshesInBackground;
+    use SendsPushToken;
     use SignsInWithApple;
     use SyncsOutbox;
     use TalksToDevnull;
@@ -152,6 +154,28 @@ class ThisDevice extends NativeComponent
      */
     public const string PasteisModeFailed = 'Could not save pastéis mode. Please try again.';
 
+    /**
+     * The push notifications you can turn off one by one, as devnull names them, with their labels.
+     */
+    public const array PushKinds = [
+        'follows' => 'Follows',
+        'replies' => 'Replies',
+        'mentions' => 'Mentions',
+        'direct_remotes' => 'Remotes messages',
+        'org_remotes' => 'Org messages',
+    ];
+
+    public const string PushPreferencesFailed = 'Could not save your notification settings. Try again.';
+
+    /**
+     * Which push notifications you get, by kind (see PushKinds), or empty until devnull says.
+     *
+     * @var array<string, bool>
+     */
+    public array $pushPreferences = [];
+
+    public ?string $pushPreferencesError = null;
+
     public bool $savingRemotes = false;
 
     public ?string $remotesError = null;
@@ -197,6 +221,7 @@ class ThisDevice extends NativeComponent
 
         $this->pushPermission = PushNotifications::checkPermission();
         $this->pushOn = $this->pushPermission !== 'denied' && PushNotifications::getToken() !== null;
+        $this->sendPushToken();
 
         try {
             $this->fingerprint = app(DeviceKey::class)->current()->fingerprint();
@@ -610,6 +635,25 @@ class ThisDevice extends NativeComponent
     }
 
     /**
+     * Turns one kind of push notification on or off, and puts it back if devnull can't save it.
+     */
+    public function setPushPreference(string $kind, bool $on): void
+    {
+        if (! array_key_exists($kind, $this->pushPreferences) || $this->pushPreferences[$kind] === $on) {
+            return;
+        }
+
+        $before = $this->pushPreferences;
+        $this->pushPreferences[$kind] = $on;
+        $this->pushPreferencesError = null;
+
+        $this->writeInBackground('PUT', Client::PushPreferencesPath, $this->pushPreferences, fn (array $json) => $this->takePushPreferences($json['data'] ?? null), function () use ($before): void {
+            $this->pushPreferences = $before;
+            $this->pushPreferencesError = self::PushPreferencesFailed;
+        });
+    }
+
+    /**
      * devnull's page in the phone's Settings, the only place notifications come back on once they were turned off.
      */
     public function openPushSettings(): void
@@ -618,9 +662,10 @@ class ThisDevice extends NativeComponent
     }
 
     #[On(TokenGenerated::class)]
-    public function pushTokenReceived(): void
+    public function pushTokenReceived(string $token): void
     {
         $this->pushOn = true;
+        $this->sendPushToken($token);
         $this->pushPermission = PushNotifications::checkPermission() ?? $this->pushPermission;
     }
 
@@ -666,6 +711,7 @@ class ThisDevice extends NativeComponent
     public function onAlertButton(string $label = '', ?string $id = null): void
     {
         if ($id === self::SignOutAlert && $label === 'Sign out') {
+            $this->dropPushToken();
             $this->forget();
         }
 
@@ -808,6 +854,24 @@ class ThisDevice extends NativeComponent
         $this->savedTimezone = $timezone;
         $this->savedShowLocalTime = $showsLocalTime;
         app(Account::class)->rememberTimezone($timezone);
+
+        $this->takePushPreferences($settings['push'] ?? null);
+    }
+
+    /**
+     * Which push notifications devnull says you get. A kind it doesn't mention is on, as devnull's default.
+     */
+    private function takePushPreferences(mixed $push): void
+    {
+        if (! is_array($push)) {
+            return;
+        }
+
+        $this->pushPreferences = [];
+
+        foreach (array_keys(self::PushKinds) as $kind) {
+            $this->pushPreferences[$kind] = ($push[$kind] ?? true) !== false;
+        }
     }
 
     /**

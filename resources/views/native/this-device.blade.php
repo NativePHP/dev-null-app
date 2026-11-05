@@ -286,6 +286,38 @@
                 </native:column>
             @endif
 
+            <native:column ref="push-notifications" class="w-full pt-10">
+                @include('native.partials.settings-heading', [
+                    'title' => 'Push notifications',
+                    'description' => 'What devnull tells you about when the app is closed, on every phone you sign in on.',
+                ])
+
+                {{-- Always here, even once the tabs' prompt is dismissed. The phone only asks once: after a no, they come back on in its own Settings, so the button goes there. --}}
+                <native:column class="w-full px-4 pt-4 gap-2">
+                    @if ($pushPermission === 'denied')
+                        <native:button ref="open-push-settings" variant="secondary" size="lg" :ios-icon="Lucide::BellOff->ios()" :android-icon="Lucide::BellOff->android()" @press="openPushSettings" class="w-full">Turn on in Settings</native:button>
+                        <native:text class="text-xs leading-relaxed text-theme-ink-muted">Notifications are off for devnull on this phone.</native:text>
+                    @else
+                        <native:button ref="enroll-push" variant="secondary" size="lg" :ios-icon="($pushOn ? Lucide::Check : Lucide::Bell)->ios()" :android-icon="($pushOn ? Lucide::Check : Lucide::Bell)->android()" :disabled="$pushOn" @press="enrollPush" class="w-full">{{ $pushOn ? 'Notifications are on' : 'Turn on notifications' }}</native:button>
+                    @endif
+                </native:column>
+
+                {{-- Which kinds devnull sends, for you on every phone. Shown once devnull has said. --}}
+                @if ($pushPreferences !== [])
+                    <native:column class="w-full pt-2">
+                        @foreach (\App\NativeComponents\ThisDevice::PushKinds as $kind => $label)
+                            <native:row ref="push-{{ $kind }}" class="w-full px-4 pt-4 gap-6 items-center">
+                                <native:text font="medium" class="flex-1 text-[15px] text-theme-ink">{{ $label }}</native:text>
+                                <native:toggle ref="push-{{ $kind }}-switch" :value="$pushPreferences[$kind]" @change="setPushPreference('{{ $kind }}')" :a11y-label="$label.' notifications'" />
+                            </native:row>
+                        @endforeach
+                        @if ($pushPreferencesError)
+                            <native:text ref="push-preferences-error" class="w-full px-4 pt-2 text-sm text-theme-destructive">{{ $pushPreferencesError }}</native:text>
+                        @endif
+                    </native:column>
+                @endif
+            </native:column>
+
             <native:column ref="this-phone" class="w-full pt-10">
                 @include('native.partials.settings-heading', [
                     'title' => 'This phone',
@@ -304,16 +336,6 @@
                             <native:text font="mono" class="w-[88] text-[13px] text-theme-ink-muted">remote</native:text>
                             <native:text font="mono" class="flex-1 text-[13px] text-theme-ink">{{ $remote }}</native:text>
                         </native:row>
-                    @endif
-                </native:column>
-
-                {{-- Always here, even once the tabs' prompt is dismissed. The phone only asks once: after a no, they come back on in its own Settings, so the button goes there. --}}
-                <native:column class="w-full px-4 pt-4 gap-2">
-                    @if ($pushPermission === 'denied')
-                        <native:button ref="open-push-settings" variant="secondary" size="lg" :ios-icon="Lucide::BellOff->ios()" :android-icon="Lucide::BellOff->android()" @press="openPushSettings" class="w-full">Turn on in Settings</native:button>
-                        <native:text class="text-xs leading-relaxed text-theme-ink-muted">Notifications are off for devnull on this phone.</native:text>
-                    @else
-                        <native:button ref="enroll-push" variant="secondary" size="lg" :ios-icon="($pushOn ? Lucide::Check : Lucide::Bell)->ios()" :android-icon="($pushOn ? Lucide::Check : Lucide::Bell)->android()" :disabled="$pushOn" @press="enrollPush" class="w-full">{{ $pushOn ? 'Notifications are on' : 'Turn on notifications' }}</native:button>
                     @endif
                 </native:column>
 

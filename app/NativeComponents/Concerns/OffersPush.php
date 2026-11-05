@@ -10,10 +10,13 @@ use Native\Mobile\Facades\System;
 
 /**
  * The push notifications prompt at the top of a tab (see App\Devnull\PushPrompt and the push-prompt partial). The
- * screen asks which to show when it mounts and when you come back to it.
+ * screen asks which to show when it mounts and when you come back to it, and sends devnull the phone's token then
+ * too (see SendsPushToken).
  */
 trait OffersPush
 {
+    use SendsPushToken;
+
     /**
      * PushPrompt::Offer, PushPrompt::TurnedOff, or null for none.
      */
@@ -22,6 +25,7 @@ trait OffersPush
     protected function checkPushPrompt(): void
     {
         $this->pushPrompt = app(PushPrompt::class)->current();
+        $this->sendPushToken();
     }
 
     /**
@@ -51,8 +55,9 @@ trait OffersPush
     }
 
     #[On(TokenGenerated::class)]
-    public function pushTokenReceived(): void
+    public function pushTokenReceived(string $token): void
     {
         $this->pushPrompt = null;
+        $this->sendPushToken($token);
     }
 }
