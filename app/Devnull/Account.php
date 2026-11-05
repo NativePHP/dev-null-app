@@ -36,6 +36,8 @@ final class Account
 
     private const string TermsKey = 'devnull.terms-to-accept';
 
+    private const string TranslationKey = 'devnull.translation-preferences';
+
     public function user(): ?User
     {
         $attributes = Cache::get(self::CacheKey);
@@ -45,6 +47,10 @@ final class Account
 
     public function remember(User $user): void
     {
+        if ($this->user()?->id !== $user->id) {
+            app(ResponseCache::class)->forgetGeneratedTranslations();
+        }
+
         Cache::forever(self::CacheKey, $user->toArray());
     }
 
@@ -192,6 +198,62 @@ final class Account
         Cache::forever(self::TimezoneKey, $timezone);
     }
 
+    /** The account language preference, or null to follow this phone. */
+    public function translationLanguage(): ?string
+    {
+        $language = Cache::get(self::TranslationKey, [])['translation_language'] ?? null;
+
+        return is_string($language) && $language !== '' ? $language : null;
+    }
+
+    /** Cached translations display automatically unless the account explicitly opts out. */
+    public function automaticTranslation(): bool
+    {
+        return (Cache::get(self::TranslationKey, [])['automatic_translation'] ?? true) !== false;
+    }
+
+    /**
+     * Supported choices last supplied by settings; empty on older backends without translation settings.
+     *
+     * @return list<array{code: string, name: string, native_name: string}>
+     */
+    public function translationLanguages(): array
+    {
+        return Cache::get(self::TranslationKey, [])['translation_languages'] ?? [];
+    }
+
+    /**
+     * Partial settings answers must not reset preferences they don't carry.
+     *
+     * @param  array<string, mixed>  $settings
+     */
+    public function rememberTranslationSettings(array $settings): void
+    {
+        $kept = Cache::get(self::TranslationKey, []);
+
+        if (array_key_exists('translation_language', $settings)) {
+            $language = $settings['translation_language'];
+
+            if ($language !== ($kept['translation_language'] ?? null)) {
+                app(ResponseCache::class)->forgetGeneratedTranslations();
+            }
+
+            $kept['translation_language'] = is_string($language) && $language !== '' ? $language : null;
+        }
+
+        if (is_bool($settings['automatic_translation'] ?? null)) {
+            $kept['automatic_translation'] = $settings['automatic_translation'];
+        }
+
+        if (is_array($settings['translation_languages'] ?? null)) {
+            $kept['translation_languages'] = array_values(array_filter($settings['translation_languages'], fn (mixed $language): bool => is_array($language)
+                && is_string($language['code'] ?? null) && $language['code'] !== ''
+                && is_string($language['name'] ?? null) && is_string($language['native_name'] ?? null)));
+        }
+
+        Cache::forever(self::TranslationKey, $kept);
+    }
+
     /**
      * The version of the terms devnull last said you have yet to accept, so the app opens on them (see AcceptTerms),
      * or null when you're up to date.
@@ -234,5 +296,6 @@ final class Account
         Cache::forget(self::PinWarningKey);
         Cache::forget(self::TimezoneKey);
         Cache::forget(self::TermsKey);
+        Cache::forget(self::TranslationKey);
     }
 }

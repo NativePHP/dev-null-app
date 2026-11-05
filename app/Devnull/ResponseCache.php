@@ -240,6 +240,88 @@ final class ResponseCache
         $this->store()->flush();
     }
 
+    /** Clears successful-generation protection when the account or target preference changes. */
+    public function forgetGeneratedTranslations(): void
+    {
+        $this->store()->forget('generated-translations');
+    }
+
+    /**
+     * Keeps explicit successes only, so older enclosing GETs cannot undo a write.
+     * The timestamp limits protection to requests already in flight, not future server decisions.
+     *
+     * @param  array<string, mixed>  $translation
+     */
+    public function rememberGeneratedTranslation(string $id, string $body, array $translation): void
+    {
+        $kept = $this->generatedTranslations();
+        $kept['commits'][$id] = ['body' => hash('sha256', $body), 'translation' => $translation, 'at' => microtime(true)];
+        $kept['commits'] = array_slice($kept['commits'], -self::MaxEntries, null, true);
+        $this->store()->put('generated-translations', $kept, now()->addDays(self::ShownForDays));
+    }
+
+    /**
+     * Restores successful translations throughout an older resource before both cache storage and DTO parsing.
+     * A body edit invalidates its overlay; account and target-language context never cross readers.
+     *
+     * @param  array<string, mixed>  $json
+     * @return array<string, mixed>
+     */
+    public function preserveGeneratedTranslations(array $json, float $requestedAt): array
+    {
+        $kept = $this->generatedTranslations();
+        if ($kept['commits'] === []) {
+            return $json;
+        }
+
+        $visit = function (array $node) use (&$visit, &$kept, $requestedAt): array {
+            $id = is_scalar($node['id'] ?? null) ? (string) $node['id'] : '';
+            $generated = $kept['commits'][$id] ?? null;
+
+            if ($generated !== null && is_string($node['body'] ?? null)) {
+                if ($generated['body'] !== hash('sha256', $node['body'])) {
+                    unset($kept['commits'][$id]);
+                } elseif ($generated['at'] > $requestedAt && ! isset($node['deleted_at'])
+                    && ($node['status'] ?? 'approved') === 'approved'
+                    && isset($node['author']) && ($node['author']['id'] ?? null) !== $kept['account']) {
+                    $node['translation'] = $generated['translation'];
+                }
+            }
+
+            foreach ($node as $key => $value) {
+                if (is_array($value)) {
+                    $node[$key] = $visit($value);
+                }
+            }
+
+            return $node;
+        };
+        $json = $visit($json);
+        $this->store()->put('generated-translations', $kept, now()->addDays(self::ShownForDays));
+
+        return $json;
+    }
+
+    /**
+     * One account and resolved target language own the protection, including the phone-language fallback.
+     *
+     * @return array{account: ?string, language: string, commits: array<string, array{body: string, translation: array<string, mixed>, at: float}>}
+     */
+    private function generatedTranslations(): array
+    {
+        $account = $this->userId();
+        $language = app(TranslationLanguage::class)->yours();
+        $kept = $this->store()->get('generated-translations');
+
+        if (is_array($kept) && $kept['account'] === $account && $kept['language'] === $language) {
+            return $kept;
+        }
+
+        $this->forgetGeneratedTranslations();
+
+        return ['account' => $account, 'language' => $language, 'commits' => []];
+    }
+
     // ── The app's own writes ──────────────────────
 
     /**

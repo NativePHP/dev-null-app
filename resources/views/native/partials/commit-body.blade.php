@@ -25,11 +25,20 @@
     opens the rest where it is. The commit a page is about ($focused) is always whole. $muted sets it in muted ink, for
     the commits around the one a page is about.
 --}}
-@php($size ??= 'text-[15px]')
-@php($ink = ($muted ?? false) ? 'text-theme-ink-muted' : 'text-theme-ink')
-@php($folded = ! ($focused ?? false) && $commit->isFolded() && ! in_array($commit->id, $unfolded ?? [], true))
+@php
+    $size ??= 'text-[15px]';
+    $ink = ($muted ?? false) ? 'text-theme-ink-muted' : 'text-theme-ink';
+    $translationEligible = $commit instanceof \App\Devnull\Data\Commit && $commit->canTranslateBy($viewer ?? app(\App\Devnull\Account::class)->user());
+    $translated = $translationEligible && $commit->translation->isDisplayed(
+        app(\App\Devnull\TranslationLanguage::class)->yours(),
+        app(\App\Devnull\Account::class)->automaticTranslation(),
+        $translationDisplay[$commit->id] ?? null,
+    );
+    $displayCommit = $translated ? $commit->displayingTranslation() : $commit;
+@endphp
+@php($folded = ! ($focused ?? false) && $displayCommit->isFolded() && ! in_array($commit->id, $unfolded ?? [], true))
 @php($linkIndex = 0)
-@foreach ($folded ? $commit->previewContent : $commit->content as $block)
+@foreach ($folded ? $displayCommit->previewContent : $displayCommit->content as $block)
     @if ($block->isCode())
         <native:column class="w-full mt-1 mb-1 rounded-md border border-theme-hairline bg-theme-wash">
             @if ($block->language)
@@ -70,3 +79,5 @@
         <native:text font="medium" class="{{ $size }} text-theme-primary">Show more</native:text>
     </native:pressable>
 @endif
+
+@include('native.partials.commit-translation-controls')
