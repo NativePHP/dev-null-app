@@ -10,11 +10,13 @@ use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Exceptions\Unauthenticated;
 use App\Devnull\ShownTabs;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
+use App\NativeComponents\Concerns\OffersPush;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Concerns\WatchesForCalls;
+use App\NativeComponents\Concerns\WritesInBackground;
 use Carbon\CarbonImmutable;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
@@ -42,11 +44,13 @@ use Native\Mobile\Edge\NativeComponent;
 class Notifications extends NativeComponent
 {
     use DrawsSkeletonFirst;
+    use OffersPush;
     use OpensInTab;
     use RefreshesInBackground;
     use SyncsOutbox;
     use TalksToDevnull;
     use WatchesForCalls;
+    use WritesInBackground;
 
     /**
      * Every frame goes in full, as on the Log (see Log::$forceFullFrames).
@@ -122,12 +126,14 @@ class Notifications extends NativeComponent
     public function mount(): void
     {
         $this->type = app(ShownTabs::class)->get($this->me()?->id, 'notifications', array_keys(self::Types), 'all');
+        $this->checkPushPrompt();
         $this->fillInAfterFirstFrame('revalidate');
     }
 
     public function onResume(): void
     {
         $this->forgetRefreshes();
+        $this->checkPushPrompt();
         $this->revalidate();
     }
 
