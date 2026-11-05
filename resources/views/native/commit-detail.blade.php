@@ -7,7 +7,7 @@
 
     <native:scroll-view native:key="thread-{{ $scrollKey }}" ref="thread-scroll" class="w-full flex-1 bg-theme-surface">
         <native:column class="w-full items-center">
-            <native:column ref="thread-page" class="w-full bg-theme-surface {{ \App\Devnull\Display::ReadableColumn }}">
+            <native:column ref="thread-page" class="w-full bg-theme-surface {{ $embedded ? '' : \App\Devnull\Display::ReadableColumn }}">
                 @if (! $commit && $error === null)
                     <native:column ref="loading-commit" class="w-full items-center py-16" a11y-label="Loading commit">
                         <native:activity-indicator />

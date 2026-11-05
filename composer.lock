@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c03857c5fc1f57902e875041719b3ec3",
+    "content-hash": "706b0a8092b0d482ad97f3567ab6dc91",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -439,6 +439,43 @@
                 "source": "https://github.com/DASPRiD/Enum/tree/1.0.7"
             },
             "time": "2025-09-16T12:23:56+00:00"
+        },
+        {
+            "name": "devnull/adaptive-layout",
+            "version": "1.0.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/adaptive-layout",
+                "reference": "e16069926c3f6cc321e3f78e46f12d6e5ff7e9e5"
+            },
+            "require": {
+                "nativephp/mobile": "^4.7",
+                "nativephp/mobile-ui": "^0.9",
+                "php": "^8.3"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Devnull\\AdaptiveLayout\\AdaptiveLayoutServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Devnull\\AdaptiveLayout\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Retained iOS feed and conversation navigation for devnull",
+            "transport-options": {
+                "relative": true
+            }
         },
         {
             "name": "devnull/nativephp-calls",
@@ -11572,5 +11609,5 @@
         "php": "^8.3"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.11.0"
 }

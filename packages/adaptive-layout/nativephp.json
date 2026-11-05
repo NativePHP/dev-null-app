@@ -1,0 +1,20 @@
+{
+    "namespace": "AdaptiveLayout",
+    "platforms": ["ios"],
+    "components": [
+        {
+            "type": "adaptive_feed",
+            "element": "Devnull\\AdaptiveLayout\\Elements\\AdaptiveFeed",
+            "blade": "Devnull\\AdaptiveLayout\\Components\\AdaptiveFeed",
+            "ios_renderer": "AdaptiveFeedRenderer",
+            "self_closing": false
+        },
+        {
+            "type": "adaptive_detail",
+            "element": "Devnull\\AdaptiveLayout\\Elements\\AdaptiveDetail",
+            "blade": "Devnull\\AdaptiveLayout\\Components\\AdaptiveDetail",
+            "ios_renderer": "AdaptiveDetailRenderer",
+            "self_closing": false
+        }
+    ]
+}

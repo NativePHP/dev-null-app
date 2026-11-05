@@ -16,7 +16,7 @@
     <native:list
         native:key="log-{{ $page['log'] }}-{{ $page['listKey'] }}"
         :ref="$page['showing'] ? 'log' : 'log-'.$page['log']"
-        class="w-full flex-1 bg-theme-surface {{ \App\Devnull\Display::ReadableColumn }}"
+        class="w-full flex-1 bg-theme-surface {{ $embedded ? '' : \App\Devnull\Display::ReadableColumn }}"
         on-refresh="load"
         :on-end-reached="$page['showing'] ? 'loadMore' : null"
         :end-reached-buffer="5"
