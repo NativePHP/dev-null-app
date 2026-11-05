@@ -68,7 +68,7 @@ function settingsWithPush(array $push = []): array
 
 it('shows which push notifications you get, as devnull says', function () {
     serveApi(['GET /api/v1/me' => [currentUserJson()], 'GET /api/v1/me/settings' => [settingsWithPush(['mentions' => false])]]);
-    signIn();
+    signInWithPushOn();
 
     $screen = Native::visit('/profile/device')
         ->assertSee('Push notifications')
@@ -88,7 +88,7 @@ it('saves a push notification switch with all five', function () {
         'GET /api/v1/me/settings' => [settingsWithPush()],
         'PUT /api/v1/me/push-preferences' => [['data' => settingsWithPush(['org_remotes' => false])['data']['push']]],
     ]);
-    signIn();
+    signInWithPushOn();
 
     $screen = Native::visit('/profile/device')->toggle('push-org_remotes-switch', false);
 
@@ -102,7 +102,7 @@ it('puts the switch back when devnull can\'t save it', function () {
         'GET /api/v1/me/settings' => [settingsWithPush()],
         'PUT /api/v1/me/push-preferences' => [['message' => 'Server Error'], 500],
     ]);
-    signIn();
+    signInWithPushOn();
 
     $screen = Native::visit('/profile/device')
         ->toggle('push-replies-switch', false)
@@ -110,3 +110,40 @@ it('puts the switch back when devnull can\'t save it', function () {
 
     expect(nodeByRef($screen, 'push-replies-switch')['props']['value'] ?? null)->toBeTrue();
 });
+
+it('keeps the switches hidden until this phone gets notifications', function () {
+    serveApi([
+        'GET /api/v1/me' => [currentUserJson()],
+        'GET /api/v1/me/settings' => [settingsWithPush()],
+        'PUT /api/v1/me/push-token' => [null, 204],
+    ]);
+    signIn()->respondTo('PushNotification.CheckPermission', ['status' => 'not_determined']);
+
+    Native::visit('/profile/device')
+        ->assertSee('Turn on notifications')
+        ->assertDontSee('Org messages')
+        ->emitNative(TokenGenerated::class, ['token' => 'fcm-new-token'])
+        ->assertSee('Notifications are on')
+        ->assertSee('Org messages');
+});
+
+it('hides the switches once notifications are turned off in the phone\'s Settings', function () {
+    serveApi(['GET /api/v1/me' => [currentUserJson()], 'GET /api/v1/me/settings' => [settingsWithPush()]]);
+    signIn()
+        ->respondTo('PushNotification.GetToken', ['token' => 'fcm-phone-token'])
+        ->respondTo('PushNotification.CheckPermission', ['status' => 'denied']);
+
+    Native::visit('/profile/device')
+        ->assertSee('Turn on in Settings')
+        ->assertDontSee('Org messages');
+});
+
+/**
+ * Signs in on a phone that has a push token and notifications allowed.
+ */
+function signInWithPushOn(): void
+{
+    signIn()
+        ->respondTo('PushNotification.GetToken', ['token' => 'fcm-phone-token'])
+        ->respondTo('PushNotification.CheckPermission', ['status' => 'granted']);
+}

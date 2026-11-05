@@ -302,8 +302,8 @@
                     @endif
                 </native:column>
 
-                {{-- Which kinds devnull sends, for you on every phone. Shown once devnull has said. --}}
-                @if ($pushPreferences !== [])
+                {{-- Which kinds devnull sends, for you on every phone. Only once this phone gets them, and devnull has said. --}}
+                @if ($pushOn && $pushPreferences !== [])
                     <native:column class="w-full pt-2">
                         @foreach (\App\NativeComponents\ThisDevice::PushKinds as $kind => $label)
                             <native:row ref="push-{{ $kind }}" class="w-full px-4 pt-4 gap-6 items-center">
