@@ -27,8 +27,10 @@ use Illuminate\View\View;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Events\Alert\ButtonPressed;
+use Native\Mobile\Events\PushNotification\TokenGenerated;
 use Native\Mobile\Facades\Browser;
 use Native\Mobile\Facades\Dialog;
+use Native\Mobile\Facades\PushNotifications;
 use SensitiveParameter;
 
 /**
@@ -169,6 +171,17 @@ class ThisDevice extends NativeComponent
      */
     public ?bool $appleLinked = null;
 
+    /**
+     * Whether this phone has a push token. The token itself isn't kept or shown yet.
+     */
+    public bool $hasPushToken = false;
+
+    /**
+     * What the phone says about notifications for the app: granted, denied, not_determined, provisional or
+     * ephemeral. Null off a device, or when it can't say.
+     */
+    public ?string $pushPermission = null;
+
     public function mount(): void
     {
         if (($kept = $this->cached('me')) !== null) {
@@ -180,6 +193,9 @@ class ThisDevice extends NativeComponent
         }
 
         $this->savedTimezone = $this->chosenTimezone = app(Account::class)->timezone();
+
+        $this->hasPushToken = PushNotifications::getToken() !== null;
+        $this->pushPermission = PushNotifications::checkPermission();
 
         try {
             $this->fingerprint = app(DeviceKey::class)->current()->fingerprint();
@@ -585,6 +601,21 @@ class ThisDevice extends NativeComponent
     }
 
     /**
+     * Asks the phone for notifications, prompting the first time. The token arrives as an event.
+     */
+    public function enrollPush(): void
+    {
+        PushNotifications::enroll();
+    }
+
+    #[On(TokenGenerated::class)]
+    public function pushTokenReceived(string $token): void
+    {
+        $this->hasPushToken = true;
+        $this->pushPermission = PushNotifications::checkPermission() ?? $this->pushPermission;
+    }
+
+    /**
      * Opens Apple's sheet. Its answer arrives as an event (see SignsInWithApple).
      */
     public function linkApple(): void
@@ -665,6 +696,11 @@ class ThisDevice extends NativeComponent
                 null => 'unknown',
             },
             'terms' => $current === null ? null : self::terms($current),
+            'pushStatus' => match (true) {
+                $this->hasPushToken => 'token received',
+                $this->pushPermission === 'denied' => 'turned off',
+                default => 'no token',
+            },
         ]);
     }
 
