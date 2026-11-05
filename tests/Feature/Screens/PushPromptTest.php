@@ -48,12 +48,31 @@ it('never offers notifications again once the prompt is dismissed, on either tab
     $bridge->assertNotCalled('PushNotification.RequestPermission');
 });
 
-it('offers nothing when the phone has a token, or notifications were refused', function (string $method, array $answer) {
-    signIn()->respondTo($method, $answer);
+it('offers nothing when the phone has a token', function () {
+    signIn()->respondTo('PushNotification.GetToken', ['token' => 'fcm-secret-token']);
 
     Native::test(Notifications::class)->assertDontSee('Turn on notifications');
     Native::test(Remotes::class)->assertDontSee('Turn on notifications');
-})->with([
-    'a token' => ['PushNotification.GetToken', ['token' => 'fcm-secret-token']],
-    'refused' => ['PushNotification.CheckPermission', ['status' => 'denied']],
-]);
+});
+
+it('says notifications are off, and a tap opens the phone\'s Settings, once they were turned off', function (string $screen) {
+    $bridge = signIn()
+        ->respondTo('PushNotification.GetToken', ['token' => 'fcm-secret-token'])
+        ->respondTo('PushNotification.CheckPermission', ['status' => 'denied']);
+
+    Native::test($screen)
+        ->assertSee('Notifications are off')
+        ->assertDontSee('Turn on notifications')
+        ->tap('open-push-settings');
+
+    $bridge->assertCalled('System.OpenAppSettings');
+    $bridge->assertNotCalled('PushNotification.RequestPermission');
+})->with([Notifications::class, Remotes::class]);
+
+it('stays dismissed once notifications are turned off', function () {
+    $bridge = signIn()->respondTo('PushNotification.CheckPermission', ['status' => 'denied']);
+
+    Native::test(Remotes::class)->tap('dismiss-push-prompt')->assertDontSee('Notifications are off');
+
+    Native::test(Notifications::class)->assertDontSee('Notifications are off');
+});

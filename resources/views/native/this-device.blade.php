@@ -307,11 +307,13 @@
                     @endif
                 </native:column>
 
-                {{-- Always here, even once the tabs' prompt is dismissed. The phone only asks once: after a no, they come back on in its own Settings. --}}
+                {{-- Always here, even once the tabs' prompt is dismissed. The phone only asks once: after a no, they come back on in its own Settings, so the button goes there. --}}
                 <native:column class="w-full px-4 pt-4 gap-2">
-                    <native:button ref="enroll-push" variant="secondary" size="lg" :ios-icon="Lucide::Bell->ios()" :android-icon="Lucide::Bell->android()" @press="enrollPush" class="w-full">Turn on notifications</native:button>
                     @if ($pushPermission === 'denied')
-                        <native:text class="text-xs leading-relaxed text-theme-ink-muted">Notifications are off for devnull. Turn them on in your phone's Settings.</native:text>
+                        <native:button ref="open-push-settings" variant="secondary" size="lg" :ios-icon="Lucide::BellOff->ios()" :android-icon="Lucide::BellOff->android()" @press="openPushSettings" class="w-full">Turn on in Settings</native:button>
+                        <native:text class="text-xs leading-relaxed text-theme-ink-muted">Notifications are off for devnull on this phone.</native:text>
+                    @else
+                        <native:button ref="enroll-push" variant="secondary" size="lg" :ios-icon="($pushOn ? Lucide::Check : Lucide::Bell)->ios()" :android-icon="($pushOn ? Lucide::Check : Lucide::Bell)->android()" :disabled="$pushOn" @press="enrollPush" class="w-full">{{ $pushOn ? 'Notifications are on' : 'Turn on notifications' }}</native:button>
                     @endif
                 </native:column>
 

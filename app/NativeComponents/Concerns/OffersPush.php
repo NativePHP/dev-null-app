@@ -6,34 +6,46 @@ use App\Devnull\PushPrompt;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Events\PushNotification\TokenGenerated;
 use Native\Mobile\Facades\PushNotifications;
+use Native\Mobile\Facades\System;
 
 /**
- * The prompt to turn on push notifications, at the top of a tab (see App\Devnull\PushPrompt and the push-prompt
- * partial). The screen asks whether to show it when it mounts and when you come back to it.
+ * The push notifications prompt at the top of a tab (see App\Devnull\PushPrompt and the push-prompt partial). The
+ * screen asks which to show when it mounts and when you come back to it.
  */
 trait OffersPush
 {
-    public bool $offersPush = false;
+    /**
+     * PushPrompt::Offer, PushPrompt::TurnedOff, or null for none.
+     */
+    public ?string $pushPrompt = null;
 
     protected function checkPushPrompt(): void
     {
-        $this->offersPush = app(PushPrompt::class)->shows();
+        $this->pushPrompt = app(PushPrompt::class)->current();
     }
 
     /**
      * Asks the phone for notifications, prompting the first time. The prompt goes at once: the token, or a refusal,
-     * keeps it away.
+     * decides what shows next time.
      */
     public function enrollPush(): void
     {
-        $this->offersPush = false;
+        $this->pushPrompt = null;
 
         PushNotifications::enroll();
     }
 
+    /**
+     * devnull's page in the phone's Settings, the only place notifications come back on once they were turned off.
+     */
+    public function openPushSettings(): void
+    {
+        System::appSettings();
+    }
+
     public function dismissPushPrompt(): void
     {
-        $this->offersPush = false;
+        $this->pushPrompt = null;
 
         app(PushPrompt::class)->dismiss();
     }
@@ -41,6 +53,6 @@ trait OffersPush
     #[On(TokenGenerated::class)]
     public function pushTokenReceived(): void
     {
-        $this->offersPush = false;
+        $this->pushPrompt = null;
     }
 }

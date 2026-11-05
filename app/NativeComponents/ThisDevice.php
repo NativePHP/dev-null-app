@@ -27,9 +27,11 @@ use Illuminate\View\View;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Events\Alert\ButtonPressed;
+use Native\Mobile\Events\PushNotification\TokenGenerated;
 use Native\Mobile\Facades\Browser;
 use Native\Mobile\Facades\Dialog;
 use Native\Mobile\Facades\PushNotifications;
+use Native\Mobile\Facades\System;
 use SensitiveParameter;
 
 /**
@@ -176,6 +178,11 @@ class ThisDevice extends NativeComponent
      */
     public ?string $pushPermission = null;
 
+    /**
+     * Whether this phone gets notifications: it has a token, and the phone hasn't had them turned off since.
+     */
+    public bool $pushOn = false;
+
     public function mount(): void
     {
         if (($kept = $this->cached('me')) !== null) {
@@ -189,6 +196,7 @@ class ThisDevice extends NativeComponent
         $this->savedTimezone = $this->chosenTimezone = app(Account::class)->timezone();
 
         $this->pushPermission = PushNotifications::checkPermission();
+        $this->pushOn = $this->pushPermission !== 'denied' && PushNotifications::getToken() !== null;
 
         try {
             $this->fingerprint = app(DeviceKey::class)->current()->fingerprint();
@@ -594,11 +602,26 @@ class ThisDevice extends NativeComponent
     }
 
     /**
-     * Asks the phone for notifications, prompting the first time. Always here, whatever the tabs' prompt did.
+     * Asks the phone for notifications, prompting the first time. Always here, whatever the tabs' prompt did, and says when they're on.
      */
     public function enrollPush(): void
     {
         PushNotifications::enroll();
+    }
+
+    /**
+     * devnull's page in the phone's Settings, the only place notifications come back on once they were turned off.
+     */
+    public function openPushSettings(): void
+    {
+        System::appSettings();
+    }
+
+    #[On(TokenGenerated::class)]
+    public function pushTokenReceived(): void
+    {
+        $this->pushOn = true;
+        $this->pushPermission = PushNotifications::checkPermission() ?? $this->pushPermission;
     }
 
     /**
