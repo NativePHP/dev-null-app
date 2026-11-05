@@ -33,7 +33,7 @@ final class MessageMenu
 
         if ($answerable) {
             $items[] = self::item('reply', 'Reply', Lucide::Reply, "reply({$argument})", $key, $named);
-            $items[] = self::item('react', 'React', Lucide::SmilePlus, "reactFromMenu({$argument})", $key, $named);
+            $items[] = self::item('react', 'React', Lucide::SmilePlus, "openReactions({$argument})", $key, $named);
         }
 
         if ($message->body !== '') {
