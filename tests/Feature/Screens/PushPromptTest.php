@@ -76,3 +76,11 @@ it('stays dismissed once notifications are turned off', function () {
 
     Native::test(Notifications::class)->assertDontSee('Notifications are off');
 });
+
+it('still offers notifications when the phone has a token but hasn\'t been asked, as on Android', function (string $screen) {
+    signIn()
+        ->respondTo('PushNotification.GetToken', ['token' => 'fcm-phone-token'])
+        ->respondTo('PushNotification.CheckPermission', ['status' => 'not_determined']);
+
+    Native::test($screen)->assertSee('Turn on notifications');
+})->with([Notifications::class, Remotes::class]);

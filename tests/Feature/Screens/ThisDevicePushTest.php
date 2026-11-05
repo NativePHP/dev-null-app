@@ -18,6 +18,7 @@ it('offers to turn on notifications, even after the tabs\' prompt is dismissed, 
         ->tap('enroll-push');
 
     $bridge->assertCalled('PushNotification.RequestPermission');
+    $bridge->respondTo('PushNotification.CheckPermission', ['status' => 'granted']);
 
     $screen->emitNative(TokenGenerated::class, ['token' => 'fcm-secret-token'])
         ->assertSee('Notifications are on')
@@ -117,12 +118,15 @@ it('keeps the switches hidden until this phone gets notifications', function () 
         'GET /api/v1/me/settings' => [settingsWithPush()],
         'PUT /api/v1/me/push-token' => [null, 204],
     ]);
-    signIn()->respondTo('PushNotification.CheckPermission', ['status' => 'not_determined']);
+    $bridge = signIn()->respondTo('PushNotification.CheckPermission', ['status' => 'not_determined']);
 
-    Native::visit('/profile/device')
+    $screen = Native::visit('/profile/device')
         ->assertSee('Turn on notifications')
-        ->assertDontSee('Org messages')
-        ->emitNative(TokenGenerated::class, ['token' => 'fcm-new-token'])
+        ->assertDontSee('Org messages');
+
+    $bridge->respondTo('PushNotification.CheckPermission', ['status' => 'granted']);
+
+    $screen->emitNative(TokenGenerated::class, ['token' => 'fcm-new-token'])
         ->assertSee('Notifications are on')
         ->assertSee('Org messages');
 });

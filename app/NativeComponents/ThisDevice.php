@@ -12,6 +12,7 @@ use App\Devnull\Display;
 use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Hsl;
 use App\Devnull\Lane;
+use App\Devnull\PushPrompt;
 use App\Devnull\ResponseCache;
 use App\Devnull\Timezone;
 use App\Devnull\WhoToFollow;
@@ -220,7 +221,7 @@ class ThisDevice extends NativeComponent
         $this->savedTimezone = $this->chosenTimezone = app(Account::class)->timezone();
 
         $this->pushPermission = PushNotifications::checkPermission();
-        $this->pushOn = $this->pushPermission !== 'denied' && PushNotifications::getToken() !== null;
+        $this->pushOn = PushPrompt::allowed($this->pushPermission) && PushNotifications::getToken() !== null;
         $this->sendPushToken();
 
         try {
@@ -664,9 +665,9 @@ class ThisDevice extends NativeComponent
     #[On(TokenGenerated::class)]
     public function pushTokenReceived(string $token): void
     {
-        $this->pushOn = true;
-        $this->sendPushToken($token);
         $this->pushPermission = PushNotifications::checkPermission() ?? $this->pushPermission;
+        $this->pushOn = PushPrompt::allowed($this->pushPermission);
+        $this->sendPushToken($token);
     }
 
     /**

@@ -101,3 +101,15 @@ it('signs out without asking devnull anything when the phone has no token', func
 
     expect(sentTo('DELETE', 'me/push-token'))->toBe([]);
 });
+
+it('keeps the token back until the phone lets devnull show notifications', function () {
+    servePushToken();
+    signIn()
+        ->respondTo('PushNotification.GetToken', ['token' => 'fcm-phone-token'])
+        ->respondTo('PushNotification.CheckPermission', ['status' => 'not_determined']);
+
+    Native::test(Notifications::class);
+    Native::visit('/profile/device')->assertSee('Turn on notifications')->assertDontSee('Notifications are on');
+
+    expect(sentTo('PUT', 'me/push-token'))->toBe([]);
+});

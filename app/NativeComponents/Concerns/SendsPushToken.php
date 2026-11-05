@@ -5,13 +5,15 @@ namespace App\NativeComponents\Concerns;
 use App\Devnull\Client;
 use App\Devnull\Data\User;
 use App\Devnull\Exceptions\ApiException;
+use App\Devnull\PushPrompt;
 use App\Devnull\PushToken;
 use Closure;
 use Native\Mobile\Facades\PushNotifications;
 
 /**
  * Sends this phone's push token to devnull, which keeps it on the device the request is signed with. A screen sends
- * the phone's token when it opens, and a new one as soon as it arrives. One that didn't land goes again the next
+ * the phone's token when it opens, and a new one as soon as it arrives, once the phone lets devnull show
+ * notifications. One that didn't land goes again the next
  * time, and one devnull already has isn't sent twice (see PushToken).
  */
 trait SendsPushToken
@@ -30,7 +32,7 @@ trait SendsPushToken
         $token ??= PushNotifications::getToken();
         $userId = $this->me()?->id;
 
-        if ($token === null || $userId === null || ! app(PushToken::class)->needsSending($userId, $token)) {
+        if ($token === null || $userId === null || ! PushPrompt::allowed(PushNotifications::checkPermission()) || ! app(PushToken::class)->needsSending($userId, $token)) {
             return;
         }
 

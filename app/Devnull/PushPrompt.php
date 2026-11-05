@@ -7,7 +7,7 @@ use Native\Mobile\Facades\PushNotifications;
 
 /**
  * The prompt on the Notifications and Remotes tabs about push notifications: an offer to turn them on while this
- * phone has no token, or, once they were refused or turned off in the phone's Settings, a way there. Dismissing
+ * phone has no token or hasn't been asked yet, or, once they were refused or turned off in the phone's Settings, a way there. Dismissing
  * it hides it for good on this phone. The Account screen's button stays either way.
  */
 final class PushPrompt
@@ -33,11 +33,22 @@ final class PushPrompt
             return null;
         }
 
-        if (PushNotifications::checkPermission() === 'denied') {
+        $permission = PushNotifications::checkPermission();
+
+        if ($permission === 'denied') {
             return self::TurnedOff;
         }
 
-        return PushNotifications::getToken() === null ? self::Offer : null;
+        return ! self::allowed($permission) || PushNotifications::getToken() === null ? self::Offer : null;
+    }
+
+    /**
+     * Whether the phone lets devnull show notifications. Android hands out a token before it has asked, so a token
+     * alone doesn't mean they're on. Off a device the phone can't say, which counts as allowed.
+     */
+    public static function allowed(?string $permission): bool
+    {
+        return ! in_array($permission, ['denied', 'not_determined'], true);
     }
 
     public function dismiss(): void
