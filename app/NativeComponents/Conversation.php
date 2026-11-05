@@ -155,11 +155,6 @@ class Conversation extends NativeComponent
     public const int LeastSlide = 16;
 
     /**
-     * How long after a swipe brings a message's actions up a tap is taken as part of the swipe (see $actionsShownAt).
-     */
-    public const float SwipeTapWindow = 0.75;
-
-    /**
      * The alert that asks before pinning, as the web's does, and its answers.
      */
     public const string PinAlert = 'pin-warning';
@@ -279,13 +274,6 @@ class Conversation extends NativeComponent
      * shows them, and dragging it back, a tap anywhere in the thread, or opening another message's puts them away.
      */
     public ?int $actionsForId = null;
-
-    /**
-     * When a drag last brought a message's actions up. On Android a drag that ends inside the bubble or its row could
-     * also land as a tap on them, a moment later once the double tap has had its chance, which would put the actions
-     * straight away again; a tap that close behind the drag is the drag's own.
-     */
-    public float $actionsShownAt = 0;
 
     /**
      * Where each message sits sideways, shared with the gesture area that drags it (see panFor()). They're kept across
@@ -748,7 +736,6 @@ class Conversation extends NativeComponent
 
         if ($toward >= $this->slideOf($message) / 2) {
             $this->actionsForId = $id;
-            $this->actionsShownAt = self::now();
         } elseif ($this->actionsForId === $id) {
             $this->actionsForId = null;
         }
@@ -759,10 +746,6 @@ class Conversation extends NativeComponent
      */
     public function hideActions(): void
     {
-        if (self::now() - $this->actionsShownAt < self::SwipeTapWindow) {
-            return;
-        }
-
         $this->actionsForId = null;
     }
 
