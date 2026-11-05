@@ -48,7 +48,7 @@
              .scrollTargetBehavior(.paging)
              .scrollPosition(id: $position)
              // On a non-lazy stack SwiftUI ignores the initial value of
-@@ -207,26 +220,28 @@
+@@ -207,46 +220,98 @@
              .scrollIndicators(.hidden)
              .scrollBounceBehavior(.basedOnSize)
              .contentMargins(0)
@@ -61,44 +61,22 @@
              // Before the first layout the pager has no size. That is no
              // page yet, not page 0: reported as page 0, PHP would think the
              // user had left the start page.
-             .onScrollGeometryChange(for: Int?.self) { geometry in
-                 let visible = geometry.visibleRect
--                let length = horizontal ? visible.width : visible.height
-+                let length = horizontal ? geometry.bounds.width : visible.height
-                 guard length > 0, count > 0 else { return nil }
-                 let offset = horizontal ? visible.minX : visible.minY
-                 return min(count - 1, max(0, Int((offset / length).rounded())))
-             } action: { _, page in
--                guard let page else { return }
-+                guard let page, !resume.holds(horizontal: horizontal) else { return }
-                 leading = page
-                 // Report the moment a page becomes the nearest one, mid-swipe,
-                 // so PHP's round-trip overlaps the animation instead of
-                 // starting after it. Idle re-reports the same page (no-op).
-                 // With `report_on_settle` only idle reports, so the frame
-                 // the report causes never lands during the animation.
--                if !reportOnSettle {
-+                if !reportOnSettle, !(horizontal && resume.target != nil) {
-                     report(page)
-                 }
-                 // A header follows the page nearest the leading edge.
-@@ -234,19 +249,74 @@
-             }
-             // The same position, unrounded, for the tab row. Nil until the
-             // pager has a size, so the row doesn't flash the first tab.
--            .onScrollGeometryChange(for: CGFloat?.self) { geometry in
+-            .onScrollGeometryChange(for: Int?.self) { geometry in
++            // Rounded selection and fractional progress share one sample,
++            // so recovery ownership is checked before either can escape.
 +            .onScrollGeometryChange(for: PagerPosition?.self) { geometry in
                  let visible = geometry.visibleRect
 -                let length = horizontal ? visible.width : visible.height
+-                guard length > 0, count > 0 else { return nil }
+-                let offset = horizontal ? visible.minX : visible.minY
+-                return min(count - 1, max(0, Int((offset / length).rounded())))
+-            } action: { _, page in
+-                guard let page else { return }
 +                let length = horizontal ? geometry.bounds.width : visible.height
-                 guard length > 0 else { return nil }
--                return (horizontal ? visible.minX : visible.minY) / length
++                guard length > 0 else { return nil }
 +                return PagerPosition(pages: (horizontal ? visible.minX : visible.minY) / length, length: length)
-             } action: { _, value in
--                if tabs != nil, let value {
--                    progress.value = value
-+                resume.position = value
-+                resume.geometryVersion += 1
++            } action: { _, value in
++                if observe(value, proxy: proxy) { return }
 +                guard let value else { return }
 +                if resume.phase == .idle, resume.userScrolling {
 +                    // Idle had no size; this is its first measurable finish.
@@ -126,10 +104,35 @@
 +                    }
 +                    return
 +                }
++                guard resume.count > 0 else { return }
++                let page = min(resume.count - 1, max(0, Int(value.pages.rounded())))
+                 leading = page
+-                // Report the moment a page becomes the nearest one, mid-swipe,
+-                // so PHP's round-trip overlaps the animation instead of
+-                // starting after it. Idle re-reports the same page (no-op).
+-                // With `report_on_settle` only idle reports, so the frame
+-                // the report causes never lands during the animation.
+-                if !reportOnSettle {
++                // Report mid-swipe unless PHP requested settle-only reports.
++                if !reportOnSettle, !(horizontal && resume.target != nil) {
+                     report(page)
+                 }
+-                // A header follows the page nearest the leading edge.
+                 headerScroll.lead(page)
 +                if tabs != nil {
 +                    progress.value = value.pages
 +                }
-+            }
+             }
+-            // The same position, unrounded, for the tab row. Nil until the
+-            // pager has a size, so the row doesn't flash the first tab.
+-            .onScrollGeometryChange(for: CGFloat?.self) { geometry in
+-                let visible = geometry.visibleRect
+-                let length = horizontal ? visible.width : visible.height
+-                guard length > 0 else { return nil }
+-                return (horizontal ? visible.minX : visible.minY) / length
+-            } action: { _, value in
+-                if tabs != nil, let value {
+-                    progress.value = value
 +            .onScrollPhaseChange { _, phase, context in
 +                scrollPhaseChanged(phase, geometry: context.geometry, proxy: proxy)
 +            }
@@ -137,6 +140,11 @@
 +                resume.active = phase == .active
 +                // Work queued before the app left the foreground is stale.
 +                resume.suspend()
++                if !resume.active {
++                    // Background sizing belongs to warm-resume, not an active
++                    // resize's deadline. Keep its accepted selection and hold.
++                    resume.resize = nil
++                }
 +                if resume.active, resume.armed, horizontal {
 +                    // Hold the pager until it's checked: the geometry it
 +                    // came back with is not a page the user chose.
@@ -158,6 +166,9 @@
 +                if let target = resume.target {
 +                    resume.target = min(target, count - 1)
 +                }
++                if let resize = resume.resize {
++                    resize.page = min(resize.page, count - 1)
++                }
 +                resume.suspend()
 +                if resume.active, resume.armed, horizontal {
 +                    restore(proxy)
@@ -165,7 +176,7 @@
              }
              .onChange(of: requestedPage) { _, page in
                  // An echo of something we reported: drop it and everything
-@@ -261,8 +331,163 @@
+@@ -261,9 +326,230 @@
                  }
                  reported = [page]
                  lastReported = page
@@ -174,7 +185,7 @@
 +                if horizontal {
 +                    verifySelection(proxy)
 +                }
-             }
++            }
 +            .onChange(of: tabRequest) { _, _ in
 +                verifySelection(proxy)
 +            }
@@ -205,10 +216,9 @@
 +            }
 +            return
 +        }
-+        resume.userScrolling = false
 +        let final = PagerPosition(pages: (horizontal ? visible.minX : visible.minY) / length, length: length)
-+        resume.position = final
-+        resume.geometryVersion += 1
++        if observe(final, proxy: proxy) { return }
++        resume.userScrolling = false
 +        if finishedSwipe {
 +            resume.settled()
 +            reconcile(final)
@@ -234,6 +244,62 @@
 +        }
 +    }
 +
++    /// Classify a sample before it can change selection, header or PHP. Width
++    /// changes belong to layout, unless a genuine swipe already owns the move.
++    /// A quiet width groups the burst; it does not forget its selected page.
++    private func observe(_ value: PagerPosition?, proxy: ScrollViewProxy) -> Bool {
++        resume.position = value
++        resume.geometryVersion += 1
++        guard horizontal, let value else { return false }
++        let changed = resume.width.map { abs($0 - value.length) > 0.5 } ?? false
++        resume.width = value.length
++        guard resume.active, !resume.userScrolling, resume.count > 0 else { return false }
++        if changed {
++            let page = resume.resize?.page ?? (resume.armed ? resume.target : nil) ?? resume.accepted
++            // Quiet is not an acknowledgement. Churn cannot refill a live
++            // or exhausted repair; only a completed selection can start anew.
++            if resume.resize == nil || (resume.resize!.stable && !resume.resize!.checking && !resume.resize!.exhausted) {
++                let resize = PagerResize(page: page)
++                resume.resize = resize
++            }
++            let resize = resume.resize!
++            resize.version += 1
++            resize.stable = false
++            let version = resize.version
++            resume.suspend()
++            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(250)) {
++                guard resume.resize === resize, resize.version == version else { return }
++                resize.stable = true
++                if resume.active, resume.armed, !resize.exhausted {
++                    restore(proxy)
++                }
++            }
++        }
++        guard let resize = resume.resize, !resize.exhausted else { return false }
++        if !resize.checking {
++            resize.checking = true
++            resize.timerVersion += 1
++            let timer = resize.timerVersion
++            // Bound each outstanding repair burst, not passive selection
++            // ownership. Acknowledgement cancels this timer, not its budget.
++            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) {
++                guard resume.resize === resize, resize.timerVersion == timer, !resize.exhausted else { return }
++                resize.overdue = true
++                if resume.active, resume.phase == .idle, resume.armed {
++                    failResume()
++                }
+             }
+         }
++        resume.accepted = min(resize.page, resume.count - 1)
++        resume.target = resume.accepted
++        resume.armed = true
++        resume.restoring = true
++        if resize.stable || resize.overdue, resume.phase == .idle {
++            restore(proxy)
++        }
++        return true
++    }
++
 +    /// Reconcile from one geometry sample, not separately delivered rounded
 +    /// and fractional callbacks. `report` de-duplicates a page PHP knows.
 +    private func reconcile(_ position: PagerPosition) {
@@ -254,7 +320,7 @@
 +    private func verifySelection(_ proxy: ScrollViewProxy) {
 +        guard resume.active, resume.armed else { return }
 +        if resume.phase == .idle, let position = resume.position, position.isOn(resume.accepted) {
-+            resume.settled()
++            resume.settled(preservingResize: true)
 +            reconcile(position)
 +            return
 +        }
@@ -278,6 +344,14 @@
 +                resume.pending = nil
 +            }
 +            guard generation == resume.generation, resume.active, resume.armed, resume.phase == .idle else { return }
++            if let resize = resume.resize {
++                if resize.exhausted { return }
++                if resize.overdue {
++                    failResume()
++                    return
++                }
++                if !resize.stable { return }
++            }
 +            guard resume.count > 0 else {
 +                resume.settled()
 +                return
@@ -289,20 +363,21 @@
 +            }
 +            let page = min(max(resume.accepted, 0), resume.count - 1)
 +            if position.isOn(page) {
-+                resume.settled()
++                resume.settled(preservingResize: true)
 +                reconcile(position)
 +                return
 +            }
 +            if let waiting = resume.waitingForGeometry, resume.geometryVersion <= waiting {
 +                return
 +            }
-+            if resume.attempts >= 2 {
++            if (resume.resize?.attempts ?? resume.attempts) >= 2 {
 +                failResume()
 +                return
 +            }
 +            resume.restoring = true
 +            resume.target = page
 +            resume.attempts += 1
++            resume.resize?.attempts += 1
 +            resume.waitingForGeometry = resume.geometryVersion
 +            let attempt = resume.attempts
 +            var transaction = Transaction()
@@ -322,14 +397,17 @@
 +    private func failResume() {
 +        NSLog("NativeUI pager resume correction failed after \(resume.attempts) attempt(s)")
 +        let target = resume.target
-+        resume.settled()
++        resume.resize?.exhausted = true
++        resume.settled(preservingResize: true)
 +        resume.target = target
 +        if let position = resume.position {
 +            reconcile(position)
-         }
++            resume.resize?.page = resume.accepted
++        }
      }
  
-@@ -330,13 +555,23 @@
+     /// The start page as a point of the scroll range. Every page is one
+@@ -330,13 +616,23 @@
      private func selectTab(_ index: Int) {
          guard index >= 0, index < count else { return }
  
@@ -354,7 +432,7 @@
          withAnimation { position = index }
      }
  
-@@ -941,3 +1176,94 @@
+@@ -941,3 +1237,122 @@
          }
      }
  }
@@ -393,6 +471,9 @@
 +    var count: Int
 +    /// The latest scroll geometry; nil while the pager has no size.
 +    var position: PagerPosition?
++    /// Last measurable width survives zero-size layout samples.
++    var width: CGFloat?
++    var resize: PagerResize?
 +    var active = true
 +    var phase: ScrollPhase = .idle
 +    var userScrolling = false
@@ -441,11 +522,36 @@
 +    }
 +
 +    /// The user scrolled: whatever was pending is theirs to decide.
-+    func settled() {
++    func settled(preservingResize: Bool = false) {
 +        suspend()
 +        restoring = false
 +        armed = false
 +        userScrolling = false
 +        target = nil
++        if preservingResize {
++            resize?.checking = false
++            resize?.overdue = false
++            resize?.timerVersion += 1
++        } else {
++            resize = nil
++        }
++    }
++}
++
++/// Selection survives an acknowledgement; command budget does not reset on
++/// alignment, tracking or duplicate geometry. A later width burst gets a new
++/// episode, while a same-width late clamp still belongs to this one.
++private final class PagerResize {
++    var page: Int
++    var stable = false
++    var exhausted = false
++    var attempts = 0
++    var version = 0
++    var checking = false
++    var overdue = false
++    var timerVersion = 0
++
++    init(page: Int) {
++        self.page = page
 +    }
 +}
