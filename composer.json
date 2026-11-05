@@ -29,6 +29,7 @@
     "require": {
         "php": "^8.3",
         "codingwithrk/nativephp-social-auth": "^1.0",
+        "cweagans/composer-patches": "^1.7",
         "devnull/nativephp-calls": "^1.0",
         "laravel/boost": "^2.0",
         "laravel/framework": "^13.0",
@@ -111,6 +112,12 @@
     "extra": {
         "laravel": {
             "dont-discover": []
+        },
+        "composer-exit-on-patch-failure": true,
+        "patches": {
+            "nativephp/mobile-ui": {
+                "Pager: page by the ScrollView width and clip its sides, so a sideways bar (iPhone Duo rail) neither misplaces the tab underline nor shows the next page": "patches/nativephp-mobile-ui-pager-side-insets.patch"
+            }
         }
     },
     "config": {
@@ -118,6 +125,7 @@
         "preferred-install": "dist",
         "sort-packages": true,
         "allow-plugins": {
+            "cweagans/composer-patches": true,
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
         }
