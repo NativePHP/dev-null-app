@@ -12,8 +12,8 @@ use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 
 beforeEach(function () {
-    config(['devnull.url' => 'http://devnull.test', 'devnull.image_cache_hours' => 24]);
     app()->useStoragePath(sys_get_temp_dir().'/devnull-row-cache-'.bin2hex(random_bytes(4)));
+    config(['devnull.url' => 'http://devnull.test', 'devnull.image_cache_hours' => 24]);
     File::ensureDirectoryExists(ImageCache::directory());
     signIn();
 

@@ -15,6 +15,7 @@
     @else
         @include('native.partials.error')
         @include('native.partials.refresh-failed')
+        @include('native.partials.push-prompt')
 
         <native:pager
             native:key="remotes-pager"

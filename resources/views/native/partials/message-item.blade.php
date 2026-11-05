@@ -80,13 +80,13 @@
                 @if ($message->isPending())
                     <native:pressable ref="bubble-{{ $key }}" class="flex-shrink" :context-menu="$menu">
                         <native:column class="px-3 py-2 rounded-2xl {{ $message->status === 'rejected' ? 'border border-theme-destructive bg-theme-surface' : 'bg-theme-'.$myColour.'/60' }}">
-                            @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour, 'quoteRule' => $message->status === 'rejected' ? 'border-theme-lane-5' : 'border-theme-on-'.$myColour])
+                            @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour, 'quoteRule' => $message->status === 'rejected' ? 'border-theme-lane-5' : 'border-theme-on-'.$myColour, 'linkPrefixInk' => $message->status === 'rejected' ? 'text-theme-ink-muted' : 'text-theme-on-'.$myColour.'/70'])
                         </native:column>
                     </native:pressable>
                 @else
                     <native:pressable ref="bubble-{{ $key }}" class="flex-shrink" @doubleTap="heart({{ $message->id }})" :context-menu="$menu" a11y-hint="{{ $swipeHint }}">
                         <native:column class="px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}">
-                            @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary', 'quoteRule' => $mine ? 'border-theme-on-'.$myColour : 'border-theme-lane-5'])
+                            @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary', 'quoteRule' => $mine ? 'border-theme-on-'.$myColour : 'border-theme-lane-5', 'linkPrefixInk' => $mine ? 'text-theme-on-'.$myColour.'/70' : 'text-theme-ink-muted'])
                         </native:column>
                     </native:pressable>
                 @endif
@@ -113,13 +113,16 @@
         @if ($status !== null)
             <native:row ref="status-{{ $key }}" class="gap-[6] items-center px-1">
                 @if ($mine)
-                    @include('native.partials.message-status', ['status' => $status['state'], 'ref' => 'glyph-'.$key, 'lane' => $viewer?->lane(), 'partnerLane' => $partner?->lane()])
+                    @include('native.partials.message-status', ['status' => $status['state'], 'ref' => 'glyph-'.$key, 'lane' => $viewer?->lane(), 'partnerLane' => $status['partnerLane'] ?? $partner?->lane()])
                 @endif
                 @if ($message->status === 'rejected')
                     <native:text font="mono" class="text-[11px] text-theme-destructive">rejected ·</native:text>
                     <native:text ref="retry-{{ $key }}" font="mono-medium" class="text-[11px] text-theme-destructive" @press="retry('{{ $message->clientId }}')">retry</native:text>
                 @else
                     <native:text font="mono" class="text-[11px] text-theme-ink-muted">{{ $status['text'] }}</native:text>
+                    @if (($status['pulledBy'] ?? []) !== [])
+                        @include('native.partials.pulled-by', ['people' => $status['pulledBy']])
+                    @endif
                 @endif
             </native:row>
         @elseif ($endsRun)

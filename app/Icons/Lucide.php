@@ -2,21 +2,18 @@
 
 namespace App\Icons;
 
-use Native\Mobile\Icon\AndroidSymbol;
 use Native\Mobile\Icon\Icon;
 
 /**
  * The Lucide icons the web draws.
  *
- * Most are Lucide's own drawings. Their SVGs, from lucide-react 1.57.0, are in
- * resources/icons, and the NativePHP build turns each one into a template image
- * on iOS and a VectorDrawable on Android, so both platforms draw the web's
- * strokes, tinted like any other icon. `$filled` is the on state of a star, a
- * bookmark or a pin, which the web draws as the same shape with `fill-current`.
+ * Their SVGs, from lucide-react 1.57.0, are in resources/icons, and the
+ * NativePHP build turns each one into a template image on iOS and a
+ * VectorDrawable on Android, so both platforms draw the web's strokes, tinted
+ * like any other icon. `$filled` is the on state of a star, a bookmark or a
+ * pin, which the web draws as the same shape with `fill-current`.
  *
- * The rest still map to the closest SF Symbol and outlined Material icon. To
- * draw one of them as the web does, add its SVG to resources/icons and name it
- * in custom().
+ * A new case needs its SVG in resources/icons and a line in custom().
  */
 enum Lucide
 {
@@ -39,11 +36,12 @@ enum Lucide
     case ArrowUp;
     case Pin;
     case ListOrdered;
+    /** lucide-react 1.57 draws Building2 as building-complex, so that is the drawing in building-2.svg. */
     case Building2;
     case MapPin;
     case CalendarDays;
     case Clock3;
-    /** The web draws GitHub's own mark, which neither system has, so this is the code glyph. */
+    /** Lucide has no brand marks, so this is GitHub's own, as the web draws it. */
     case Github;
     case Quote;
     case Check;
@@ -109,7 +107,11 @@ enum Lucide
     case Phone;
     case PhoneOff;
     case MicOff;
+    case Share;
     case Share2;
+    case BadgeCheck;
+    case Gamepad;
+    case TabletSmartphone;
 
     /**
      * The icon the web's inbox draws for a kind of notification.
@@ -154,11 +156,11 @@ enum Lucide
     }
 
     /**
-     * The `custom:<name>` icon drawn from resources/icons/<name>.svg, or null for a system glyph.
+     * The `custom:<name>` icon drawn from resources/icons/<name>.svg.
      */
-    public function custom(bool $filled = false): ?string
+    public function custom(bool $filled = false): string
     {
-        $name = match ($this) {
+        return Icon::custom(match ($this) {
             self::GitCommitVertical => 'git-commit-vertical',
             self::Bell => 'bell',
             self::MessagesSquare => 'messages-square',
@@ -169,8 +171,18 @@ enum Lucide
             self::Star => $filled ? 'star-filled' : 'star',
             self::Bookmark => $filled ? 'bookmark-filled' : 'bookmark',
             self::Trash2 => 'trash-2',
+            self::CornerDownRight => 'corner-down-right',
+            self::ChevronRight => 'chevron-right',
+            self::ChevronLeft => 'chevron-left',
+            self::ChevronDown => 'chevron-down',
+            self::ArrowUpRight => 'arrow-up-right',
             self::ArrowUp => 'arrow-up',
             self::ChevronsUp => 'chevrons-up',
+            self::ListOrdered => 'list-ordered',
+            self::Building2 => 'building-2',
+            self::MapPin => 'map-pin',
+            self::CalendarDays => 'calendar-days',
+            self::Github => 'github',
             self::Quote => 'quote',
             self::Check => 'check',
             self::X => 'x',
@@ -234,44 +246,21 @@ enum Lucide
             self::Phone => 'phone',
             self::PhoneOff => 'phone-off',
             self::MicOff => 'mic-off',
+            self::Share => 'share',
             self::Share2 => 'share-2',
-            default => null,
-        };
-
-        return $name === null ? null : Icon::custom($name);
+            self::BadgeCheck => 'badge-check',
+            self::Gamepad => 'gamepad',
+            self::TabletSmartphone => 'tablet-smartphone',
+        });
     }
 
-    public function ios(bool $filled = false): Ios|string
+    public function ios(bool $filled = false): string
     {
-        return $this->custom($filled) ?? match ($this) {
-            self::CornerDownRight => Ios::ArrowTurnDownRight,
-            self::ChevronRight => Ios::ChevronRight,
-            self::ChevronLeft => Ios::ChevronLeft,
-            self::ChevronDown => Ios::ChevronDown,
-            self::ArrowUpRight => Ios::ArrowUpRight,
-            self::ListOrdered => Ios::ListNumber,
-            self::Building2 => Ios::Building2,
-            self::MapPin => Ios::Mappin,
-            self::CalendarDays => Ios::Calendar,
-            self::Github => Ios::ChevronLeftForwardslashChevronRight,
-            default => Ios::Circle,
-        };
+        return $this->custom($filled);
     }
 
-    public function android(bool $filled = false): AndroidSymbol|string
+    public function android(bool $filled = false): string
     {
-        return $this->custom($filled) ?? match ($this) {
-            self::CornerDownRight => AndroidOutlined::SubdirectoryArrowRight,
-            self::ChevronRight => AndroidOutlined::ChevronRight,
-            self::ChevronLeft => AndroidOutlined::ChevronLeft,
-            self::ChevronDown => AndroidOutlined::ExpandMore,
-            self::ArrowUpRight => AndroidOutlined::ArrowOutward,
-            self::ListOrdered => AndroidOutlined::FormatListNumbered,
-            self::Building2 => AndroidOutlined::Business,
-            self::MapPin => AndroidOutlined::LocationOn,
-            self::CalendarDays => AndroidOutlined::CalendarToday,
-            self::Github => AndroidOutlined::Code,
-            default => AndroidOutlined::Circle,
-        };
+        return $this->custom($filled);
     }
 }

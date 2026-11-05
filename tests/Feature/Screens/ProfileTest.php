@@ -1,5 +1,6 @@
 <?php
 
+use App\Devnull\Data\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
@@ -406,7 +407,7 @@ it('shows your own profile on the Profile tab', function () {
         ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://github.com/settings/profile');
 });
 
-it('opens your scheduled commits beneath the Profile tab from the calendar beside Edit on GitHub', function () {
+it('opens your scheduled commits beneath the Profile tab from the calendar in your nav bar', function () {
     fakeApi([
         'GET /api/v1/users/local_dev' => [profileJson(user: ['id' => userJson()['id'], 'handle' => 'local_dev'])],
         'GET /api/v1/users/local_dev/commits' => [pageJson([])],
@@ -414,13 +415,17 @@ it('opens your scheduled commits beneath the Profile tab from the calendar besid
         'GET /api/v1/users/ada/commits' => [pageJson([])],
     ]);
 
-    expect(nodeByRef(Native::visit('/profile'), 'profile-scheduled')['props']['a11y_label'] ?? null)->toBe('Scheduled commits');
+    $action = fn (TestableComponent $screen): ?array => findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'top_bar_action' && ($node['props']['id'] ?? null) === 'scheduled');
 
-    Native::visit('/profile')->tap('profile-scheduled')->assertNavigatedTo('/profile/scheduled');
-    Native::visit('/profile/users/ada')->assertMissingElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'profile-scheduled');
+    $screen = Native::visit('/profile', platform: 'ios');
+
+    expect($action($screen)['props'] ?? null)->toMatchArray(['icon' => 'custom:calendar-days', 'a11y_label' => 'Scheduled commits'])
+        ->and($action(Native::visit('/profile/users/ada')))->toBeNull();
+
+    $screen->press('openScheduledCommits')->assertNavigatedTo('/profile/scheduled');
 });
 
-it('leads from your own profile to your account with the Settings2 icon', function () {
+it('leads from the ⋯ on your own profile to your account with the Settings2 icon', function () {
     fakeApi([
         'GET /api/v1/users/local_dev' => [profileJson(user: ['handle' => 'local_dev'])],
         'GET /api/v1/users/local_dev/commits' => [pageJson([])],
@@ -432,7 +437,7 @@ it('leads from your own profile to your account with the Settings2 icon', functi
 
     $screen = Native::visit('/profile', platform: 'ios');
 
-    expect($action($screen)['props'] ?? null)->toMatchArray(['icon' => 'custom:settings-2', 'a11y_label' => 'Account'])
+    expect($action($screen)['props'] ?? null)->toMatchArray(['icon' => 'custom:settings-2', 'label' => 'Account'])
         ->and($action(Native::visit('/profile', platform: 'android'))['props']['icon'] ?? null)->toBe('custom:settings-2')
         ->and($action(Native::visit('/log/users/ada')))->toBeNull();
 
@@ -469,3 +474,32 @@ it('opens your profile on skeleton rows, and fills in what it kept straight afte
 
     finishRefreshes($screen)->assertSet('skeletonFrame', false)->assertSee('Kept Name')->assertSee('Kept commit');
 });
+
+it("opens an organization's screen in its place when devnull has no user by that handle, as the web does", function (string $tab, Closure $data) {
+    fakeApi([
+        'GET /api/v1/users/dev-null-sh' => [['message' => 'No query results for model [App\\Models\\User] dev-null-sh'], 404],
+        'GET /api/v1/users/dev-null-sh/commits' => [['message' => 'No query results for model [App\\Models\\User] dev-null-sh'], 404],
+    ]);
+
+    Native::visit("{$tab}/users/dev-null-sh", data: $data())->assertReplacedWith("{$tab}/organizations/dev-null-sh");
+})->with([
+    'a link to it' => ['/log', fn (): array => []],
+    'a notification it sent' => ['/notifications', fn (): array => ['user' => User::fromArray(userJson(['handle' => 'dev-null-sh']))]],
+]);
+
+it("stays a person's profile when a thread on it is gone", function (Closure $profile, Closure $data) {
+    keep('commits/c1/replies', pageJson([]));
+    fakeApi([
+        'GET /api/v1/users/ada' => $profile(),
+        'GET /api/v1/users/ada/commits' => [pageJson([adaCommitJson(['id' => 'c1'])])],
+        'GET /api/v1/commits/c1/replies' => [['message' => 'No query results for model [App\\Models\\Commit] c1'], 404],
+    ]);
+
+    Native::visit('/log/users/ada', data: $data())
+        ->call('toggleReplies', 'c1')
+        ->assertNoNavigation()
+        ->assertSee('Ada Lovelace');
+})->with([
+    'devnull sent it' => [fn (): array => [profileJson()], fn (): array => []],
+    "devnull couldn't send it yet" => [fn (): array => [['message' => 'Server Error'], 500], fn (): array => ['user' => User::fromArray(userJson(['handle' => 'ada', 'name' => 'Ada Lovelace']))]],
+]);

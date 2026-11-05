@@ -12,6 +12,7 @@ use App\Devnull\FetchInBackground;
 use App\Devnull\ImageCache;
 use App\Devnull\ResponseCache;
 use App\Devnull\Timezone;
+use App\NativeComponents\AcceptTerms;
 use Closure;
 use Throwable;
 
@@ -141,8 +142,9 @@ trait RefreshesInBackground
     /**
      * Asks devnull how many notifications are unread, for the badge on the
      * Notifications tab, and picks up any change to you while it's there,
-     * your Remotes and their unread count among them.
-     * The badge is a nicety, so a failure here is never put on the screen.
+     * your Remotes and their unread count among them, and terms you have yet
+     * to accept. The badge is a nicety, so a failure here is never put on
+     * the screen.
      */
     protected function refreshUnreadNotifications(): void
     {
@@ -153,10 +155,29 @@ trait RefreshesInBackground
                 app(Account::class)->remember($current->user);
                 app(Account::class)->rememberPasteis($current->pasteis());
                 app(Account::class)->rememberRemotes($current->remotes);
+                $this->takeTerms($current);
             }
 
             app(Account::class)->rememberUnreadNotifications($current->unreadNotificationsCount);
         }, quiet: true);
+    }
+
+    /**
+     * Keeps whether devnull is waiting for you to accept its terms, when its
+     * answer says, and sends you to accept them the moment it is, whichever
+     * screen you're on (see AcceptTerms).
+     */
+    protected function takeTerms(CurrentUser $current): void
+    {
+        if ($current->termsAccepted === null) {
+            return;
+        }
+
+        app(Account::class)->rememberTermsToAccept($current->termsToAccept());
+
+        if ($current->termsToAccept() !== null) {
+            $this->replace(AcceptTerms::Path);
+        }
     }
 
     /**

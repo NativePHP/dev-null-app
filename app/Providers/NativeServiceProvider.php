@@ -8,6 +8,7 @@ use Illuminate\Support\ServiceProvider;
 use Native\Mobile\Providers\BrowserServiceProvider;
 use Native\Mobile\Providers\CameraServiceProvider;
 use Native\Mobile\Providers\MicrophoneServiceProvider;
+use Native\Mobile\Providers\PushNotificationsServiceProvider;
 use Native\Mobile\Providers\SecureStorageServiceProvider;
 use Native\Mobile\Providers\ShareServiceProvider;
 use Native\Mobile\Skia\SkiaServiceProvider;
@@ -54,6 +55,7 @@ class NativeServiceProvider extends ServiceProvider
             BrowserServiceProvider::class,
             CameraServiceProvider::class,
             MicrophoneServiceProvider::class,
+            PushNotificationsServiceProvider::class,
             MediaPlayerServiceProvider::class,
             SecureStorageServiceProvider::class,
             ShareServiceProvider::class,

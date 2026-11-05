@@ -8,7 +8,7 @@ use App\Icons\Lucide;
 
 /**
  * The web's `/feature` and `/bug` commands, which turn a new commit's draft
- * into a public issue on nunomaduro/dev-null.sh, opened by devnull's GitHub
+ * into a public issue on dev-null-sh/dev-null.sh, opened by devnull's GitHub
  * App and crediting you. The wording, and when each is suggested, are the
  * web's (resources/js/lib/issue-commands.ts).
  */
@@ -20,7 +20,7 @@ enum IssueCommand: string
     /**
      * Where the issue goes, as the web says it under the command.
      */
-    public const string Repository = 'nunomaduro/dev-null.sh';
+    public const string Repository = 'dev-null-sh/dev-null.sh';
 
     /**
      * Issues still need three literal characters and do not discount URLs.

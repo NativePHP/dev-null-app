@@ -32,6 +32,8 @@ function logWithScore(int $score = 1234, string $signedFor = 'u2'): TestableComp
 }
 
 it('draws a shared high score as a card, signed, with its run kept out of the body', function () {
+    skipWithoutSkia();
+
     $screen = logWithScore()
         ->assertSee('i got a new high score on Nata Nu//ers: 1234')
         ->assertSee('Beat 1,234')
@@ -43,6 +45,8 @@ it('draws a shared high score as a card, signed, with its run kept out of the bo
 });
 
 it('shows a run signed for someone else without the signed line', function () {
+    skipWithoutSkia();
+
     $screen = logWithScore(signedFor: 'u9')->assertSee('Beat 1,234')->assertDontSee('Signed by their device');
 
     expect(rendersRef($screen, 'score-signed-c1'))->toBeFalse()
@@ -50,6 +54,8 @@ it('shows a run signed for someone else without the signed line', function () {
 });
 
 it('opens the game from the card', function () {
+    skipWithoutSkia();
+
     logWithScore()->tap('score-card-c1')->assertNavigatedTo('/nata-nullers');
 });
 

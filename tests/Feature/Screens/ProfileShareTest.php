@@ -38,7 +38,7 @@ function shareMenuIds(TestableComponent $screen): ?array
     return $menu === null ? null : array_map(fn (array $item): string => $item['props']['id'], $menu['children'] ?? []);
 }
 
-it("starts someone else's ⋯ with Share profile, under the phone's own share icon", function (string $platform, string $icon) {
+it("starts someone else's ⋯ with Share profile, under share on iOS and share-2 on Android", function (string $platform, string $icon) {
     fakeApi(['GET /api/v1/users/ada' => [shareProfileJson()], 'GET /api/v1/users/ada/commits' => [pageJson([])]]);
 
     $screen = Native::visit('/log/users/ada', platform: $platform);
@@ -47,22 +47,23 @@ it("starts someone else's ⋯ with Share profile, under the phone's own share ic
     expect(shareMenuIds($screen))->toBe(['share', 'mute', 'block'])
         ->and($share['props'])->toMatchArray(['label' => 'Share profile', 'icon' => $icon]);
 })->with([
-    'iOS' => ['ios', 'square.and.arrow.up'],
-    'Android' => ['android', 'share'],
+    'iOS' => ['ios', 'custom:share'],
+    'Android' => ['android', 'custom:share-2'],
 ]);
 
-it('puts Share profile first in the nav bar of your own profile, before Starred and Account, with no ⋯', function () {
+it('puts Scheduled commits and Starred in the nav bar of your own profile, then a ⋯ with Share profile and Account', function () {
     fakeApi([
         'GET /api/v1/users/local_dev' => [shareProfileJson('local_dev', 'https://dev-null.sh/@local_dev')],
         'GET /api/v1/users/local_dev/commits' => [pageJson([])],
     ]);
 
     $screen = Native::visit('/profile', platform: 'ios');
-    $actions = findNodes($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'top_bar_action');
+    $actions = array_map(fn (array $node): string => $node['props']['id'], findNodes($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'top_bar_action'));
+    $share = findNode($screen->tree(), fn (array $node): bool => ($node['props']['id'] ?? null) === 'share');
 
-    expect(array_map(fn (array $node): string => $node['props']['id'], $actions))->toBe(['share', 'starred', 'account'])
-        ->and($actions[0]['props'])->toMatchArray(['icon' => 'square.and.arrow.up', 'a11y_label' => 'Share profile'])
-        ->and(shareMenuIds($screen))->toBeNull();
+    expect(array_values(array_diff($actions, shareMenuIds($screen) ?? [])))->toBe(['scheduled', 'starred', 'more'])
+        ->and(shareMenuIds($screen))->toBe(['share', 'account'])
+        ->and($share['props'])->toMatchArray(['label' => 'Share profile', 'icon' => 'custom:share']);
 
     $screen->press('shareProfile')
         ->assertNativeCalled('Share.Url', fn (array $params): bool => $params['url'] === 'https://dev-null.sh/@local_dev')

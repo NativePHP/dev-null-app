@@ -41,13 +41,18 @@ final class Display
      */
     public const int ElbowLevel = 22;
 
+    /**
+     * How long ago a commit was made, as the web prints it beside the commit:
+     * "now", "5m", "3h", "2d", then the date, in the same time zone as dayLabel().
+     */
     public static function relativeTime(?CarbonInterface $date, ?CarbonInterface $now = null): string
     {
         if ($date === null) {
             return '';
         }
 
-        $now ??= CarbonImmutable::now();
+        $now = CarbonImmutable::instance($now ?? self::now());
+        $day = CarbonImmutable::instance($date)->setTimezone($now->getTimezone());
         $seconds = (int) round($now->getTimestamp() - $date->getTimestamp());
 
         return match (true) {
@@ -55,8 +60,8 @@ final class Display
             $seconds < 3600 => intdiv($seconds, 60).'m',
             $seconds < 86400 => intdiv($seconds, 3600).'h',
             $seconds < 604800 => intdiv($seconds, 86400).'d',
-            $date->year === $now->year => $date->format('M j'),
-            default => $date->format('M j, Y'),
+            $day->year === $now->year => $day->format('M j'),
+            default => $day->format('M j, Y'),
         };
     }
 
@@ -136,6 +141,14 @@ final class Display
     public static function fullDateTime(CarbonInterface $date, ?string $timezone = null): string
     {
         return CarbonImmutable::instance($date)->setTimezone($timezone ?? app(Timezone::class)->yours())->format('g:i A · M j, Y');
+    }
+
+    /**
+     * The day something happened, with no time: "Nov 1, 2026", in your timezone.
+     */
+    public static function day(CarbonInterface $date, ?string $timezone = null): string
+    {
+        return CarbonImmutable::instance($date)->setTimezone($timezone ?? app(Timezone::class)->yours())->format('M j, Y');
     }
 
     /**

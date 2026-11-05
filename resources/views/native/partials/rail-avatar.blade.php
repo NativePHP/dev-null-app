@@ -4,7 +4,8 @@
     default; the context around a commit page's commit draws it at 36. Replies use a 24pt ring with a 1pt border and gap.
     The ring is a border on a surface disc, which draws inside it, so the gap needs no disc of its own. $position
     places it, as the rail does with `absolute` and its insets. Someone streaming wears a red ring instead, and above
-    24pt the LIVE badge, centred 6pt below the avatar as on the web.
+    24pt the LIVE badge, centred 6pt below the avatar as on the web. An organization's ring is a rounded square, to
+    match its avatar.
 --}}
 @php($staged ??= false)
 @php($size ??= 48)
@@ -28,7 +29,7 @@
         </native:row>
     </native:column>
 @else
-    <native:stack :width="$size" :height="$size" center class="{{ $position }} rounded-full bg-theme-surface {{ $ringWidth === 1 ? 'border' : 'border-2' }} border-theme-{{ $live ? 'live' : \App\Devnull\Lane::token($lane) }}">
+    <native:stack :width="$size" :height="$size" center class="{{ $position }} {{ $user->isOrganization ? 'rounded-lg' : 'rounded-full' }} bg-theme-surface {{ $ringWidth === 1 ? 'border' : 'border-2' }} border-theme-{{ $live ? 'live' : \App\Devnull\Lane::token($lane) }}">
         @include('native.partials.avatar', ['user' => $user, 'size' => $size - $ringWidth * 4])
     </native:stack>
 @endif

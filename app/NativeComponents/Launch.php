@@ -9,7 +9,8 @@ use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
 
 /**
- * The first screen: straight to the log for a verified device, otherwise onboarding.
+ * The first screen: straight to the log for a verified device, otherwise onboarding. A verified device whose account
+ * owed terms when devnull last said goes to accept them first (see AcceptTerms).
  *
  * A verified device whose key has gone, as on a new phone restored from a
  * backup, or when the build's signing team changed and the Keychain with it,
@@ -35,7 +36,7 @@ class Launch extends NativeComponent
             return;
         }
 
-        $this->replace('/log');
+        $this->replace($account->termsToAccept() === null ? '/log' : AcceptTerms::Path);
     }
 
     public function render(): View

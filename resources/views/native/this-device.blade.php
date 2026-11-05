@@ -1,6 +1,5 @@
 @use('App\Devnull\Lane')
 @use('App\Icons\Ios')
-@use('App\Icons\Android')
 @use('App\Icons\Lucide')
 
 {{--
@@ -287,6 +286,38 @@
                 </native:column>
             @endif
 
+            <native:column ref="push-notifications" class="w-full pt-10">
+                @include('native.partials.settings-heading', [
+                    'title' => 'Push notifications',
+                    'description' => 'What devnull tells you about when the app is closed, on every phone you sign in on.',
+                ])
+
+                {{-- Always here, even once the tabs' prompt is dismissed. The phone only asks once: after a no, they come back on in its own Settings, so the button goes there. --}}
+                <native:column class="w-full px-4 pt-4 gap-2">
+                    @if ($pushPermission === 'denied')
+                        <native:button ref="open-push-settings" variant="secondary" size="lg" :ios-icon="Lucide::BellOff->ios()" :android-icon="Lucide::BellOff->android()" @press="openPushSettings" class="w-full">Turn on in Settings</native:button>
+                        <native:text class="text-xs leading-relaxed text-theme-ink-muted">Notifications are off for devnull on this phone.</native:text>
+                    @else
+                        <native:button ref="enroll-push" variant="secondary" size="lg" :ios-icon="($pushOn ? Lucide::Check : Lucide::Bell)->ios()" :android-icon="($pushOn ? Lucide::Check : Lucide::Bell)->android()" :disabled="$pushOn" @press="enrollPush" class="w-full">{{ $pushOn ? 'Notifications are on' : 'Turn on notifications' }}</native:button>
+                    @endif
+                </native:column>
+
+                {{-- Which kinds devnull sends, for you on every phone. Only once this phone gets them, and devnull has said. --}}
+                @if ($pushOn && $pushPreferences !== [])
+                    <native:column class="w-full pt-2">
+                        @foreach (\App\NativeComponents\ThisDevice::PushKinds as $kind => $label)
+                            <native:row ref="push-{{ $kind }}" class="w-full px-4 pt-4 gap-6 items-center">
+                                <native:text font="medium" class="flex-1 text-[15px] text-theme-ink">{{ $label }}</native:text>
+                                <native:toggle ref="push-{{ $kind }}-switch" :value="$pushPreferences[$kind]" @change="setPushPreference('{{ $kind }}')" :a11y-label="$label.' notifications'" />
+                            </native:row>
+                        @endforeach
+                        @if ($pushPreferencesError)
+                            <native:text ref="push-preferences-error" class="w-full px-4 pt-2 text-sm text-theme-destructive">{{ $pushPreferencesError }}</native:text>
+                        @endif
+                    </native:column>
+                @endif
+            </native:column>
+
             <native:column ref="this-phone" class="w-full pt-10">
                 @include('native.partials.settings-heading', [
                     'title' => 'This phone',
@@ -309,13 +340,22 @@
                 </native:column>
 
                 <native:column class="w-full px-4 pt-4">
-                    <native:button ref="devices" variant="secondary" size="lg" :ios-icon="Ios::Iphone" :android-icon="Android::Smartphone" @press="openDevices" class="w-full">Your devices on dev-null.sh</native:button>
+                    <native:button ref="devices" variant="secondary" size="lg" :ios-icon="Lucide::TabletSmartphone->ios()" :android-icon="Lucide::TabletSmartphone->android()" @press="openDevices" class="w-full">Your devices on dev-null.sh</native:button>
                 </native:column>
             </native:column>
 
             <native:column class="w-full px-4 pt-8 gap-2">
                 <native:button ref="sign-out" variant="secondary" size="lg" @press="confirmSignOut" class="w-full">Sign out</native:button>
                 <native:text class="text-xs leading-relaxed text-theme-ink-muted">Deletes the key from this phone and signs you out.</native:text>
+            </native:column>
+
+            <native:column ref="terms-section" class="w-full pt-10">
+                @include('native.partials.settings-heading', ['title' => 'Terms and privacy', 'description' => $terms])
+
+                <native:column class="w-full px-4 pt-4 gap-2">
+                    <native:button ref="terms-link" variant="secondary" size="lg" :ios-icon-trailing="Lucide::ArrowUpRight->ios()" :android-icon-trailing="Lucide::ArrowUpRight->android()" @press="openTerms" class="w-full">Terms of service</native:button>
+                    <native:button ref="privacy-link" variant="secondary" size="lg" :ios-icon-trailing="Lucide::ArrowUpRight->ios()" :android-icon-trailing="Lucide::ArrowUpRight->android()" @press="openPrivacy" class="w-full">Privacy policy</native:button>
+                </native:column>
             </native:column>
 
             <native:column ref="delete-section" class="w-full pt-12">

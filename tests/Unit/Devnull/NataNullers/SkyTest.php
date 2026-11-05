@@ -3,6 +3,8 @@
 use App\Devnull\NataNullers\DayCycle;
 use App\Devnull\NataNullers\Sky;
 
+beforeEach(fn () => skipWithoutSkia());
+
 /**
  * The sky as the canvas gets it, for a 360 by 600 sky with the score's
  * bottom edge at $top.

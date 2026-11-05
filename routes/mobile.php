@@ -1,6 +1,7 @@
 <?php
 
 use App\Devnull\NataNullers\Game;
+use App\NativeComponents\AcceptTerms;
 use App\NativeComponents\AddOrgMembers;
 use App\NativeComponents\AuthCallback;
 use App\NativeComponents\Call;
@@ -29,6 +30,9 @@ use Illuminate\Support\Facades\Route;
 Route::native('/', Launch::class);
 Route::native('/onboarding', Onboarding::class);
 Route::native('/auth/callback', AuthCallback::class);
+
+// Terms you have yet to accept stand in front of everything, tabs included.
+Route::native(AcceptTerms::Path, AcceptTerms::class);
 
 // A call takes the whole screen, over whichever tab rang or placed it.
 Route::native('/call/{username}', Call::class);
