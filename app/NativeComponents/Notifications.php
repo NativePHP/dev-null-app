@@ -11,7 +11,7 @@ use App\Devnull\Exceptions\Unauthenticated;
 use App\Devnull\ShownTabs;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\OffersPush;
-use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\OpensPushedScreen;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -45,7 +45,7 @@ class Notifications extends NativeComponent
 {
     use DrawsSkeletonFirst;
     use OffersPush;
-    use OpensInTab;
+    use OpensPushedScreen;
     use RefreshesInBackground;
     use SyncsOutbox;
     use TalksToDevnull;
@@ -127,6 +127,7 @@ class Notifications extends NativeComponent
     {
         $this->type = app(ShownTabs::class)->get($this->me()?->id, 'notifications', array_keys(self::Types), 'all');
         $this->checkPushPrompt();
+        $this->openPushedScreen();
         $this->fillInAfterFirstFrame('revalidate');
     }
 

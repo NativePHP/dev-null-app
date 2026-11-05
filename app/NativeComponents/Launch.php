@@ -36,7 +36,21 @@ class Launch extends NativeComponent
             return;
         }
 
-        $this->replace($account->termsToAccept() === null ? '/log' : AcceptTerms::Path);
+        if ($account->termsToAccept() !== null) {
+            $this->replace(AcceptTerms::Path);
+
+            return;
+        }
+
+        $this->openApp();
+    }
+
+    /**
+     * Where a signed-in device goes once nothing stands in front of it.
+     */
+    protected function openApp(): void
+    {
+        $this->replace('/log');
     }
 
     public function render(): View
