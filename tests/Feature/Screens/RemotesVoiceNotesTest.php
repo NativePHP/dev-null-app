@@ -261,7 +261,7 @@ it('stops to listen to the recording first, then pushes it staged at once and pu
 it('pushes straight from the recording, as soon as the microphone hands it over', function () {
     serveVoiceThread([remoteMessageJson(['id' => 1, 'body' => 'say it'])]);
 
-    $screen = voiceThread()->dragEnd('swipe-1', -200)->tap('reply-1')->tap('record-voice-note')->tap('push');
+    $screen = voiceThread()->trigger('swipe-1')->tap('record-voice-note')->tap('push');
     $screen->assertNativeCalled('Microphone.Stop')->assertSet('pending', []);
 
     finishRefreshes(voiceRecorded($screen, testRecording()))->assertSet('pending', [])->assertSet('recorder', null);
@@ -493,7 +493,7 @@ it('calls a voice note a voice note above a reply to it, and while replying to i
 
     expect(nodeByRef($screen, 'reply-ghost-3')['props']['a11y_label'])->toBe('Replying to Ada Lovelace: Voice note');
 
-    $screen->dragEnd('swipe-2', -200)->tap('reply-2')->assertSee('Voice note');
+    $screen->trigger('swipe-2')->assertSee('Voice note');
 });
 
 it('opens the message menu on a long press on a voice note, without Copy text, and replies from it', function () {

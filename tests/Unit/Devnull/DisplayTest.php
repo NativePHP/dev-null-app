@@ -28,6 +28,16 @@ it('prints relative times the way the web does', function (string $date, string 
     ['2025-12-31T12:00:00Z', 'Dec 31, 2025'],
 ]);
 
+it('prints the date of an older commit in the phone\'s time zone, as the web prints it in the browser\'s', function (string $date, string $expected) {
+    $now = CarbonImmutable::parse('2026-10-15T12:00:00Z')->setTimezone('America/Los_Angeles');
+
+    expect(Display::relativeTime(CarbonImmutable::parse($date), $now))->toBe($expected);
+})->with([
+    ['2026-09-01T03:00:00Z', 'Aug 31'],
+    ['2026-01-01T03:00:00Z', 'Dec 31, 2025'],
+    ['2026-09-01T12:00:00Z', 'Sep 1'],
+]);
+
 it('says how long ago in words, the way the web says when it last synced', function (string $date, string $expected) {
     $now = CarbonImmutable::parse('2026-10-15T12:00:00Z');
 

@@ -14,6 +14,7 @@ use App\Devnull\ShownTabs;
 use App\Devnull\Toasts;
 use App\Icons\Lucide;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
+use App\NativeComponents\Concerns\OffersPush;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SyncsOutbox;
@@ -62,6 +63,7 @@ use Native\Mobile\Facades\Dialog;
 class Remotes extends NativeComponent
 {
     use DrawsSkeletonFirst;
+    use OffersPush;
     use OpensInTab;
     use RefreshesInBackground;
     use SyncsOutbox;
@@ -146,6 +148,7 @@ class Remotes extends NativeComponent
     {
         $this->off = app(Account::class)->remotes() === null;
         $this->tab = app(ShownTabs::class)->get($this->me()?->id, 'remotes', array_keys($this->tabs()), 'open');
+        $this->checkPushPrompt();
         $this->fillInAfterFirstFrame('revalidate');
     }
 
@@ -157,6 +160,7 @@ class Remotes extends NativeComponent
         $this->forgetRefreshes();
         $this->changing = [];
         $this->off = app(Account::class)->remotes() === null;
+        $this->checkPushPrompt();
         $this->showKept();
         $this->revalidate();
     }

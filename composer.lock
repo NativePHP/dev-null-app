@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "706b0a8092b0d482ad97f3567ab6dc91",
+    "content-hash": "d559b057403966c564c40db84ed1c403",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -3100,6 +3100,62 @@
                 "source": "https://github.com/NativePHP/mobile-clipboard/tree/1.0.0"
             },
             "time": "2026-07-19T02:38:14+00:00"
+        },
+        {
+            "name": "nativephp/mobile-firebase",
+            "version": "1.1.1",
+            "dist": {
+                "type": "zip",
+                "url": "https://plugins.nativephp.com/dist/nativephp/mobile-firebase/nativephp-mobile-firebase-6c2329bef0166ed320ff77b826ea462d380fa2c9-zip-574a57.zip",
+                "reference": "6c2329bef0166ed320ff77b826ea462d380fa2c9",
+                "shasum": "d53ed2c499d1469ac386168ad0a4a1b94182a5db"
+            },
+            "require": {
+                "nativephp/mobile": "*",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^2.7|^3.0|^4.0"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Native\\Mobile\\Providers\\PushNotificationsServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Native\\Mobile\\Providers\\": "src/",
+                    "Native\\Mobile\\Events\\PushNotification\\": "src/Events/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "pest"
+                ]
+            },
+            "license": [
+                "proprietary"
+            ],
+            "authors": [
+                {
+                    "name": "NativePHP",
+                    "email": "info@nativephp.com"
+                }
+            ],
+            "description": "Firebase plugin for NativePHP Mobile (Push notifications via FCM/APNs)",
+            "time": "2026-07-19T02:23:25+00:00"
         },
         {
             "name": "nativephp/mobile-media-player",

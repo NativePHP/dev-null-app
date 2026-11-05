@@ -44,6 +44,7 @@
         "nativephp/mobile-browser": "^1.2",
         "nativephp/mobile-camera": "^1.1",
         "nativephp/mobile-clipboard": "^1.0",
+        "nativephp/mobile-firebase": "^1.1",
         "nativephp/mobile-media-player": "^1.1",
         "nativephp/mobile-microphone": "^1.2",
         "nativephp/mobile-secure-storage": "^1.1",
@@ -86,7 +87,7 @@
             "@php -r \"copy('composer.json', 'composer.free.json'); copy('composer.lock', 'composer.free.lock');\"",
             "@putenv COMPOSER=composer.free.json",
             "@composer config --unset repositories.nativephp-plugins",
-            "@composer remove nativephp/mobile-secure-storage nativephp/mobile-skia --no-interaction",
+            "@composer remove nativephp/mobile-secure-storage nativephp/mobile-skia nativephp/mobile-firebase --no-interaction",
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
             "@php artisan key:generate",
             "@php artisan migrate --force"

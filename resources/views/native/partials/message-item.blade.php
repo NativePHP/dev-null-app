@@ -5,34 +5,33 @@
     emoji, yours outlined in your lane and a tap to take it back or add yours. A run ends in the time, or for the
     message the web gives a status, in that status.
 
-    Dragging it toward its edge slides it out of the way with the finger, partly off the screen, and React, Reply and,
-    for an org's maintainers, Pin grow in one after another where it was, as the web shows them on hover: someone else's
-    to the left, your own to the right. Let go past halfway, or with a flick, and it stays open; short of that it springs
-    back. The actions sit in a slot the bubble always keeps beside it, so nothing rewraps. Dragging it back, or a tap
-    anywhere in the thread, puts them away; a double tap toggles a heart. A pinned message keeps its pin beside it. A message still being pushed takes
-    none of them, and nothing reacts, replies or pins while the thread can't take a message.
+    Pulling it toward its edge replies to it: someone else's to the left and your own to the right. It follows the
+    finger that way only, partly off the screen, though a short bubble stops while some of it still shows. Reply slides
+    in from the other side of the thread as it grows, turns upright and fades in. At Conversation::ReplyPull the phone
+    buzzes lightly; let go there and the composer replies to it and takes the keyboard. It springs back either way. The
+    pull, the buzz and the spring back all run on the phone, and only the reply comes here. A double tap toggles a
+    heart. A pinned message keeps its pin beside it. A message still being pushed can't be pulled, and nothing replies
+    while the thread can't take a message.
 
     A long press on the bubble, the voice note or the images opens the message's menu (see App\Devnull\MessageMenu),
-    which lifts it out of the thread on iOS: Reply, React and Copy text, and Pin for an org's maintainers. The menu goes
-    on a pressable around the drawn bubble, so the lifted copy keeps the bubble's colour and padding.
+    which lifts it out of the thread on iOS: Reply, React and Copy text, and Pin or Unpin for an org's maintainers. The
+    menu goes on a pressable around the drawn bubble, so the lifted copy keeps the bubble's colour and padding. React's
+    quick reactions point at the bubble's outer end.
 --}}
 @php($key = $message->id > 0 ? $message->id : $message->clientId)
 @php($laneToken = \App\Devnull\Lane::token(($author ?? null)?->lane()))
 @php($replyAuthor = $message->replyTo === null ? null : ($message->replyTo['user_id'] === $viewer?->id ? 'You' : ($authors[$message->replyTo['user_id']]->name ?? 'Someone')))
 @php($replyLane = $message->replyTo === null ? 'primary' : \App\Devnull\Lane::token(($authors[$message->replyTo['user_id']] ?? null)?->lane()))
 @php($replyable = ($canPush ?? false) && ! $message->isPending())
-@php($showsActions = $replyable && $actionsForId === $message->id)
-{{-- The row only takes a tap while some message's actions show, so a tap beside a bubble draws no ripple otherwise. --}}
-@if ($actionsForId !== null)
-<native:row native:key="message-{{ $key }}" ref="message-{{ $key }}" class="w-full px-3 {{ $startsRun ? 'pt-3' : 'pt-[3]' }}" @press="hideActions">
-@else
+@php($pull = \App\NativeComponents\Conversation::ReplyPull)
+@php($swipeHint = $replyable ? ($mine ? 'Swipe right to reply' : 'Swipe left to reply') : '')
+@php($reactionsAnchor = 'absolute top-0 bottom-0 w-[44] '.($mine ? 'right-0' : 'left-0'))
 <native:row native:key="message-{{ $key }}" ref="message-{{ $key }}" class="w-full px-3 {{ $startsRun ? 'pt-3' : 'pt-[3]' }}">
-@endif
     @if ($replyable)
-        <native:gesture-area ref="swipe-{{ $key }}" :pan-x="$pan" :snap-x="$mine ? [0, $slide] : [-$slide, 0]" @dragEnd="draggedMessage({{ $message->id }})" class="flex-1">
+        <native:gesture-area ref="swipe-{{ $key }}" :pan-x="$pan" :trigger-x="$mine ? $pull : -$pull" @trigger="reply({{ $message->id }})" class="flex-1">
     @endif
     {{-- A set width, not a max: a column that only hugs its bubble measures the text on one line and clips it. --}}
-    <native:column class="{{ $replyable ? 'w-full' : 'flex-1' }} gap-1 {{ $mine ? 'items-end' : 'items-start' }}">
+    <native:column ref="pulled-{{ $key }}" class="{{ $replyable ? 'w-full' : 'flex-1' }} gap-1 {{ $mine ? 'items-end' : 'items-start' }}" :translate-x="! $replyable ? 0 : ($slide >= $pull ? $pan : ($mine ? $pan->clamp(0, $slide) : $pan->clamp(-$slide, 0)))">
         @if ($isOrg && ! $mine && $startsRun && $author)
             <native:pressable ref="author-{{ $key }}" @press="openProfile('{{ $author->username }}')" a11y-label="{{ $author->name }}'s profile">
                 <native:row class="gap-[6] items-center px-1">
@@ -49,15 +48,21 @@
             </native:column>
         @endif
 
-        {{-- An image-only message keeps its actions beside its images; otherwise they go beside the bubble. --}}
+        {{--
+            An image-only message keeps its pin beside its images, and React's quick reactions point at them; otherwise
+            those go with the bubble. The bubble's row stops short of the far side, so a long message doesn't reach it.
+        --}}
         @if ($message->images !== [] && $message->body === '')
-            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}" :translate-x="$pan ?? 0">
+            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end pl-16' : 'justify-start pr-16' }}">
                 @if ($mine)
-                    @include('native.partials.message-actions')
+                    @include('native.partials.message-pin')
                 @endif
                 @include('native.partials.message-images', ['photosMenu' => $menu])
                 @if (! $mine)
-                    @include('native.partials.message-actions')
+                    @include('native.partials.message-pin')
+                @endif
+                @if ($reactionsFor === $message->id && ! $reactsFromPinned)
+                    @include('native.partials.quick-reactions', ['anchor' => $reactionsAnchor])
                 @endif
             </native:row>
         @else
@@ -67,10 +72,10 @@
         @include('native.partials.message-voice')
 
         @if ($message->body !== '')
-            {{-- The bubble shrinks to wrap short of the slot for its actions, which keeps its width either way. --}}
-            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end' : 'justify-start' }}" :translate-x="$pan ?? 0">
+            {{-- The bubble shrinks to wrap short of the far side, and of its pin when it has one. --}}
+            <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end pl-16' : 'justify-start pr-16' }}">
                 @if ($mine)
-                    @include('native.partials.message-actions')
+                    @include('native.partials.message-pin')
                 @endif
                 @if ($message->isPending())
                     <native:pressable ref="bubble-{{ $key }}" class="flex-shrink" :context-menu="$menu">
@@ -79,14 +84,17 @@
                         </native:column>
                     </native:pressable>
                 @else
-                    <native:pressable ref="bubble-{{ $key }}" class="flex-shrink" @press="hideActions" @doubleTap="heart({{ $message->id }})" :context-menu="$menu" a11y-hint="{{ $replyable ? 'Swipe sideways for React and Reply' : '' }}">
+                    <native:pressable ref="bubble-{{ $key }}" class="flex-shrink" @doubleTap="heart({{ $message->id }})" :context-menu="$menu" a11y-hint="{{ $swipeHint }}">
                         <native:column class="px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}">
                             @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary', 'quoteRule' => $mine ? 'border-theme-on-'.$myColour : 'border-theme-lane-5', 'linkPrefixInk' => $mine ? 'text-theme-on-'.$myColour.'/70' : 'text-theme-ink-muted'])
                         </native:column>
                     </native:pressable>
                 @endif
                 @if (! $mine)
-                    @include('native.partials.message-actions')
+                    @include('native.partials.message-pin')
+                @endif
+                @if ($reactionsFor === $message->id && ! $reactsFromPinned)
+                    @include('native.partials.quick-reactions', ['anchor' => $reactionsAnchor])
                 @endif
             </native:row>
         @endif
@@ -123,5 +131,20 @@
     </native:column>
     @if ($replyable)
         </native:gesture-area>
+        {{--
+            Reply, just past the far side of the thread, comes in with the finger as the message goes the other way:
+            growing from 40%, turning upright from a quarter turn and fading in, and in place once the pull reaches
+            ReplyPull. It's off the row, so it never lies over a bubble and follows the finger even where a short
+            bubble has stopped.
+        --}}
+        <native:stack ref="swipe-reply-{{ $key }}" class="absolute top-0 bottom-0 w-[{{ $pull }}] {{ $mine ? '-left-['.$pull.']' : '-right-['.$pull.']' }}" center
+            :translate-x="$pan"
+            :scale="$mine ? $pan->interpolate([0, $pull], [0.4, 1]) : $pan->interpolate([-$pull, 0], [1, 0.4])"
+            :rotate="$mine ? $pan->interpolate([0, $pull], [-90, 0]) : $pan->interpolate([-$pull, 0], [0, 90])"
+            :opacity="$mine ? $pan->interpolate([0, $pull], [0, 1]) : $pan->interpolate([-$pull, 0], [1, 0])">
+            <native:stack :width="30" :height="30" center class="rounded-full bg-theme-wash">
+                <native:icon :ios="\App\Icons\Lucide::Reply->ios()" :android="\App\Icons\Lucide::Reply->android()" :size="16" class="text-theme-ink-muted" />
+            </native:stack>
+        </native:stack>
     @endif
 </native:row>

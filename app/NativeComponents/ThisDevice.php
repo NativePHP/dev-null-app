@@ -12,12 +12,14 @@ use App\Devnull\Display;
 use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Hsl;
 use App\Devnull\Lane;
+use App\Devnull\PushPrompt;
 use App\Devnull\ResponseCache;
 use App\Devnull\Timezone;
 use App\Devnull\WhoToFollow;
 use App\NativeComponents\Concerns\LeavesDevnull;
 use App\NativeComponents\Concerns\OpensLegalPages;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\SendsPushToken;
 use App\NativeComponents\Concerns\SignsInWithApple;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -27,8 +29,11 @@ use Illuminate\View\View;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Events\Alert\ButtonPressed;
+use Native\Mobile\Events\PushNotification\TokenGenerated;
 use Native\Mobile\Facades\Browser;
 use Native\Mobile\Facades\Dialog;
+use Native\Mobile\Facades\PushNotifications;
+use Native\Mobile\Facades\System;
 use SensitiveParameter;
 
 /**
@@ -53,6 +58,7 @@ class ThisDevice extends NativeComponent
     use LeavesDevnull;
     use OpensLegalPages;
     use RefreshesInBackground;
+    use SendsPushToken;
     use SignsInWithApple;
     use SyncsOutbox;
     use TalksToDevnull;
@@ -149,6 +155,28 @@ class ThisDevice extends NativeComponent
      */
     public const string PasteisModeFailed = 'Could not save pastéis mode. Please try again.';
 
+    /**
+     * The push notifications you can turn off one by one, as devnull names them, with their labels.
+     */
+    public const array PushKinds = [
+        'follows' => 'Follows',
+        'replies' => 'Replies',
+        'mentions' => 'Mentions',
+        'direct_remotes' => 'Remotes messages',
+        'org_remotes' => 'Org messages',
+    ];
+
+    public const string PushPreferencesFailed = 'Could not save your notification settings. Try again.';
+
+    /**
+     * Which push notifications you get, by kind (see PushKinds), or empty until devnull says.
+     *
+     * @var array<string, bool>
+     */
+    public array $pushPreferences = [];
+
+    public ?string $pushPreferencesError = null;
+
     public bool $savingRemotes = false;
 
     public ?string $remotesError = null;
@@ -169,6 +197,17 @@ class ThisDevice extends NativeComponent
      */
     public ?bool $appleLinked = null;
 
+    /**
+     * What the phone says about notifications for the app: granted, denied, not_determined, provisional or
+     * ephemeral. Null off a device, or when it can't say.
+     */
+    public ?string $pushPermission = null;
+
+    /**
+     * Whether this phone gets notifications: it has a token, and the phone hasn't had them turned off since.
+     */
+    public bool $pushOn = false;
+
     public function mount(): void
     {
         if (($kept = $this->cached('me')) !== null) {
@@ -180,6 +219,10 @@ class ThisDevice extends NativeComponent
         }
 
         $this->savedTimezone = $this->chosenTimezone = app(Account::class)->timezone();
+
+        $this->pushPermission = PushNotifications::checkPermission();
+        $this->pushOn = PushPrompt::allowed($this->pushPermission) && PushNotifications::getToken() !== null;
+        $this->sendPushToken();
 
         try {
             $this->fingerprint = app(DeviceKey::class)->current()->fingerprint();
@@ -585,6 +628,49 @@ class ThisDevice extends NativeComponent
     }
 
     /**
+     * Asks the phone for notifications, prompting the first time. Always here, whatever the tabs' prompt did, and says when they're on.
+     */
+    public function enrollPush(): void
+    {
+        PushNotifications::enroll();
+    }
+
+    /**
+     * Turns one kind of push notification on or off, and puts it back if devnull can't save it.
+     */
+    public function setPushPreference(string $kind, bool $on): void
+    {
+        if (! array_key_exists($kind, $this->pushPreferences) || $this->pushPreferences[$kind] === $on) {
+            return;
+        }
+
+        $before = $this->pushPreferences;
+        $this->pushPreferences[$kind] = $on;
+        $this->pushPreferencesError = null;
+
+        $this->writeInBackground('PUT', Client::PushPreferencesPath, $this->pushPreferences, fn (array $json) => $this->takePushPreferences($json['data'] ?? null), function () use ($before): void {
+            $this->pushPreferences = $before;
+            $this->pushPreferencesError = self::PushPreferencesFailed;
+        });
+    }
+
+    /**
+     * devnull's page in the phone's Settings, the only place notifications come back on once they were turned off.
+     */
+    public function openPushSettings(): void
+    {
+        System::appSettings();
+    }
+
+    #[On(TokenGenerated::class)]
+    public function pushTokenReceived(string $token): void
+    {
+        $this->pushPermission = PushNotifications::checkPermission() ?? $this->pushPermission;
+        $this->pushOn = PushPrompt::allowed($this->pushPermission);
+        $this->sendPushToken($token);
+    }
+
+    /**
      * Opens Apple's sheet. Its answer arrives as an event (see SignsInWithApple).
      */
     public function linkApple(): void
@@ -626,6 +712,7 @@ class ThisDevice extends NativeComponent
     public function onAlertButton(string $label = '', ?string $id = null): void
     {
         if ($id === self::SignOutAlert && $label === 'Sign out') {
+            $this->dropPushToken();
             $this->forget();
         }
 
@@ -768,6 +855,24 @@ class ThisDevice extends NativeComponent
         $this->savedTimezone = $timezone;
         $this->savedShowLocalTime = $showsLocalTime;
         app(Account::class)->rememberTimezone($timezone);
+
+        $this->takePushPreferences($settings['push'] ?? null);
+    }
+
+    /**
+     * Which push notifications devnull says you get. A kind it doesn't mention is on, as devnull's default.
+     */
+    private function takePushPreferences(mixed $push): void
+    {
+        if (! is_array($push)) {
+            return;
+        }
+
+        $this->pushPreferences = [];
+
+        foreach (array_keys(self::PushKinds) as $kind) {
+            $this->pushPreferences[$kind] = ($push[$kind] ?? true) !== false;
+        }
     }
 
     /**
