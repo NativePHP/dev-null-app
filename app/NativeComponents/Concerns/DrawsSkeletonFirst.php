@@ -18,6 +18,10 @@ use Native\Mobile\Facades\System;
  * moment you tap it, so a skeleton frame there only cut from those rows to a
  * spinner and back.
  *
+ * A tab that opens a pushed screen on top of itself as it mounts fills in at
+ * once: nobody sees its first frame, and the background thread's answer would
+ * reach the screen on top instead and leave the tab on skeleton rows.
+ *
  * config('devnull.skeleton_first') turns it off, as phpunit.xml does, so a
  * test sees a screen as it fills in.
  */
@@ -34,7 +38,7 @@ trait DrawsSkeletonFirst
      */
     protected function fillInAfterFirstFrame(string $then): void
     {
-        if (! config('devnull.skeleton_first') || System::isIos()) {
+        if (! config('devnull.skeleton_first') || System::isIos() || $this->hasNavigationIntent()) {
             $this->fillIn($then);
 
             return;
