@@ -123,7 +123,7 @@ it('prefers an emulator to a phone, and warns when it has to use the phone', fun
     $ran = fakeTools(['adb devices' => "List of devices attached\nZT322TK27H\tdevice\nemulator-5556\tdevice\n"]);
 
     $this->artisan('screenshots:take before --platform=android --branch=test-branch')
-        ->expectsOutput('More than one Android device is connected, so using emulator-5556.')
+        ->expectsOutput('More than one Android device is connected, so using emulator-5556. Pass --android to pick another.')
         ->assertSuccessful();
 
     expect($ran)->toContain('adb -s emulator-5556 shell cmd uimode night yes')
@@ -134,6 +134,74 @@ it('prefers an emulator to a phone, and warns when it has to use the phone', fun
     $this->artisan('screenshots:take before --platform=android --branch=test-branch')
         ->expectsOutput('Using the Android phone ZT322TK27H. Its dark mode will be switched while this runs.')
         ->assertSuccessful();
+});
+
+/**
+ * A second booted simulator and emulator, as another session running alongside would have.
+ *
+ * @return array<string, string>
+ */
+function twoOfEachDevice(): array
+{
+    return [
+        'xcrun simctl list devices booted --json' => json_encode(['devices' => ['iOS-26-0' => [
+            ['udid' => 'SIM-1', 'state' => 'Booted'],
+            ['udid' => 'SIM-2', 'state' => 'Booted'],
+        ]]]),
+        'adb devices' => "List of devices attached\nemulator-5554\tdevice\nemulator-5556\tdevice\n",
+    ];
+}
+
+/**
+ * @param  Collection<int, string>  $ran
+ * @return Collection<int, string>
+ */
+function commandsOnTheFirstDevices(Collection $ran): Collection
+{
+    return $ran->filter(fn (string $command): bool => str_contains($command, 'SIM-1') || str_contains($command, 'emulator-5554'));
+}
+
+it('screenshots the simulator and emulator named with --ios and --android', function () {
+    $ran = fakeTools(twoOfEachDevice());
+
+    $this->artisan('screenshots:take before --ios=SIM-2 --android=emulator-5556 --branch=test-branch')
+        ->doesntExpectOutputToContain('More than one')
+        ->assertSuccessful();
+
+    expect($ran)
+        ->toContain("xcrun simctl io SIM-2 screenshot {$this->path}/ios-light-before.png")
+        ->toContain("adb -s emulator-5556 pull /sdcard/devnull-screenshot.png {$this->path}/android-dark-before.png")
+        ->and(commandsOnTheFirstDevices($ran))->toBeEmpty();
+});
+
+it('records the simulator and emulator named with --ios and --android', function () {
+    $ran = fakeTools(twoOfEachDevice());
+
+    $this->artisan('screenshots:record after --ios=SIM-2 --android=emulator-5556 --appearance=dark --seconds=5 --branch=test-branch')
+        ->assertSuccessful();
+
+    expect($ran)
+        ->toContain("xcrun simctl io SIM-2 recordVideo --codec=h264 --force {$this->path}/ios-dark-after.mp4")
+        ->toContain('adb -s emulator-5556 shell screenrecord --time-limit 5 --bit-rate 4000000 /sdcard/devnull-recording.mp4')
+        ->and(commandsOnTheFirstDevices($ran))->toBeEmpty();
+});
+
+it('fails before touching anything when a named device is not running', function () {
+    $ran = fakeTools();
+
+    $this->artisan('screenshots:take before --ios=SIM-9 --branch=test-branch')
+        ->expectsOutputToContain("The iOS simulator SIM-9 isn't booted.")
+        ->assertFailed();
+
+    $this->artisan('screenshots:record after --android=emulator-5558 --branch=test-branch')
+        ->expectsOutputToContain("The Android device emulator-5558 isn't connected.")
+        ->assertFailed();
+
+    expect($ran->all())->toBe([
+        'xcrun simctl list devices booted --json',
+        'xcrun simctl list devices booted --json',
+        'adb devices',
+    ]);
 });
 
 it('fails when nothing is running', function () {

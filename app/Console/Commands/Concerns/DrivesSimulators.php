@@ -17,7 +17,8 @@ trait DrivesSimulators
 {
     /**
      * The booted iOS simulator's UDID and the connected Android device's serial,
-     * limited to the platforms asked for with --platform.
+     * limited to the platforms asked for with --platform. --ios and --android name
+     * them when more than one is running, as when several sessions each run their own.
      *
      * @return array{ios?: string, android?: string}
      */
@@ -47,16 +48,25 @@ trait DrivesSimulators
             ->where('state', 'Booted')
             ->pluck('udid');
 
+        if ($chosen = $this->option('ios')) {
+            if (! $udids->contains($chosen)) {
+                $this->fail("The iOS simulator {$chosen} isn't booted. xcrun simctl list devices booted lists the ones that are.");
+            }
+
+            return $chosen;
+        }
+
         if ($udids->count() > 1) {
-            $this->warn("More than one iOS simulator is booted, so using {$udids->first()}.");
+            $this->warn("More than one iOS simulator is booted, so using {$udids->first()}. Pass --ios to pick another.");
         }
 
         return $udids->first();
     }
 
     /**
-     * An emulator if there is one. A phone works too, but its dark mode is switched
-     * system-wide while this runs, so say when it's a phone.
+     * The device named with --android, or else an emulator if there is one. A phone
+     * works too, but its dark mode is switched system-wide while this runs, so say
+     * when it's a phone.
      */
     protected function connectedAndroidDevice(): ?string
     {
@@ -64,8 +74,16 @@ trait DrivesSimulators
 
         $serials = collect($matches[1])->sortBy(fn (string $serial): bool => ! str_starts_with($serial, 'emulator-'))->values();
 
+        if ($chosen = $this->option('android')) {
+            if (! $serials->contains($chosen)) {
+                $this->fail("The Android device {$chosen} isn't connected. adb devices lists the ones that are.");
+            }
+
+            $serials = collect([$chosen]);
+        }
+
         if ($serials->count() > 1) {
-            $this->warn("More than one Android device is connected, so using {$serials->first()}.");
+            $this->warn("More than one Android device is connected, so using {$serials->first()}. Pass --android to pick another.");
         }
 
         if ($serials->isNotEmpty() && ! str_starts_with($serials->first(), 'emulator-')) {
