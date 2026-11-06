@@ -6,8 +6,8 @@
     message the web gives a status, in that status.
 
     Pulling it toward its edge replies to it: someone else's to the left and your own to the right. It follows the
-    finger that way only, partly off the screen, though a short bubble stops while some of it still shows. Reply slides
-    in from the other side of the thread as it grows, turns upright and fades in. At Conversation::ReplyPull the phone
+    finger that way only, partly off the screen, though a short bubble stops while some of it still shows. Reply grows
+    in a little way off the bubble's other side (see partials/message-swipe-reply). At Conversation::ReplyPull the phone
     buzzes lightly; let go there and the composer replies to it and takes the keyboard. It springs back either way. The
     pull, the buzz and the spring back all run on the phone, and only the reply comes here. A double tap toggles a
     heart. A pinned message keeps its pin beside it. A message still being pushed can't be pulled, and nothing replies
@@ -49,18 +49,22 @@
         @endif
 
         {{--
-            An image-only message keeps its pin beside its images, and React's quick reactions point at them; otherwise
-            those go with the bubble. The bubble's row stops short of the far side, so a long message doesn't reach it.
+            An image-only message keeps its pin and Reply beside its images, and React's quick reactions point at them;
+            otherwise those go with the bubble. The bubble's row stops short of the far side, so a long message doesn't
+            reach it.
         --}}
         @if ($message->images !== [] && $message->body === '')
             <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end pl-16' : 'justify-start pr-16' }}">
-                @if ($mine)
-                    @include('native.partials.message-pin')
-                @endif
-                @include('native.partials.message-images', ['photosMenu' => $menu])
-                @if (! $mine)
-                    @include('native.partials.message-pin')
-                @endif
+                <native:row ref="bubble-and-pin-{{ $key }}" class="flex-shrink gap-1 items-center">
+                    @if ($mine)
+                        @include('native.partials.message-pin')
+                    @endif
+                    @include('native.partials.message-images', ['photosMenu' => $menu])
+                    @if (! $mine)
+                        @include('native.partials.message-pin')
+                    @endif
+                    @include('native.partials.message-swipe-reply')
+                </native:row>
                 @if ($reactionsFor === $message->id && ! $reactsFromPinned)
                     @include('native.partials.quick-reactions', ['anchor' => $reactionsAnchor])
                 @endif
@@ -72,27 +76,30 @@
         @include('native.partials.message-voice')
 
         @if ($message->body !== '')
-            {{-- The bubble shrinks to wrap short of the far side, and of its pin when it has one. --}}
+            {{-- The bubble shrinks to wrap short of the far side, and of its pin when it has one. Reply sits just past both. --}}
             <native:row ref="content-{{ $key }}" class="w-full gap-1 items-center {{ $mine ? 'justify-end pl-16' : 'justify-start pr-16' }}">
-                @if ($mine)
-                    @include('native.partials.message-pin')
-                @endif
-                @if ($message->isPending())
-                    <native:pressable ref="bubble-{{ $key }}" class="flex-shrink" :context-menu="$menu">
-                        <native:column class="px-3 py-2 rounded-2xl {{ $message->status === 'rejected' ? 'border border-theme-destructive bg-theme-surface' : 'bg-theme-'.$myColour.'/60' }}">
-                            @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour, 'quoteRule' => $message->status === 'rejected' ? 'border-theme-lane-5' : 'border-theme-on-'.$myColour, 'linkPrefixInk' => $message->status === 'rejected' ? 'text-theme-ink-muted' : 'text-theme-on-'.$myColour.'/70'])
-                        </native:column>
-                    </native:pressable>
-                @else
-                    <native:pressable ref="bubble-{{ $key }}" class="flex-shrink" @doubleTap="heart({{ $message->id }})" :context-menu="$menu" a11y-hint="{{ $swipeHint }}">
-                        <native:column class="px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}">
-                            @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary', 'quoteRule' => $mine ? 'border-theme-on-'.$myColour : 'border-theme-lane-5', 'linkPrefixInk' => $mine ? 'text-theme-on-'.$myColour.'/70' : 'text-theme-ink-muted'])
-                        </native:column>
-                    </native:pressable>
-                @endif
-                @if (! $mine)
-                    @include('native.partials.message-pin')
-                @endif
+                <native:row ref="bubble-and-pin-{{ $key }}" class="flex-shrink gap-1 items-center">
+                    @if ($mine)
+                        @include('native.partials.message-pin')
+                    @endif
+                    @if ($message->isPending())
+                        <native:pressable ref="bubble-{{ $key }}" class="flex-shrink" :context-menu="$menu">
+                            <native:column class="px-3 py-2 rounded-2xl {{ $message->status === 'rejected' ? 'border border-theme-destructive bg-theme-surface' : 'bg-theme-'.$myColour.'/60' }}">
+                                @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour, 'quoteRule' => $message->status === 'rejected' ? 'border-theme-lane-5' : 'border-theme-on-'.$myColour, 'linkPrefixInk' => $message->status === 'rejected' ? 'text-theme-ink-muted' : 'text-theme-on-'.$myColour.'/70'])
+                            </native:column>
+                        </native:pressable>
+                    @else
+                        <native:pressable ref="bubble-{{ $key }}" class="flex-shrink" @doubleTap="heart({{ $message->id }})" :context-menu="$menu" a11y-hint="{{ $swipeHint }}">
+                            <native:column class="px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}">
+                                @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary', 'quoteRule' => $mine ? 'border-theme-on-'.$myColour : 'border-theme-lane-5', 'linkPrefixInk' => $mine ? 'text-theme-on-'.$myColour.'/70' : 'text-theme-ink-muted'])
+                            </native:column>
+                        </native:pressable>
+                    @endif
+                    @if (! $mine)
+                        @include('native.partials.message-pin')
+                    @endif
+                    @include('native.partials.message-swipe-reply')
+                </native:row>
                 @if ($reactionsFor === $message->id && ! $reactsFromPinned)
                     @include('native.partials.quick-reactions', ['anchor' => $reactionsAnchor])
                 @endif
@@ -131,20 +138,5 @@
     </native:column>
     @if ($replyable)
         </native:gesture-area>
-        {{--
-            Reply, just past the far side of the thread, comes in with the finger as the message goes the other way:
-            growing from 40%, turning upright from a quarter turn and fading in, and in place once the pull reaches
-            ReplyPull. It's off the row, so it never lies over a bubble and follows the finger even where a short
-            bubble has stopped.
-        --}}
-        <native:stack ref="swipe-reply-{{ $key }}" class="absolute top-0 bottom-0 w-[{{ $pull }}] {{ $mine ? '-left-['.$pull.']' : '-right-['.$pull.']' }}" center
-            :translate-x="$pan"
-            :scale="$mine ? $pan->interpolate([0, $pull], [0.4, 1]) : $pan->interpolate([-$pull, 0], [1, 0.4])"
-            :rotate="$mine ? $pan->interpolate([0, $pull], [-90, 0]) : $pan->interpolate([-$pull, 0], [0, 90])"
-            :opacity="$mine ? $pan->interpolate([0, $pull], [0, 1]) : $pan->interpolate([-$pull, 0], [1, 0])">
-            <native:stack :width="30" :height="30" center class="rounded-full bg-theme-wash">
-                <native:icon :ios="\App\Icons\Lucide::Reply->ios()" :android="\App\Icons\Lucide::Reply->android()" :size="16" class="text-theme-ink-muted" />
-            </native:stack>
-        </native:stack>
     @endif
 </native:row>
