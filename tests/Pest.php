@@ -667,7 +667,11 @@ function paragraphRuns(TestableComponent $screen, string $text): array
         $text = $run['props']['text'] ?? str_replace(["\u{200B}", "\u{2060}"], '', implode('', array_map(fn (array $part): string => $part['props']['text'], $run['children'] ?? [])));
 
         return match (true) {
-            isset($run['on_press']) => [$text, str_starts_with($text, '@') ? 'mention' : 'link'],
+            isset($run['on_press']) => [$text, match (true) {
+                str_starts_with($text, '@') => 'mention',
+                str_starts_with($text, '#') => 'hashtag',
+                default => 'link',
+            }],
             isset($run['style']['bg_color']) => [$text, 'code'],
             isset($run['children']) => [$text, 'wordmark'],
             default => [$text],

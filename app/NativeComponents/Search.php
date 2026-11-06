@@ -31,6 +31,10 @@ use Native\Mobile\Edge\NativeComponent;
  * devnull won't search commits for fewer than three characters, so a shorter
  * term only finds developers.
  *
+ * A hashtag tapped in a commit or a message opens it with the hashtag as the
+ * term ($data['query']), searched straight away, as the web's hashtag links
+ * do, and the field isn't focused, so the keyboard leaves the results in view.
+ *
  * Neither answer is kept (see ResponseCache): a search is about the moment.
  */
 class Search extends NativeComponent
@@ -66,6 +70,11 @@ class Search extends NativeComponent
 
     public string $query = '';
 
+    /**
+     * Whether the field takes focus when the screen opens: only for an empty one, as on the web.
+     */
+    public bool $autofocus = true;
+
     /** @var list<Connection> */
     public array $people = [];
 
@@ -87,6 +96,16 @@ class Search extends NativeComponent
      */
     private ?RowCache $rowCache = null;
 
+    public function mount(): void
+    {
+        $query = $this->data('query');
+
+        if (is_string($query) && trim($query) !== '') {
+            $this->autofocus = false;
+            $this->pick($query);
+        }
+    }
+
     public function navTitle(): string
     {
         return 'Search';
@@ -104,6 +123,14 @@ class Search extends NativeComponent
     {
         $this->query = $term;
         $this->search();
+    }
+
+    /**
+     * A hashtag in one of the results searches for it here, in place of what's in the field.
+     */
+    public function openHashtag(string $hashtag): void
+    {
+        $this->pick($hashtag);
     }
 
     public function open(string $username): void

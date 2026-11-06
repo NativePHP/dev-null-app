@@ -13,6 +13,9 @@
     A hex color has a square of that color before it, as the web's swatch, held to it by a narrow no-break space so
     they wrap together.
 
+    A hashtag is medium weight in Commit Blue and searches commits for it on a tap, as the web's. In the composer's
+    preview ($static), as in the web's static preview, it stays plain text.
+
     A quote, lines that start with ">", sits behind an amber rule on the left like the web's blockquote, its
     runs drawn as a paragraph's.
 
@@ -52,6 +55,8 @@
 <native:text :text="$run->link->shown" class="text-theme-primary" @press="openLink('{{ $commit->id }}', {{ $linkIndex++ }})" />
 @elseif ($run->isColor())
 <native:text><native:text text="■" class="text-[#{{ $run->color }}] dark:text-[#{{ $run->color }}]" />&#x202F;<native:text :text="$run->text" /></native:text>
+@elseif ($run->isHashtag && ! ($static ?? false))
+<native:text :text="$run->text" font="medium" class="font-medium text-theme-primary" @press="openHashtag('{{ $run->text }}')" />
 @elseif ($run->isWordmark)
 @php($afterSpace = $loop->index > 0 && ctype_space(substr($block->runs[$loop->index - 1]->text, -1)))
 <native:text font="semibold" class="font-semibold tracking-tight">@if ($afterSpace)&#x200B;@endif/&#x2060;dev<native:text text="/" class="text-outline text-theme-lane-0" />&#x2060;null</native:text>
