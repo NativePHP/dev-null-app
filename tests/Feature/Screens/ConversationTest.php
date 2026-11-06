@@ -63,9 +63,9 @@ it('shows the thread with your messages on the right and theirs on the left, tit
 
     // Theirs at the start of the row and yours at the end, each on its own, in a thread that opens on its latest message.
     expect(nodeByRef($screen, 'content-1')['layout']['justify_content'])->toBe(0)
-        ->and(childRefs($screen, 'content-1'))->toBe(['bubble-1'])
+        ->and(childRefs($screen, 'bubble-and-pin-1'))->toBe(['bubble-1', 'swipe-reply-1'])
         ->and(nodeByRef($screen, 'content-2')['layout']['justify_content'])->toBe(2)
-        ->and(childRefs($screen, 'content-2'))->toBe(['bubble-2'])
+        ->and(childRefs($screen, 'bubble-and-pin-2'))->toBe(['bubble-2', 'swipe-reply-2'])
         ->and(nodeByRef($screen, 'thread')['props']['scroll_anchor'] ?? null)->toBe('bottom');
 });
 
@@ -161,6 +161,11 @@ it('pushes a message staged at once, and pushed once devnull has it', function (
         ->assertSee('staged')
         ->assertSet('draft', '');
 
+    // Until devnull has it, it can't be pulled, so it has no Reply.
+    $staged = $screen->instance()->pending[0]->clientId;
+
+    expect(childRefs($screen, "bubble-and-pin-{$staged}"))->toBe(["bubble-{$staged}"]);
+
     finishRefreshes($screen)->assertSee('pushed')->assertSet('pending', []);
 
     $sent = json_decode(sentTo('POST', 'remotes/@ada/messages')[0], true);
@@ -204,7 +209,7 @@ it('says a message devnull refused was rejected, and retries it under the same c
     expect(array_map(fn (string $body): string => json_decode($body, true)['client_id'], sentTo('POST', 'remotes/@ada/messages')))->toBe([$clientId, $clientId]);
 });
 
-it('pulls theirs left and yours right, toward their edges, with Reply coming in from the other side', function () {
+it('pulls theirs left and yours right, toward their edges, with Reply coming in just off the bubble', function () {
     serveRemoteThread(threadJson([
         remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?']),
         remoteMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => 'which one?']),
@@ -222,18 +227,22 @@ it('pulls theirs left and yours right, toward their edges, with Reply coming in 
         ->and(nodeByRef($screen, 'pulled-1')['props']['translate-x_sv'])->toBe($pan('1'))
         ->and(nodeByRef($screen, 'pulled-2')['props']['translate-x_sv'])->toBe($pan('2'));
 
-    // Reply waits just past the far side of the row, off the bubbles, and follows the finger in, growing, turning
-    // upright and fading in, all the way by ReplyPull. Insets go top, right, bottom, left.
-    expect(nodeByRef($screen, 'swipe-reply-1')['layout'])->toMatchArray(['width' => $pull, 'position' => [-0.0, -$pull, -0.0, 0.0]])
-        ->and(nodeByRef($screen, 'swipe-reply-2')['layout']['position'])->toEqual([-0.0, 0.0, -0.0, -$pull])
+    // Reply lies over the bubble's own row, as tall as it so it's centred on the bubble, 8 points past the side the pull
+    // uncovers, and goes with it, growing, turning upright and fading in, all the way by ReplyPull. Lying over the row
+    // and not in it, it takes none of the bubble's room. Insets go top, right, bottom, left.
+    expect(childRefs($screen, 'content-1'))->toBe(['bubble-and-pin-1'])
+        ->and(childRefs($screen, 'bubble-and-pin-1'))->toBe(['bubble-1', 'swipe-reply-1'])
+        ->and(childRefs($screen, 'bubble-and-pin-2'))->toBe(['bubble-2', 'swipe-reply-2'])
+        ->and(nodeByRef($screen, 'content-1')['layout']['padding'])->toEqual([0, 64, 0, 0])
+        ->and(nodeByRef($screen, 'swipe-reply-1')['layout'])->toMatchArray(['width' => 30.0, 'position' => [-0.0, -38.0, -0.0, 0.0]])
+        ->and(nodeByRef($screen, 'swipe-reply-2')['layout']['position'])->toEqual([-0.0, 0.0, -0.0, -38.0])
+        ->and(nodeByRef($screen, 'swipe-reply-1')['props'])->not->toHaveKey('translate-x_sv')
         ->and(nodeByRef($screen, 'swipe-reply-1')['props'])->toMatchArray([
-            'translate-x_sv' => $pan('1'),
             'opacity_sv' => $pan('1')."|interp:-{$pull},0:1,0",
             'scale_sv' => $pan('1')."|interp:-{$pull},0:1,0.4",
             'rotate_sv' => $pan('1')."|interp:-{$pull},0:0,90",
         ])
         ->and(nodeByRef($screen, 'swipe-reply-2')['props'])->toMatchArray([
-            'translate-x_sv' => $pan('2'),
             'opacity_sv' => $pan('2')."|interp:0,{$pull}:0,1",
             'rotate_sv' => $pan('2')."|interp:0,{$pull}:-90,0",
         ]);
@@ -293,7 +302,7 @@ it("shows the web's quick reactions and More from React in a message's menu, poi
 
     expect($bubble['type'])->toBe('popover')
         ->and($bubble['props']['visible'])->toBeTrue()
-        ->and(childRefs($screen, 'content-1'))->toBe(['bubble-1', 'reactions-bubble'])
+        ->and(childRefs($screen, 'content-1'))->toBe(['bubble-and-pin-1', 'reactions-bubble'])
         ->and(childRefs($screen, 'quick-reactions'))->toBe(['quick-0', 'quick-1', 'quick-2', 'more-reactions']);
 
     // A tap outside it closes it.
@@ -303,7 +312,7 @@ it("shows the web's quick reactions and More from React in a message's menu, poi
 
     $screen->tap('react-menu-2');
 
-    expect(childRefs($screen, 'content-2'))->toBe(['bubble-2', 'reactions-bubble']);
+    expect(childRefs($screen, 'content-2'))->toBe(['bubble-and-pin-2', 'reactions-bubble']);
 });
 
 it("points the quick reactions at an image-only message's images, and pulls it to reply like any other", function () {
@@ -311,7 +320,8 @@ it("points the quick reactions at an image-only message's images, and pulls it t
 
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'))->tap('react-menu-1');
 
-    expect(childRefs($screen, 'content-1'))->toBe(['photos-1', 'reactions-bubble']);
+    expect(childRefs($screen, 'content-1'))->toBe(['bubble-and-pin-1', 'reactions-bubble'])
+        ->and(childRefs($screen, 'bubble-and-pin-1'))->toBe(['photos-1', 'swipe-reply-1']);
 
     $screen->trigger('swipe-1')->assertSet('replyToId', 1);
 });
@@ -850,7 +860,7 @@ it('asks before pinning for the whole org, then pins at once and takes the pinne
         ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => Conversation::PinMessage, 'id' => Conversation::PinAlert])
         ->assertSee('pinned · 1');
 
-    expect(childRefs($screen, 'content-1'))->toBe(['bubble-1', 'pinned-1'])
+    expect(childRefs($screen, 'bubble-and-pin-1'))->toBe(['bubble-1', 'pinned-1', 'swipe-reply-1'])
         ->and(array_column(menuItems($screen, 'bubble-1'), 0))->toContain('unpin-menu-1');
 
     finishRefreshes($screen)->assertSee('pinned · 2');
@@ -881,8 +891,8 @@ it('marks a pinned message with a pin on the side of its bubble nearest the midd
 
     $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'));
 
-    expect(childRefs($screen, 'content-1'))->toBe(['bubble-1', 'pinned-1'])
-        ->and(childRefs($screen, 'content-2'))->toBe(['pinned-2', 'bubble-2'])
+    expect(childRefs($screen, 'bubble-and-pin-1'))->toBe(['bubble-1', 'pinned-1', 'swipe-reply-1'])
+        ->and(childRefs($screen, 'bubble-and-pin-2'))->toBe(['pinned-2', 'bubble-2', 'swipe-reply-2'])
         ->and(nodeByRef($screen, 'pinned-1')['type'])->toBe('stack');
 });
 
