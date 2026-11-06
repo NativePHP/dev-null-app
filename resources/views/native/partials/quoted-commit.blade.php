@@ -33,7 +33,10 @@
                     @include('native.partials.status-chip', ['status' => $quoted->status, 'small' => true])
                 @endunless
             </native:row>
-            <native:text class="w-full text-[15px] leading-relaxed text-theme-ink" :max-lines="6">{{ $quoted->plainText() }}</native:text>
+            @php($quoteTranslationEligible = ! $static && $quoted->canTranslateBy($viewer ?? app(\App\Devnull\Account::class)->user()))
+            @php($quoteTranslated = $quoteTranslationEligible && $quoted->translation->isDisplayed(app(\App\Devnull\TranslationLanguage::class)->yours(), app(\App\Devnull\Account::class)->automaticTranslation(), $translationDisplay[$quoted->id] ?? null))
+            <native:text ref="quoted-body-{{ $quoted->id }}" class="w-full text-[15px] leading-relaxed text-theme-ink" :max-lines="6">{{ ($quoteTranslated ? $quoted->displayingTranslation() : $quoted)->plainText() }}</native:text>
+            @include('native.partials.commit-translation-controls', ['commit' => $quoted, 'translationEligible' => $quoteTranslationEligible, 'translated' => $quoteTranslated])
             @if ($quoted->poll)
                 @include('native.partials.commit-poll', ['commit' => $quoted, 'static' => true])
             @endif

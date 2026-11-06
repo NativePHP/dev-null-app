@@ -111,11 +111,11 @@ trait RefreshesInBackground
             return;
         }
 
-        $this->refreshing[$key] = microtime(true);
+        $requestedAt = $this->refreshing[$key] = microtime(true);
 
         FetchInBackground::dispatch($request->url, $request->headers, 'GET', '', $withImages, $withImages ? ImageCache::takePrune() : null)
             ->timeout(30)
-            ->finished(function (mixed $result) use ($key, $path, $query, $apply, $quiet, $failed, $withImages, $retried): void {
+            ->finished(function (mixed $result) use ($key, $path, $query, $apply, $quiet, $failed, $withImages, $retried, $requestedAt): void {
                 unset($this->refreshing[$key]);
 
                 $result = is_array($result) ? $result : [];
@@ -126,7 +126,7 @@ trait RefreshesInBackground
                     return;
                 }
 
-                $this->settleRefresh($result, $path, $query, $apply, $quiet, $failed, $withImages);
+                $this->settleRefresh($result, $path, $query, $apply, $quiet, $failed, $withImages, $requestedAt);
             })
             ->failed(function (Throwable $exception) use ($key, $quiet, $failed): void {
                 unset($this->refreshing[$key]);
@@ -190,6 +190,7 @@ trait RefreshesInBackground
         $this->refresh(Client::SettingsPath, [], function (array $json): void {
             $settings = is_array($json['data'] ?? null) ? $json['data'] : [];
             $timezone = $settings['timezone'] ?? null;
+            app(Account::class)->rememberTranslationSettings($settings);
 
             app(Account::class)->rememberTimezone(Timezone::isKnown($timezone) ? $timezone : null);
         }, quiet: true);
@@ -212,6 +213,10 @@ trait RefreshesInBackground
     protected function forgetRefreshes(): void
     {
         $this->refreshing = [];
+
+        if (method_exists($this, 'forgetTranslationRequests')) {
+            $this->forgetTranslationRequests();
+        }
     }
 
     /**
@@ -220,13 +225,14 @@ trait RefreshesInBackground
      * @param  Closure(array<string, mixed>): void  $apply
      * @param  (Closure(): void)|null  $failed
      */
-    private function settleRefresh(array $result, string $path, array $query, Closure $apply, bool $quiet, ?Closure $failed = null, bool $withImages = false): void
+    private function settleRefresh(array $result, string $path, array $query, Closure $apply, bool $quiet, ?Closure $failed = null, bool $withImages = false, float $requestedAt = 0): void
     {
         $status = (int) ($result['status'] ?? 0);
         $successful = $status >= 200 && $status < 300;
 
         if ($successful && ($result['from_devnull'] ?? false) === true) {
             $json = is_array($result['json'] ?? null) ? $result['json'] : [];
+            $json = app(ResponseCache::class)->preserveGeneratedTranslations($json, $requestedAt);
 
             app(ResponseCache::class)->put($path, $query, $json);
 
@@ -241,6 +247,10 @@ trait RefreshesInBackground
             }
 
             $apply($json);
+
+            if (method_exists($this, 'refreshShownTranslations')) {
+                $this->refreshShownTranslations();
+            }
 
             return;
         }

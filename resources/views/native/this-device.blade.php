@@ -165,6 +165,27 @@
                     </native:column>
                 </native:column>
 
+                @if ($translationSettingsAvailable)
+                    <native:column ref="translation-settings" class="w-full pt-10">
+                        @include('native.partials.settings-heading', [
+                            'title' => 'Translations',
+                            'description' => 'Read commits in your preferred language. Available translations can appear automatically; new translations are only made when you tap Translate.',
+                        ])
+                        <native:column class="w-full px-4 pt-4 gap-3">
+                            <native:text ref="chosen-translation-language" class="text-sm text-theme-ink">{{ $translationLanguageName }}</native:text>
+                            <native:button ref="choose-translation-language" variant="secondary" size="lg" :ios-icon-trailing="Lucide::ChevronRight->ios()" :android-icon-trailing="Lucide::ChevronRight->android()" @press="pickTranslationLanguage" class="w-full">Choose translation language</native:button>
+                            <native:button ref="save-translation-language" :variant="$myColour" size="lg" :loading="$savingTranslationLanguage" :disabled="$savingTranslationLanguage || $chosenTranslationLanguage === $savedTranslationLanguage" @press="saveTranslationLanguage" class="w-full">Save translation language</native:button>
+                            <native:row class="w-full gap-6 items-center">
+                                <native:text class="flex-1 text-sm text-theme-ink">Automatically show available translations</native:text>
+                                <native:toggle ref="automatic-translation-switch" :value="$automaticTranslation" :disabled="$savingAutomaticTranslation" @change="setAutomaticTranslation" a11y-label="Automatically show available translations" />
+                            </native:row>
+                            @if ($translationSettingsError)
+                                <native:text ref="translation-settings-error" class="text-sm text-theme-destructive">{{ $translationSettingsError }}</native:text>
+                            @endif
+                        </native:column>
+                    </native:column>
+                @endif
+
                 {{--
                     The web's pastéis mode section, word for word: its heading and two lines, with the switch beside them.
                     The switch is the system's own (a UISwitch on iOS), which takes taps since NativePHP/mobile-air#545.
@@ -374,4 +395,7 @@
     {{-- After the page, so the rows it adds and takes away never change the ids of the page's own nodes, which would
          scroll it back to the top. --}}
     @include('native.partials.timezone-sheet')
+    @if ($translationSettingsAvailable)
+        @include('native.partials.translation-language-sheet')
+    @endif
 </native:column>

@@ -43,7 +43,7 @@ trait WritesInBackground
      * @param  Closure(array<string, mixed>): void  $done
      * @param  Closure(string, ?ApiException): void  $failed
      */
-    protected function sendInBackground(Closure $sign, Closure $done, Closure $failed, int $timeout = 30): void
+    protected function sendInBackground(Closure $sign, Closure $done, Closure $failed, int $timeout = 30, int $requestTimeout = 20): void
     {
         try {
             $request = $sign(app(Client::class));
@@ -53,7 +53,7 @@ trait WritesInBackground
             return;
         }
 
-        FetchInBackground::dispatch($request->url, $request->headers, $request->method, $request->body, false, null, $request->contentType)
+        FetchInBackground::dispatch($request->url, $request->headers, $request->method, $request->body, false, null, $request->contentType, $requestTimeout)
             ->timeout($timeout)
             ->finished(function (mixed $result) use ($done, $failed): void {
                 $exception = FetchInBackground::failureOf($result);
