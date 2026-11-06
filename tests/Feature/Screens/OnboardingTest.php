@@ -375,7 +375,7 @@ it('spends an attempt on its first answer, so a replayed callback is rejected', 
     Http::assertSentCount(1);
 });
 
-it('never writes the verifier or the state down', function () {
+it('keeps the verifier and the state only in the Keychain, and forgets them once answered', function () {
     Storage::fake('local');
     $bridge = signInBridge(testSeed());
     fakeApi(['POST /api/v1/devices' => [['data' => userWithCountsJson()]]]);
@@ -388,16 +388,55 @@ it('never writes the verifier or the state down', function () {
         ->and(json_encode($screen->tree()))->not->toContain($verifier)->not->toContain($state)
         ->and(Storage::disk('local')->allFiles())->toBe([])
         ->and(fn () => serialize($attempt))->toThrow(Exception::class)
-        ->and(print_r($attempt, true))->not->toContain($verifier);
-
-    $bridge->assertNotCalled('SecureStorage.Set');
+        ->and(print_r($attempt, true))->not->toContain($verifier)
+        ->and(array_column(array_column($bridge->callsTo('SecureStorage.Set'), 'params'), 'key'))->toBe([SignIn::StorageKey]);
 
     sendBack($screen, ['code' => 'c', 'state' => $state])->assertReplacedWith('/log');
 
     expect(app(SignIn::class)->take())->toBeNull()
         ->and(pendingAttempt())->toBeNull()
         ->and(json_encode(app(Account::class)->user()?->toArray()))->not->toContain($verifier)->not->toContain($state);
+
+    $bridge->assertCalled('SecureStorage.Delete', fn (array $params): bool => $params['key'] === SignIn::StorageKey);
 });
+
+it('finishes a sign-in when the phone killed the app while the browser was open', function () {
+    $bridge = signInBridge(testSeed());
+    fakeApi(['POST /api/v1/devices' => [['data' => userWithCountsJson()]]]);
+    $state = tapSignIn(Native::visit('/onboarding'), $bridge);
+    $verifier = pendingAttempt()->verifier();
+
+    // The callback starts the app afresh, with nothing of the attempt left in memory.
+    app()->forgetInstance(SignIn::class);
+
+    Native::visit('/auth/callback?'.http_build_query(['code' => 'c', 'state' => $state]))
+        ->assertReplacedWith('/onboarding')
+        ->follow()
+        ->assertReplacedWith('/log');
+
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+        && $request->body() === json_encode(['code' => 'c', 'code_verifier' => $verifier, 'terms_accepted' => true]));
+});
+
+it('rejects a callback after a restart when the state is not the kept one, or the attempt is too old', function (int $minutesLater, string $state) {
+    $bridge = signInBridge(testSeed());
+    fakeApi([]);
+    $sent = tapSignIn(Native::visit('/onboarding'), $bridge);
+
+    app()->forgetInstance(SignIn::class);
+    $this->travel($minutesLater)->minutes();
+
+    Native::visit('/auth/callback?'.http_build_query(['code' => 'c', 'state' => $state === 'sent' ? $sent : $state]))
+        ->assertReplacedWith('/onboarding')
+        ->follow()
+        ->assertSee(Onboarding::NotStartedHere);
+
+    Http::assertNothingSent();
+    $bridge->assertCalled('SecureStorage.Delete', fn (array $params): bool => $params['key'] === SignIn::StorageKey);
+})->with([
+    'another state' => [1, 'not-the-state'],
+    'kept too long' => [11, 'sent'],
+]);
 
 it('says so when the auth browser does not open', function () {
     fakeKeychain(testSeed())->respondTo('Browser.OpenAuth', ['success' => false]);
