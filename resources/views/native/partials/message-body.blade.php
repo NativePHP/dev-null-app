@@ -1,11 +1,12 @@
 {{--
     A message's body, drawn from its segments as a commit's is (see partials/commit-body): prose with tappable
-    mentions, links and inline code, hex colors beside their swatch, quotes behind a rule on the left, and fenced
-    code as mono text in a box. $ink is the bubble's text colour, so a body on your lane reads in that lane's label
-    colour, and $quoteRule the quote's rule: amber, or the label colour on your lane, as the web's pale rule in your
-    own bubbles.
+    mentions, links and hashtags, inline code, hex colors beside their swatch, quotes behind a rule on the left, and
+    fenced code as mono text in a box. $ink is the bubble's text colour, so a body on your lane reads in that lane's
+    label colour, and $quoteRule the quote's rule: amber, or the label colour on your lane, as the web's pale rule in
+    your own bubbles.
     A link is in $linkInk, Commit Blue off your lane and the lane's label colour on it, with a named link's owner
     muted in $linkPrefixInk, and opens by its place among the body's links (see Conversation::openMessageLink).
+    A hashtag is medium weight in $mentionInk, as a mention is, and searches commits for it on a tap.
     $maxLines caps the body to the first block at that many lines, for the pinned sheet's preview, so its links work
     before Show more.
 --}}
@@ -33,6 +34,8 @@
 <native:text :text="$run->link->shown" class="{{ $linkInk }}" @press="openMessageLink({{ $message->id }}, {{ $linkIndex++ }})" />
 @elseif ($run->isColor())
 <native:text><native:text text="■" class="text-[#{{ $run->color }}] dark:text-[#{{ $run->color }}]" />&#x202F;<native:text :text="$run->text" /></native:text>
+@elseif ($run->isHashtag)
+<native:text :text="$run->text" font="medium" class="font-medium {{ $mentionInk }}" @press="openHashtag('{{ $run->text }}')" />
 @else
 <native:text :text="$run->text" />
 @endif
