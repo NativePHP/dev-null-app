@@ -9,6 +9,10 @@ struct AdaptiveFeedRenderer: View {
     var body: some View {
         AdaptiveFeedHost(node: node)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                themeStore.resolve(for: colorScheme).background
+                    .ignoresSafeArea(.container, edges: .bottom)
+            }
             .environment(\.nativeUITheme, themeStore.resolve(for: colorScheme))
     }
 }
@@ -128,6 +132,7 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
     private let primary = UINavigationController()
     private let secondary = UINavigationController()
     private let divider = UIView()
+    private let emptySelection = UILabel()
     private var pages: [Int: AdaptivePageController] = [:]
     private var latest: NativeUINode?
     private var inherited: EnvironmentValues?
@@ -160,6 +165,12 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
             navigation.didMove(toParent: self)
         }
         view.addSubview(divider)
+        emptySelection.text = "Select a commit to view its conversation"
+        emptySelection.textAlignment = .center
+        emptySelection.numberOfLines = 0
+        emptySelection.adjustsFontForContentSizeCategory = true
+        emptySelection.isHidden = true
+        view.addSubview(emptySelection)
         secondary.view.isHidden = true
         divider.isHidden = true
     }
@@ -178,6 +189,20 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         layoutColumns()
     }
 
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        // Duo can leave its system tab bar covering the entire container after
+        // resizing. Ask the owning container to lay out outside the transition
+        // callback, without overriding its frames or retrying child layout.
+        coordinator.animate(alongsideTransition: nil) { [weak self] _ in
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.viewIfLoaded?.window != nil, let tabs = self.tabBarController else { return }
+                tabs.view.setNeedsLayout()
+                tabs.view.layoutIfNeeded()
+            }
+        }
+    }
+
     private func layoutColumns() {
         let bounds = view.bounds
         if wide == true {
@@ -185,6 +210,7 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
             primary.view.frame = CGRect(x: 0, y: 0, width: feedWidth, height: bounds.height)
             secondary.view.frame = CGRect(x: feedWidth + 1, y: 0, width: max(0, bounds.width - feedWidth - 1), height: bounds.height)
             divider.frame = CGRect(x: feedWidth, y: 0, width: 1, height: bounds.height)
+            emptySelection.frame = secondary.view.frame.insetBy(dx: 32, dy: 0)
         } else {
             primary.view.frame = bounds
         }
@@ -195,8 +221,10 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
               primary.transitionCoordinator == nil, secondary.transitionCoordinator == nil,
               let latest, let inherited, view.bounds.width > 0, view.bounds.height > 0,
               let feed = latest.children.first(where: { $0.type != "adaptive_detail" }) else { return }
-        let landscape = view.window?.windowScene?.interfaceOrientation.isLandscape ?? (view.bounds.width > view.bounds.height)
-        let wantsWide = view.bounds.width >= 820 && landscape
+        // The window shape survives keyboard resizing and does not depend on
+        // an interface orientation that may lag a Duo display switch.
+        let viewport = view.window?.bounds ?? view.bounds
+        let wantsWide = view.bounds.width >= 820 && viewport.width > viewport.height
         // Root-view assignment can schedule another UIKit layout. A bounds-only
         // layout in the same mode must not assign all hosting roots again.
         guard appliedRevision != revision || wide != wantsWide else { return }
@@ -251,6 +279,12 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
             secondary.setViewControllers([], animated: false)
         }
         wide = wantsWide
+        // Establish destination visibility and bounds before attaching retained
+        // hosting roots, rather than first mounting them at the old geometry.
+        secondary.view.isHidden = !wantsWide
+        divider.isHidden = !wantsWide
+        emptySelection.isHidden = !wantsWide || !detailPages.isEmpty
+        layoutColumns()
         expectedPrimary = primaryStack
         expectedSecondary = secondaryStack
         if !sameControllers(primary.viewControllers, primaryStack) {
@@ -259,10 +293,9 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         if !sameControllers(secondary.viewControllers, secondaryStack) {
             secondary.setViewControllers(secondaryStack, animated: false)
         }
+        primary.view.layoutIfNeeded()
+        secondary.view.layoutIfNeeded()
         applying = false
-        secondary.view.isHidden = !wantsWide
-        divider.isHidden = !wantsWide
-        layoutColumns()
         let validIDs = Set([feed.id] + currentHistory)
         pages = pages.filter { validIDs.contains($0.key) }
 
@@ -318,6 +351,10 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         let tokens = environment.nativeUITheme
         view.backgroundColor = UIColor(tokens.background)
         divider.backgroundColor = UIColor(tokens.outlineVariant)
+        emptySelection.textColor = UIColor(tokens.onSurfaceVariant)
+        let font = NativeChromeFontResolver.postScriptName(for: "default")
+            .flatMap { UIFont(name: $0, size: 15) } ?? UIFont.systemFont(ofSize: 15)
+        emptySelection.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(for: font)
         for navigation in [primary, secondary] {
             navigation.navigationBar.tintColor = UIColor(tokens.onSurface)
         }
