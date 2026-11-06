@@ -21,6 +21,10 @@
             "url": "https://github.com/simonhamp/toastkit"
         },
         {
+            "type": "vcs",
+            "url": "https://github.com/NativePHP/mobile-ui"
+        },
+        {
             "name": "nativephp-plugins",
             "type": "composer",
             "url": "https://plugins.nativephp.com"
@@ -33,7 +37,7 @@
         "laravel/boost": "^2.0",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
-        "nativephp/mobile": "^4.7",
+        "nativephp/mobile": "dev-main as 4.8.0",
         "nativephp/mobile-browser": "^1.2",
         "nativephp/mobile-camera": "^1.1",
         "nativephp/mobile-clipboard": "^1.0",
@@ -43,7 +47,7 @@
         "nativephp/mobile-secure-storage": "^1.1",
         "nativephp/mobile-share": "^1.1",
         "nativephp/mobile-skia": "^1.0",
-        "nativephp/mobile-ui": "^0.9",
+        "nativephp/mobile-ui": "dev-main",
         "s2br/nativephp-mobile-splashscreen": "^1.4",
         "victorycodedev/toastkit": "dev-fix/android-toasts-above-sheets as 1.4.0"
     },

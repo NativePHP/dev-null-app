@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "745d59f03866816f94bab0b20f027a25",
+    "content-hash": "4564a3ffac02898824b683cfa1aedddd",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -1534,16 +1534,16 @@
         },
         {
             "name": "laravel/framework",
-            "version": "v13.39.0",
+            "version": "v13.40.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/laravel/framework.git",
-                "reference": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181"
+                "reference": "1449bf241017087fbd38c118ecaabef3f6797fdc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/framework/zipball/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
-                "reference": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+                "url": "https://api.github.com/repos/laravel/framework/zipball/1449bf241017087fbd38c118ecaabef3f6797fdc",
+                "reference": "1449bf241017087fbd38c118ecaabef3f6797fdc",
                 "shasum": ""
             },
             "require": {
@@ -1761,7 +1761,7 @@
                 "issues": "https://github.com/laravel/framework/issues",
                 "source": "https://github.com/laravel/framework"
             },
-            "time": "2026-10-27T14:04:39+00:00"
+            "time": "2026-11-03T15:07:18+00:00"
         },
         {
             "name": "laravel/mcp",
@@ -2090,16 +2090,16 @@
         },
         {
             "name": "league/commonmark",
-            "version": "2.10.4",
+            "version": "2.10.7",
             "source": {
                 "type": "git",
                 "url": "https://github.com/thephpleague/commonmark.git",
-                "reference": "40821b7606d8d946bac57dbd2290076c722e3a65"
+                "reference": "8eb53e906fd60c67038d22f1f1cab420ed58b8be"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/thephpleague/commonmark/zipball/40821b7606d8d946bac57dbd2290076c722e3a65",
-                "reference": "40821b7606d8d946bac57dbd2290076c722e3a65",
+                "url": "https://api.github.com/repos/thephpleague/commonmark/zipball/8eb53e906fd60c67038d22f1f1cab420ed58b8be",
+                "reference": "8eb53e906fd60c67038d22f1f1cab420ed58b8be",
                 "shasum": ""
             },
             "require": {
@@ -2193,7 +2193,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-10-17T19:59:50+00:00"
+            "time": "2026-10-31T13:35:37+00:00"
         },
         {
             "name": "league/config",
@@ -2755,16 +2755,16 @@
         },
         {
             "name": "nativephp/mobile",
-            "version": "4.7.0",
+            "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-air.git",
-                "reference": "0d7e2e6509b1a0514726e67016fecade5e9137b2"
+                "reference": "c0da5d781df99416fb92f398a354ceac0b532922"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/0d7e2e6509b1a0514726e67016fecade5e9137b2",
-                "reference": "0d7e2e6509b1a0514726e67016fecade5e9137b2",
+                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/c0da5d781df99416fb92f398a354ceac0b532922",
+                "reference": "c0da5d781df99416fb92f398a354ceac0b532922",
                 "shasum": ""
             },
             "require": {
@@ -2804,6 +2804,7 @@
             "suggest": {
                 "ext-zip": "Required by native:install to validate and extract the downloaded Android PHP binary archives"
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "laravel": {
@@ -2846,9 +2847,9 @@
             ],
             "support": {
                 "issues": "https://github.com/NativePHP/mobile-air/issues",
-                "source": "https://github.com/NativePHP/mobile-air/tree/4.7.0"
+                "source": "https://github.com/NativePHP/mobile-air/tree/main"
             },
-            "time": "2026-10-29T17:31:02+00:00"
+            "time": "2026-11-05T15:42:02+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
@@ -3355,16 +3356,16 @@
         },
         {
             "name": "nativephp/mobile-ui",
-            "version": "0.9.0",
+            "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-ui.git",
-                "reference": "9cee87cbc676a6500247bec99be5d19f633a04e9"
+                "reference": "ce627333f74293a719e1b86891cec09772f74b4a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/9cee87cbc676a6500247bec99be5d19f633a04e9",
-                "reference": "9cee87cbc676a6500247bec99be5d19f633a04e9",
+                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/ce627333f74293a719e1b86891cec09772f74b4a",
+                "reference": "ce627333f74293a719e1b86891cec09772f74b4a",
                 "shasum": ""
             },
             "require": {
@@ -3376,6 +3377,7 @@
                 "orchestra/testbench": "^10.0",
                 "pestphp/pest": "^3.0"
             },
+            "default-branch": true,
             "type": "nativephp-plugin",
             "extra": {
                 "laravel": {
@@ -3392,7 +3394,17 @@
                     "Native\\Mobile\\UI\\": "src/"
                 }
             },
-            "notification-url": "https://packagist.org/downloads/",
+            "scripts": {
+                "test": [
+                    "pest"
+                ],
+                "lint": [
+                    "pint"
+                ],
+                "lint:test": [
+                    "pint --test"
+                ]
+            },
             "license": [
                 "MIT"
             ],
@@ -3404,16 +3416,16 @@
             ],
             "description": "Native SwiftUI and Jetpack Composer components for NativePHP",
             "support": {
-                "issues": "https://github.com/NativePHP/mobile-ui/issues",
-                "source": "https://github.com/NativePHP/mobile-ui/tree/0.9.0"
+                "source": "https://github.com/NativePHP/mobile-ui/tree/main",
+                "issues": "https://github.com/NativePHP/mobile-ui/issues"
             },
             "funding": [
                 {
-                    "url": "https://nativephp.com/sponsor",
-                    "type": "other"
+                    "type": "other",
+                    "url": "https://nativephp.com/sponsor"
                 }
             ],
-            "time": "2026-10-29T17:44:09+00:00"
+            "time": "2026-11-05T16:47:04+00:00"
         },
         {
             "name": "nesbot/carbon",
@@ -11563,6 +11575,12 @@
     ],
     "aliases": [
         {
+            "package": "nativephp/mobile",
+            "version": "dev-main",
+            "alias": "4.8.0",
+            "alias_normalized": "4.8.0.0"
+        },
+        {
             "package": "victorycodedev/toastkit",
             "version": "dev-fix/android-toasts-above-sheets",
             "alias": "1.4.0",
@@ -11571,6 +11589,8 @@
     ],
     "minimum-stability": "stable",
     "stability-flags": {
+        "nativephp/mobile": 20,
+        "nativephp/mobile-ui": 20,
         "victorycodedev/toastkit": 20
     },
     "prefer-stable": true,
