@@ -188,9 +188,22 @@ private final class AdaptiveWordmarkView: UIImageView {
     override func sizeThatFits(_ size: CGSize) -> CGSize { intrinsicContentSize }
 }
 
+/// The outer tab host already removes the rail from each pane. Limit the
+/// bar's horizontal safe area to what actually overlaps its parent container.
+private final class AdaptiveNavigationBar: UINavigationBar {
+    override var safeAreaInsets: UIEdgeInsets {
+        var insets = super.safeAreaInsets
+        guard let superview else { return insets }
+        let safeFrame = convert(superview.safeAreaLayoutGuide.layoutFrame, from: superview)
+        insets.left = max(0, min(bounds.width, safeFrame.minX - bounds.minX))
+        insets.right = max(0, min(bounds.width, bounds.maxX - safeFrame.maxX))
+        return insets
+    }
+}
+
 private final class AdaptiveWorkspaceController: UIViewController, UINavigationControllerDelegate {
-    private let primary = UINavigationController()
-    private let secondary = UINavigationController()
+    private let primary = UINavigationController(navigationBarClass: AdaptiveNavigationBar.self, toolbarClass: nil)
+    private let secondary = UINavigationController(navigationBarClass: AdaptiveNavigationBar.self, toolbarClass: nil)
     private let divider = UIView()
     private let emptySelection = UILabel()
     private var pages: [Int: AdaptivePageController] = [:]
