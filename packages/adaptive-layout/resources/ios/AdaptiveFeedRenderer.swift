@@ -474,8 +474,13 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         let font = NativeChromeFontResolver.postScriptName(for: "default")
             .flatMap { UIFont(name: $0, size: 15) } ?? UIFont.systemFont(ofSize: 15)
         emptySelection.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(for: font)
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor(tokens.surface)
         for navigation in [primary, secondary] {
             navigation.navigationBar.tintColor = UIColor(tokens.onSurface)
+            navigation.navigationBar.standardAppearance = appearance
+            navigation.navigationBar.scrollEdgeAppearance = appearance
         }
         guard let feedPage = pages[feed.id] else { return }
         feedPage.title = "Feed"
