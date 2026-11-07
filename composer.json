@@ -123,7 +123,8 @@
         "composer-exit-on-patch-failure": true,
         "patches": {
             "nativephp/mobile": {
-                "Async callbacks retain their exact live child receiver within the dispatch root": "patches/nativephp-mobile-live-child-async.patch"
+                "Async callbacks retain their exact live child receiver within the dispatch root": "patches/nativephp-mobile-live-child-async.patch",
+                "Hidden navigation bars release the top layout and hit region for native child hosts": "patches/nativephp-mobile-hidden-nav-hit-area.patch"
             },
             "nativephp/mobile-ui": {
                 "Pager: page by the ScrollView width and clip its sides, so a sideways bar (iPhone Duo rail) neither misplaces the tab underline nor shows the next page": "patches/nativephp-mobile-ui-pager-side-insets.patch"
