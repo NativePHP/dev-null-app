@@ -432,7 +432,15 @@
          withAnimation { position = index }
      }
  
-@@ -941,3 +1237,122 @@
+@@ -476,6 +772,7 @@
+                     row(theme)
+                         .padding(.horizontal, tabs.edgePadding)
+                 }
++                .clipShape(PagerSideClip(horizontal: true))
+                 .scrollIndicators(.hidden)
+                 .scrollPosition($rowPosition)
+                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
+@@ -941,3 +1238,122 @@
          }
      }
  }
