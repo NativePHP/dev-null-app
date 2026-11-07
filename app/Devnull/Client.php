@@ -547,9 +547,33 @@ final readonly class Client
      */
     public function reportCommit(string $id, ReportReason $reason, string $details = ''): void
     {
-        $payload = $details === '' ? ['reason' => $reason->value] : ['reason' => $reason->value, 'details' => $details];
+        $this->send('POST', 'commits/'.rawurlencode($id).'/reports', payload: self::reportPayload($reason, $details));
+    }
 
-        $this->send('POST', 'commits/'.rawurlencode($id).'/reports', payload: $payload);
+    /**
+     * Reports a Remotes message to devnull's moderators, privately. The
+     * message stays in the thread. Reporting one again keeps the first report.
+     */
+    public function reportMessage(int $id, ReportReason $reason, string $details = ''): void
+    {
+        $this->send('POST', "remotes/messages/{$id}/reports", payload: self::reportPayload($reason, $details));
+    }
+
+    /**
+     * Reports someone to devnull's moderators, privately. They aren't told.
+     * Reporting them again keeps the first report.
+     */
+    public function reportUser(string $username, ReportReason $reason, string $details = ''): void
+    {
+        $this->send('POST', 'users/'.rawurlencode($username).'/reports', payload: self::reportPayload($reason, $details));
+    }
+
+    /**
+     * @return array{reason: string, details?: string}
+     */
+    private static function reportPayload(ReportReason $reason, string $details): array
+    {
+        return $details === '' ? ['reason' => $reason->value] : ['reason' => $reason->value, 'details' => $details];
     }
 
     public function profile(string $username): Profile

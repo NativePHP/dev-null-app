@@ -28,6 +28,7 @@ use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\PlaysVoiceNotes;
 use App\NativeComponents\Concerns\RecordsVoiceNotes;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\ReportsToModerators;
 use App\NativeComponents\Concerns\SuggestsMentions;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -107,6 +108,7 @@ class Conversation extends NativeComponent
     use PlaysVoiceNotes;
     use RecordsVoiceNotes;
     use RefreshesInBackground;
+    use ReportsToModerators;
     use SuggestsMentions;
     use SyncsOutbox;
     use TalksToDevnull;
@@ -820,6 +822,20 @@ class Conversation extends NativeComponent
         $this->sheetOpen = false;
         $this->reactsFromPinned = false;
         $this->focusField(onlyIfIdle: true);
+    }
+
+    /**
+     * Report message, from the menu a long press opens on someone else's message: the report sheet, quoting it.
+     */
+    public function reportMessage(int $id): void
+    {
+        $message = $this->findMessage($id);
+
+        if ($message === null || ! $this->isReportable($message)) {
+            return;
+        }
+
+        $this->openMessageReport($id, $message->body !== '' ? $message->body : ($message->voice !== null ? 'Voice note' : 'Photo'));
     }
 
     /**
@@ -1625,6 +1641,14 @@ class Conversation extends NativeComponent
     /**
      * React, Reply and Pin are for messages devnull has, not an org's events, while the thread takes messages.
      */
+    /**
+     * Someone else's message, sent, which devnull's moderators can be told about.
+     */
+    private function isReportable(Message $message): bool
+    {
+        return ! $message->isEvent() && ! $message->isPending() && $message->id > 0 && $message->userId !== $this->me()?->id;
+    }
+
     private function takesActions(Message $message): bool
     {
         return ! $message->isEvent() && ! $message->isPending() && $this->thread?->access === Thread::Open;
@@ -1913,8 +1937,8 @@ class Conversation extends NativeComponent
                 'author' => $message->user ?? $this->authorOf($message->userId),
                 'pan' => $this->panFor($message),
                 'slide' => $this->slideOf($message),
-                'menu' => MessageMenu::items($message, $answerable, $pinned),
-                'photosMenu' => $message->images === [] || $message->body === '' ? [] : MessageMenu::items($message, $answerable, $pinned, named: false),
+                'menu' => MessageMenu::items($message, $answerable, $pinned, reportable: $this->isReportable($message)),
+                'photosMenu' => $message->images === [] || $message->body === '' ? [] : MessageMenu::items($message, $answerable, $pinned, named: false, reportable: $this->isReportable($message)),
             ];
         }
 
