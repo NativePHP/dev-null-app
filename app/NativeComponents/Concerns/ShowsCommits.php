@@ -43,6 +43,7 @@ use Native\Mobile\Facades\Share;
 trait ShowsCommits
 {
     use OpensCommitSheet;
+    use OpensHashtags;
     use OpensStargazers;
     use VotesOnPolls;
     use WritesInBackground;

@@ -4,12 +4,12 @@ namespace App\Devnull\Data;
 
 /**
  * Turns a commit's `body_segments` into blocks to draw, the way the web's
- * CommitBody does: prose (with URLs and mentions linked, hex colors beside a
- * swatch, and `/dev/null` as the wordmark) and inline code flow together in
- * paragraphs, lines that start with `>` group into quotes, and fenced code
- * blocks stand on their own.
+ * CommitBody does: prose (with URLs, mentions and hashtags linked, hex colors
+ * beside a swatch, and `/dev/null` as the wordmark) and inline code flow
+ * together in paragraphs, lines that start with `>` group into quotes, and
+ * fenced code blocks stand on their own.
  *
- * Mention and color offsets count code points into the whole body, but segments aren't
+ * Mention, color and hashtag offsets count code points into the whole body, but segments aren't
  * exact slices of it: inline code loses its backticks, a block its fences, and
  * prose the line break next to a block. So each segment is found in the body,
  * moving forward, and mentions are placed by where their segment starts.
@@ -40,6 +40,14 @@ final class CommitBody
      * before the next space. The web's rule, from colors.ts.
      */
     private const string Color = '/(?:(?<!\S)|(?<=\n>))[#\x{FF03}]([0-9a-f]{8}|[0-9a-f]{6}|(?=[0-9]*[a-f]|0)[0-9a-f]{3,4})(?=\p{P}*(?:[\s\x{00AD}\x{2060}\x{200A}-\x{200D}\x{20E2}]|\z))/iu';
+
+    /**
+     * A hashtag: a `#` and a letter, then letters, marks, digits and
+     * underscores, not straight after a word character, `&`, `/`, `#`, `>` or
+     * `-`, so `a#b`, `&#123;` and a URL's fragment aren't one. The web's rule,
+     * from linkified-text.tsx.
+     */
+    private const string Hashtag = '/(?<![\p{L}\p{M}\p{N}_&\/#>-])#\p{L}[\p{L}\p{M}\p{N}_]*/u';
 
     /**
      * A `/dev/null` that stands on its own, not part of a longer path, a word
@@ -116,6 +124,7 @@ final class CommitBody
         $runs = [];
         $cursor = 0;
         $colors = self::colors($body);
+        $hashtags = self::hashtags($body);
 
         foreach ($segments as $segment) {
             switch ($segment['type'] ?? null) {
@@ -132,12 +141,12 @@ final class CommitBody
                     $start = $text === '' ? false : mb_strpos($body, $text, $cursor);
 
                     if ($start === false) {
-                        array_push($runs, ...self::withLinks($text.($cut ? self::Ellipsis : ''), null, [], []));
+                        array_push($runs, ...self::withLinks($text.($cut ? self::Ellipsis : ''), null, [], [], []));
 
                         break;
                     }
 
-                    array_push($runs, ...self::withLinks($text, $start, $mentions, $colors));
+                    array_push($runs, ...self::withLinks($text, $start, $mentions, $colors, $hashtags));
                     $cursor = $start + mb_strlen($text);
 
                     if ($cut) {
@@ -193,7 +202,7 @@ final class CommitBody
         $quoted = false;
 
         foreach ($runs as $run) {
-            $prose = ! $run->isMention() && ! $run->isCode && ! $run->isWordmark && $run->link === null && ! $run->isColor();
+            $prose = ! $run->isMention() && ! $run->isCode && ! $run->isWordmark && $run->link === null && ! $run->isColor() && ! $run->isHashtag;
 
             $lines = $prose
                 ? array_map(fn (string $text): BodyRun => new BodyRun($text), preg_split('/(?<=\n)/', $run->text, flags: PREG_SPLIT_NO_EMPTY) ?: [])
@@ -266,15 +275,16 @@ final class CommitBody
      *
      * @param  list<Mention>  $mentions
      * @param  list<array{0: int, 1: int, 2: string}>  $colors
+     * @param  list<array{0: int, 1: int}>  $hashtags
      * @return list<BodyRun>
      */
-    private static function withLinks(string $text, ?int $start, array $mentions, array $colors): array
+    private static function withLinks(string $text, ?int $start, array $mentions, array $colors, array $hashtags): array
     {
         $runs = [];
         $position = 0;
         $prose = fn (string $part, int $at): array => $start === null
             ? self::withWordmarks($part)
-            : self::withMentions($part, $start + $at, $mentions, $colors);
+            : self::withMentions($part, $start + $at, $mentions, $colors, $hashtags);
 
         foreach (BodyLink::in($text) as [$offset, $length, $link]) {
             if ($offset > $position) {
@@ -297,9 +307,10 @@ final class CommitBody
      *
      * @param  list<Mention>  $mentions
      * @param  list<array{0: int, 1: int, 2: string}>  $colors
+     * @param  list<array{0: int, 1: int}>  $hashtags
      * @return list<BodyRun>
      */
-    private static function withMentions(string $text, int $start, array $mentions, array $colors): array
+    private static function withMentions(string $text, int $start, array $mentions, array $colors, array $hashtags): array
     {
         $runs = [];
         $position = 0;
@@ -321,7 +332,7 @@ final class CommitBody
             }
 
             if ($offset > $position) {
-                array_push($runs, ...self::withColors(mb_substr($text, $position, $offset - $position), $start + $position, $colors));
+                array_push($runs, ...self::withColors(mb_substr($text, $position, $offset - $position), $start + $position, $colors, $hashtags));
             }
 
             $runs[] = new BodyRun($handle, username: $mention->username, isOrganization: $mention->isOrganization);
@@ -329,7 +340,7 @@ final class CommitBody
         }
 
         if ($position < $length) {
-            array_push($runs, ...self::withColors(mb_substr($text, $position), $start + $position, $colors));
+            array_push($runs, ...self::withColors(mb_substr($text, $position), $start + $position, $colors, $hashtags));
         }
 
         return $runs;
@@ -340,9 +351,10 @@ final class CommitBody
      * in the whole body that fall inside it, as the web's withColors() does.
      *
      * @param  list<array{0: int, 1: int, 2: string}>  $colors
+     * @param  list<array{0: int, 1: int}>  $hashtags
      * @return list<BodyRun>
      */
-    private static function withColors(string $text, int $start, array $colors): array
+    private static function withColors(string $text, int $start, array $colors, array $hashtags): array
     {
         $runs = [];
         $position = 0;
@@ -355,9 +367,40 @@ final class CommitBody
                 continue;
             }
 
-            array_push($runs, ...self::withWordmarks(mb_substr($text, $position, $offset - $position)));
+            array_push($runs, ...self::withHashtags(mb_substr($text, $position, $offset - $position), $start + $position, $hashtags));
             $runs[] = new BodyRun(mb_substr($text, $offset, $colorLength), color: $value);
             $position = $offset + $colorLength;
+        }
+
+        array_push($runs, ...self::withHashtags(mb_substr($text, $position), $start + $position, $hashtags));
+
+        return $runs;
+    }
+
+    /**
+     * Splits prose that starts at $start in the body around the hashtags
+     * found in the whole body that fall inside it, as the web's withHashtags()
+     * does. One a color already took, like `#fff`, never falls inside.
+     *
+     * @param  list<array{0: int, 1: int}>  $hashtags
+     * @return list<BodyRun>
+     */
+    private static function withHashtags(string $text, int $start, array $hashtags): array
+    {
+        $runs = [];
+        $position = 0;
+        $length = mb_strlen($text);
+
+        foreach ($hashtags as [$offset, $hashtagLength]) {
+            $offset -= $start;
+
+            if ($offset < $position || $offset + $hashtagLength > $length) {
+                continue;
+            }
+
+            array_push($runs, ...self::withWordmarks(mb_substr($text, $position, $offset - $position)));
+            $runs[] = new BodyRun(mb_substr($text, $offset, $hashtagLength), isHashtag: true);
+            $position = $offset + $hashtagLength;
         }
 
         array_push($runs, ...self::withWordmarks(mb_substr($text, $position)));
@@ -375,11 +418,7 @@ final class CommitBody
      */
     private static function colors(string $body): array
     {
-        $prose = '';
-
-        foreach (self::parts($body) as $index => $part) {
-            $prose .= $index % 2 === 0 ? $part : str_repeat(' ', mb_strlen($part));
-        }
+        $prose = self::prose($body);
 
         preg_match_all(self::Color, "\n".$prose, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
 
@@ -388,6 +427,40 @@ final class CommitBody
             mb_strlen($match[0][0]),
             $match[1][0],
         ], $matches);
+    }
+
+    /**
+     * The hashtags in the body's prose, in order, as where each starts and how
+     * long it is in code points, `#` included. Code is blanked out first, so
+     * nothing in it counts.
+     *
+     * @return list<array{0: int, 1: int}>
+     */
+    private static function hashtags(string $body): array
+    {
+        $prose = self::prose($body);
+
+        preg_match_all(self::Hashtag, $prose, $matches, PREG_OFFSET_CAPTURE);
+
+        return array_map(fn (array $match): array => [
+            mb_strlen(substr($prose, 0, $match[1])),
+            mb_strlen($match[0]),
+        ], $matches[0]);
+    }
+
+    /**
+     * The body with its code blanked out to spaces of the same length, so
+     * what is found in the prose keeps its place in the body.
+     */
+    private static function prose(string $body): string
+    {
+        $prose = '';
+
+        foreach (self::parts($body) as $index => $part) {
+            $prose .= $index % 2 === 0 ? $part : str_repeat(' ', mb_strlen($part));
+        }
+
+        return $prose;
     }
 
     /**

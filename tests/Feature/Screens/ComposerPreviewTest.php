@@ -66,6 +66,17 @@ it('shows the draft as the commit it would become, with the body devnull would k
         ->and(treeShows(nodeByRef($screen, 'sheet-draft-preview'), 'Shipped 🚀 with '))->toBeTrue();
 });
 
+it('leaves a hashtag in the preview as plain text, as the web does', function () {
+    $screen = finishRefreshes(previewComposerOnLog([['data' => [
+        'body' => 'Shipped #laravel',
+        'body_segments' => [['type' => 'text', 'text' => 'Shipped #laravel']],
+        'preview_segments' => null,
+        'mentions' => [],
+    ]]])->input('sheet-body', 'Shipped #laravel')->tap('sheet-preview'));
+
+    expect(paragraphRuns($screen, 'Shipped #laravel'))->toBe([['Shipped '], ['#laravel']]);
+});
+
 it('shows the photos, the poll and the commit being quoted in the preview', function () {
     $screen = previewComposerOnLog()
         ->call('quoteCommit', 'c1')

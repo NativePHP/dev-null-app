@@ -581,6 +581,33 @@ it('draws code blocks as mono text in a hairline box, from the body rather than 
     $screen->press("openProfile('ada')")->assertNavigatedTo('/log/users/ada');
 });
 
+it('links a hashtag to a search for it in the tab, leaving a hex color and code as they are', function () {
+    $body = 'Shipped #laravel in #fff and `#code`';
+
+    fakeThread([
+        'body' => $body,
+        'body_segments' => [
+            ['type' => 'text', 'text' => 'Shipped #laravel in #fff and '],
+            ['type' => 'code', 'code' => '#code'],
+        ],
+    ]);
+
+    $screen = Native::visit('/log/commits/c2');
+
+    expect(paragraphRuns($screen, 'Shipped'))->toBe([
+        ['Shipped '],
+        ['#laravel', 'hashtag'],
+        [' in '],
+        ["■\u{202F}#fff", 'wordmark'],
+        [' and '],
+        ['#code', 'code'],
+    ]);
+
+    $screen->press("openHashtag('#laravel')")->assertNavigatedTo('/log/search');
+
+    expect($screen->instance()->getNavigationIntent()->data)->toBe(['query' => '#laravel']);
+});
+
 it('draws a hex color after a square of that color, in light and dark mode alike', function () {
     $body = 'Brand orange is #ff8a4c, not #123';
 

@@ -375,6 +375,63 @@ it('does not take a URL fragment for a color', function () {
 });
 
 /**
+ * The hashtags in a body that is all prose, as written.
+ *
+ * @return list<string>
+ */
+function hashtagsOf(string $body): array
+{
+    $hashtags = [];
+
+    foreach (CommitBody::blocks($body, null) as $block) {
+        foreach ($block->runs as $run) {
+            if ($run->isHashtag) {
+                $hashtags[] = $run->text;
+            }
+        }
+    }
+
+    return $hashtags;
+}
+
+it('links hashtags, as the web does', function () {
+    expect(hashtagsOf('Shipped it #buildinpublic, then #laravel_12.'))->toBe(['#buildinpublic', '#laravel_12'])
+        ->and(runsOf(CommitBody::blocks('Shipped #laravel today', null)))->toBe([
+            ['Shipped '],
+            ['#laravel'],
+            [' today'],
+        ]);
+});
+
+it('links hashtags in any script, counting code points so what comes before them does not shift them', function () {
+    expect(hashtagsOf('🚀 Bom dia #café e #日本語 #Ünïcödé'))->toBe(['#café', '#日本語', '#Ünïcödé']);
+});
+
+it('leaves a hex color as a color rather than a hashtag', function () {
+    expect(hashtagsOf('White is #fff and orange #ff8a4c, but #fffoo is a tag'))->toBe(['#fffoo'])
+        ->and(colorsOf('White is #fff'))->toBe([['#fff', 'fff']]);
+});
+
+it('only takes a hashtag that starts with a letter and does not follow a word, &, /, #, > or -', function () {
+    expect(hashtagsOf('a#b &#123; #123 ##two x-#dash >#quote /#path #1st (#ok)'))->toBe(['#ok']);
+});
+
+it('leaves hashtags in URLs, mentions and code alone', function () {
+    $body = 'See https://example.com/a#section with @ada#x and `#code` then #real';
+
+    $blocks = CommitBody::blocks($body, [
+        ['type' => 'text', 'text' => 'See https://example.com/a#section with @ada#x and '],
+        ['type' => 'code', 'code' => '#code'],
+        ['type' => 'text', 'text' => ' then #real'],
+    ], [new Mention('ada', 39, 4)]);
+
+    $hashtags = array_values(array_map(fn (BodyRun $run): string => $run->text, array_filter($blocks[0]->runs, fn (BodyRun $run): bool => $run->isHashtag)));
+
+    expect($hashtags)->toBe(['#real'])
+        ->and(hashtagsOf("```\n#block\n```\nand #after"))->toBe(['#after']);
+});
+
+/**
  * Each block as its kind and its text, runs joined.
  *
  * @param  list<BodyBlock>  $blocks
