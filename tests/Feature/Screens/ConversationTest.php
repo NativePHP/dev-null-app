@@ -1107,7 +1107,7 @@ it('opens a link in a pinned message, in the sheet and in its three-line preview
         ->assertNavigatedTo('/remotes/commits/'.$commit);
 });
 
-it('opens Reply, React and Copy text on a long press on a message, yours or theirs, and keeps its tap and double tap', function () {
+it('opens Reply, React and Copy text on a long press on a message, yours or theirs, then Report message on theirs, and keeps its tap and double tap', function () {
     serveRemoteThread(threadJson([
         remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?']),
         remoteMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => 'which one?']),
@@ -1120,6 +1120,7 @@ it('opens Reply, React and Copy text on a long press on a message, yours or thei
             ['reply-menu-1', 'Reply', 'custom:reply'],
             ['react-menu-1', 'React', 'custom:smile-plus'],
             ['copy-menu-1', 'Copy text', 'custom:copy'],
+            ['report-menu-1', 'Report message', 'custom:flag'],
         ])
         ->and(array_column(menuItems($screen, 'bubble-2'), 0))->toBe(['reply-menu-2', 'react-menu-2', 'copy-menu-2'])
         ->and(nodeByRef($screen, 'bubble-1')['props']['on_double_tap'] ?? 0)->toBeGreaterThan(0);
@@ -1138,13 +1139,15 @@ it("opens the same menu on a message's photos, without Copy text when it has no 
     expect(menuItems($screen, 'photos-1'))->toBe([
         ['reply-menu-1', 'Reply', 'custom:reply'],
         ['react-menu-1', 'React', 'custom:smile-plus'],
+        ['report-menu-1', 'Report message', 'custom:flag'],
     ])
         ->and(menuItems($screen, 'photos-2'))->toBe([
             [null, 'Reply', 'custom:reply'],
             [null, 'React', 'custom:smile-plus'],
             [null, 'Copy text', 'custom:copy'],
+            [null, 'Report message', 'custom:flag'],
         ])
-        ->and(array_column(menuItems($screen, 'bubble-2'), 0))->toBe(['reply-menu-2', 'react-menu-2', 'copy-menu-2']);
+        ->and(array_column(menuItems($screen, 'bubble-2'), 0))->toBe(['reply-menu-2', 'react-menu-2', 'copy-menu-2', 'report-menu-2']);
 });
 
 it('only copies the text of a message still being pushed, or in a thread that cannot take a message', function () {
@@ -1162,7 +1165,7 @@ it('only copies the text of a message still being pushed, or in a thread that ca
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => 'did you see the PR?'])], ['read_through_id' => 1, 'access' => 'request']));
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
 
-    expect(array_column(menuItems($screen, 'bubble-1'), 1))->toBe(['Copy text']);
+    expect(array_column(menuItems($screen, 'bubble-1'), 1))->toBe(['Copy text', 'Report message']);
 });
 
 it('copies the text of a message as it was written, and says so on iOS, where Android says so itself', function (string $platform, array $toasts) {
@@ -1218,7 +1221,7 @@ it("adds Pin message to the menu for an org's maintainers, and Unpin message on 
     serveOrgThread(orgThreadJson([orgMessageJson(['id' => 1, 'body' => 'standup in 10?'])], ['role' => 'contributor']));
     $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'));
 
-    expect(array_column(menuItems($screen, 'bubble-1'), 1))->toBe(['Reply', 'React', 'Copy text']);
+    expect(array_column(menuItems($screen, 'bubble-1'), 1))->toBe(['Reply', 'React', 'Copy text', 'Report message']);
 });
 
 /**
@@ -1362,4 +1365,48 @@ it('leaves the draft alone when it no longer has the @handle where the caret fou
         ->set('draft', 'hi')
         ->tap('mention-ada')
         ->assertSet('draft', 'hi');
+});
+
+it("reports someone else's message to devnull's moderators from its menu, quoting it in the sheet", function () {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => 'send me your keys']),
+        remoteMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => 'no']),
+    ], ['read_through_id' => 2]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada', platform: 'ios'))->tap('report-menu-1');
+
+    expect(nodeByRef($screen, 'reporting-body')['props']['text'])->toBe('send me your keys')
+        ->and(nodeByRef($screen, 'send-reporting')['props']['disabled'] ?? false)->toBeTrue();
+
+    $screen->selectRadio('reporting-reason', 'harassment')
+        ->input('reporting-details', 'Phishing.')
+        ->tap('send-reporting')
+        ->assertSee('Report received. Moderators will review it privately.');
+
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+        && $request->url() === 'http://devnull.test/api/v1/remotes/messages/1/reports'
+        && $request->body() === '{"reason":"harassment","details":"Phishing."}');
+
+    // Your own message can't be reported, even when its menu is pressed.
+    $screen->call('closeReporting')->call('reportMessage', 2);
+
+    expect($screen->instance()->reportingOpen)->toBeFalse();
+});
+
+it("shows why devnull didn't take a message's report in the sheet, keeping the form", function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => 'spam spam'])], ['read_through_id' => 1]));
+    serveApi(fn (Request $request) => $request->method() === 'POST' && str_ends_with($request->url(), '/reports')
+        ? Http::response(['message' => 'Too Many Attempts.', 'code' => 'rate_limited'], 429)
+        : Http::response(threadJson([remoteMessageJson(['id' => 1, 'body' => 'spam spam'])], ['read_through_id' => 1])));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada', platform: 'ios'))
+        ->tap('report-menu-1')
+        ->selectRadio('reporting-reason', 'spam')
+        ->tap('send-reporting');
+
+    expect(nodeByRef($screen, 'reporting-error')['props']['text'])->toBe('Too Many Attempts.')
+        ->and(nodeByRef($screen, 'reporting-reason')['props']['value'])->toBe('spam')
+        ->and($screen->instance()->error)->toBeNull();
+
+    $screen->assertDontSee('Report received');
 });
