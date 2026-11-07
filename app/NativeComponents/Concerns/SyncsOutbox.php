@@ -21,7 +21,6 @@ use App\NativeComponents\CommitDetail;
 use App\NativeComponents\FeedWorkspace;
 use App\NativeComponents\Log;
 use Native\Mobile\Attributes\On;
-use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Facades\Browser;
 use Throwable;
 use Victorycodedev\ToastKit\Events\ToastActionPressed;
@@ -361,7 +360,7 @@ trait SyncsOutbox
     private function outboxViews(): array
     {
         return $this->nativeParentComponent instanceof FeedWorkspace
-            ? array_values(array_filter($this->nativeParentComponent->nativeChildComponents, fn (NativeComponent $child): bool => $child instanceof Log || $child instanceof CommitDetail))
+            ? $this->nativeParentComponent->panes()
             : [$this];
     }
 

@@ -22,6 +22,15 @@ class FeedWorkspace extends NativeComponent
 
     private ?NativeComponent $photoOwner = null;
 
+    /** @return list<Log|CommitDetail> */
+    public function panes(): array
+    {
+        return array_values(array_filter(
+            $this->nativeChildComponents,
+            fn (NativeComponent $child): bool => $child instanceof Log || $child instanceof CommitDetail,
+        ));
+    }
+
     public function claimPhotoPicker(NativeComponent $owner): void
     {
         $this->photoOwner = $owner;

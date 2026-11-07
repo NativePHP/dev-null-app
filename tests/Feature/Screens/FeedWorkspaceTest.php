@@ -1,13 +1,18 @@
 <?php
 
+use App\Devnull\DraftImages;
 use App\Devnull\NataNullers\Game;
 use App\Devnull\Outbox;
 use App\Devnull\Stash;
 use App\Models\PendingWrite;
+use App\NativeComponents\CommitDetail;
 use App\NativeComponents\FeedWorkspace;
+use App\NativeComponents\Log;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Events\Alert\ButtonPressed;
+use Native\Mobile\Events\Camera\PermissionDenied;
+use Native\Mobile\Events\Camera\PhotoTaken;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 use Victorycodedev\ToastKit\Events\ToastActionPressed;
@@ -343,4 +348,62 @@ it('keeps held cross-pane stars and toast retry consistent before transport sett
     expect(PendingWrite::query()->count())->toBe(1);
     finishRefreshes($screen);
     expect($starLabels())->toBe(['Star commit', 'Star commit']);
+});
+
+it('attaches a photo only to the pane that opened the picker', function (bool $fromDetail, bool $fromCamera) {
+    serveWorkspace();
+    $screen = Native::test(FeedWorkspace::class, platform: 'ios')->tap('commit-c2');
+    $workspace = $screen->instance();
+    $feed = array_find($workspace->panes(), fn (Log|CommitDetail $pane): bool => $pane instanceof Log);
+    $detail = $workspace->foregroundPane();
+    $feed->composeInSheet();
+    $detail->replyInSheet('c2');
+    $owner = $fromDetail ? $detail : $feed;
+    $other = $fromDetail ? $feed : $detail;
+
+    if ($fromCamera) {
+        $owner->takePhoto();
+        $screen->emitNative(PhotoTaken::class, ['path' => testPhoto()]);
+    } else {
+        $owner->pickPhotos();
+        photosPicked($screen, [testPhoto()]);
+    }
+
+    try {
+        expect($owner->sheetImages)->toHaveCount(1)
+            ->and($other->sheetImages)->toBe([])
+            ->and($other->sheetError)->toBeNull();
+    } finally {
+        app(DraftImages::class)->discard($owner->sheetImages);
+    }
+})->with([[false, false], [false, true], [true, false], [true, true]]);
+
+it('ignores a detached conversation picker result rather than attaching it to another pane', function () {
+    serveWorkspace();
+    $screen = Native::test(FeedWorkspace::class, platform: 'ios')->tap('commit-c2');
+    $screen->instance()->foregroundPane()->replyInSheet('c2');
+    $screen->instance()->foregroundPane()->pickPhotos();
+
+    $screen->call('openConversation', 'c3', [], true);
+    $screen->instance()->foregroundPane()->replyInSheet('c3');
+    photosPicked($screen, [testPhoto()]);
+
+    foreach ($screen->instance()->panes() as $pane) {
+        expect($pane->sheetImages)->toBe([]);
+    }
+});
+
+it('shows a camera permission error only on the pane that requested it', function () {
+    serveWorkspace();
+    $screen = Native::test(FeedWorkspace::class, platform: 'ios')->tap('commit-c2');
+    $workspace = $screen->instance();
+    $feed = array_find($workspace->panes(), fn (Log|CommitDetail $pane): bool => $pane instanceof Log);
+    $feed->composeInSheet();
+    $workspace->foregroundPane()->replyInSheet('c2');
+    $feed->takePhoto();
+
+    $screen->emitNative(PermissionDenied::class, ['action' => 'camera']);
+
+    expect($feed->sheetError)->toBe(DraftImages::CameraDenied)
+        ->and($workspace->foregroundPane()->sheetError)->toBeNull();
 });
