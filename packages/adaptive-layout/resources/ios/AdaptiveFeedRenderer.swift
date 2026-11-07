@@ -9,6 +9,9 @@ struct AdaptiveFeedRenderer: View {
     var body: some View {
         AdaptiveFeedHost(node: node)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Allocate the full container to UIKit; retained navigation/page
+            // controllers still inset controls and extend scrolling content.
+            .ignoresSafeArea(.container, edges: .bottom)
             .background {
                 themeStore.resolve(for: colorScheme).background
                     .ignoresSafeArea(.container, edges: .bottom)
