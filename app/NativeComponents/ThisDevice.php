@@ -17,6 +17,7 @@ use App\Devnull\ResponseCache;
 use App\Devnull\Timezone;
 use App\Devnull\WhoToFollow;
 use App\NativeComponents\Concerns\LeavesDevnull;
+use App\NativeComponents\Concerns\ManagesTranslationSettings;
 use App\NativeComponents\Concerns\OpensLegalPages;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SendsPushToken;
@@ -56,6 +57,7 @@ use SensitiveParameter;
 class ThisDevice extends NativeComponent
 {
     use LeavesDevnull;
+    use ManagesTranslationSettings;
     use OpensLegalPages;
     use RefreshesInBackground;
     use SendsPushToken;
@@ -219,6 +221,7 @@ class ThisDevice extends NativeComponent
         }
 
         $this->savedTimezone = $this->chosenTimezone = app(Account::class)->timezone();
+        $this->loadTranslationSettings();
 
         $this->pushPermission = PushNotifications::checkPermission();
         $this->pushOn = PushPrompt::allowed($this->pushPermission) && PushNotifications::getToken() !== null;
@@ -232,6 +235,14 @@ class ThisDevice extends NativeComponent
             return;
         }
 
+        $this->revalidate();
+    }
+
+    /** Reconciles preference writes completed while native callbacks were scoped to another screen. */
+    public function onResume(): void
+    {
+        $this->forgetRefreshes();
+        $this->recoverTranslationSettings();
         $this->revalidate();
     }
 
@@ -741,6 +752,10 @@ class ThisDevice extends NativeComponent
             'phoneTimezone' => app(Timezone::class)->phone(),
             'timezoneChanged' => $current !== null && $this->timezoneChanged(),
             'timezones' => $this->listingTimezones ? $this->timezones() : ['zones' => [], 'more' => 0],
+            'translationSettingsAvailable' => app(Account::class)->translationLanguages() !== [],
+            'translationLanguageName' => $this->translationLanguageName(),
+            'translationLanguages' => $this->listingTranslationLanguages ? $this->translationLanguages() : [],
+            'translationLanguagesMore' => $this->listingTranslationLanguages ? $this->translationLanguagesMore() : 0,
             'pasteisMode' => $current?->pasteisMode ?? false,
             'showsWhoToFollow' => app(WhoToFollow::class)->shows($this->me()?->id),
             'remotes' => $current?->remotes,
@@ -844,6 +859,7 @@ class ThisDevice extends NativeComponent
      */
     private function takeSettings(array $settings): void
     {
+        $this->takeTranslationSettings($settings);
         $timezone = Timezone::isKnown($settings['timezone'] ?? null) ? $settings['timezone'] : null;
         $showsLocalTime = $timezone !== null && ($settings['show_local_time'] ?? false) === true;
 

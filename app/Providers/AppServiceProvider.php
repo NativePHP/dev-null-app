@@ -11,6 +11,7 @@ use App\Devnull\KeyStoreChoice;
 use App\Devnull\ResponseCache;
 use App\Devnull\SignIn;
 use App\Devnull\Timezone;
+use App\Devnull\TranslationLanguage;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Date;
@@ -38,6 +39,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(AppleSignIn::class);
         $this->app->singleton(ImageCache::class);
         $this->app->singleton(Timezone::class);
+        $this->app->singleton(TranslationLanguage::class);
     }
 
     /**

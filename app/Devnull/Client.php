@@ -123,6 +123,10 @@ final readonly class Client
 
     public const string SettingsPath = 'me/settings';
 
+    public const string TranslationLanguagePath = 'me/translation-language';
+
+    public const string AutomaticTranslationPath = 'me/automatic-translation';
+
     /**
      * This phone's push token, which devnull keeps on the device the request is signed with, and which push
      * notifications you get.
@@ -144,9 +148,13 @@ final readonly class Client
 
     public function __construct(private DeviceKey $deviceKey, private string $baseUrl, private ResponseCache $cache) {}
 
-    /**
-     * Where a vote on a commit's poll goes. devnull answers with the commit, whose poll then shows its results.
-     */
+    /** Cache-only GET and explicit generation POST share this per-commit endpoint. */
+    public static function translationPath(string $id): string
+    {
+        return 'commits/'.rawurlencode($id).'/translation';
+    }
+
+    /** Where a vote goes; devnull answers with the commit and its updated poll. */
     public static function pollVotesPath(string $id): string
     {
         return 'commits/'.rawurlencode($id).'/poll/votes';
@@ -892,9 +900,9 @@ final readonly class Client
      *
      * @throws ConnectionException
      */
-    public static function sendSigned(SignedRequest $request): Response
+    public static function sendSigned(SignedRequest $request, int $timeout = 20): Response
     {
-        $pending = Http::acceptJson()->withHeaders($request->headers)->timeout(20);
+        $pending = Http::acceptJson()->withHeaders($request->headers)->timeout($timeout);
 
         $pending = $request->body === ''
             ? $pending->withRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withoutHeader('Content-Type'))
@@ -1016,12 +1024,15 @@ final readonly class Client
     }
 
     /**
-     * @return array{X-Devnull-Timestamp: string, X-Devnull-Nonce: string, X-SSH-Signature: string}
+     * @return array{X-Devnull-Timestamp: string, X-Devnull-Nonce: string, X-SSH-Signature: string, Accept-Language: string}
      */
     private function sign(string $method, string $target, string $body, string $namespace = RequestSigner::Namespace): array
     {
-        return (new RequestSigner($this->deviceKey->current()))
-            ->headers($method, $target, $body, CarbonImmutable::now()->getTimestamp(), RequestSigner::nonce(), $namespace);
+        return [
+            ...(new RequestSigner($this->deviceKey->current()))
+                ->headers($method, $target, $body, CarbonImmutable::now()->getTimestamp(), RequestSigner::nonce(), $namespace),
+            'Accept-Language' => app(TranslationLanguage::class)->yours(),
+        ];
     }
 
     /**

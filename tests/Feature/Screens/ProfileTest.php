@@ -219,7 +219,8 @@ it('reloads when you come back to it', function () {
         ->follow()
         ->goBack();
 
-    Http::assertSentCount(7);
+    Http::assertSentCount(8);
+    Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/me/settings'));
 });
 
 it('shows the pinned commit above the rest, marked as pinned', function () {

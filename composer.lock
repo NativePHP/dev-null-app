@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "745d59f03866816f94bab0b20f027a25",
+    "content-hash": "9a26745036a24e2016ce496cc8e891a4",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2755,16 +2755,16 @@
         },
         {
             "name": "nativephp/mobile",
-            "version": "4.7.0",
+            "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-air.git",
-                "reference": "0d7e2e6509b1a0514726e67016fecade5e9137b2"
+                "reference": "10c21b24f120df706ed4584f451dd9077c297398"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/0d7e2e6509b1a0514726e67016fecade5e9137b2",
-                "reference": "0d7e2e6509b1a0514726e67016fecade5e9137b2",
+                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/10c21b24f120df706ed4584f451dd9077c297398",
+                "reference": "10c21b24f120df706ed4584f451dd9077c297398",
                 "shasum": ""
             },
             "require": {
@@ -2804,6 +2804,7 @@
             "suggest": {
                 "ext-zip": "Required by native:install to validate and extract the downloaded Android PHP binary archives"
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "laravel": {
@@ -2846,9 +2847,9 @@
             ],
             "support": {
                 "issues": "https://github.com/NativePHP/mobile-air/issues",
-                "source": "https://github.com/NativePHP/mobile-air/tree/4.7.0"
+                "source": "https://github.com/NativePHP/mobile-air/tree/main"
             },
-            "time": "2026-10-29T17:31:02+00:00"
+            "time": "2026-11-05T15:42:02+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
@@ -3355,16 +3356,16 @@
         },
         {
             "name": "nativephp/mobile-ui",
-            "version": "0.9.0",
+            "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-ui.git",
-                "reference": "9cee87cbc676a6500247bec99be5d19f633a04e9"
+                "reference": "55f7c42c8e639a7a37bf862e91efe37d304120b6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/9cee87cbc676a6500247bec99be5d19f633a04e9",
-                "reference": "9cee87cbc676a6500247bec99be5d19f633a04e9",
+                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/55f7c42c8e639a7a37bf862e91efe37d304120b6",
+                "reference": "55f7c42c8e639a7a37bf862e91efe37d304120b6",
                 "shasum": ""
             },
             "require": {
@@ -3376,6 +3377,7 @@
                 "orchestra/testbench": "^10.0",
                 "pestphp/pest": "^3.0"
             },
+            "default-branch": true,
             "type": "nativephp-plugin",
             "extra": {
                 "laravel": {
@@ -11563,6 +11565,18 @@
     ],
     "aliases": [
         {
+            "package": "nativephp/mobile",
+            "version": "dev-main",
+            "alias": "4.7.0",
+            "alias_normalized": "4.7.0.0"
+        },
+        {
+            "package": "nativephp/mobile-ui",
+            "version": "dev-main",
+            "alias": "0.9.0",
+            "alias_normalized": "0.9.0.0"
+        },
+        {
             "package": "victorycodedev/toastkit",
             "version": "dev-fix/android-toasts-above-sheets",
             "alias": "1.4.0",
@@ -11571,6 +11585,8 @@
     ],
     "minimum-stability": "stable",
     "stability-flags": {
+        "nativephp/mobile": 20,
+        "nativephp/mobile-ui": 20,
         "victorycodedev/toastkit": 20
     },
     "prefer-stable": true,

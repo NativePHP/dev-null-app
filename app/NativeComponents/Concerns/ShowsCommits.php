@@ -45,6 +45,7 @@ trait ShowsCommits
     use OpensCommitSheet;
     use OpensHashtags;
     use OpensStargazers;
+    use TranslatesCommits;
     use VotesOnPolls;
     use WritesInBackground;
 
@@ -372,7 +373,8 @@ trait ShowsCommits
      */
     public function openLink(string $id, int $index): void
     {
-        $link = $this->shownCommit($id)?->links()[$index] ?? null;
+        $commit = $this->shownCommit($id);
+        $link = $commit === null ? null : ($this->displayedCommit($commit)->links()[$index] ?? null);
 
         if ($link?->commit !== null) {
             $this->openCommit($link->commit);
@@ -564,9 +566,13 @@ trait ShowsCommits
      */
     private function changeShownCommit(string $id, Closure $change): void
     {
-        $changeCopy = fn (Commit $commit): Commit => $commit->id === $id ? $change($commit) : $commit;
+        $changeCopy = function (Commit $commit) use (&$changeCopy, $id, $change): Commit {
+            $commit = $commit->id === $id ? $change($commit) : $commit;
 
-        $this->updateShownCommits(fn (Commit $commit): Commit => $changeCopy($commit)->withPreviewReplies($changeCopy)->withQuotedCommit($changeCopy));
+            return $commit->withPreviewReplies($changeCopy)->withQuotedCommit($changeCopy);
+        };
+
+        $this->updateShownCommits($changeCopy);
     }
 
     /**
@@ -576,14 +582,20 @@ trait ShowsCommits
      */
     private function everyShownCommit(): iterable
     {
-        foreach ($this->shownCommits() as $commit) {
+        $nested = function (Commit $commit) use (&$nested): iterable {
             yield $commit;
 
             if ($commit->quotedCommit !== null) {
-                yield $commit->quotedCommit;
+                yield from $nested($commit->quotedCommit);
             }
 
-            yield from $commit->replyPreview?->replies ?? [];
+            foreach ($commit->replyPreview?->replies ?? [] as $reply) {
+                yield from $nested($reply);
+            }
+        };
+
+        foreach ($this->shownCommits() as $commit) {
+            yield from $nested($commit);
         }
     }
 

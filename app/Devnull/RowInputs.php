@@ -28,6 +28,7 @@ final class RowInputs
 
         return [
             'viewer' => $viewer?->id,
+            'translation' => [app(TranslationLanguage::class)->yours(), app(Account::class)->automaticTranslation(), $scope['translationDisplay'] ?? [], $scope['translating'] ?? []],
             'pasteis' => $scope['pasteis'] ?? app(Account::class)->pasteis(),
             'stashed' => $scope['stashed'] ?? [],
             'unfolded' => $scope['unfolded'] ?? [],

@@ -82,6 +82,7 @@ final readonly class Commit
         public ?ReplyPreview $replyPreview = null,
         public int $pasteisCount = 0,
         public ?ScoreCard $scoreCard = null,
+        public ?CommitTranslation $translation = null,
     ) {}
 
     /**
@@ -149,6 +150,7 @@ final readonly class Commit
             replyPreview: is_array($data['reply_preview'] ?? null) ? ReplyPreview::fromArray($data['reply_preview']) : null,
             pasteisCount: max(0, (int) ($data['pasteis_count'] ?? 0)),
             scoreCard: $scoreCard,
+            translation: is_array($data['translation'] ?? null) ? CommitTranslation::fromArray($data['translation']) : null,
         );
     }
 
@@ -168,6 +170,29 @@ final readonly class Commit
     public function withMorePasteis(int $change): self
     {
         return new self(...[...get_object_vars($this), 'pasteisCount' => max(0, $this->pasteisCount + $change)]);
+    }
+
+    /** Whether this reader may request or display this commit's optional translation. */
+    public function canTranslateBy(?User $viewer): bool
+    {
+        return $viewer !== null && $this->isApproved() && ! $this->isDeleted()
+            && $this->author->id !== $viewer->id && $this->translation?->available === true;
+    }
+
+    /** A display-only copy; body and original excerpts are left on the source commit. */
+    public function displayingTranslation(): self
+    {
+        return $this->translation?->content === null ? $this : new self(...[
+            ...get_object_vars($this),
+            'content' => $this->translation->content,
+            'previewContent' => $this->translation->previewContent,
+        ]);
+    }
+
+    /** Replaces cached translation metadata without changing the original body. */
+    public function withTranslation(?CommitTranslation $translation): self
+    {
+        return new self(...[...get_object_vars($this), 'translation' => $translation]);
     }
 
     public function withPinned(bool $isPinned): self
