@@ -1,13 +1,18 @@
 @use('App\Icons\Ios')
 @use('App\Icons\Android')
 
-<native:column fill class="safe-area bg-theme-background">
-    {{-- The lockup, two thirds of the screen wide at its own 15:4, centred in the space above the buttons. --}}
+{{--
+    On a phone, the lockup over the buttons. Once the window is expanded (a foldable's inner display held sideways) the
+    lockup and the buttons sit side by side as two equal halves, with the gap between them in the middle of the
+    window.
+--}}
+<native:column fill class="safe-area bg-theme-background expanded:flex-row expanded:items-center expanded:gap-16">
+    {{-- The lockup, two thirds of the screen wide at its own 15:4 (as wide as its half, once side by side), centred in its space. --}}
     <native:column ref="logo-space" class="w-full flex-1 items-center justify-center">
         <native:image ref="logo" :src="$logo" alt="devnull" class="w-2/3 aspect-[15/4]" />
     </native:column>
 
-    <native:column ref="actions" class="w-full px-6 pb-4 gap-3">
+    <native:column ref="actions" class="w-full px-6 pb-4 gap-3 expanded:flex-1 expanded:pb-0">
         @if ($error)
             <native:text ref="error" font="mono" class="w-full text-center text-[13px] leading-snug text-theme-destructive">{{ $error }}</native:text>
         @endif

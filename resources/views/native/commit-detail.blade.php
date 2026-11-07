@@ -6,110 +6,112 @@
     @include('native.partials.stargazers-sheet')
 
     <native:scroll-view native:key="thread-{{ $scrollKey }}" ref="thread-scroll" class="w-full flex-1 bg-theme-surface">
-        <native:column ref="thread-page" class="w-full bg-theme-surface">
-            @if (! $commit && $error === null)
-                <native:column ref="loading-commit" class="w-full items-center py-16" a11y-label="Loading commit">
-                    <native:activity-indicator />
-                </native:column>
-            @endif
-
-            {{--
-                The commit is the main thing, near the top: larger, in full ink, with its git date and its replies behind
-                a toggle in its action row. The commit it replies to shows above it, and what that replies to waits
-                behind "↑ N earlier commits", since EDGE can't open the page scrolled down to the commit. Opened, the
-                ancestors, the commit and the rest of its series share one rail, so someone replying to themselves shows
-                their avatar once. The replies hang under it on the thread's dashed lines, with the rail ending in a dot
-                above them, five at a time with "Show more" under the last. A part of a series with more parts after it
-                has its replies right under it, beside the rail running on, and the later parts follow. Everything
-                around the commit is muted, and still opens its own page. A deleted reply's own replies open in place,
-                one level in, five at a time too, since a deleted commit has no page.
-            --}}
-            @if ($earlierCount > 0)
-                @include('native.partials.earlier-commits', ['count' => $earlierCount, 'lane' => $earlierLane])
-            @endif
-
-            @foreach ($rows as $row)
-                @php($isFocused = $row->commit->id === $commit?->id)
-                @php($hasThread = $isFocused && $repliesShown && $replies !== [])
-                @include('native.partials.commit-row', [
-                    'commit' => $row->commit,
-                    'previousLane' => $row->previousLane,
-                    'continuesRun' => $row->continuesRun,
-                    'continuesNext' => $isFocused ? ! $loop->last : null,
-                    'threadBelow' => $hasThread,
-                    'focused' => $isFocused,
-                    'muted' => ! $isFocused,
-                    'seriesExpanded' => true,
-                    'withTail' => ! $loop->last,
-                ])
-                @if ($isFocused && $repliesShown && $replies === [] && ! $repliesLoaded && $error === null)
-                    <native:row ref="loading-replies" class="w-full pl-[64] pr-4 py-4 gap-2 items-center" a11y-label="Loading replies">
-                        <native:activity-indicator size="small" />
-                    </native:row>
+        <native:column class="w-full items-center">
+            <native:column ref="thread-page" class="w-full bg-theme-surface {{ $embedded ? '' : \App\Devnull\Display::ReadableColumn }}">
+                @if (! $commit && $error === null)
+                    <native:column ref="loading-commit" class="w-full items-center py-16" a11y-label="Loading commit">
+                        <native:activity-indicator />
+                    </native:column>
                 @endif
-                @if ($hasThread)
-                    @php($railLane = $loop->last ? null : $commit->lane())
-                    @foreach ($replies as $index => $threadReply)
-                        @php($nested = $tombstoneReplies[$threadReply->id] ?? [])
-                        @php($nestedMore = ($tombstoneCursors[$threadReply->id] ?? null) !== null)
-                        @php($hasNext = ! $loop->last || $repliesCursor !== null)
-                        @php($replyRow = [
-                            'reply' => $threadReply,
-                            'lane' => $commit->lane(),
-                            'previousLane' => $index === 0 ? null : $replies[$index - 1]->lane(),
-                            'hasNext' => $hasNext,
-                            'railLane' => $railLane,
-                            'tombstones' => true,
-                            'muted' => true,
-                            'thread' => $commit,
-                            'more' => $loop->last && $nested === [] && $repliesCursor !== null ? 'loadMoreReplies' : null,
-                            'last' => $loop->last && $nested === [],
-                        ])
-                        @php($rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))
-                        @php($replyRows->include('reply-'.$threadReply->id, \App\Devnull\RowInputs::for($threadReply, $rowScope), 'native.partials.thread-reply', $replyRow, $rowScope))
-                        @foreach ($nested as $nestedIndex => $nestedReply)
-                            @php($nestedRow = [
-                                'reply' => $nestedReply,
-                                'lane' => \App\Devnull\Lane::Rail,
-                                'previousLane' => $nestedIndex === 0 ? null : $nested[$nestedIndex - 1]->lane(),
-                                'hasNext' => ! $loop->last || $nestedMore,
+
+                {{--
+                    The commit is the main thing, near the top: larger, in full ink, with its git date and its replies behind
+                    a toggle in its action row. The commit it replies to shows above it, and what that replies to waits
+                    behind "↑ N earlier commits", since EDGE can't open the page scrolled down to the commit. Opened, the
+                    ancestors, the commit and the rest of its series share one rail, so someone replying to themselves shows
+                    their avatar once. The replies hang under it on the thread's dashed lines, with the rail ending in a dot
+                    above them, five at a time with "Show more" under the last. A part of a series with more parts after it
+                    has its replies right under it, beside the rail running on, and the later parts follow. Everything
+                    around the commit is muted, and still opens its own page. A deleted reply's own replies open in place,
+                    one level in, five at a time too, since a deleted commit has no page.
+                --}}
+                @if ($earlierCount > 0)
+                    @include('native.partials.earlier-commits', ['count' => $earlierCount, 'lane' => $earlierLane])
+                @endif
+
+                @foreach ($rows as $row)
+                    @php($isFocused = $row->commit->id === $commit?->id)
+                    @php($hasThread = $isFocused && $repliesShown && $replies !== [])
+                    @include('native.partials.commit-row', [
+                        'commit' => $row->commit,
+                        'previousLane' => $row->previousLane,
+                        'continuesRun' => $row->continuesRun,
+                        'continuesNext' => $isFocused ? ! $loop->last : null,
+                        'threadBelow' => $hasThread,
+                        'focused' => $isFocused,
+                        'muted' => ! $isFocused,
+                        'seriesExpanded' => true,
+                        'withTail' => ! $loop->last,
+                    ])
+                    @if ($isFocused && $repliesShown && $replies === [] && ! $repliesLoaded && $error === null)
+                        <native:row ref="loading-replies" class="w-full pl-[64] pr-4 py-4 gap-2 items-center" a11y-label="Loading replies">
+                            <native:activity-indicator size="small" />
+                        </native:row>
+                    @endif
+                    @if ($hasThread)
+                        @php($railLane = $loop->last ? null : $commit->lane())
+                        @foreach ($replies as $index => $threadReply)
+                            @php($nested = $tombstoneReplies[$threadReply->id] ?? [])
+                            @php($nestedMore = ($tombstoneCursors[$threadReply->id] ?? null) !== null)
+                            @php($hasNext = ! $loop->last || $repliesCursor !== null)
+                            @php($replyRow = [
+                                'reply' => $threadReply,
+                                'lane' => $commit->lane(),
+                                'previousLane' => $index === 0 ? null : $replies[$index - 1]->lane(),
+                                'hasNext' => $hasNext,
                                 'railLane' => $railLane,
-                                'indent' => 32,
-                                'spine' => $hasNext ? $threadReply->lane() : null,
+                                'tombstones' => true,
                                 'muted' => true,
-                                'thread' => $nestedMore ? $threadReply : $commit,
-                                'more' => match (true) {
-                                    ! $loop->last => null,
-                                    $nestedMore => "loadMoreTombstoneReplies('{$threadReply->id}')",
-                                    $loop->parent->last && $repliesCursor !== null => 'loadMoreReplies',
-                                    default => null,
-                                },
-                                'last' => $loop->last && $loop->parent->last,
+                                'thread' => $commit,
+                                'more' => $loop->last && $nested === [] && $repliesCursor !== null ? 'loadMoreReplies' : null,
+                                'last' => $loop->last && $nested === [],
                             ])
                             @php($rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))
-                            @php($replyRows->include('reply-'.$nestedReply->id, \App\Devnull\RowInputs::for($nestedReply, $rowScope), 'native.partials.thread-reply', $nestedRow, $rowScope))
+                            @php($replyRows->include('reply-'.$threadReply->id, \App\Devnull\RowInputs::for($threadReply, $rowScope), 'native.partials.thread-reply', $replyRow, $rowScope))
+                            @foreach ($nested as $nestedIndex => $nestedReply)
+                                @php($nestedRow = [
+                                    'reply' => $nestedReply,
+                                    'lane' => \App\Devnull\Lane::Rail,
+                                    'previousLane' => $nestedIndex === 0 ? null : $nested[$nestedIndex - 1]->lane(),
+                                    'hasNext' => ! $loop->last || $nestedMore,
+                                    'railLane' => $railLane,
+                                    'indent' => 32,
+                                    'spine' => $hasNext ? $threadReply->lane() : null,
+                                    'muted' => true,
+                                    'thread' => $nestedMore ? $threadReply : $commit,
+                                    'more' => match (true) {
+                                        ! $loop->last => null,
+                                        $nestedMore => "loadMoreTombstoneReplies('{$threadReply->id}')",
+                                        $loop->parent->last && $repliesCursor !== null => 'loadMoreReplies',
+                                        default => null,
+                                    },
+                                    'last' => $loop->last && $loop->parent->last,
+                                ])
+                                @php($rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))
+                                @php($replyRows->include('reply-'.$nestedReply->id, \App\Devnull\RowInputs::for($nestedReply, $rowScope), 'native.partials.thread-reply', $nestedRow, $rowScope))
+                            @endforeach
                         @endforeach
-                    @endforeach
+                    @endif
+                @endforeach
+
+                @if ($commit && $replyCount === 0 && $repliesLoaded && $series === [])
+                    <native:column class="w-full pl-[64] pr-4 py-4">
+                        <native:text class="text-sm text-theme-ink-muted">No replies yet.</native:text>
+                    </native:column>
                 @endif
-            @endforeach
 
-            @if ($commit && $replyCount === 0 && $repliesLoaded && $series === [])
-                <native:column class="w-full pl-[64] pr-4 py-4">
-                    <native:text class="text-sm text-theme-ink-muted">No replies yet.</native:text>
-                </native:column>
-            @endif
+                @if ($commit && $related !== [])
+                    @include('native.partials.related-commits')
+                @endif
 
-            @if ($commit && $related !== [])
-                @include('native.partials.related-commits')
-            @endif
-
-            {{--
-                A pushed screen runs under its bottom bar, so the page clears the reply bar itself (see
-                Display::replyBarClearance): the last reply and its actions end above the bar, keyboard up or down.
-            --}}
-            @if ($commit)
-                <native:column ref="reply-bar-clearance" class="w-full h-[{{ 24 + \App\Devnull\Display::replyBarClearance($reply, $replyRestored || $replyImages !== []) }}]" />
-            @endif
+                {{--
+                    A pushed screen clears its overlaid reply bar itself (see Display::replyBarClearance).
+                    The embedded workspace reserves the actual bar height natively, so it only needs the final gap.
+                --}}
+                @if ($commit)
+                    <native:column ref="reply-bar-clearance" class="w-full h-[{{ $embedded ? 24 : 24 + \App\Devnull\Display::replyBarClearance($reply, $replyRestored || $replyImages !== []) }}]" />
+                @endif
+            </native:column>
         </native:column>
     </native:scroll-view>
 

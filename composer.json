@@ -12,6 +12,11 @@
     "license": "MIT",
     "repositories": [
         {
+            "name": "adaptive-layout",
+            "type": "path",
+            "url": "packages/adaptive-layout"
+        },
+        {
             "name": "calls",
             "type": "path",
             "url": "packages/calls"
@@ -29,6 +34,8 @@
     "require": {
         "php": "^8.3",
         "codingwithrk/nativephp-social-auth": "^1.0",
+        "cweagans/composer-patches": "^1.7",
+        "devnull/adaptive-layout": "^1.0",
         "devnull/nativephp-calls": "^1.0",
         "laravel/boost": "^2.0",
         "laravel/framework": "^13.0",
@@ -112,6 +119,16 @@
     "extra": {
         "laravel": {
             "dont-discover": []
+        },
+        "composer-exit-on-patch-failure": true,
+        "patches": {
+            "nativephp/mobile": {
+                "Async callbacks retain their exact live child receiver within the dispatch root": "patches/nativephp-mobile-live-child-async.patch",
+                "Hidden navigation bars release the top layout and hit region for native child hosts": "patches/nativephp-mobile-hidden-nav-hit-area.patch"
+            },
+            "nativephp/mobile-ui": {
+                "Pager: page by the ScrollView width and clip its sides, so a sideways bar (iPhone Duo rail) neither misplaces the tab underline nor shows the next page": "patches/nativephp-mobile-ui-pager-side-insets.patch"
+            }
         }
     },
     "config": {
@@ -119,6 +136,7 @@
         "preferred-install": "dist",
         "sort-packages": true,
         "allow-plugins": {
+            "cweagans/composer-patches": true,
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
         }

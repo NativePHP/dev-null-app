@@ -163,6 +163,8 @@ class Log extends NativeComponent
 
     public string $log = 'following';
 
+    public bool $embedded = false;
+
     /**
      * The list key of each log you're not on. The log you're on uses $listKey.
      *

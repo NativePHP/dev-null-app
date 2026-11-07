@@ -11,5 +11,5 @@
             <native:column class="w-4/5 h-[12] rounded bg-theme-wash" />
         </native:column>
     </native:row>
-    <native:column class="w-full h-[1] bg-theme-hairline" />
+    <native:column class="w-full h-[1] border-b border-theme-hairline" />
 </native:column>

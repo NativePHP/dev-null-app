@@ -131,7 +131,7 @@
             </native:row>
         @endif
     </native:column>
-    <native:column class="w-full h-[1] bg-theme-hairline" />
+    <native:column class="w-full h-[1] border-b border-theme-hairline" />
 
     @if (! $sketched)
         @include('native.partials.activity', ['activity' => $profile->activity, 'lane' => $user->lane()])

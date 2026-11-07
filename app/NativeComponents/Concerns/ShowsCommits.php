@@ -16,6 +16,7 @@ use App\Devnull\ResponseCache;
 use App\Devnull\SiteLink;
 use App\Devnull\Timezone;
 use App\Devnull\Toasts;
+use App\NativeComponents\FeedWorkspace;
 use Closure;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Edge\SharedValue;
@@ -220,7 +221,6 @@ trait ShowsCommits
             return;
         }
 
-        $this->showStar($id, ! $commit->starred);
         $this->queueStar($id, ! $commit->starred);
     }
 
@@ -489,8 +489,17 @@ trait ShowsCommits
 
         if ($deleted === true) {
             Toasts::say('rm '.$commit->shortHash.' → /dev/null', short: true);
-            $this->showDeleted($id);
+            if ($this->nativeParentComponent instanceof FeedWorkspace) {
+                $this->nativeParentComponent->conversationDeleted($id);
+            } else {
+                $this->showDeleted($id);
+            }
         }
+    }
+
+    public function applyWorkspaceDeletion(string $id): void
+    {
+        $this->showDeleted($id);
     }
 
     /**

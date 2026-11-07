@@ -24,7 +24,7 @@
         @include('native.partials.people-search', ['placeholder' => 'Find people by name or @handle', 'autofocus' => true])
         @include('native.partials.picked-people')
     </native:column>
-    <native:column class="w-full h-[1] bg-theme-hairline" />
+    <native:column class="w-full h-[1] border-b border-theme-hairline" />
 
     <native:list ref="candidates" class="w-full flex-1 bg-theme-surface">
         @include('native.partials.people-results')
@@ -34,7 +34,7 @@
 
     <native:bottom-bar>
         <native:column ref="create-bar" class="w-full bg-theme-surface">
-            <native:column class="w-full h-[1] bg-theme-hairline" />
+            <native:column class="w-full h-[1] border-b border-theme-hairline" />
             <native:row class="w-full px-4 py-3 gap-3 items-center">
                 <native:text ref="create-error" font="mono" class="flex-1 text-xs text-theme-destructive" :max-lines="2">{{ $pickError ?? '' }}</native:text>
                 <native:column class="w-[120]">

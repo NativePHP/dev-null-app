@@ -18,7 +18,7 @@
                         <native:column class="mx-4 mt-4 rounded-lg border border-theme-hairline bg-theme-surface">
                             @foreach (range(1, 2) as $skeleton)
                                 @if (! $loop->first)
-                                    <native:column class="w-full h-[1] bg-theme-hairline" />
+                                    <native:column class="w-full h-[1] border-b border-theme-hairline" />
                                 @endif
                                 <native:row ref="loading-{{ $key }}-{{ $skeleton }}" class="w-full px-4 py-3 gap-3 items-center opacity-[0.5]" animate-duration="900" :animate-loop="true" a11y-label="Loading">
                                     <native:column :width="44" :height="44" class="rounded-full bg-theme-wash" />
@@ -39,7 +39,7 @@
                     <native:column ref="{{ $key }}-people" class="mx-4 mt-4 rounded-lg border border-theme-hairline bg-theme-surface">
                         @foreach ($people[$key] as $person)
                             @if (! $loop->first)
-                                <native:column class="w-full h-[1] bg-theme-hairline" />
+                                <native:column class="w-full h-[1] border-b border-theme-hairline" />
                             @endif
                             <native:row ref="{{ $key }}-{{ $person->username }}" class="w-full px-4 py-3 gap-3 items-center">
                                 <native:pressable @press="openProfile('{{ $person->username }}')" class="flex-1" a11y-label="{{ $person->name }}'s profile">

@@ -42,6 +42,15 @@ final class Display
     public const int ElbowLevel = 22;
 
     /**
+     * Classes for a screen's scrolling column: as wide as the screen on a phone, but a
+     * comfortable 672pt line once the window reaches the expanded width (840pt, the inner
+     * display of a foldable held sideways), centred by its parent (give the parent items-center).
+     * A fixed width rather than max-w: EDGE stretches a w-full child across its parent and
+     * ignores items-center for it, and has no mx-auto.
+     */
+    public const string ReadableColumn = 'expanded:w-[672px]';
+
+    /**
      * How long ago a commit was made, as the web prints it beside the commit:
      * "now", "5m", "3h", "2d", then the date, in the same time zone as dayLabel().
      */

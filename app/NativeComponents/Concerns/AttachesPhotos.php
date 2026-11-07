@@ -5,6 +5,7 @@ namespace App\NativeComponents\Concerns;
 use App\Devnull\Data\DraftImage;
 use App\Devnull\DraftImages;
 use App\Devnull\Exceptions\InvalidDraftImage;
+use App\NativeComponents\FeedWorkspace;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Events\Camera\PermissionDenied;
 use Native\Mobile\Events\Camera\PhotoTaken;
@@ -59,6 +60,9 @@ trait AttachesPhotos
     public function pickPhotos(): void
     {
         if ($this->hasRoomForPhotos()) {
+            if ($this->nativeParentComponent instanceof FeedWorkspace) {
+                $this->nativeParentComponent->claimPhotoPicker($this);
+            }
             Camera::pickImages('images', true, DraftImages::MaxImages - count($this->attachedPhotos()))->start();
         }
     }
@@ -66,6 +70,9 @@ trait AttachesPhotos
     public function takePhoto(): void
     {
         if ($this->hasRoomForPhotos()) {
+            if ($this->nativeParentComponent instanceof FeedWorkspace) {
+                $this->nativeParentComponent->claimPhotoPicker($this);
+            }
             Camera::getPhoto()->start();
         }
     }
@@ -73,6 +80,10 @@ trait AttachesPhotos
     #[On(PhotoTaken::class)]
     public function photoTaken(string $path = ''): void
     {
+        if (! $this->ownsPhotoPicker()) {
+            return;
+        }
+
         $this->attachPhotos([$path]);
     }
 
@@ -82,15 +93,24 @@ trait AttachesPhotos
     #[On(MediaSelected::class)]
     public function photosPicked(array $files = []): void
     {
+        if (! $this->ownsPhotoPicker()) {
+            return;
+        }
+
         $this->attachPhotos(array_map(fn (mixed $file): string => is_array($file) && is_string($file['path'] ?? null) ? $file['path'] : '', $files));
     }
 
     #[On(PermissionDenied::class)]
     public function cameraDenied(): void
     {
-        if ($this->takesPhotos()) {
+        if ($this->ownsPhotoPicker() && $this->takesPhotos()) {
             $this->photoFailed(DraftImages::CameraDenied);
         }
+    }
+
+    private function ownsPhotoPicker(): bool
+    {
+        return ! $this->nativeParentComponent instanceof FeedWorkspace || $this->nativeParentComponent->ownsPhotoPicker($this);
     }
 
     /**

@@ -1,0 +1,27 @@
+{
+    "name": "devnull/adaptive-layout",
+    "description": "Retained iOS feed and conversation navigation for devnull",
+    "type": "nativephp-plugin",
+    "version": "1.0.0",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "nativephp/mobile": "^4.7",
+        "nativephp/mobile-ui": "^0.9"
+    },
+    "autoload": {
+        "psr-4": {
+            "Devnull\\AdaptiveLayout\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Devnull\\AdaptiveLayout\\AdaptiveLayoutServiceProvider"
+            ]
+        },
+        "nativephp": {
+            "manifest": "nativephp.json"
+        }
+    }
+}

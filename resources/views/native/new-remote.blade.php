@@ -8,7 +8,7 @@
     <native:column class="w-full px-4 py-3 bg-theme-surface">
         @include('native.partials.people-search', ['placeholder' => 'Message a developer', 'autofocus' => true])
     </native:column>
-    <native:column class="w-full h-[1] bg-theme-hairline" />
+    <native:column class="w-full h-[1] border-b border-theme-hairline" />
 
     <native:list ref="candidates" class="w-full flex-1 bg-theme-surface">
         @if ($term === '')

@@ -36,7 +36,7 @@
         </native:pressable>
     @endif
 
-    <native:column class="w-full h-[1] bg-theme-hairline" />
+    <native:column class="w-full h-[1] border-b border-theme-hairline" />
     <native:row class="w-full gap-3 items-center">
         <native:column class="flex-1">
             <native:select ref="poll-length" label="Poll length" :options="array_keys(\App\Devnull\Data\PollDraft::Lengths)" native:model="sheetPollLength" />
