@@ -50,4 +50,4 @@
         <native:text class="ml-1 text-xs text-theme-ink-muted">More</native:text>
     </native:row>
 </native:column>
-<native:column class="w-full h-[1] bg-theme-hairline" />
+<native:column class="w-full h-[1] border-b border-theme-hairline" />

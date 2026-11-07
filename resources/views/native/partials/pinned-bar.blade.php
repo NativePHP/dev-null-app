@@ -14,6 +14,6 @@
             <native:text class="flex-1 text-[13px] text-theme-ink" :max-lines="1"><native:text :text="$latestAuthor->name ?? 'Someone'" font="semibold" class="font-semibold" /><native:text :text="' '.$latest->snippet()" class="text-theme-ink-muted" /></native:text>
             <native:icon :ios="\App\Icons\Lucide::ChevronDown->ios()" :android="\App\Icons\Lucide::ChevronDown->android()" :size="16" class="text-theme-ink-muted" />
         </native:row>
-        <native:column class="w-full h-[1] bg-theme-hairline" />
+        <native:column class="w-full h-[1] border-b border-theme-hairline" />
     </native:column>
 </native:pressable>

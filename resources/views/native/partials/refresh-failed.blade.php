@@ -8,6 +8,6 @@
             <native:text font="mono" class="flex-1 text-[13px] text-theme-ink-muted">warning: couldn't refresh</native:text>
             <native:text font="medium" class="text-[13px] text-theme-primary">Retry</native:text>
         </native:row>
-        <native:column class="w-full h-[1] bg-theme-hairline" />
+        <native:column class="w-full h-[1] border-b border-theme-hairline" />
     </native:pressable>
 @endif

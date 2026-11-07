@@ -53,7 +53,7 @@
                 @include('native.partials.thread-more', ['commit' => $thread ?? $reply])
             @endif
             @if ($last && ! $muted)
-                <native:column ref="thread-end-{{ $reply->id }}" class="w-full h-[1] bg-theme-hairline" />
+                <native:column ref="thread-end-{{ $reply->id }}" class="w-full h-[1] border-b border-theme-hairline" />
             @endif
         </native:column>
         @include('native.partials.thread-links')
@@ -92,7 +92,7 @@
                     @include('native.partials.thread-more', ['commit' => $thread ?? $reply])
                 @endif
                 @if ($last && ! $muted)
-                    <native:column ref="thread-end-{{ $reply->id }}" class="w-full h-[1] bg-theme-hairline" />
+                    <native:column ref="thread-end-{{ $reply->id }}" class="w-full h-[1] border-b border-theme-hairline" />
                 @endif
             </native:column>
             @include('native.partials.thread-links')

@@ -33,7 +33,7 @@
                     <native:column ref="profile-fields" class="mx-4 mt-5 rounded-lg border border-theme-hairline bg-theme-surface">
                         @foreach ($fields as $field)
                             @if (! $loop->first)
-                                <native:column class="w-full h-[1] bg-theme-hairline" />
+                                <native:column class="w-full h-[1] border-b border-theme-hairline" />
                             @endif
                             <native:row ref="field-{{ $field['label'] }}" class="w-full px-3 py-3 gap-3">
                                 <native:text font="mono" class="w-[88] text-[13px] text-theme-ink-muted">{{ $field['label'] }}</native:text>
@@ -134,7 +134,7 @@
                             @endif
                         </native:row>
                         @if ($phoneTimezone !== null)
-                            <native:column class="w-full h-[1] bg-theme-hairline" />
+                            <native:column class="w-full h-[1] border-b border-theme-hairline" />
                             <native:row ref="phone-timezone" class="w-full px-3 py-3 gap-3">
                                 <native:text font="mono" class="w-[88] text-[13px] text-theme-ink-muted">this phone</native:text>
                                 <native:text class="flex-1 text-sm text-theme-ink">{{ \App\Devnull\Timezone::offset($phoneTimezone) }} {{ $phoneTimezone }}</native:text>
@@ -331,7 +331,7 @@
                         <native:text font="mono" class="flex-1 text-[13px] text-theme-ink">{{ $fingerprint ?: 'null' }}</native:text>
                     </native:row>
                     @if ($remote !== null)
-                        <native:column class="w-full h-[1] bg-theme-hairline" />
+                        <native:column class="w-full h-[1] border-b border-theme-hairline" />
                         <native:row ref="remote" class="w-full px-3 py-3 gap-3">
                             <native:text font="mono" class="w-[88] text-[13px] text-theme-ink-muted">remote</native:text>
                             <native:text font="mono" class="flex-1 text-[13px] text-theme-ink">{{ $remote }}</native:text>

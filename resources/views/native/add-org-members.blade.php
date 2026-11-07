@@ -14,7 +14,7 @@
         @include('native.partials.people-search', ['placeholder' => 'Find people by name or @handle', 'autofocus' => true])
         @include('native.partials.picked-people')
     </native:column>
-    <native:column class="w-full h-[1] bg-theme-hairline" />
+    <native:column class="w-full h-[1] border-b border-theme-hairline" />
 
     <native:list ref="candidates" class="w-full flex-1 bg-theme-surface">
         @include('native.partials.people-results')
@@ -24,7 +24,7 @@
 
     <native:bottom-bar>
         <native:column ref="add-bar" class="w-full bg-theme-surface">
-            <native:column class="w-full h-[1] bg-theme-hairline" />
+            <native:column class="w-full h-[1] border-b border-theme-hairline" />
             <native:row ref="share-history" class="w-full px-4 pt-3 gap-6 items-center">
                 <native:column class="flex-1 gap-[2]">
                     <native:text font="medium" class="text-[15px] text-theme-ink">Share history</native:text>
