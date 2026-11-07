@@ -44,5 +44,9 @@ jobs:
       - name: Generate app key
         run: php artisan key:generate
 
+      # Compact prints a dot per passing test and the details of failures only. The runner's
+      # terminal is 80 columns, which cuts the names of failed tests short, so widen it.
       - name: Execute tests
-        run: php artisan test
+        run: php artisan test --compact
+        env:
+          COLUMNS: 200
