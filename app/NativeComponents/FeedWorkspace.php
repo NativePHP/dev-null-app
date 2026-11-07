@@ -130,6 +130,9 @@ class FeedWorkspace extends NativeComponent
             case 'search':
                 $this->feed()?->openSearch();
                 break;
+            case 'game':
+                $this->feed()?->playNataNullers();
+                break;
             case 'delete':
                 $current = end($this->conversations);
                 if ($current !== false) {

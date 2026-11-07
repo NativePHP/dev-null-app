@@ -174,7 +174,7 @@ class CommitDetail extends NativeComponent
      */
     protected bool $forceFullFrames = true;
 
-    public function data(string $key, $default = null): mixed
+    public function data(string $key, mixed $default = null): mixed
     {
         return $this->embedded ? ($this->conversationData[$key] ?? $default) : parent::data($key, $default);
     }

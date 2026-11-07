@@ -105,11 +105,11 @@
                 @endif
 
                 {{--
-                    A pushed screen runs under its bottom bar, so the page clears the reply bar itself (see
-                    Display::replyBarClearance): the last reply and its actions end above the bar, keyboard up or down.
+                    A pushed screen clears its overlaid reply bar itself (see Display::replyBarClearance).
+                    The embedded workspace reserves the actual bar height natively, so it only needs the final gap.
                 --}}
                 @if ($commit)
-                    <native:column ref="reply-bar-clearance" class="w-full h-[{{ 24 + \App\Devnull\Display::replyBarClearance($reply, $replyRestored || $replyImages !== []) }}]" />
+                    <native:column ref="reply-bar-clearance" class="w-full h-[{{ $embedded ? 24 : 24 + \App\Devnull\Display::replyBarClearance($reply, $replyRestored || $replyImages !== []) }}]" />
                 @endif
             </native:column>
         </native:column>

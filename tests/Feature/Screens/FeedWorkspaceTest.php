@@ -1,5 +1,6 @@
 <?php
 
+use App\Devnull\NataNullers\Game;
 use App\Devnull\Outbox;
 use App\Devnull\Stash;
 use App\Models\PendingWrite;
@@ -52,6 +53,24 @@ it('keeps the feed live beside conversation history and ignores obsolete native 
     $screen->call('hostChanged', json_encode(['action' => 'back', 'depth' => 0, 'expected_depth' => 1, 'expected_revision' => 3, 'expected_history' => ['conversation-3']]));
     expect($screen->get('conversations'))->toBe([]);
     $screen->assertSee('Browsable feed')->assertDontSee('Conversation c4');
+});
+
+it('opens the existing game from the retained feed logo when it is installed', function () {
+    skipWithoutSkia();
+    serveWorkspace();
+
+    Native::test(FeedWorkspace::class, platform: 'ios')
+        ->call('hostChanged', json_encode(['action' => 'game']))
+        ->assertNavigatedTo(Game::Route);
+});
+
+it('ignores the retained logo shortcut when the game is disabled', function () {
+    config(['devnull.nata_nullers' => false]);
+    serveWorkspace();
+
+    Native::test(FeedWorkspace::class, platform: 'ios')
+        ->call('hostChanged', json_encode(['action' => 'game']))
+        ->assertNoNavigation();
 });
 
 it('applies held child refreshes and stashes the selected conversation draft', function () {

@@ -9,12 +9,15 @@ struct AdaptiveFeedRenderer: View {
     var body: some View {
         AdaptiveFeedHost(node: node)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Allocate the full container to UIKit; retained navigation/page
-            // controllers still inset controls and extend scrolling content.
-            .ignoresSafeArea(.container, edges: .bottom)
+            // UIKit owns vertical safe areas. Insetting this host at the top
+            // as well would reserve the header space twice in portrait.
+            // Retained pages still inset controls and scrolling content.
+            .ignoresSafeArea(.container, edges: .vertical)
             .background {
-                themeStore.resolve(for: colorScheme).background
-                    .ignoresSafeArea(.container, edges: .bottom)
+                // Backgrounds fill the rail region; readable rows and controls
+                // continue to use the tab host's asymmetric safe area.
+                themeStore.resolve(for: colorScheme).surface
+                    .ignoresSafeArea(.container, edges: .all)
             }
             .environment(\.nativeUITheme, themeStore.resolve(for: colorScheme))
     }
@@ -45,12 +48,17 @@ private struct AdaptiveFeedHost: UIViewControllerRepresentable {
     }
 }
 
+private final class AdaptivePaneInsets: ObservableObject {
+    @Published var bottom: CGFloat = 0
+}
+
 /// A stable root type for every retained hosting controller. Only the direct
 /// bottom_bar sentinel is removed; all native node ids and ancestors survive.
 private struct AdaptiveNodeRoot: View {
     let content: NativeUINode
     let bottom: NativeUINode?
     let inherited: EnvironmentValues
+    @ObservedObject var paneInsets: AdaptivePaneInsets
 
     var body: some View {
         GeometryReader { geometry in
@@ -59,7 +67,7 @@ private struct AdaptiveNodeRoot: View {
                     .equatable()
                     .environment(\.availableHeight, contentGeometry.size.height)
             }
-            .modifier(AdaptiveBottomInset(bottom: bottom))
+            .modifier(AdaptiveBottomInset(bottom: bottom, clearance: max(0, paneInsets.bottom - geometry.safeAreaInsets.bottom)))
             .environment(\.availableWidth, geometry.size.width)
             .environment(\.availableHeight, geometry.size.height)
             .environment(\.nativeSafeAreaTop, geometry.safeAreaInsets.top)
@@ -76,6 +84,7 @@ private struct AdaptiveNodeRoot: View {
 
 private struct AdaptiveBottomInset: ViewModifier {
     let bottom: NativeUINode?
+    let clearance: CGFloat
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
@@ -87,6 +96,7 @@ private struct AdaptiveBottomInset: ViewModifier {
                     .equatable()
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity)
+                    .padding(.bottom, clearance)
                     .background((background == 0 ? Color.clear : Color(argb: background))
                         .ignoresSafeArea(edges: .bottom))
             }
@@ -96,7 +106,14 @@ private struct AdaptiveBottomInset: ViewModifier {
     }
 }
 
-private final class AdaptivePageController: UIHostingController<AdaptiveNodeRoot> {
+/// UIKit owns the navigation item; SwiftUI only owns the retained page content.
+/// A hosting controller used directly as a navigation destination can replace
+/// its title item when it moves between the two navigation controllers.
+private final class AdaptivePageController: UIViewController {
+    private let hosting: UIHostingController<AdaptiveNodeRoot>
+    private let paneInsets: AdaptivePaneInsets
+    private var requestedBottomInset: CGFloat = 0
+    var onSafeAreaChange: (() -> Void)?
     private(set) var source: NativeUINode
     private var contentNode: NativeUINode
     private var bottomNode: NativeUINode?
@@ -109,13 +126,47 @@ private final class AdaptivePageController: UIHostingController<AdaptiveNodeRoot
         let bottom = sentinel?.children.first
         contentNode = content
         bottomNode = bottom
-        super.init(rootView: AdaptiveNodeRoot(content: content, bottom: bottom, inherited: environment))
-        view.backgroundColor = .clear
+        let paneInsets = AdaptivePaneInsets()
+        self.paneInsets = paneInsets
+        hosting = UIHostingController(rootView: AdaptiveNodeRoot(content: content, bottom: bottom, inherited: environment, paneInsets: paneInsets))
+        super.init(nibName: nil, bundle: nil)
         navigationItem.largeTitleDisplayMode = .never
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .clear
+        hosting.view.backgroundColor = .clear
+        addChild(hosting)
+        hosting.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(hosting.view)
+        NSLayoutConstraint.activate([
+            hosting.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            hosting.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            hosting.view.topAnchor.constraint(equalTo: view.topAnchor),
+            hosting.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        hosting.didMove(toParent: self)
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        onSafeAreaChange?()
+    }
+
+    func reserveBottom(_ inset: CGFloat) {
+        guard abs(requestedBottomInset - inset) > 0.5 else { return }
+        requestedBottomInset = inset
+        // UIKit may be laying out during a SwiftUI update. Publish after
+        // that pass, and discard obsolete measurements from a transition.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.requestedBottomInset == inset else { return }
+            self.paneInsets.bottom = inset
+        }
+    }
 
     func update(_ node: NativeUINode, detail: Bool, environment: EnvironmentValues) {
         if source !== node {
@@ -127,8 +178,14 @@ private final class AdaptivePageController: UIHostingController<AdaptiveNodeRoot
         }
         // A resize never copies text from PHP or replaces a controller. The
         // unchanged node references also let equatable NodeView skip echoes.
-        rootView = AdaptiveNodeRoot(content: contentNode, bottom: bottomNode, inherited: environment)
+        hosting.rootView = AdaptiveNodeRoot(content: contentNode, bottom: bottomNode, inherited: environment, paneInsets: paneInsets)
     }
+}
+
+private final class AdaptiveWordmarkView: UIImageView {
+    override var intrinsicContentSize: CGSize { CGSize(width: 120, height: 32) }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize { intrinsicContentSize }
 }
 
 private final class AdaptiveWorkspaceController: UIViewController, UINavigationControllerDelegate {
@@ -190,6 +247,12 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         super.viewDidLayoutSubviews()
         reconcile()
         layoutColumns()
+        updateBottomBarClearance()
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        view.setNeedsLayout()
     }
 
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
@@ -202,7 +265,34 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
                 guard let self, self.viewIfLoaded?.window != nil, let tabs = self.tabBarController else { return }
                 tabs.view.setNeedsLayout()
                 tabs.view.layoutIfNeeded()
+                self.view.setNeedsLayout()
             }
+        }
+    }
+
+    private func updateBottomBarClearance() {
+        var bottomBar: UIView?
+        if let bar = tabBarController?.tabBar, !bar.isHidden, bar.alpha > 0,
+           bar.window === view.window {
+            let overlap = view.bounds.intersection(bar.convert(bar.bounds, to: view))
+            // Only the horizontal bottom bar obstructs the reply field. A
+            // side rail is already excluded by the outer SwiftUI tab host.
+            // Reject the full-window tab-bar frame seen during Duo resizing.
+            if !overlap.isNull, overlap.width > overlap.height,
+               overlap.height < view.bounds.height / 2 {
+                bottomBar = bar
+            }
+        }
+        for navigation in [primary, secondary] {
+            guard let page = navigation.topViewController as? AdaptivePageController,
+                  page.isViewLoaded, page.view.window === view.window else { continue }
+            let required = bottomBar.map { bar in
+                max(0, page.view.bounds.maxY - bar.convert(bar.bounds, to: page.view).minY)
+            } ?? 0
+            // SwiftUI subtracts its own live safe area from this reservation.
+            // Updating UIKit's additional insets is insufficient after a page
+            // moves: its hosting view can keep the previous parent's insets.
+            page.reserveBottom(required)
         }
     }
 
@@ -265,10 +355,11 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
             if let page = pages[node.id] {
                 page.update(node, detail: detail, environment: inherited)
             } else {
-                pages[node.id] = AdaptivePageController(node: node, detail: detail, environment: inherited)
+                let page = AdaptivePageController(node: node, detail: detail, environment: inherited)
+                page.onSafeAreaChange = { [weak self] in self?.view.setNeedsLayout() }
+                pages[node.id] = page
             }
         }
-        configureBars(feed: feed, details: details, environment: inherited, wide: wantsWide)
         guard let feedPage = pages[feed.id] else { return }
         let detailPages: [UIViewController] = activeDetails.compactMap { pages[$0.id] }
         let primaryStack: [UIViewController] = wantsWide ? [feedPage] : [feedPage] + detailPages
@@ -296,6 +387,14 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         if !sameControllers(secondary.viewControllers, secondaryStack) {
             secondary.setViewControllers(secondaryStack, animated: false)
         }
+        if migrating {
+            // Removing an item from its old bar can detach the title view
+            // after it has been assigned to the destination. Rebuild only
+            // the chrome, once both retained stacks have their new parents.
+            logoName = nil
+            for page in pages.values { page.navigationItem.titleView = nil }
+        }
+        configureBars(feed: feed, details: details, environment: inherited, wide: wantsWide)
         primary.view.layoutIfNeeded()
         secondary.view.layoutIfNeeded()
         applying = false
@@ -352,7 +451,7 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
 
     private func configureBars(feed: NativeUINode, details: [NativeUINode], environment: EnvironmentValues, wide: Bool) {
         let tokens = environment.nativeUITheme
-        view.backgroundColor = UIColor(tokens.background)
+        view.backgroundColor = UIColor(tokens.surface)
         divider.backgroundColor = UIColor(tokens.outlineVariant)
         emptySelection.textColor = UIColor(tokens.onSurfaceVariant)
         let font = NativeChromeFontResolver.postScriptName(for: "default")
@@ -363,15 +462,24 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         }
         guard let feedPage = pages[feed.id] else { return }
         feedPage.title = "Feed"
+        if #available(iOS 27.2, *) {
+            feedPage.navigationItem.titleAlignment = .leading
+        }
         let name = environment.colorScheme == .dark ? "logo-dark@3x.png" : "logo-light@3x.png"
         if name != logoName {
             logoName = name
             if let image = UIImage(contentsOfFile: AppUpdateManager.shared.getAppPath() + "/public/images/" + name) {
-                let imageView = UIImageView(image: image)
+                let imageView = AdaptiveWordmarkView(image: image)
                 imageView.contentMode = .scaleAspectFit
-                imageView.frame = CGRect(x: 0, y: 0, width: 120, height: 28)
+                imageView.translatesAutoresizingMaskIntoConstraints = false
+                NSLayoutConstraint.activate([
+                    imageView.widthAnchor.constraint(equalToConstant: imageView.intrinsicContentSize.width),
+                    imageView.heightAnchor.constraint(equalToConstant: imageView.intrinsicContentSize.height),
+                ])
                 imageView.isAccessibilityElement = true
                 imageView.accessibilityLabel = "devnull"
+                imageView.isUserInteractionEnabled = true
+                imageView.addGestureRecognizer(UILongPressGestureRecognizer(target: self, action: #selector(AdaptiveWorkspaceController.playGame(_:))))
                 logoView = imageView
             } else {
                 logoView = nil
@@ -428,6 +536,9 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
 
     @objc private func compose() { send("compose") }
     @objc private func search() { send("search") }
+    @objc private func playGame(_ gesture: UILongPressGestureRecognizer) {
+        if gesture.state == .began { send("game") }
+    }
     @objc private func close() { send("close") }
     @objc private func deleteConversation() { send("delete") }
 

@@ -1,6 +1,12 @@
 {
     "namespace": "AdaptiveLayout",
     "platforms": ["ios"],
+    "android": {
+        "min_version": 26
+    },
+    "ios": {
+        "min_version": "18.2"
+    },
     "components": [
         {
             "type": "adaptive_feed",
