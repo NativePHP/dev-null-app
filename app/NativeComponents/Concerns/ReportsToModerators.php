@@ -85,11 +85,12 @@ trait ReportsToModerators
     }
 
     /**
-     * Done, or the sheet dragged away.
+     * Done, or the sheet dragged away. What it shows stays until the next
+     * report opens, so it doesn't empty while it slides away, and iOS's late
+     * dismiss after Done changes nothing.
      */
     public function closeReporting(): void
     {
-        $this->openReport('', '', '');
         $this->reportingOpen = false;
     }
 

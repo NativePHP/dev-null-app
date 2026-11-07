@@ -1639,16 +1639,18 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * React, Reply and Pin are for messages devnull has, not an org's events, while the thread takes messages.
-     */
-    /**
      * Someone else's message, sent, which devnull's moderators can be told about.
      */
     private function isReportable(Message $message): bool
     {
-        return ! $message->isEvent() && ! $message->isPending() && $message->id > 0 && $message->userId !== $this->me()?->id;
+        $me = $this->me();
+
+        return $me !== null && ! $message->isEvent() && ! $message->isPending() && $message->id > 0 && $message->userId !== $me->id;
     }
 
+    /**
+     * React, Reply and Pin are for messages devnull has, not an org's events, while the thread takes messages.
+     */
     private function takesActions(Message $message): bool
     {
         return ! $message->isEvent() && ! $message->isPending() && $this->thread?->access === Thread::Open;
