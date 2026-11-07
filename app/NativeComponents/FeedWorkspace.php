@@ -128,10 +128,14 @@ class FeedWorkspace extends NativeComponent
                 $depth = $change['depth'] ?? count($this->conversations) - 1;
                 if (is_int($depth) && $depth >= 0 && $depth < count($this->conversations)) {
                     $this->conversations = array_slice($this->conversations, 0, $depth);
+                    $this->foregroundPane()?->onResume();
                 }
                 break;
             case 'close':
-                $this->conversations = [];
+                if ($this->conversations !== []) {
+                    $this->conversations = [];
+                    $this->feed()?->onResume();
+                }
                 break;
             case 'compose':
                 $this->feed()?->composeInSheet();

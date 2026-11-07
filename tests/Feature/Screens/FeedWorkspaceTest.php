@@ -10,9 +10,11 @@ use App\NativeComponents\FeedWorkspace;
 use App\NativeComponents\Log;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Edge\NativeRouter;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Events\Camera\PermissionDenied;
 use Native\Mobile\Events\Camera\PhotoTaken;
+use Native\Mobile\System;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 use Victorycodedev\ToastKit\Events\ToastActionPressed;
@@ -38,6 +40,21 @@ function serveWorkspace(): void
         return Http::response(pageJson([]));
     });
 }
+
+it('selects the native Log route for the platform present at application boot', function (string $platform, string $component) {
+    try {
+        System::rememberPlatform($platform);
+        $this->refreshApplication();
+
+        expect(NativeRouter::resolve('/log')['class'])->toBe($component);
+    } finally {
+        System::rememberPlatform(null);
+        $this->refreshApplication();
+    }
+})->with([
+    'iOS retained workspace' => ['ios', FeedWorkspace::class],
+    'Android feed' => ['android', Log::class],
+]);
 
 it('keeps the feed live beside conversation history and ignores obsolete native back', function () {
     serveWorkspace();
@@ -67,6 +84,48 @@ it('opens the existing game from the retained feed logo when it is installed', f
     Native::test(FeedWorkspace::class, platform: 'ios')
         ->call('hostChanged', json_encode(['action' => 'game']))
         ->assertNavigatedTo(Game::Route);
+});
+
+it('refreshes the retained destination after native back without losing its draft', function () {
+    $body = 'Parent before opening another conversation';
+    serveApi(function (Request $request) use (&$body) {
+        $path = parse_url($request->url(), PHP_URL_PATH);
+
+        return Http::response(match ($path) {
+            '/api/v1/commits/c2' => commitPageJson(commitJson(['id' => 'c2', 'body' => $body])),
+            '/api/v1/commits/c3' => commitPageJson(commitJson(['id' => 'c3', 'body' => 'Deeper conversation'])),
+            default => pageJson([]),
+        });
+    });
+    $screen = Native::test(FeedWorkspace::class, platform: 'ios')->call('openConversation', 'c2');
+    $parent = $screen->instance()->foregroundPane();
+    $screen->input('reply-input', 'Keep this parent draft')->call('openConversation', 'c3');
+    $body = 'Parent refreshed after returning';
+
+    $screen->call('hostChanged', json_encode(['action' => 'back', 'depth' => 1, 'expected_depth' => 2, 'expected_revision' => 2, 'expected_history' => ['conversation-1', 'conversation-2']]))
+        ->assertSee('Parent refreshed after returning')->assertSee('Keep this parent draft');
+
+    expect($screen->instance()->foregroundPane())->toBe($parent);
+});
+
+it('refreshes the live feed when closing its selected conversation', function () {
+    $body = 'Feed before opening a conversation';
+    serveApi(function (Request $request) use (&$body) {
+        $path = parse_url($request->url(), PHP_URL_PATH);
+
+        return Http::response(match ($path) {
+            '/api/v1/log/following' => pageJson([commitJson(['id' => 'c2', 'body' => $body])]),
+            '/api/v1/commits/c2' => commitPageJson(commitJson(['id' => 'c2', 'body' => 'Selected conversation'])),
+            default => pageJson([]),
+        });
+    });
+    $screen = Native::test(FeedWorkspace::class, platform: 'ios')->tap('commit-c2');
+    $body = 'Feed refreshed after closing';
+
+    $screen->call('hostChanged', json_encode(['action' => 'close', 'expected_depth' => 1, 'expected_revision' => 1, 'expected_history' => ['conversation-1']]))
+        ->assertSee('Feed refreshed after closing');
+
+    expect($screen->get('conversations'))->toBe([]);
 });
 
 it('ignores the retained logo shortcut when the game is disabled', function () {
