@@ -253,6 +253,12 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         inherited = environment
         revision &+= 1
         guard isViewLoaded else { return }
+        // Deliver state even during transitions: a sheet's dismissed false
+        // must reach its retained root before the next request to show it.
+        // Only navigation-stack mutations wait for reconciliation below.
+        for child in node.children {
+            pages[child.id]?.update(child, detail: child.type == "adaptive_detail", environment: environment)
+        }
         reconcile()
     }
 
@@ -365,9 +371,7 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         let focused = migrating ? view.adaptiveFirstResponder() : nil
 
         for (node, detail) in [(feed, false)] + details.map({ ($0, true) }) {
-            if let page = pages[node.id] {
-                page.update(node, detail: detail, environment: inherited)
-            } else {
+            if pages[node.id] == nil {
                 let page = AdaptivePageController(node: node, detail: detail, environment: inherited)
                 page.onSafeAreaChange = { [weak self] in self?.view.setNeedsLayout() }
                 pages[node.id] = page
