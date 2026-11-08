@@ -376,8 +376,10 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
     /// Flat, they meet on it. Partly folded, its division region is active
     /// and they stop at its margins, keeping controls out of the crease.
     /// A display without a fold across the split gets an even split.
+    /// PagerSplit in the patched nativephp/mobile-ui NativeUIPagerRenderer.swift
+    /// applies the same rule; keep the two alike.
     private func foldGap(in bounds: CGRect) -> CGRect {
-        let middle = CGRect(x: bounds.midX, y: bounds.minY, width: 0, height: bounds.height)
+        let middle = CGRect(x: bounds.minX + (bounds.width / 2).rounded(), y: bounds.minY, width: 0, height: bounds.height)
         guard #available(iOS 27.1, *) else { return middle }
         let divisions = view.reservedRegions(kind: .division, options: .includeInactive)
             .filter { $0.frame.height > $0.frame.width && $0.frame.minX > bounds.minX && $0.frame.maxX < bounds.maxX }

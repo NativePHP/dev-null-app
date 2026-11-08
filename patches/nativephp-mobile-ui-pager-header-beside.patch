@@ -231,7 +231,7 @@
      }
  
      /// A tap on a tab: scroll there, and the page is reported when the
-@@ -880,7 +921,38 @@
+@@ -880,7 +921,39 @@
  }
  
  // MARK: - Header
@@ -240,7 +240,8 @@
 +/// for an even split around the hinge. Flat, the columns meet on it. Partly
 +/// folded, its division region is active and they stop at its margins,
 +/// keeping controls out of the crease. Without a fold across the pager the
-+/// columns share the width evenly.
++/// columns share the width evenly. foldGap(in:) in devnull/adaptive-layout's
++/// AdaptiveFeedRenderer.swift applies the same rule; keep the two alike.
 +private struct PagerSplit: Equatable {
 +    var leading: CGFloat
 +    var gap: CGFloat
@@ -270,7 +271,7 @@
  /// A colour as PHP sent it, light and dark, nil where it sent none.
  struct PagerColor: Equatable {
      let light: Int?
-@@ -911,15 +983,19 @@
+@@ -911,15 +984,19 @@
  final class NativeUIPagerHeader {
      let page: Int
      var node: NativeUINode
@@ -291,7 +292,7 @@
          self.tabs = tabs
          self.background = background
          self.progress = progress
-@@ -994,15 +1070,16 @@
+@@ -994,15 +1071,16 @@
          weak var view: UIScrollView?
      }
  
@@ -310,7 +311,7 @@
          if header.tabs != tabs { header.tabs = tabs }
          if header.background != background { header.background = background }
          header.select = select
-@@ -1032,9 +1109,25 @@
+@@ -1032,9 +1110,25 @@
          scrollViews[page] = WeakScrollView(view: scrollView)
          offsets[page] = scrollView.contentOffset.y + scrollView.adjustedContentInset.top
  
@@ -337,7 +338,7 @@
      }
  
      /// A page's list scrolled to `y`, its distance from its own top.
-@@ -1073,17 +1166,27 @@
+@@ -1073,17 +1167,27 @@
  }
  
  /// The header as a page's list draws it: its first row.
@@ -372,7 +373,7 @@
      }
  }
  
-@@ -1096,6 +1199,16 @@
+@@ -1096,6 +1200,16 @@
      @Environment(\.colorScheme) private var colorScheme
  
      var body: some View {
@@ -389,7 +390,7 @@
          header.strip
              .frame(maxWidth: .infinity)
              .background(header.background.resolve(colorScheme, fallback: themeStore.resolve(for: colorScheme).surface))
-@@ -1129,10 +1242,13 @@
+@@ -1129,10 +1243,13 @@
      func body(content: Content) -> some View {
          if let header {
              content
@@ -405,7 +406,7 @@
                  .onScrollGeometryChange(for: PagerListGeometry.self) { geometry in
                      PagerListGeometry(
                          y: geometry.contentOffset.y + geometry.contentInsets.top,
-@@ -1142,6 +1258,8 @@
+@@ -1142,6 +1259,8 @@
                          container: geometry.containerSize.height
                      )
                  } action: { _, geometry in
