@@ -10,27 +10,19 @@
         The pager or the list stays alone in here, so the banners above coming and going never add a node beside it.
         Keyed so nothing above it, like the image viewer opening, gives it a new id and the pager a new list at the top.
     --}}
-    <native:column native:key="profile-content" class="w-full flex-1 bg-theme-surface expanded:flex-row expanded:gap-12">
+    <native:column native:key="profile-content" class="w-full flex-1 bg-theme-surface">
     @if ($profile && ! $unavailable)
         @php($user = $profile->user)
-        {{--
-            Once the window is expanded (a foldable's inner display) the profile reflows into two columns: who they are,
-            their activity and their level in the leading one, scrolling by itself, and the tabs and their commits in
-            the trailing one. The header below, which the pager draws above its tabs on a phone, is hidden then, so
-            every control is on screen once in either layout.
-
-            The fold is in the middle of the display, but the window stops short of it by the vertical bar on the
-            trailing edge (84pt), which puts the middle of the window left of the fold. The columns are weighted 11:9 so
-            the gap between them, 48pt wide, is centred on the fold rather than on the window.
-        --}}
-        <native:scroll-view native:key="profile-identity" class="hidden expanded:flex expanded:h-full bg-theme-surface" :flexGrow="11" :flexBasis="0">
-            @include('native.partials.profile-header')
-        </native:scroll-view>
         {{--
             Commits and Replies as pages you swipe between, under the tabs the pager draws, as on the Log, with the
             underline in your colour. The header goes to the pager too, which draws it at the top of the page you're on,
             so it scrolls up with it until the tabs pin under the nav bar. It stays where it is while you swipe, and the
             pages keep level with it.
+
+            Once the window is expanded (a foldable's inner display) the pager on iOS draws the header beside the pages
+            instead: who they are, their activity and their level scroll by themselves in the leading column, and the tabs
+            and their commits fill the trailing one. The columns meet at the fold, or halve the width without one. Android
+            keeps it above the tabs. The header is sent once either way, so every control is on screen once.
 
             The pill hangs under the tabs wherever they are. Keyed so the banners above coming and going don't make it
             a new pager, with new lists.
@@ -40,9 +32,8 @@
             ref="profile-pager"
             horizontal
             report-on-settle
-            class="w-full flex-1 bg-theme-surface expanded:h-full"
-            :flexGrow="9"
-            :flexBasis="0"
+            header-beside="expanded"
+            class="w-full flex-1 bg-theme-surface"
             :count="count($pages)"
             :page="$pageIndex"
             on-page-change="showPage"
@@ -56,7 +47,7 @@
             a11y-label="Commits and replies"
         >
             <native:pager-header>
-                @include('native.partials.profile-header', ['inPager' => true])
+                @include('native.partials.profile-header')
             </native:pager-header>
 
             @foreach ($pages as $page)

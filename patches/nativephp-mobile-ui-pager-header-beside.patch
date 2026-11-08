@@ -1,0 +1,187 @@
+--- a/src/Elements/Pager.php
++++ b/src/Elements/Pager.php
+@@ -3,8 +3,10 @@
+ namespace Native\Mobile\UI\Elements;
+ 
+ use Illuminate\Support\Str;
++use InvalidArgumentException;
+ use Native\Mobile\Edge\CallbackRegistry;
+ use Native\Mobile\Edge\Element;
++use Native\Mobile\Edge\TailwindParser;
+ use Native\Mobile\UI\Concerns\ResolvesColorValues;
+ use Native\Mobile\UI\Theme;
+ 
+@@ -71,6 +73,8 @@
+  * that scrolls up with the page showing while the tabs pin under the nav
+  * bar: see {@see PagerHeader}. A {@see PagerOverlay} hangs under the tabs
+  * over the pages. Neither counts as a page, and neither is windowed.
++ * `header-beside="expanded"` moves the header beside the pages once the
++ * window is that wide (see headerBeside()).
+  *
+  * The page index rides the tab-change transport, so a single feed is
+  * capped at 32,767 pages per screen.
+@@ -126,6 +130,10 @@
+         if ($settle !== null) {
+             $this->reportOnSettle(filter_var($settle, FILTER_VALIDATE_BOOLEAN));
+         }
++        $beside = $attrs['header_beside'] ?? $attrs['headerBeside'] ?? $attrs['header-beside'] ?? null;
++        if ($beside !== null) {
++            $this->headerBeside($beside);
++        }
+         $cb = $attrs['on_page_change'] ?? $attrs['onPageChange'] ?? $attrs['on-page-change'] ?? null;
+         if ($cb !== null) {
+             $this->onPageChange($cb);
+@@ -196,7 +204,29 @@
+     public function reportOnSettle(bool $value = true): static
+     {
+         $this->pagerProps['report_on_settle'] = $value;
++
++        return $this;
++    }
++
++    /**
++     * From a breakpoint (`expanded`, `lg`, … as the responsive classes name
++     * them) or a width in points up, the header scrolls by itself in a
++     * leading column and the tabs and pages fill the trailing one, split at
++     * a foldable's fold or evenly elsewhere. Narrower, it is above the tabs
++     * as usual. Native decides against the live window width, as it does
++     * for the classes, so the header is sent once for either layout. iOS
++     * only so far: Android keeps the header above the tabs at any width.
++     */
++    public function headerBeside(string|int|float $from): static
++    {
++        $width = is_numeric($from) ? (float) $from : TailwindParser::breakpointMinWidth($from);
+ 
++        if ($width === null) {
++            throw new InvalidArgumentException("Unknown breakpoint [{$from}] for header-beside.");
++        }
++
++        $this->pagerProps['header_beside_from'] = $width;
++
+         return $this;
+     }
+ 
+--- a/src/Elements/PagerHeader.php
++++ b/src/Elements/PagerHeader.php
+@@ -26,6 +26,10 @@
+  * always finds the header at the height it left it. Once the header has
+  * gone, each page keeps its own place. A page too short to scroll the
+  * header away gets room at its end to do so.
++ *
++ * With `header-beside` on the pager, a wide enough window has the header in
++ * a column of its own beside the pages instead, and the pages' lists draw
++ * only their own rows (see {@see Pager::headerBeside()}).
+  */
+ class PagerHeader extends Element
+ {
+--- a/resources/ios/NativeUIPagerRenderer.swift
++++ b/resources/ios/NativeUIPagerRenderer.swift
+@@ -26,6 +26,10 @@
+ struct NativeUIPagerRenderer: View {
+     let node: NativeUINode
+ 
++    /// The window width responsive variants resolve against, so the header
++    /// moves beside the pages at the same width an `expanded:` class applies.
++    @Environment(\.windowWidth) private var windowWidth
++
+     var body: some View {
+         let p = node.props
+         let horizontal = p.getBool("horizontal")
+@@ -49,7 +53,13 @@
+             return map
+         }()
+ 
+-        PagerBody(
++        // Only a horizontal pager's pages scroll up and down under a header.
++        let header = horizontal ? node.children.first { $0.type == "pager_header" } : nil
++        let besideFrom = CGFloat(p.getFloat("header_beside_from"))
++        let beside = header != nil && besideFrom > 0 && windowWidth >= besideFrom
++
++        PagerHeaderBeside(header: beside ? header : nil) {
++          PagerBody(
+             nodeId: node.id,
+             count: pageCount,
+             loaded: count,
+@@ -60,12 +70,12 @@
+             pageByIndex: pageByIndex,
+             placeholders: p.getStringList("placeholders"),
+             tabs: PagerTabs(props: p),
+-            // Only a horizontal pager's pages scroll up and down under a header.
+-            header: horizontal ? node.children.first { $0.type == "pager_header" } : nil,
++            header: beside ? nil : header,
+             overlay: node.children.first { $0.type == "pager_overlay" },
+             background: PagerColor(light: node.style?.bgColor, dark: p.has("dark_bg_color") ? p.getColor("dark_bg_color", default: 0) : nil),
+             a11yLabel: p.getString("a11y_label")
+-        )
++          )
++        }
+     }
+ }
+ 
+@@ -880,6 +890,66 @@
+ }
+ 
+ // MARK: - Header
++
++/// A pager with its header beside the pages rather than above them, from
++/// `header_beside_from` points of window up: the header scrolls by itself
++/// in the leading column, and the tabs and pages fill the trailing one.
++/// Without a header this is just the pages, so the pager keeps its state
++/// when the window narrows and the header goes back above the tabs.
++private struct PagerHeaderBeside<Pages: View>: View {
++    let header: NativeUINode?
++    @ViewBuilder let pages: Pages
++
++    @State private var split = PagerSplit.even(0)
++
++    var body: some View {
++        HStack(spacing: 0) {
++            if let header {
++                ScrollView(.vertical) {
++                    PagerChildren(node: header)
++                        .frame(maxWidth: .infinity, alignment: .leading)
++                }
++                .frame(width: split.leading)
++                Color.clear
++                    .frame(width: split.gap)
++                    .accessibilityHidden(true)
++            }
++            pages
++        }
++        .onGeometryChange(for: PagerSplit.self) { PagerSplit(in: $0) } action: { split = $0 }
++    }
++}
++
++/// Where a pager splits into its header and its pages. On a foldable it is
++/// the fold, flat or not, which neither column draws in: Apple's guidance
++/// keeps controls out of it. Anywhere else, or when the fold isn't across
++/// the pager, the columns share the width evenly.
++private struct PagerSplit: Equatable {
++    var leading: CGFloat
++    var gap: CGFloat
++
++    static func even(_ width: CGFloat) -> PagerSplit {
++        PagerSplit(leading: (width / 2).rounded(), gap: 0)
++    }
++
++    init(leading: CGFloat, gap: CGFloat) {
++        self.leading = leading
++        self.gap = gap
++    }
++
++    init(in proxy: GeometryProxy) {
++        let width = proxy.size.width
++        self = .even(width)
++        #if compiler(>=6.4)
++        if #available(iOS 27.1, *) {
++            let folds = proxy.reservedRegions(kind: .division, options: .includeInactive)
++            if let fold = folds.first(where: { $0.frame.height > $0.frame.width && $0.frame.minX > 0 && $0.frame.maxX < width }) {
++                self = PagerSplit(leading: fold.frame.minX, gap: fold.frame.width)
++            }
++        }
++        #endif
++    }
++}
+ 
+ /// A colour as PHP sent it, light and dark, nil where it sent none.
+ struct PagerColor: Equatable {
