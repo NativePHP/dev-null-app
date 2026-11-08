@@ -265,11 +265,11 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         }
         if #available(iOS 27.1, *) {
             // Hinge updates say nothing about when the division region turns
-            // active, so re-read the gap and lay out only when it moves.
+            // active, and it can turn active just after one, so re-read the
+            // gap then and once more on the next run loop.
             view.addInteraction(UIHingeInteraction { [weak self] _, _ in
-                guard let self, self.wide == true,
-                      self.foldGap(in: self.view.bounds) != self.appliedFoldGap else { return }
-                self.view.setNeedsLayout()
+                self?.layOutIfFoldGapMoved()
+                DispatchQueue.main.async { [weak self] in self?.layOutIfFoldGapMoved() }
             })
         }
     }
@@ -370,6 +370,11 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         secondary.view.frame = CGRect(x: fold.maxX, y: bounds.minY, width: max(0, bounds.maxX - fold.maxX), height: bounds.height)
         let hairline = 1 / max(1, view.traitCollection.displayScale)
         divider.frame = CGRect(x: fold.midX - hairline / 2, y: bounds.minY, width: hairline, height: bounds.height)
+    }
+
+    private func layOutIfFoldGapMoved() {
+        guard wide == true, foldGap(in: view.bounds) != appliedFoldGap else { return }
+        view.setNeedsLayout()
     }
 
     /// Where the columns part: the fold, for an even split around the hinge.
