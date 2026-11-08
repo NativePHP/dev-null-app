@@ -1,11 +1,13 @@
 <?php
 
 use App\Devnull\Account;
+use App\Devnull\Display;
 use App\Devnull\Stash;
 use App\Models\PendingWrite;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Edge\Enums\AlignItems;
+use Native\Mobile\Edge\TailwindParser;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
 
@@ -775,7 +777,7 @@ it("keeps the reply bar's root full width and centres a readable column in it, f
 
     expect($bar['props'])->not->toHaveKey('_variants')
         ->and($bar['layout'])->toMatchArray(['width' => 'fill', 'align_items' => AlignItems::Center->value])
-        ->and($variant)->toMatchArray(['min' => 840, 'layout' => ['width' => 672]])
+        ->and($variant)->toMatchArray(['min' => TailwindParser::breakpointMinWidth('expanded'), 'layout' => TailwindParser::parse(Display::ReadableColumn)['variants']['expanded']])
         ->and(childRefs($screen, 'reply-bar'))->toBe([null, 'reply-content'])
         ->and(childRefs($screen, 'reply-content'))->toContain('reply-mention-slot', 'reply-row');
 })->with(['ios', 'android']);

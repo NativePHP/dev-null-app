@@ -17,6 +17,7 @@ use Native\Mobile\Edge\Enums\AlignItems;
 use Native\Mobile\Edge\Enums\JustifyContent;
 use Native\Mobile\Edge\NativeRouter;
 use Native\Mobile\Edge\NavigationIntent;
+use Native\Mobile\Edge\TailwindParser;
 use Native\Mobile\System;
 use Native\Mobile\Testing\FakeBridge;
 use Native\Mobile\Testing\Native;
@@ -142,7 +143,7 @@ it("centres the Log header's logo, two thirds of the screen wide, above the butt
     }
 });
 
-it("keeps the lockup inside its half, with the buttons' margin, once the window is wide enough to put them side by side", function (int $window) {
+it("keeps the lockup inside its half, with the buttons' margin, once the window is wide enough to put them side by side", function (float $window) {
     signInBridge(testSeed());
 
     $screen = Native::visit('/onboarding', platform: 'ios');
@@ -151,11 +152,11 @@ it("keeps the lockup inside its half, with the buttons' margin, once the window 
     $margin = $variant(nodeByRef($screen, 'logo-space'))['layout']['padding'][1];
     $half = ($window - $variant($screen->tree())['layout']['gap']) / 2;
 
-    expect($logo['min'])->toBe(840)
+    expect($logo['min'])->toEqual(TailwindParser::breakpointMinWidth('expanded'))
         ->and($margin)->toEqual(nodeByRef($screen, 'actions')['layout']['padding'][1])
         ->and(floatval($logo['layout']['width']) / 100 * $window)->toBeLessThanOrEqual($half - 2 * $margin);
 })->with([
-    'the narrowest expanded window' => 840,
+    'the narrowest expanded window' => fn (): float => TailwindParser::breakpointMinWidth('expanded'),
     'the inner display held sideways' => 951,
 ]);
 
