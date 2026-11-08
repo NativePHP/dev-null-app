@@ -59,6 +59,7 @@ it('selects the native Log route for the platform present at application boot', 
 it('keeps the feed live beside conversation history and ignores obsolete native back', function () {
     serveWorkspace();
     $screen = Native::test(FeedWorkspace::class, platform: 'ios')->assertSee('Browsable feed');
+    expect(treeShows(nodeByRef($screen, 'no-conversation'), 'no commit selected'))->toBeTrue();
 
     $screen->call('openConversation', 'c2', ['replies' => true], true)
         ->assertSee('Conversation c2')

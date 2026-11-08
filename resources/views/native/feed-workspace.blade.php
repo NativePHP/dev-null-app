@@ -3,10 +3,8 @@
         <native:log key="feed" :embedded="true" :selected-commit="$this->selectedCommit()" />
     </native:column>
     <native:adaptive-placeholder native:key="workspace-placeholder" class="w-full h-full">
-        <native:column ref="no-conversation" class="w-full h-full items-center justify-center px-8 gap-3 bg-theme-surface">
-            <native:icon :ios="\App\Icons\Lucide::GitCommitVertical->ios()" :android="\App\Icons\Lucide::GitCommitVertical->android()" :size="32" class="text-theme-ink-muted" />
-            <native:text font="semibold" class="text-[17px] text-center text-theme-ink">No commit selected</native:text>
-            <native:text class="text-[15px] text-center leading-relaxed text-theme-ink-muted max-w-[320]">Choose a commit in the log to read its conversation here.</native:text>
+        <native:column class="w-full h-full justify-center bg-theme-surface">
+            @include('native.partials.empty', ['ref' => 'no-conversation', 'command' => 'no commit selected', 'message' => 'Choose a commit in the log to read its conversation here.'])
         </native:column>
     </native:adaptive-placeholder>
     @foreach ($conversations as $conversation)
