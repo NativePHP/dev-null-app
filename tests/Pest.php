@@ -774,9 +774,7 @@ function sheetButtonEnabled(TestableComponent $screen, string $ref): bool
  */
 function sheetButtonCircle(TestableComponent $screen, string $ref): array
 {
-    $button = nodeByRef($screen, $ref);
-
-    return $button['type'] === 'pressable' ? $button['children'][0] : $button;
+    return nodeByRef($screen, $ref)['children'][0];
 }
 
 /**

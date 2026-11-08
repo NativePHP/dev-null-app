@@ -13,16 +13,20 @@
 @php($iconColour = $filled ? 'text-theme-on-'.$myColour : ($press === null ? 'text-theme-ink-muted' : 'text-theme-ink'))
 @if ($press !== null)
     <native:pressable ref="{{ $ref }}" @press="{{ $press }}" class="flex-shrink-0" a11y-label="{{ $label }}" :a11y-hint="$hint">
-        <native:stack ref="{{ $ref }}-circle" :width="44" :height="44" center class="{{ $circle }}">
+        <native:stack :width="44" :height="44" center class="{{ $circle }}">
             <native:icon :ios="$icon->ios()" :android="$icon->android()" :size="20" class="{{ $iconColour }}" />
         </native:stack>
     </native:pressable>
 @else
-    <native:stack ref="{{ $ref }}" :width="44" :height="44" center class="flex-shrink-0 {{ $circle }}" a11y-label="{{ $label }}">
-        @if ($loading)
-            <native:activity-indicator />
-        @else
-            <native:icon :ios="$icon->ios()" :android="$icon->android()" :size="20" class="{{ $iconColour }}" />
-        @endif
-    </native:stack>
+    {{-- The label sits on a container around the circle, as the pressable above does. --}}
+    @php($mutedLabel = $loading ? $label : $label.', unavailable')
+    <native:column ref="{{ $ref }}" class="flex-shrink-0" a11y-label="{{ $mutedLabel }}">
+        <native:stack :width="44" :height="44" center class="{{ $circle }}">
+            @if ($loading)
+                <native:activity-indicator />
+            @else
+                <native:icon :ios="$icon->ios()" :android="$icon->android()" :size="20" class="{{ $iconColour }}" />
+            @endif
+        </native:stack>
+    </native:column>
 @endif
