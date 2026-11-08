@@ -127,7 +127,7 @@
             the field on Android.
         --}}
         <native:bottom-bar>
-            <native:column ref="reply-bar" class="w-full android:bg-theme-surface">
+            <native:column ref="reply-bar" class="w-full android:bg-theme-surface {{ $embedded ? '' : \App\Devnull\Display::ReadableColumn }}">
                 <native:column class="w-full h-[1] android:bg-theme-hairline" />
                 {{--
                     The people to mention keep a slot above the field, empty and no height when there's no one, so the
