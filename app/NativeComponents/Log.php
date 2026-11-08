@@ -166,7 +166,7 @@ class Log extends NativeComponent
     public bool $embedded = false;
 
     /**
-     * The commit open beside the log in a split workspace, whose row shows as selected.
+     * The commit of the conversation open from the log, whose row shows as selected.
      */
     public ?string $selectedCommit = null;
 

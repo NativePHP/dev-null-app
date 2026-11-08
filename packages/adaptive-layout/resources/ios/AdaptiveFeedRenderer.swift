@@ -9,10 +9,10 @@ struct AdaptiveFeedRenderer: View {
     var body: some View {
         AdaptiveFeedHost(node: node)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // The workspace fills the window and its pages inset themselves, as
-            // in any UIKit container. UIKit only moves a navigation bar into the
-            // vertical bar when its controller reaches the bar's edge; inset
-            // here, the nested bars stay horizontal on the outer display.
+            // The workspace fills the window and its pages inset themselves.
+            // On the outer display, nested navigation bars were observed to
+            // move into the vertical bar only when their controller reaches
+            // its edge; inset here, they stayed horizontal.
             .ignoresSafeArea(.container, edges: .all)
             .background {
                 themeStore.resolve(for: colorScheme).surface
@@ -25,16 +25,6 @@ struct AdaptiveFeedRenderer: View {
 // The detail and placeholder tags are descriptors consumed by the feed host,
 // not a second router.
 struct AdaptiveDetailRenderer: View {
-    let node: NativeUINode
-
-    var body: some View {
-        ForEach(node.children) { child in
-            NodeView(node: child).equatable()
-        }
-    }
-}
-
-struct AdaptivePlaceholderRenderer: View {
     let node: NativeUINode
 
     var body: some View {
@@ -238,7 +228,7 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
     private let divider = UIView()
     private var pages: [Int: AdaptivePageController] = [:]
     private var placeholder: AdaptivePageController?
-    private var hingeStatus: Int?
+    private var appliedFoldGap: CGRect?
     private var latest: NativeUINode?
     private var inherited: EnvironmentValues?
     private var wide: Bool?
@@ -276,13 +266,11 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
             self.view.setNeedsLayout()
         }
         if #available(iOS 27.1, *) {
-            // The fold's division region turns active as the hinge leaves
-            // flat; angle updates in between do not move the columns.
-            view.addInteraction(UIHingeInteraction { [weak self] _, update in
-                guard let self else { return }
-                let status = update.hinge?.status.rawValue
-                guard status != self.hingeStatus else { return }
-                self.hingeStatus = status
+            // Hinge updates say nothing about when the division region turns
+            // active, so re-read the gap and lay out only when it moves.
+            view.addInteraction(UIHingeInteraction { [weak self] _, _ in
+                guard let self, self.wide == true,
+                      self.foldGap(in: self.view.bounds) != self.appliedFoldGap else { return }
                 self.view.setNeedsLayout()
             })
         }
@@ -361,11 +349,11 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
 
     private func updateHorizontalInsets() {
         let safe = view.safeAreaLayoutGuide.layoutFrame
+        let isRightToLeft = view.effectiveUserInterfaceLayoutDirection == .rightToLeft
         for navigation in [primary, secondary] where !navigation.view.isHidden {
             let column = navigation.view.frame
             let leading = max(0, min(column.width, safe.minX - column.minX))
             let trailing = max(0, min(column.width, column.maxX - safe.maxX))
-            let isRightToLeft = view.effectiveUserInterfaceLayoutDirection == .rightToLeft
             for case let page as AdaptivePageController in navigation.viewControllers {
                 page.reserveHorizontal(leading: isRightToLeft ? trailing : leading, trailing: isRightToLeft ? leading : trailing)
             }
@@ -379,6 +367,7 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
             return
         }
         let fold = foldGap(in: bounds)
+        appliedFoldGap = fold
         primary.view.frame = CGRect(x: bounds.minX, y: bounds.minY, width: max(0, fold.minX - bounds.minX), height: bounds.height)
         secondary.view.frame = CGRect(x: fold.maxX, y: bounds.minY, width: max(0, bounds.maxX - fold.maxX), height: bounds.height)
         let hairline = 1 / max(1, view.traitCollection.displayScale)

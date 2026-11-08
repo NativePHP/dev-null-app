@@ -153,7 +153,7 @@ class FeedWorkspace extends NativeComponent
     }
 
     /**
-     * The commit opened from the feed, which its row marks while it is open beside it.
+     * The commit of the conversation open from the log, which its row marks.
      */
     public function selectedCommit(): ?string
     {

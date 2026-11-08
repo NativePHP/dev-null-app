@@ -26,7 +26,7 @@
             "type": "adaptive_placeholder",
             "element": "Devnull\\AdaptiveLayout\\Elements\\AdaptivePlaceholder",
             "blade": "Devnull\\AdaptiveLayout\\Components\\AdaptivePlaceholder",
-            "ios_renderer": "AdaptivePlaceholderRenderer",
+            "ios_renderer": "AdaptiveDetailRenderer",
             "self_closing": false
         }
     ]
