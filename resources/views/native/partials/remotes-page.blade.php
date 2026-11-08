@@ -22,7 +22,7 @@
             @include('native.partials.empty', match ($page['tab']) {
                 'stashed' => ['command' => 'nothing stashed', 'message' => 'Stash a conversation from its menu. It pops back into Open when someone writes.'],
                 'fetched' => ['command' => 'no requests fetched', 'message' => 'First messages from people you don’t follow wait here until you merge or drop them.'],
-                default => ['command' => 'no conversations yet', 'message' => 'Start one with New remote, or from a profile with Remote.'],
+                default => ['command' => 'no conversations yet', 'message' => 'Start one with the pencil button, or from a profile with Remote.'],
             })
         @endif
 
