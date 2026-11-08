@@ -49,7 +49,7 @@
                             </native:pressable>
                         @endforeach
                     </native:row>
-                    <native:column class="w-full h-[1] bg-theme-hairline" />
+                    <native:column class="w-full h-[1] border-b border-theme-hairline" />
                 </native:column>
 
                 @if ($achievementsTab === 'badges')
@@ -112,7 +112,7 @@
                 @endif
 
                 <native:column class="w-full pt-2 gap-2">
-                    <native:column class="w-full h-[1] bg-theme-hairline" />
+                    <native:column class="w-full h-[1] border-b border-theme-hairline" />
                     <native:text font="mono" class="w-full text-center text-[11px] text-theme-ink-muted/80">XP: 10/commit · 15/day streak · 5/star received · 5/reply · 2/star given</native:text>
                 </native:column>
             </native:column>

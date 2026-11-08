@@ -9,11 +9,11 @@
             <native:text font="mono" class="text-xs text-theme-ink-muted">HEAD@{last visit}</native:text>
             <native:row class="flex-1 h-[1] gap-[3]">
                 @foreach (range(1, 24) as $dash)
-                    <native:column class="flex-1 h-[1] bg-theme-hairline" />
+                    <native:column class="flex-1 h-[1] border-b border-theme-hairline" />
                 @endforeach
             </native:row>
         </native:row>
-        <native:column class="w-full h-[1] bg-theme-hairline" />
+        <native:column class="w-full h-[1] border-b border-theme-hairline" />
     </native:column>
 
     @include('native.partials.rail', ['previous' => $lane])

@@ -30,7 +30,7 @@
                     <native:button ref="follow-{{ $author->username }}" :variant="$myColour" size="sm" @press="followSuggested('{{ $author->username }}')" a11y-label="Follow {{ $author->handle() }}">Follow</native:button>
                 </native:row>
                 @unless ($loop->last)
-                    <native:column class="w-full h-[1] bg-theme-hairline" />
+                    <native:column class="w-full h-[1] border-b border-theme-hairline" />
                 @endunless
             @endforeach
         </native:column>

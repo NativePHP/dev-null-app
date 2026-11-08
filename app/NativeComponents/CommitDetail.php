@@ -77,6 +77,11 @@ class CommitDetail extends NativeComponent
 
     public string $id = '';
 
+    public bool $embedded = false;
+
+    /** @var array<string, mixed> */
+    public array $conversationData = [];
+
     public ?Commit $commit = null;
 
     /** @var list<Commit> */
@@ -169,10 +174,28 @@ class CommitDetail extends NativeComponent
      */
     protected bool $forceFullFrames = true;
 
+    public function data(string $key, mixed $default = null): mixed
+    {
+        return $this->embedded ? ($this->conversationData[$key] ?? $default) : parent::data($key, $default);
+    }
+
+    /** @param array<string, mixed> $data */
+    public function applyConversationIntent(array $data): void
+    {
+        $this->conversationData = $data;
+        if (($data['reply'] ?? false) === true) {
+            $this->focusReply = true;
+        }
+        if (($data['replies'] ?? false) === true) {
+            $this->repliesShown = true;
+        }
+        $this->editFromData();
+    }
+
     public function mount(): void
     {
         $this->focusReply = $this->data('reply', false) === true;
-        $this->repliesShown = $this->data('replies', false) === true;
+        $this->repliesShown = $this->embedded || $this->data('replies', false) === true;
         $draft = app(Stash::class)->get($this->me()?->id, $this->replyStashName());
         $this->reply = $draft->body;
         $this->replyImages = $draft->images;
@@ -432,6 +455,11 @@ class CommitDetail extends NativeComponent
     protected function showCommitTurnedDown(PendingWrite $write): void
     {
         $this->keepStagedReplies();
+    }
+
+    protected function opensComposer(): bool
+    {
+        return $this->embedded;
     }
 
     /**

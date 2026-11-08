@@ -10,5 +10,5 @@
             </native:row>
         @endif
     </native:row>
-    <native:column class="w-full h-[1] bg-theme-hairline" />
+    <native:column class="w-full h-[1] border-b border-theme-hairline" />
 @endif

@@ -1,0 +1,24 @@
+--- a/src/Edge/NativeComponent.php
++++ b/src/Edge/NativeComponent.php
+@@ -2655,10 +2655,18 @@
+                 $callback = app($callback);
+             }
+ 
+-            // Bind the closure to this live component so finished()/failed() can
+-            // mutate state via $this. Static closures run without $this.
++            // A live child's callback must retain its original receiver. The
++            // dispatch-root check above still guards the screen session; exact
++            // tree membership also rejects detached or same-key replacements.
+             if ($callback instanceof \Closure && ! (new \ReflectionFunction($callback))->isStatic()) {
+-                $callback = \Closure::bind($callback, $this, static::class);
++                $owner = (new \ReflectionFunction($callback))->getClosureThis();
++                if ($owner instanceof self) {
++                    if (! in_array($owner, iterator_to_array($this->componentTree(), false), true)) {
++                        return;
++                    }
++                } else {
++                    $callback = \Closure::bind($callback, $this, static::class);
++                }
+             }
+ 
+             if ($failed) {

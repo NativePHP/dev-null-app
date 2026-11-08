@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\File;
 use Native\Mobile\AsyncTask;
 use Native\Mobile\Support\AsyncTaskTransport;
+use Native\Mobile\System;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -36,6 +37,7 @@ abstract class TestCase extends BaseTestCase
     protected function tearDown(): void
     {
         AsyncTask::clearFake();
+        System::rememberPlatform(null);
         File::deleteDirectory(AsyncTaskTransport::directory());
 
         parent::tearDown();

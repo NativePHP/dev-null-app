@@ -13,6 +13,7 @@ use Native\Mobile\Edge\Layouts\Builders\Tab;
 use Native\Mobile\Edge\Layouts\Builders\TabBar;
 use Native\Mobile\Edge\Layouts\NativeLayout;
 use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Facades\System;
 
 /**
  * The top-level sections: Log, Notifications, Remotes and your Profile, with
@@ -62,6 +63,10 @@ class TabsLayout extends NativeLayout
         $navBar = NavBar::make()
             ->title($screen->navTitle())
             ->displayMode('inline');
+
+        if (System::isIos()) {
+            $navBar->backgroundColor((string) theme('surface'));
+        }
 
         if ($screen instanceof Log) {
             $logo = Image::make(self::logo())->height(28)->alt('devnull')->ref('wordmark');

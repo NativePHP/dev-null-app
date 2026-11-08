@@ -1,0 +1,140 @@
+--- a/resources/ios/NativeUIListRenderer.swift
++++ b/resources/ios/NativeUIListRenderer.swift
+@@ -200,6 +200,7 @@
+             // Only this list draws the header, not one in its rows.
+             .environment(\.nativeUIPagerHeader, nil)
+             .modifier(ListAutoScrollModifier(request: autoScrollTo, targetID: autoScrollTarget, anchor: .top))
++            .modifier(NativeUIScrollEdgeExtension())
+         }
+     }
+ 
+--- a/resources/ios/NativeUIPagerRenderer.swift
++++ b/resources/ios/NativeUIPagerRenderer.swift
+@@ -182,6 +182,7 @@
+                     PagerChildren(node: besideHeader)
+                         .frame(maxWidth: .infinity, alignment: .leading)
+                 }
++                .modifier(NativeUIScrollEdgeExtension())
+                 .frame(width: split.leading)
+                 Color.clear
+                     .frame(width: split.gap)
+@@ -197,7 +198,12 @@
+                 pager
+                     .overlay(alignment: .top) { overlayView }
+                     .modifier(PagerA11yLabelModifier(label: a11yLabel))
+-                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
++                    .onGeometryChange(for: CGRect.self) { proxy in
++                        // A page also spans the bar insets at its sides (see `pager`).
++                        let sides = horizontal ? proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing : 0
++                        let frame = proxy.frame(in: .global)
++                        return CGRect(x: frame.minX, y: frame.minY, width: frame.width + sides, height: frame.height)
++                    } action: { frame in
+                         headerScroll.pageWidth = frame.width
+                         headerScroll.pagerMinY = frame.minY
+                     }
+@@ -238,17 +244,25 @@
+             // content as safe area, so a list in a page draws under the
+             // bar and still scrolls its last row clear of it. Paging is
+             // sideways, so the extra height can't make the pages drift.
+-            let bottomInset = horizontal ? geo.safeAreaInsets.bottom : 0
++            //
++            // It runs under a bar at its side (an iPhone Duo's vertical bar)
++            // the same way, so a page's list can put its scroll indicator at
++            // the screen's edge while its rows stay clear of the bar. Each
++            // page spans the insets, so `.paging` still steps by one page.
++            let insets = horizontal
++                ? EdgeInsets(top: 0, leading: geo.safeAreaInsets.leading, bottom: geo.safeAreaInsets.bottom, trailing: geo.safeAreaInsets.trailing)
++                : EdgeInsets()
+             ScrollView(axis) {
+-                pages(size: CGSize(width: geo.size.width, height: geo.size.height + bottomInset), bottomInset: bottomInset)
++                pages(size: CGSize(width: geo.size.width + insets.leading + insets.trailing, height: geo.size.height + insets.bottom), insets: insets)
+                     .scrollTargetLayout()
+             }
+-            .ignoresSafeArea(.container, edges: horizontal ? .bottom : [])
+-            // Beside a sideways bar (an iPhone Duo's rail) the ScrollView
+-            // also draws into the bar's inset, so the next page showed
+-            // under it. Clip the sides only: the pages still run under a
+-            // bar at the bottom.
++            // A ScrollView draws past its sides, so the next page showed
++            // beside the pager. Clip the sides only, at the edges the pages
++            // run to: inside the safe-area extension, which lays this out
++            // over the side insets. The pages still run under a bar at the
++            // bottom.
+             .clipShape(PagerSideClip(horizontal: horizontal))
++            .ignoresSafeArea(.container, edges: horizontal ? [.bottom, .horizontal] : [])
+             .scrollTargetBehavior(.paging)
+             .scrollPosition(id: $position)
+             // On a non-lazy stack SwiftUI ignores the initial value of
+@@ -610,15 +624,15 @@
+     /// stack expensive, so they only exist within `placeholderRadius` of
+     /// the current page; further slots are clear until scrolled towards.
+     @ViewBuilder
+-    private func pages(size: CGSize, bottomInset: CGFloat) -> some View {
++    private func pages(size: CGSize, insets: EdgeInsets) -> some View {
+         if horizontal {
+-            HStack(spacing: 0) { pageViews(size: size, bottomInset: bottomInset) }
++            HStack(spacing: 0) { pageViews(size: size, insets: insets) }
+         } else {
+-            VStack(spacing: 0) { pageViews(size: size, bottomInset: bottomInset) }
++            VStack(spacing: 0) { pageViews(size: size, insets: insets) }
+         }
+     }
+ 
+-    private func pageViews(size: CGSize, bottomInset: CGFloat) -> some View {
++    private func pageViews(size: CGSize, insets: EdgeInsets) -> some View {
+         ForEach(0..<count, id: \.self) { index in
+             Group {
+                 if let child = pageByIndex[index] {
+@@ -636,7 +650,7 @@
+                         .accessibilityHidden(true)
+                 }
+             }
+-            .safeAreaPadding(.bottom, bottomInset)
++            .safeAreaPadding(insets)
+             .frame(width: size.width, height: size.height)
+             .clipped()
+             .id(index)
+--- a/resources/ios/NativeUIScrollViewRenderer.swift
++++ b/resources/ios/NativeUIScrollViewRenderer.swift
+@@ -232,6 +232,7 @@
+             }
+             .scrollDismissesKeyboard(.interactively)
+             .modifier(ScrollViewBackgroundModifier(node: node))
++            .modifier(NativeUIScrollEdgeExtension())
+             // Whether the reader is at the bottom, from where the scroll view
+             // actually is. The anchor's onAppear / onDisappear can't tell on
+             // their own: a lazy stack keeps the anchor alive a little past the
+@@ -528,5 +529,23 @@
+         } else {
+             content
+         }
++    }
++}
++
++/// Lets a vertical scroll view run under the horizontal safe area beside it
++/// (an iPhone Duo's vertical bar) and hands that area back to its content as
++/// safe area. The indicator sits at the screen's edge, as in Apple's lists,
++/// while rows stay where they were and only their backgrounds reach under.
++struct NativeUIScrollEdgeExtension: ViewModifier {
++    @State private var insets = EdgeInsets()
++
++    func body(content: Content) -> some View {
++        content
++            .safeAreaPadding(.leading, insets.leading)
++            .safeAreaPadding(.trailing, insets.trailing)
++            .ignoresSafeArea(.container, edges: .horizontal)
++            .onGeometryChange(for: EdgeInsets.self) { proxy in
++                EdgeInsets(top: 0, leading: proxy.safeAreaInsets.leading, bottom: 0, trailing: proxy.safeAreaInsets.trailing)
++            } action: { insets = $0 }
+     }
+ }
+--- a/resources/ios/NativeUIVirtualListRenderer.swift
++++ b/resources/ios/NativeUIVirtualListRenderer.swift
+@@ -56,6 +56,7 @@
+         // Environment-propagating, so it reaches the List inside the body
+         // without threading another property through it.
+         .scrollIndicators(node.props.getBool("shows_indicators", default: true) ? .automatic : .hidden)
++        .modifier(NativeUIScrollEdgeExtension())
+     }
+ }
+ 

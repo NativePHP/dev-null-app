@@ -81,7 +81,7 @@
         --}}
         <native:bottom-bar>
             <native:column native:key="composer-bar" ref="composer-bar" class="w-full {{ $canPush ? 'android:bg-theme-surface' : 'bg-theme-surface' }}">
-                <native:column class="w-full h-[1] {{ $canPush ? 'android:bg-theme-hairline' : 'bg-theme-hairline' }}" />
+                <native:column class="w-full h-[1] {{ $canPush ? 'android:bg-theme-hairline' : 'border-b border-theme-hairline' }}" />
                 @if ($canPush)
                     {{--
                         The members to mention, what you're replying to and the photos on the draft each keep a slot,

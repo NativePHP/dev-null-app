@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Codingwithrk\NativephpSocialAuth\NativephpSocialAuthServiceProvider;
+use Devnull\AdaptiveLayout\AdaptiveLayoutServiceProvider;
 use Devnull\Calls\CallsServiceProvider;
 use Illuminate\Support\ServiceProvider;
 use Native\Mobile\Providers\BrowserServiceProvider;
@@ -52,6 +53,7 @@ class NativeServiceProvider extends ServiceProvider
     {
         return [
             NativeUIServiceProvider::class,
+            AdaptiveLayoutServiceProvider::class,
             BrowserServiceProvider::class,
             CameraServiceProvider::class,
             MicrophoneServiceProvider::class,

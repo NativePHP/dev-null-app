@@ -15,7 +15,7 @@
                 @include('native.partials.series-position')
             @endif
         </native:row>
-        <native:column class="w-full h-[1] bg-theme-hairline" />
+        <native:column class="w-full h-[1] border-b border-theme-hairline" />
     </native:column>
 
     @include('native.partials.rail', ['previous' => $previousLane, 'lane' => \App\Devnull\Lane::Rail, 'tail' => $withTail ? \App\Devnull\Lane::Rail : null, 'node' => 'tombstone'])

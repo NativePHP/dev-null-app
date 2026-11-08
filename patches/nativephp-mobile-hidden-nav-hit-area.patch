@@ -1,0 +1,27 @@
+--- a/resources/xcode/NativePHP/NativeRender/NativeRootTabsRenderer.swift
++++ b/resources/xcode/NativePHP/NativeRender/NativeRootTabsRenderer.swift
+@@ -968,9 +968,10 @@
+ /// opted out via PHP-side `$hidesNavBar` / `navigationOptions()->hidden()`,
+ /// folded onto the chrome sentinel as `hide_nav_bar`. The enclosing
+ /// `NavigationStack` survives — push / pop and per-URI caching keep
+-/// working; only the toolbar chrome disappears. Unlike the tab bar,
+-/// hiding the nav bar releases its space automatically, and the
+-/// status-bar safe area stays intact.
++/// working; only the toolbar chrome disappears. Hidden-bar screens own
++/// their top safe area. Extend the destination's layout and hit region
++/// together so a nested native navigation bar remains tappable after a
++/// resize, rather than only drawing above an inset parent.
+ ///
+ /// Note: SwiftUI disables the interactive edge-swipe-back gesture while
+ /// the bar is hidden — screens that hide it on a pushed level should
+@@ -985,7 +986,9 @@
+ 
+     func body(content: Content) -> some View {
+         if hidden {
+-            content.toolbar(.hidden, for: .navigationBar)
++            content
++                .toolbar(.hidden, for: .navigationBar)
++                .ignoresSafeArea(.container, edges: .top)
+         } else {
+             content
+         }

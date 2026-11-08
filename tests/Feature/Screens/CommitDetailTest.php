@@ -1,10 +1,13 @@
 <?php
 
 use App\Devnull\Account;
+use App\Devnull\Display;
 use App\Devnull\Stash;
 use App\Models\PendingWrite;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Edge\Enums\AlignItems;
+use Native\Mobile\Edge\TailwindParser;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
 
@@ -791,15 +794,29 @@ it('leaves the reply bar bare on iOS and floats the field on Liquid Glass', func
         ->and(nodeByRef($screen, 'reply-plate')['props']['glass'] ?? null)->toBe(1);
 });
 
+it("keeps the reply bar's root full width and centres a readable column in it, for Android's full-width bar box", function (string $platform) {
+    fakeThread();
+
+    $screen = Native::visit('/log/commits/c2', platform: $platform);
+    $bar = nodeByRef($screen, 'reply-bar');
+    $content = nodeByRef($screen, 'reply-content');
+    $variant = json_decode($content['props']['_variants'], true)[0];
+
+    expect($bar['props'])->not->toHaveKey('_variants')
+        ->and($bar['layout'])->toMatchArray(['width' => 'fill', 'align_items' => AlignItems::Center->value])
+        ->and($variant)->toMatchArray(['min' => TailwindParser::breakpointMinWidth('expanded'), 'layout' => TailwindParser::parse(Display::ReadableColumn)['variants']['expanded']])
+        ->and(childRefs($screen, 'reply-bar'))->toBe([null, 'reply-content'])
+        ->and(childRefs($screen, 'reply-content'))->toContain('reply-mention-slot', 'reply-row');
+})->with(['ios', 'android']);
+
 it('ends the page above the reply bar, and further as the draft grows', function () {
     fakeThread(replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'The last reply'])]);
 
     $screen = Native::visit('/log/commits/c2', platform: 'ios');
-    $scroller = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'scroll_view');
-    $page = $scroller['children'][0]['children'];
+    $page = childRefs($screen, 'thread-page');
 
     // The clearance is the last thing on the page, under the last reply: the bar's line and the home indicator.
-    expect(end($page)['ref'] ?? null)->toBe('reply-bar-clearance')
+    expect(end($page))->toBe('reply-bar-clearance')
         ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual(24 + 53 + 34);
 
     $screen->input('reply-input', "Three lines\nof a\ndraft");

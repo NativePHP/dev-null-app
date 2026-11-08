@@ -37,6 +37,7 @@ final class RowInputs
             'tombstoneReplies' => array_key_exists($commit->id, $scope['tombstoneReplies'] ?? []),
             'shown' => [self::changing($commit), $commit->quotedCommit === null ? null : self::changing($commit->quotedCommit)],
             'poll' => [$scope['pollChoices'][$commit->id] ?? null, in_array($commit->id, $scope['voting'] ?? [], true)],
+            'selected' => ($scope['selectedCommit'] ?? null) === $commit->id,
         ];
     }
 

@@ -62,6 +62,7 @@ return [
             'on-surface-variant' => '#5b616b',
 
             'outline' => '#d3d7dd',
+            'outline-variant' => '#e1e4e8',
 
             // Rm Red.
             'destructive' => '#c92a2a',
@@ -130,6 +131,7 @@ return [
             'on-surface-variant' => '#a1a1a6',
 
             'outline' => '#36363a',
+            'outline-variant' => '#2a2a2d',
 
             'destructive' => '#ff6b6b',
             'on-destructive' => '#111112',

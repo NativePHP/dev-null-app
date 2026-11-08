@@ -53,7 +53,7 @@
                 @include('native.partials.thread-more', ['commit' => $thread ?? $reply])
             @endif
             @if ($last && ! $muted)
-                <native:column ref="thread-end-{{ $reply->id }}" class="w-full h-[1] bg-theme-hairline" />
+                <native:column ref="thread-end-{{ $reply->id }}" class="w-full h-[1] border-b border-theme-hairline" />
             @endif
         </native:column>
         @include('native.partials.thread-links')
@@ -64,7 +64,7 @@
     </native:row>
 @else
     @php($commit = $reply)
-    <native:pressable native:key="thread-reply-{{ $reply->id }}" ref="thread-reply-{{ $reply->id }}" @press="openCommit('{{ $reply->id }}')" class="w-full bg-theme-surface">
+    <native:pressable native:key="thread-reply-{{ $reply->id }}" ref="thread-reply-{{ $reply->id }}" @press="openCommit('{{ $reply->id }}')" class="w-full {{ ($selectedCommit ?? null) === $reply->id ? 'bg-theme-wash' : 'bg-theme-surface' }}">
         <native:row class="w-full">
             <native:column :width="64" />
             <native:column class="flex-1">
@@ -92,7 +92,7 @@
                     @include('native.partials.thread-more', ['commit' => $thread ?? $reply])
                 @endif
                 @if ($last && ! $muted)
-                    <native:column ref="thread-end-{{ $reply->id }}" class="w-full h-[1] bg-theme-hairline" />
+                    <native:column ref="thread-end-{{ $reply->id }}" class="w-full h-[1] border-b border-theme-hairline" />
                 @endif
             </native:column>
             @include('native.partials.thread-links')
