@@ -19,6 +19,11 @@
             so it scrolls up with it until the tabs pin under the nav bar. It stays where it is while you swipe, and the
             pages keep level with it.
 
+            Once the window is expanded (a foldable's inner display) the pager on iOS draws the header beside the pages
+            instead: who they are, their activity and their level scroll by themselves in the leading column, and the tabs
+            and their commits fill the trailing one. The columns meet at the fold, or halve the width without one. Android
+            keeps it above the tabs. The header is sent once either way, so every control is on screen once.
+
             The pill hangs under the tabs wherever they are. Keyed so the banners above coming and going don't make it
             a new pager, with new lists.
         --}}
@@ -27,6 +32,7 @@
             ref="profile-pager"
             horizontal
             report-on-settle
+            header-beside="expanded"
             class="w-full flex-1 bg-theme-surface"
             :count="count($pages)"
             :page="$pageIndex"

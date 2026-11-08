@@ -127,7 +127,8 @@
                 "Hidden navigation bars release the top layout and hit region for native child hosts": "patches/nativephp-mobile-hidden-nav-hit-area.patch"
             },
             "nativephp/mobile-ui": {
-                "Pager: page by the ScrollView width and clip its sides, so a sideways bar (iPhone Duo rail) neither misplaces the tab underline nor shows the next page": "patches/nativephp-mobile-ui-pager-side-insets.patch"
+                "Pager: page by the ScrollView width and clip its sides, so a sideways bar (iPhone Duo rail) neither misplaces the tab underline nor shows the next page": "patches/nativephp-mobile-ui-pager-side-insets.patch",
+                "Pager: header-beside draws a horizontal pager's header in its own column beside the pages from a breakpoint up, split at the fold (iOS)": "patches/nativephp-mobile-ui-pager-header-beside.patch"
             }
         }
     },
