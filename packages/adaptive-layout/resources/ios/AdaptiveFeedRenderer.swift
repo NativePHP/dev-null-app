@@ -346,7 +346,9 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
     }
 
     private func updateHorizontalInsets() {
-        let safe = view.safeAreaLayoutGuide.layoutFrame
+        // The safe-area guide is solved lazily, and these columns are laid out
+        // by frame, so after a resize it can keep an intermediate size's frame.
+        let safe = view.bounds.inset(by: view.safeAreaInsets)
         let isRightToLeft = view.effectiveUserInterfaceLayoutDirection == .rightToLeft
         for navigation in [primary, secondary] where !navigation.view.isHidden {
             let column = navigation.view.frame
