@@ -128,7 +128,8 @@
             },
             "nativephp/mobile-ui": {
                 "Pager: page by the ScrollView width and clip its sides, so a sideways bar (iPhone Duo rail) neither misplaces the tab underline nor shows the next page": "patches/nativephp-mobile-ui-pager-side-insets.patch",
-                "Pager: header-beside draws a horizontal pager's header in its own column beside the pages from a breakpoint up, split at the fold (iOS)": "patches/nativephp-mobile-ui-pager-header-beside.patch"
+                "Pager: header-beside draws a horizontal pager's header in its own column beside the pages from a breakpoint up, split at the fold (iOS)": "patches/nativephp-mobile-ui-pager-header-beside.patch",
+                "Lists, scroll views and pagers run under a vertical bar beside them (iPhone Duo) with their indicator at the screen edge, handing the bar's inset back to their content as safe area (iOS)": "patches/nativephp-mobile-ui-scroll-edge-under-bars.patch"
             }
         }
     },

@@ -79,11 +79,12 @@ private struct AdaptiveNodeRoot: View {
             .environment(\.nativeSafeAreaTop, geometry.safeAreaInsets.top)
             .environment(\.nativeSafeAreaBottom, geometry.safeAreaInsets.bottom)
         }
-        .padding(.leading, paneInsets.horizontal.leading)
-        .padding(.trailing, paneInsets.horizontal.trailing)
+        .safeAreaPadding(.leading, paneInsets.horizontal.leading)
+        .safeAreaPadding(.trailing, paneInsets.horizontal.trailing)
         // A navigation controller hands its pages the window's horizontal
         // insets even in a column that stops short of the vertical bar. The
-        // workspace measures what each column actually overlaps instead.
+        // workspace measures what each column actually overlaps instead, as
+        // safe area, so lists and backgrounds can still reach under the bar.
         .ignoresSafeArea(.container, edges: .horizontal)
         // UIHostingController is a new SwiftUI root, so it does not inherit the
         // representable's theme, window breakpoints, locale, or custom keys.
