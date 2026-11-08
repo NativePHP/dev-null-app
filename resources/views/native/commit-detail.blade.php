@@ -129,7 +129,10 @@
         <native:bottom-bar>
             <native:column ref="reply-bar" class="w-full items-center android:bg-theme-surface">
                 <native:column class="w-full h-[1] android:bg-theme-hairline" />
-                {{-- The readable width goes on a child: Android seats the bar's root at the leading edge of a full-width box, so the root stays full width and centres this. --}}
+                {{--
+                    The readable width goes on a child: Android seats the bar's root at the leading edge of a
+                    full-width box, so the root stays full width and centres this.
+                --}}
                 <native:column ref="reply-content" class="w-full {{ $embedded ? '' : \App\Devnull\Display::ReadableColumn }}">
                     {{--
                         The people to mention keep a slot above the field, empty and no height when there's no one, so the
@@ -174,7 +177,7 @@
                             @endif
                         </native:row>
                     @endif
-    </native:column>
+                </native:column>
             </native:column>
         </native:bottom-bar>
     @endif
