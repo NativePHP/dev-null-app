@@ -399,7 +399,12 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
               primary.transitionCoordinator == nil, secondary.transitionCoordinator == nil,
               let latest, let inherited, view.bounds.width > 0, view.bounds.height > 0,
               let feed = latest.children.first(where: { $0.type != "adaptive_detail" && $0.type != "adaptive_placeholder" }) else { return }
-        let wantsWide = traitCollection.horizontalSizeClass == .regular
+        // Regular width alone would split the inner display in portrait into
+        // two skinny columns. Like Apple's arrangements, also weigh the aspect
+        // ratio: only a window wider than it is tall gets two columns. The
+        // window's shape, unlike the view's, survives keyboard resizing.
+        let window = view.window?.bounds ?? view.bounds
+        let wantsWide = traitCollection.horizontalSizeClass == .regular && window.width > window.height
         // Root-view assignment can schedule another UIKit layout. A bounds-only
         // layout in the same mode must not assign all hosting roots again.
         guard appliedRevision != revision || wide != wantsWide else { return }
