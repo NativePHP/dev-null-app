@@ -300,6 +300,7 @@ it("names the sheet's round buttons for VoiceOver, with nothing else announced i
     expect($cancel['type'])->toBe('pressable')
         ->and($cancel['props'])->toMatchArray(['a11y_label' => 'Cancel'])
         ->and($commit['props']['a11y_label'])->toBe('Commit, unavailable')
+        // On iOS every ref'd node becomes its own accessibility container (NodeIdentityModifier), so one ref is one announcement.
         ->and(findNodes($cancel, fn (array $node): bool => isset($node['ref'])))->toHaveCount(1)
         ->and(findNodes($commit, fn (array $node): bool => isset($node['ref'])))->toHaveCount(1);
 
