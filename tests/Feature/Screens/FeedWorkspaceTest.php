@@ -77,6 +77,22 @@ it('keeps the feed live beside conversation history and ignores obsolete native 
     $screen->assertSee('Browsable feed')->assertDontSee('Conversation c4');
 });
 
+it('marks the feed row whose conversation is open beside it', function () {
+    serveWorkspace();
+    $screen = Native::test(FeedWorkspace::class, platform: 'ios');
+    $background = fn (): string => strtolower(nodeByRef($screen, 'commit-c2')['style']['bg_color']);
+    $surface = $background();
+
+    $screen->tap('commit-c2');
+    expect($background())->toBe(strtolower((string) theme('wash')));
+
+    $screen->call('openConversation', 'c3');
+    expect($background())->toBe(strtolower((string) theme('wash')));
+
+    $screen->call('hostChanged', json_encode(['action' => 'back', 'depth' => 0, 'expected_depth' => 2, 'expected_revision' => 2, 'expected_history' => ['conversation-1', 'conversation-2']]));
+    expect($background())->toBe($surface)->not->toBe(strtolower((string) theme('wash')));
+});
+
 it('opens the existing game from the retained feed logo when it is installed', function () {
     skipWithoutSkia();
     serveWorkspace();
@@ -108,7 +124,7 @@ it('refreshes the retained destination after native back without losing its draf
     expect($screen->instance()->foregroundPane())->toBe($parent);
 });
 
-it('refreshes the live feed when closing its selected conversation', function () {
+it('refreshes the live feed when going back from its selected conversation', function () {
     $body = 'Feed before opening a conversation';
     serveApi(function (Request $request) use (&$body) {
         $path = parse_url($request->url(), PHP_URL_PATH);
@@ -120,10 +136,10 @@ it('refreshes the live feed when closing its selected conversation', function ()
         });
     });
     $screen = Native::test(FeedWorkspace::class, platform: 'ios')->tap('commit-c2');
-    $body = 'Feed refreshed after closing';
+    $body = 'Feed refreshed after going back';
 
-    $screen->call('hostChanged', json_encode(['action' => 'close', 'expected_depth' => 1, 'expected_revision' => 1, 'expected_history' => ['conversation-1']]))
-        ->assertSee('Feed refreshed after closing');
+    $screen->call('hostChanged', json_encode(['action' => 'back', 'depth' => 0, 'expected_depth' => 1, 'expected_revision' => 1, 'expected_history' => ['conversation-1']]))
+        ->assertSee('Feed refreshed after going back');
 
     expect($screen->get('conversations'))->toBe([]);
 });
@@ -210,7 +226,7 @@ it('drops a detached conversation completion rather than caching or displaying i
     expect(kept('commits/c3')['data']['body'])->toBe('Conversation c3');
 });
 
-it('accepts consecutive ancestor back events but rejects a stale close and divergent back', function () {
+it('accepts consecutive ancestor back events but rejects a stale delete and divergent back', function () {
     serveWorkspace();
     $screen = Native::test(FeedWorkspace::class, platform: 'ios')
         ->call('openConversation', 'c2')
@@ -219,7 +235,8 @@ it('accepts consecutive ancestor back events but rejects a stale close and diver
     $event = ['expected_depth' => 3, 'expected_revision' => 3, 'expected_history' => ['conversation-1', 'conversation-2', 'conversation-3']];
     $screen->call('hostChanged', json_encode([...$event, 'action' => 'back', 'depth' => 2]))
         ->call('hostChanged', json_encode([...$event, 'action' => 'back', 'depth' => 1]))
-        ->call('hostChanged', json_encode([...$event, 'action' => 'close']));
+        ->call('hostChanged', json_encode([...$event, 'action' => 'delete']))
+        ->assertNativeNotCalled('Dialog.Alert');
     expect(array_column($screen->get('conversations'), 'id'))->toBe(['c2']);
 
     $screen->call('openConversation', 'c5', [], true)
@@ -330,7 +347,7 @@ it('invalidates old native commands when a rejected sheet reopens after dismissa
     expect($screen->get('navigationRevision'))->toBe(2);
     $detail = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'adaptive_detail');
     expect(findNode($detail, fn (array $node): bool => ($node['ref'] ?? null) === 'sheet')['props']['visible'])->toBeTrue();
-})->with(['back', 'close', 'delete']);
+})->with(['back', 'delete']);
 
 it('rejects old native commands after a newer same-conversation intent', function (string $action) {
     serveWorkspace();
@@ -350,7 +367,7 @@ it('rejects old native commands after a newer same-conversation intent', functio
         $screen->call('hostChanged', json_encode([...$event, 'expected_revision' => 3]))
             ->assertNativeCalled('Dialog.Alert', fn (array $params): bool => $params['title'] === 'Delete this commit?');
     }
-})->with(['back', 'close', 'delete']);
+})->with(['back', 'delete']);
 
 it('synchronizes successful deletion from either pane without replacing the feed', function (bool $fromDetail) {
     $deleted = false;

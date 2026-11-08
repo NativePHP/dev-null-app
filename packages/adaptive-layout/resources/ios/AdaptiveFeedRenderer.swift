@@ -9,13 +9,12 @@ struct AdaptiveFeedRenderer: View {
     var body: some View {
         AdaptiveFeedHost(node: node)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // UIKit owns vertical safe areas. Insetting this host at the top
-            // as well would reserve the header space twice in portrait.
-            // Retained pages still inset controls and scrolling content.
-            .ignoresSafeArea(.container, edges: .vertical)
+            // The workspace fills the window and its pages inset themselves, as
+            // in any UIKit container. UIKit only moves a navigation bar into the
+            // vertical bar when its controller reaches the bar's edge; inset
+            // here, the nested bars stay horizontal on the outer display.
+            .ignoresSafeArea(.container, edges: .all)
             .background {
-                // Backgrounds fill the rail region; readable rows and controls
-                // continue to use the tab host's asymmetric safe area.
                 themeStore.resolve(for: colorScheme).surface
                     .ignoresSafeArea(.container, edges: .all)
             }
@@ -23,8 +22,19 @@ struct AdaptiveFeedRenderer: View {
     }
 }
 
-// The detail tag is a descriptor consumed by the feed host, not a second router.
+// The detail and placeholder tags are descriptors consumed by the feed host,
+// not a second router.
 struct AdaptiveDetailRenderer: View {
+    let node: NativeUINode
+
+    var body: some View {
+        ForEach(node.children) { child in
+            NodeView(node: child).equatable()
+        }
+    }
+}
+
+struct AdaptivePlaceholderRenderer: View {
     let node: NativeUINode
 
     var body: some View {
@@ -50,6 +60,12 @@ private struct AdaptiveFeedHost: UIViewControllerRepresentable {
 
 private final class AdaptivePaneInsets: ObservableObject {
     @Published var bottom: CGFloat = 0
+    @Published var horizontal = HorizontalInsets()
+
+    struct HorizontalInsets: Equatable {
+        var leading: CGFloat = 0
+        var trailing: CGFloat = 0
+    }
 }
 
 /// A stable root type for every retained hosting controller. Only the direct
@@ -73,8 +89,11 @@ private struct AdaptiveNodeRoot: View {
             .environment(\.nativeSafeAreaTop, geometry.safeAreaInsets.top)
             .environment(\.nativeSafeAreaBottom, geometry.safeAreaInsets.bottom)
         }
-        // The outer tab host already removes the system rail. UIKit still
-        // propagates its window-side inset into each nested hosting root.
+        .padding(.leading, paneInsets.horizontal.leading)
+        .padding(.trailing, paneInsets.horizontal.trailing)
+        // A navigation controller hands its pages the window's horizontal
+        // insets even in a column that stops short of the vertical bar. The
+        // workspace measures what each column actually overlaps instead.
         .ignoresSafeArea(.container, edges: .horizontal)
         // UIHostingController is a new SwiftUI root, so it does not inherit the
         // representable's theme, window breakpoints, locale, or custom keys.
@@ -113,6 +132,7 @@ private final class AdaptivePageController: UIViewController {
     private let hosting: UIHostingController<AdaptiveNodeRoot>
     private let paneInsets: AdaptivePaneInsets
     private var requestedBottomInset: CGFloat = 0
+    private var requestedHorizontalInsets = AdaptivePaneInsets.HorizontalInsets()
     var onSafeAreaChange: (() -> Void)?
     private(set) var source: NativeUINode
     private var contentNode: NativeUINode
@@ -168,6 +188,16 @@ private final class AdaptivePageController: UIViewController {
         }
     }
 
+    func reserveHorizontal(leading: CGFloat, trailing: CGFloat) {
+        let insets = AdaptivePaneInsets.HorizontalInsets(leading: leading, trailing: trailing)
+        guard insets != requestedHorizontalInsets else { return }
+        requestedHorizontalInsets = insets
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.requestedHorizontalInsets == insets else { return }
+            self.paneInsets.horizontal = insets
+        }
+    }
+
     func update(_ node: NativeUINode, detail: Bool, environment: EnvironmentValues) {
         if source !== node {
             source = node
@@ -188,8 +218,9 @@ private final class AdaptiveWordmarkView: UIImageView {
     override func sizeThatFits(_ size: CGSize) -> CGSize { intrinsicContentSize }
 }
 
-/// The outer tab host already removes the rail from each pane. Limit the
-/// bar's horizontal safe area to what actually overlaps its parent container.
+/// A navigation controller gives its bar the window's horizontal insets even
+/// in a column that stops short of the vertical bar. Limit them to what the
+/// bar actually overlaps of its container's safe area.
 private final class AdaptiveNavigationBar: UINavigationBar {
     override var safeAreaInsets: UIEdgeInsets {
         var insets = super.safeAreaInsets
@@ -205,8 +236,9 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
     private let primary = UINavigationController(navigationBarClass: AdaptiveNavigationBar.self, toolbarClass: nil)
     private let secondary = UINavigationController(navigationBarClass: AdaptiveNavigationBar.self, toolbarClass: nil)
     private let divider = UIView()
-    private let emptySelection = UILabel()
     private var pages: [Int: AdaptivePageController] = [:]
+    private var placeholder: AdaptivePageController?
+    private var hingeStatus: Int?
     private var latest: NativeUINode?
     private var inherited: EnvironmentValues?
     private var wide: Bool?
@@ -238,14 +270,22 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
             navigation.didMove(toParent: self)
         }
         view.addSubview(divider)
-        emptySelection.text = "Select a commit to view its conversation"
-        emptySelection.textAlignment = .center
-        emptySelection.numberOfLines = 0
-        emptySelection.adjustsFontForContentSizeCategory = true
-        emptySelection.isHidden = true
-        view.addSubview(emptySelection)
         secondary.view.isHidden = true
         divider.isHidden = true
+        registerForTraitChanges([UITraitHorizontalSizeClass.self]) { (self: Self, _: UITraitCollection) in
+            self.view.setNeedsLayout()
+        }
+        if #available(iOS 27.1, *) {
+            // The fold's division region turns active as the hinge leaves
+            // flat; angle updates in between do not move the columns.
+            view.addInteraction(UIHingeInteraction { [weak self] _, update in
+                guard let self else { return }
+                let status = update.hinge?.status.rawValue
+                guard status != self.hingeStatus else { return }
+                self.hingeStatus = status
+                self.view.setNeedsLayout()
+            })
+        }
     }
 
     func receive(_ node: NativeUINode, environment: EnvironmentValues) {
@@ -259,6 +299,9 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         for child in node.children {
             pages[child.id]?.update(child, detail: child.type == "adaptive_detail", environment: environment)
         }
+        if let placeholderNode = node.children.first(where: { $0.type == "adaptive_placeholder" }) {
+            placeholder?.update(placeholderNode, detail: false, environment: environment)
+        }
         reconcile()
     }
 
@@ -267,6 +310,7 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         reconcile()
         layoutColumns()
         updateBottomBarClearance()
+        updateHorizontalInsets()
     }
 
     override func viewSafeAreaInsetsDidChange() {
@@ -294,8 +338,8 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         if let bar = tabBarController?.tabBar, !bar.isHidden, bar.alpha > 0,
            bar.window === view.window {
             let overlap = view.bounds.intersection(bar.convert(bar.bounds, to: view))
-            // Only the horizontal bottom bar obstructs the reply field. A
-            // side rail is already excluded by the outer SwiftUI tab host.
+            // Only the horizontal bottom bar obstructs the reply field. The
+            // vertical bar is a horizontal safe-area inset of each column.
             // Reject the full-window tab-bar frame seen during Duo resizing.
             if !overlap.isNull, overlap.width > overlap.height,
                overlap.height < view.bounds.height / 2 {
@@ -315,28 +359,53 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         }
     }
 
+    private func updateHorizontalInsets() {
+        let safe = view.safeAreaLayoutGuide.layoutFrame
+        for navigation in [primary, secondary] where !navigation.view.isHidden {
+            let column = navigation.view.frame
+            let leading = max(0, min(column.width, safe.minX - column.minX))
+            let trailing = max(0, min(column.width, column.maxX - safe.maxX))
+            let isRightToLeft = view.effectiveUserInterfaceLayoutDirection == .rightToLeft
+            for case let page as AdaptivePageController in navigation.viewControllers {
+                page.reserveHorizontal(leading: isRightToLeft ? trailing : leading, trailing: isRightToLeft ? leading : trailing)
+            }
+        }
+    }
+
     private func layoutColumns() {
         let bounds = view.bounds
-        if wide == true {
-            let feedWidth = min(420, bounds.width * 0.42)
-            primary.view.frame = CGRect(x: 0, y: 0, width: feedWidth, height: bounds.height)
-            secondary.view.frame = CGRect(x: feedWidth + 1, y: 0, width: max(0, bounds.width - feedWidth - 1), height: bounds.height)
-            divider.frame = CGRect(x: feedWidth, y: 0, width: 1, height: bounds.height)
-            emptySelection.frame = secondary.view.frame.insetBy(dx: 32, dy: 0)
-        } else {
+        guard wide == true else {
             primary.view.frame = bounds
+            return
         }
+        let fold = foldGap(in: bounds)
+        primary.view.frame = CGRect(x: bounds.minX, y: bounds.minY, width: max(0, fold.minX - bounds.minX), height: bounds.height)
+        secondary.view.frame = CGRect(x: fold.maxX, y: bounds.minY, width: max(0, bounds.maxX - fold.maxX), height: bounds.height)
+        let hairline = 1 / max(1, view.traitCollection.displayScale)
+        divider.frame = CGRect(x: fold.midX - hairline / 2, y: bounds.minY, width: hairline, height: bounds.height)
+    }
+
+    /// Where the columns part: the fold, for an even split around the hinge.
+    /// Flat, they meet on it. Partly folded, its division region is active
+    /// and they stop at its margins, keeping controls out of the crease.
+    /// A display without a fold across the split gets an even split.
+    private func foldGap(in bounds: CGRect) -> CGRect {
+        let middle = CGRect(x: bounds.midX, y: bounds.minY, width: 0, height: bounds.height)
+        guard #available(iOS 27.1, *) else { return middle }
+        let divisions = view.reservedRegions(kind: .division, options: .includeInactive)
+            .filter { $0.frame.height > $0.frame.width && $0.frame.minX > bounds.minX && $0.frame.maxX < bounds.maxX }
+        guard let division = divisions.min(by: { abs($0.frame.midX - bounds.midX) < abs($1.frame.midX - bounds.midX) }) else {
+            return middle
+        }
+        return division.isActive ? division.frame : CGRect(x: division.frame.midX, y: bounds.minY, width: 0, height: bounds.height)
     }
 
     private func reconcile() {
         guard !reconciling, !applying, !transitioning,
               primary.transitionCoordinator == nil, secondary.transitionCoordinator == nil,
               let latest, let inherited, view.bounds.width > 0, view.bounds.height > 0,
-              let feed = latest.children.first(where: { $0.type != "adaptive_detail" }) else { return }
-        // The window shape survives keyboard resizing and does not depend on
-        // an interface orientation that may lag a Duo display switch.
-        let viewport = view.window?.bounds ?? view.bounds
-        let wantsWide = view.bounds.width >= 820 && viewport.width > viewport.height
+              let feed = latest.children.first(where: { $0.type != "adaptive_detail" && $0.type != "adaptive_placeholder" }) else { return }
+        let wantsWide = traitCollection.horizontalSizeClass == .regular
         // Root-view assignment can schedule another UIKit layout. A bounds-only
         // layout in the same mode must not assign all hosting roots again.
         guard appliedRevision != revision || wide != wantsWide else { return }
@@ -377,10 +446,14 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
                 pages[node.id] = page
             }
         }
+        if let placeholderNode = latest.children.first(where: { $0.type == "adaptive_placeholder" }), placeholder == nil {
+            placeholder = AdaptivePageController(node: placeholderNode, detail: false, environment: inherited)
+        }
         guard let feedPage = pages[feed.id] else { return }
         let detailPages: [UIViewController] = activeDetails.compactMap { pages[$0.id] }
+        let emptyDetail: [UIViewController] = placeholder.map { [$0] } ?? []
         let primaryStack: [UIViewController] = wantsWide ? [feedPage] : [feedPage] + detailPages
-        let secondaryStack: [UIViewController] = wantsWide ? detailPages : []
+        let secondaryStack: [UIViewController] = wantsWide ? (detailPages.isEmpty ? emptyDetail : detailPages) : []
 
         applying = true
         if migrating {
@@ -394,7 +467,6 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         // hosting roots, rather than first mounting them at the old geometry.
         secondary.view.isHidden = !wantsWide
         divider.isHidden = !wantsWide
-        emptySelection.isHidden = !wantsWide || !detailPages.isEmpty
         layoutColumns()
         expectedPrimary = primaryStack
         expectedSecondary = secondaryStack
@@ -411,9 +483,10 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
             logoName = nil
             for page in pages.values { page.navigationItem.titleView = nil }
         }
-        configureBars(feed: feed, details: details, environment: inherited, wide: wantsWide)
+        configureBars(feed: feed, details: details, environment: inherited)
         primary.view.layoutIfNeeded()
         secondary.view.layoutIfNeeded()
+        updateHorizontalInsets()
         applying = false
         let validIDs = Set([feed.id] + currentHistory)
         pages = pages.filter { validIDs.contains($0.key) }
@@ -466,14 +539,10 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         DispatchQueue.main.async { [weak self] in self?.reconcile() }
     }
 
-    private func configureBars(feed: NativeUINode, details: [NativeUINode], environment: EnvironmentValues, wide: Bool) {
+    private func configureBars(feed: NativeUINode, details: [NativeUINode], environment: EnvironmentValues) {
         let tokens = environment.nativeUITheme
         view.backgroundColor = UIColor(tokens.surface)
         divider.backgroundColor = UIColor(tokens.outlineVariant)
-        emptySelection.textColor = UIColor(tokens.onSurfaceVariant)
-        let font = NativeChromeFontResolver.postScriptName(for: "default")
-            .flatMap { UIFont(name: $0, size: 15) } ?? UIFont.systemFont(ofSize: 15)
-        emptySelection.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(for: font)
         let appearance = UINavigationBarAppearance()
         appearance.configureWithOpaqueBackground()
         appearance.backgroundColor = UIColor(tokens.surface)
@@ -481,6 +550,13 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
             navigation.navigationBar.tintColor = UIColor(tokens.onSurface)
             navigation.navigationBar.standardAppearance = appearance
             navigation.navigationBar.scrollEdgeAppearance = appearance
+        }
+        if let placeholder {
+            // Nothing sits in the empty detail's bar, so it draws no edge.
+            let bare = appearance.copy()
+            bare.shadowColor = .clear
+            placeholder.navigationItem.standardAppearance = bare
+            placeholder.navigationItem.scrollEdgeAppearance = bare
         }
         guard let feedPage = pages[feed.id] else { return }
         feedPage.title = "Feed"
@@ -542,11 +618,6 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
                 (stack.arrangedSubviews.last as? UILabel)?.textColor = UIColor(tokens.onSurfaceVariant)
             }
             var actions: [UIBarButtonItem] = []
-            if wide {
-                let close = UIBarButtonItem(title: "Close", style: .plain, target: self, action: #selector(AdaptiveWorkspaceController.close))
-                close.accessibilityLabel = "Close conversation"
-                actions.append(close)
-            }
             if detail.props.getBool("can_delete") {
                 let delete = UIBarButtonItem(image: UIImage(systemName: "trash"), style: .plain, target: self, action: #selector(AdaptiveWorkspaceController.deleteConversation))
                 delete.accessibilityLabel = "Delete commit"
@@ -561,7 +632,6 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
     @objc private func playGame(_ gesture: UILongPressGestureRecognizer) {
         if gesture.state == .began { send("game") }
     }
-    @objc private func close() { send("close") }
     @objc private func deleteConversation() { send("delete") }
 
     private func send(_ action: String, depth: Int? = nil) {
@@ -570,7 +640,7 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         guard callback != 0 else { return }
         // These describe the last APPLIED PHP history, not `latest`: a newer
         // publish may already be queued during an interactive pop. PHP must
-        // compare both before accepting a delayed back/close notification.
+        // compare both before accepting a delayed back notification.
         var payload: [String: Any] = [
             "action": action,
             "expected_depth": logicalDepth,

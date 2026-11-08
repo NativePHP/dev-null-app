@@ -166,6 +166,11 @@ class Log extends NativeComponent
     public bool $embedded = false;
 
     /**
+     * The commit open beside the log in a split workspace, whose row shows as selected.
+     */
+    public ?string $selectedCommit = null;
+
+    /**
      * The list key of each log you're not on. The log you're on uses $listKey.
      *
      * @var array<string, int>

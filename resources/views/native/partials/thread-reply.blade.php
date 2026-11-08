@@ -64,7 +64,7 @@
     </native:row>
 @else
     @php($commit = $reply)
-    <native:pressable native:key="thread-reply-{{ $reply->id }}" ref="thread-reply-{{ $reply->id }}" @press="openCommit('{{ $reply->id }}')" class="w-full bg-theme-surface">
+    <native:pressable native:key="thread-reply-{{ $reply->id }}" ref="thread-reply-{{ $reply->id }}" @press="openCommit('{{ $reply->id }}')" class="w-full {{ ($selectedCommit ?? null) === $reply->id ? 'bg-theme-wash' : 'bg-theme-surface' }}">
         <native:row class="w-full">
             <native:column :width="64" />
             <native:column class="flex-1">

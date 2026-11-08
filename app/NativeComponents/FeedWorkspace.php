@@ -111,7 +111,7 @@ class FeedWorkspace extends NativeComponent
             return;
         }
 
-        if (in_array($change['action'] ?? null, ['back', 'close', 'delete'], true)) {
+        if (in_array($change['action'] ?? null, ['back', 'delete'], true)) {
             $identities = array_map(fn (array $conversation): string => 'conversation-'.$conversation['slot'], $this->conversations);
             $expected = $change['expected_history'] ?? null;
             $matches = $expected === $identities;
@@ -129,12 +129,6 @@ class FeedWorkspace extends NativeComponent
                 if (is_int($depth) && $depth >= 0 && $depth < count($this->conversations)) {
                     $this->conversations = array_slice($this->conversations, 0, $depth);
                     $this->foregroundPane()?->onResume();
-                }
-                break;
-            case 'close':
-                if ($this->conversations !== []) {
-                    $this->conversations = [];
-                    $this->feed()?->onResume();
                 }
                 break;
             case 'compose':
@@ -156,6 +150,14 @@ class FeedWorkspace extends NativeComponent
                 }
                 break;
         }
+    }
+
+    /**
+     * The commit opened from the feed, which its row marks while it is open beside it.
+     */
+    public function selectedCommit(): ?string
+    {
+        return $this->conversations[0]['id'] ?? null;
     }
 
     public function conversationCanDelete(int $slot): bool
