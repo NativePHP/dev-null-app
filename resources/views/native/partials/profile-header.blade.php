@@ -3,8 +3,13 @@
     lane, Follow (or, on your own, Edit on GitHub), who they are, what GitHub says about them, their counts and, in
     pastéis mode, the pastéis they've been given, then their activity, streaks and achievements.
     It scrolls up with the tab you're on until the tabs pin under the nav bar.
+
+    Once the window is expanded the pager's copy is hidden, as profile.blade.php draws this header again as the
+    leading column. A hairline stays in its place: the pager's page lists stop drawing when their header row has
+    no height at all.
 --}}
 <native:column class="w-full bg-theme-surface">
+<native:column class="w-full bg-theme-surface {{ ($inPager ?? false) ? 'expanded:hidden' : '' }}">
     <native:column ref="profile-header" class="w-full px-4 pt-6 pb-4 gap-4">
         <native:row class="w-full items-start justify-between">
             {{--
@@ -140,4 +145,8 @@
             @include('native.partials.achievements', ['achievements' => $profile->achievements, 'lane' => $user->lane()])
         @endif
     @endif
+</native:column>
+@if ($inPager ?? false)
+    <native:column class="hidden expanded:flex w-full h-[1] border-b border-theme-hairline" />
+@endif
 </native:column>
