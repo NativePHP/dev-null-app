@@ -723,6 +723,22 @@ it("opens a mentioned organization's page, and a mentioned user's profile, in th
     finishRefreshes(Native::visit('/remotes/conversations/ada'))->press("openProfile('grace')")->assertNavigatedTo('/remotes/users/grace');
 });
 
+it('links a hashtag in a message to a search for it in the tab', function () {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => 'loving #nativephp lately']),
+    ], ['read_through_id' => 1]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+
+    expect(paragraphRuns($screen, 'loving'))->toBe([
+        ['loving '],
+        ['#nativephp', 'hashtag'],
+        [' lately'],
+    ]);
+
+    $screen->press("openHashtag('#nativephp')")->assertNavigatedTo('/remotes/search');
+});
+
 it('opens no link preview that is not a web page', function () {
     serveRemoteThread(threadJson([
         remoteMessageJson(['id' => 1, 'body' => 'Tap me', 'link_preview' => ['url' => 'javascript:alert(1)', 'title' => 'Tap me']]),

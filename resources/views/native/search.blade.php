@@ -10,7 +10,7 @@
     @include('native.partials.live-stream-sheet')
 
     <native:column class="w-full px-4 py-3 bg-theme-surface {{ \App\Devnull\Display::ReadableColumn }}">
-        @include('native.partials.people-search', ['placeholder' => 'Search developers or commits', 'autofocus' => true, 'a11yLabel' => 'Search developers or commits'])
+        @include('native.partials.people-search', ['placeholder' => 'Search developers or commits', 'autofocus' => $autofocus, 'a11yLabel' => 'Search developers or commits'])
     </native:column>
     <native:column class="w-full h-[1] border-b border-theme-hairline {{ \App\Devnull\Display::ReadableColumn }}" />
 

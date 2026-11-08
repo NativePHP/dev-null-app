@@ -114,6 +114,26 @@ it('finds developers, then the commits nearest in meaning, closest first', funct
         ->and(searchedFor('commits'))->toBe(['@ada']);
 });
 
+it('searches commits for a tapped hashtag straight away, without taking focus', function () {
+    serveSearch(commits: [commitJson(['id' => 'c1', 'body' => 'Shipped it #ab with #laravel'])]);
+
+    $screen = Native::visit('/log/search', ['query' => '#ab'])
+        ->assertSet('query', '#ab')
+        ->assertSet('autofocus', false)
+        ->assertSee('1 match')
+        ->assertSee('Shipped it');
+
+    // The # counts towards the three characters devnull searches commits for, as on the web.
+    expect(searchedFor('commits'))->toBe(['#ab']);
+
+    // A hashtag in the results searches for it here.
+    $screen->press("openHashtag('#laravel')")
+        ->assertNoNavigation()
+        ->assertSet('query', '#laravel');
+
+    expect(searchedFor('commits'))->toBe(['#ab', '#laravel']);
+});
+
 it('only finds developers for a term too short to search commits by', function () {
     serveSearch();
 
