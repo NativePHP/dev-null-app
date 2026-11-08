@@ -127,51 +127,54 @@
             the field on Android.
         --}}
         <native:bottom-bar>
-            <native:column ref="reply-bar" class="w-full android:bg-theme-surface {{ $embedded ? '' : \App\Devnull\Display::ReadableColumn }}">
+            <native:column ref="reply-bar" class="w-full items-center android:bg-theme-surface">
                 <native:column class="w-full h-[1] android:bg-theme-hairline" />
-                {{--
-                    The people to mention keep a slot above the field, empty and no height when there's no one, so the
-                    field's row never moves. Android rebuilds a row that moves among its siblings, field and all, which
-                    drops the keyboard.
-                --}}
-                @php($mentioning = ($mention['field'] ?? null) === 'reply' && ($mentionPeople !== [] || $mentionOrganizations !== []))
-                <native:row native:key="reply-mention-slot" ref="reply-mention-slot" class="w-full {{ $mentioning ? 'pt-1 ios:px-4' : '' }}">
-                    @include('native.partials.mention-suggestions', ['field' => 'reply', 'label' => 'Mention a developer'])
-                </native:row>
-                <native:row ref="reply-row" class="w-full ios:pl-4 android:pl-2 pr-4 py-2 gap-2 items-center">
-                    @include('native.partials.composer-plate', [
-                        'ref' => 'reply',
-                        'field' => 'native.partials.reply-field',
-                        'tools' => [['ref' => 'reply-expand', 'icon' => \App\Icons\Lucide::Maximize2, 'label' => 'Reply with photos or a preview', 'press' => "replyInSheet('{$commit->id}')"]],
-                    ])
-                    @include('native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget'])
-                    <native:button ref="send-reply" :variant="$myColour" size="sm" :disabled="! \App\Devnull\Data\Draft::canCommit($reply, $replyImages)" @press="sendReply">Reply</native:button>
-                </native:row>
-                @if (\App\Devnull\Data\CommitBody::hasOversizedUrl($reply))
-                    <native:text ref="reply-link-error" class="w-full px-4 pb-2 text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
-                @endif
-                {{--
-                    A reply stashed when you left the commit comes back with the web's stash@{0} and drop under it.
-                    Photos attached in the sheet show as a count on the left, which opens the sheet on them, and Reply
-                    sends them.
-                --}}
-                @if ($replyRestored || $replyImages !== [])
-                    <native:row class="w-full px-4 -mt-2 items-center">
-                        @if ($replyImages !== [])
-                            @php($photoCount = \App\Devnull\Display::count(count($replyImages), 'photo', 'photos'))
-                            <native:pressable ref="reply-photos" @press="replyInSheet('{{ $commit->id }}')" a11y-label="{{ $photoCount }} attached" a11y-hint="Opens the reply with its photos">
-                                <native:row class="h-[36] gap-1 items-center">
-                                    <native:icon :ios="\App\Icons\Lucide::ImagePlus->ios()" :android="\App\Icons\Lucide::ImagePlus->android()" :size="14" class="text-theme-ink-muted" />
-                                    <native:text class="text-xs text-theme-ink-muted">{{ $photoCount }}</native:text>
-                                </native:row>
-                            </native:pressable>
-                            <native:spacer />
-                        @endif
-                        @if ($replyRestored)
-                            @include('native.partials.stash-label', ['ref' => 'reply-stash', 'drop' => 'dropReplyStash', 'size' => 'text-xs'])
-                        @endif
+                {{-- The readable width goes on a child: Android seats the bar's root at the leading edge of a full-width box, so the root stays full width and centres this. --}}
+                <native:column ref="reply-content" class="w-full {{ $embedded ? '' : \App\Devnull\Display::ReadableColumn }}">
+                    {{--
+                        The people to mention keep a slot above the field, empty and no height when there's no one, so the
+                        field's row never moves. Android rebuilds a row that moves among its siblings, field and all, which
+                        drops the keyboard.
+                    --}}
+                    @php($mentioning = ($mention['field'] ?? null) === 'reply' && ($mentionPeople !== [] || $mentionOrganizations !== []))
+                    <native:row native:key="reply-mention-slot" ref="reply-mention-slot" class="w-full {{ $mentioning ? 'pt-1 ios:px-4' : '' }}">
+                        @include('native.partials.mention-suggestions', ['field' => 'reply', 'label' => 'Mention a developer'])
                     </native:row>
-                @endif
+                    <native:row ref="reply-row" class="w-full ios:pl-4 android:pl-2 pr-4 py-2 gap-2 items-center">
+                        @include('native.partials.composer-plate', [
+                            'ref' => 'reply',
+                            'field' => 'native.partials.reply-field',
+                            'tools' => [['ref' => 'reply-expand', 'icon' => \App\Icons\Lucide::Maximize2, 'label' => 'Reply with photos or a preview', 'press' => "replyInSheet('{$commit->id}')"]],
+                        ])
+                        @include('native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget'])
+                        <native:button ref="send-reply" :variant="$myColour" size="sm" :disabled="! \App\Devnull\Data\Draft::canCommit($reply, $replyImages)" @press="sendReply">Reply</native:button>
+                    </native:row>
+                    @if (\App\Devnull\Data\CommitBody::hasOversizedUrl($reply))
+                        <native:text ref="reply-link-error" class="w-full px-4 pb-2 text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
+                    @endif
+                    {{--
+                        A reply stashed when you left the commit comes back with the web's stash@{0} and drop under it.
+                        Photos attached in the sheet show as a count on the left, which opens the sheet on them, and Reply
+                        sends them.
+                    --}}
+                    @if ($replyRestored || $replyImages !== [])
+                        <native:row class="w-full px-4 -mt-2 items-center">
+                            @if ($replyImages !== [])
+                                @php($photoCount = \App\Devnull\Display::count(count($replyImages), 'photo', 'photos'))
+                                <native:pressable ref="reply-photos" @press="replyInSheet('{{ $commit->id }}')" a11y-label="{{ $photoCount }} attached" a11y-hint="Opens the reply with its photos">
+                                    <native:row class="h-[36] gap-1 items-center">
+                                        <native:icon :ios="\App\Icons\Lucide::ImagePlus->ios()" :android="\App\Icons\Lucide::ImagePlus->android()" :size="14" class="text-theme-ink-muted" />
+                                        <native:text class="text-xs text-theme-ink-muted">{{ $photoCount }}</native:text>
+                                    </native:row>
+                                </native:pressable>
+                                <native:spacer />
+                            @endif
+                            @if ($replyRestored)
+                                @include('native.partials.stash-label', ['ref' => 'reply-stash', 'drop' => 'dropReplyStash', 'size' => 'text-xs'])
+                            @endif
+                        </native:row>
+                    @endif
+    </native:column>
             </native:column>
         </native:bottom-bar>
     @endif
