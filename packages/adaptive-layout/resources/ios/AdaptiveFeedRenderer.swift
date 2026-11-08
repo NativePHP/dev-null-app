@@ -14,10 +14,7 @@ struct AdaptiveFeedRenderer: View {
             // move into the vertical bar only when their controller reaches
             // its edge; inset here, they stayed horizontal.
             .ignoresSafeArea(.container, edges: .all)
-            .background {
-                themeStore.resolve(for: colorScheme).surface
-                    .ignoresSafeArea(.container, edges: .all)
-            }
+            .background(themeStore.resolve(for: colorScheme).surface)
             .environment(\.nativeUITheme, themeStore.resolve(for: colorScheme))
     }
 }
