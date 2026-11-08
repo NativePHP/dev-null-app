@@ -3,11 +3,11 @@
     rows kept for one beside it, ready for a swipe. Each tab has its own list, and one you leave starts again at the top
     of a fresh one, as on Notifications. Only the tab you're on asks for its next page.
 --}}
-<native:column native:key="page-{{ $page['tab'] }}" class="w-full h-full bg-theme-surface items-center">
+<native:column native:key="page-{{ $page['tab'] }}" class="w-full h-full bg-theme-surface">
     <native:list
         native:key="remotes-{{ $page['tab'] }}-{{ $page['listKey'] }}"
         :ref="$page['showing'] ? 'remotes' : 'remotes-'.$page['tab']"
-        class="w-full flex-1 bg-theme-surface {{ \App\Devnull\Display::ReadableColumn }}"
+        class="w-full flex-1 bg-theme-surface"
         on-refresh="load"
         :on-end-reached="$page['showing'] ? 'loadMore' : null"
         :end-reached-buffer="5"
@@ -22,7 +22,7 @@
             @include('native.partials.empty', match ($page['tab']) {
                 'stashed' => ['command' => 'nothing stashed', 'message' => 'Stash a conversation from its menu. It pops back into Open when someone writes.'],
                 'fetched' => ['command' => 'no requests fetched', 'message' => 'First messages from people you don’t follow wait here until you merge or drop them.'],
-                default => ['command' => 'no conversations yet', 'message' => 'Start one with New remote, or from a profile with Remote.'],
+                default => ['command' => 'no conversations yet', 'message' => 'Start one with the pencil button, or from a profile with Remote.'],
             })
         @endif
 

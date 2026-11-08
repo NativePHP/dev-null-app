@@ -7,11 +7,11 @@
     laid out off screen still shows its rows, and every page keeps pull to refresh, since iOS builds a new list when a
     list gains or loses it.
 --}}
-<native:column native:key="page-{{ $page['type'] }}" class="w-full h-full bg-theme-surface items-center">
+<native:column native:key="page-{{ $page['type'] }}" class="w-full h-full bg-theme-surface">
     <native:list
         native:key="notifications-{{ $page['type'] }}-{{ $page['listKey'] }}"
         :ref="$page['showing'] ? 'notifications' : 'notifications-'.$page['type']"
-        class="w-full flex-1 bg-theme-surface {{ \App\Devnull\Display::ReadableColumn }}"
+        class="w-full flex-1 bg-theme-surface"
         on-refresh="load"
         :on-end-reached="$page['showing'] ? 'loadMore' : null"
         :end-reached-buffer="5"

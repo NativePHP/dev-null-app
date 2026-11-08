@@ -7,9 +7,15 @@
     window.
 --}}
 <native:column fill class="safe-area bg-theme-background expanded:flex-row expanded:items-center expanded:gap-16">
-    {{-- The lockup, two thirds of the screen wide at its own 15:4 (as wide as its half, once side by side), centred in its space. --}}
-    <native:column ref="logo-space" class="w-full flex-1 items-center justify-center">
-        <native:image ref="logo" :src="$logo" alt="devnull" class="w-2/3 aspect-[15/4]" />
+    {{--
+        The lockup, two thirds wide at its own 15:4, centred in its space. Side by side it has to fit its half
+        less the buttons' 24pt margin on each side. iOS resolves a percentage against the window, not the parent, and a
+        variant can't swap a width for `w-full`, so there it's 40% of the window: at most that room from 840pt up (336pt
+        of 340pt there, 380pt of 395pt on the inner display). Android resolves it against the parent, which is already
+        the half, so it keeps two thirds.
+    --}}
+    <native:column ref="logo-space" class="w-full flex-1 items-center justify-center expanded:px-6">
+        <native:image ref="logo" :src="$logo" alt="devnull" class="w-2/3 aspect-[15/4] ios:expanded:w-[40%]" />
     </native:column>
 
     <native:column ref="actions" class="w-full px-6 pb-4 gap-3 expanded:flex-1 expanded:pb-0">

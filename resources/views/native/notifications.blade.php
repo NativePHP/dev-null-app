@@ -1,4 +1,4 @@
-<native:column class="w-full h-full bg-theme-background">
+<native:column class="w-full h-full items-center bg-theme-surface">
     @include('native.partials.error')
     @include('native.partials.refresh-failed')
     @include('native.partials.push-prompt')
@@ -16,7 +16,7 @@
         ref="notifications-pager"
         horizontal
         report-on-settle
-        class="w-full flex-1 bg-theme-surface"
+        class="w-full flex-1 bg-theme-surface {{ \App\Devnull\Display::ReadableColumn }}"
         :count="count($types)"
         :page="$pageIndex"
         :from="$pagesFrom"

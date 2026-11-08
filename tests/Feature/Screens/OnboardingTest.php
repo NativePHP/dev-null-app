@@ -142,6 +142,32 @@ it("centres the Log header's logo, two thirds of the screen wide, above the butt
     }
 });
 
+it("keeps the lockup inside its half, with the buttons' margin, once the window is wide enough to put them side by side", function (int $window) {
+    signInBridge(testSeed());
+
+    $screen = Native::visit('/onboarding', platform: 'ios');
+    $variant = fn (array $node): array => json_decode($node['props']['_variants'], true)[0];
+    $logo = $variant(nodeByRef($screen, 'logo'));
+    $margin = $variant(nodeByRef($screen, 'logo-space'))['layout']['padding'][1];
+    $half = ($window - $variant($screen->tree())['layout']['gap']) / 2;
+
+    expect($logo['min'])->toBe(840)
+        ->and($margin)->toEqual(nodeByRef($screen, 'actions')['layout']['padding'][1])
+        ->and(floatval($logo['layout']['width']) / 100 * $window)->toBeLessThanOrEqual($half - 2 * $margin);
+})->with([
+    'the narrowest expanded window' => 840,
+    'the inner display held sideways' => 951,
+]);
+
+it("leaves Android's lockup at two thirds of its half, since there a percentage is of the parent and not the window", function () {
+    signInBridge(testSeed());
+
+    $logo = nodeByRef(Native::visit('/onboarding', platform: 'android'), 'logo');
+
+    expect($logo['props'])->not->toHaveKey('_variants')
+        ->and($logo['layout']['width'])->toBe('67%');
+});
+
 it('keeps the same key across launches', function () {
     signInBridge(testSeed());
 

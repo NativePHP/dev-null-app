@@ -4,7 +4,7 @@
     in a full-width split, the underline in your lane follows your finger, and a tap on the tab you're on takes it back
     to its top. While you have Remotes off, the tab shows the web's page for /remotes then, its 404, word for word.
 --}}
-<native:column class="w-full h-full bg-theme-background">
+<native:column class="w-full h-full items-center bg-theme-surface">
     @if ($off)
         <native:column ref="remotes-off" class="w-full flex-1 px-6 py-16 gap-3 bg-theme-surface">
             <native:text font="mono" class="w-full text-[13px] text-theme-ink-muted">fatal: path '/remotes' does not exist in 'HEAD'</native:text>
@@ -22,7 +22,7 @@
             ref="remotes-pager"
             horizontal
             report-on-settle
-            class="w-full flex-1 bg-theme-surface"
+            class="w-full flex-1 bg-theme-surface {{ \App\Devnull\Display::ReadableColumn }}"
             :count="count($tabLabels)"
             :page="$pageIndex"
             :from="$pagesFrom"
