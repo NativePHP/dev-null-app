@@ -134,8 +134,8 @@ class Conversation extends NativeComponent
     public const array QuickReactions = ['😂', '✅', '❤️'];
 
     /**
-     * How far a message is pulled toward its edge before letting go replies to it. Reply comes in over that distance from
-     * the other side of the thread.
+     * How far a message is pulled toward its edge before letting go replies to it. Reply grows in beside the bubble over
+     * that distance.
      */
     public const int ReplyPull = 64;
 
