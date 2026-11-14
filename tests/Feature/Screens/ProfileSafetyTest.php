@@ -90,7 +90,7 @@ function safetySent(string $method, string $path): bool
     return collect(Http::recorded())->contains(fn (array $sent): bool => $sent[0]->method() === $method && $sent[0]->url() === 'http://devnull.test/api/v1/'.$path);
 }
 
-it("offers Mute and Block from a ⋯ in the nav bar of someone else's profile, as the web's menu does", function () {
+it("offers Mute, Block and Report from a ⋯ in the nav bar of someone else's profile, as the web's menu does", function () {
     fakeApi(['GET /api/v1/users/ada' => [safetyProfileJson()], 'GET /api/v1/users/ada/commits' => [pageJson([])]]);
 
     $screen = Native::visit('/log/users/ada', platform: 'ios');
@@ -100,6 +100,7 @@ it("offers Mute and Block from a ⋯ in the nav bar of someone else's profile, a
         ->and(safetyMenu($screen))->toBe([
             'mute' => ['id' => 'mute', 'icon' => 'custom:volume-x', 'label' => 'Mute @ada'],
             'block' => ['id' => 'block', 'icon' => 'custom:ban', 'label' => 'Block @ada', 'destructive' => true],
+            'report' => ['id' => 'report', 'icon' => 'custom:flag', 'label' => 'Report @ada', 'destructive' => true],
         ]);
 });
 
@@ -153,7 +154,7 @@ it("mutes once you confirm, in the web's words, and Cancel leaves it as it was",
     expect(safetySent('POST', 'users/ada/mute'))->toBeTrue()
         ->and($screen->instance()->profile->isMuting)->toBeTrue()
         ->and(kept('users/ada')['is_muting'])->toBeTrue()
-        ->and(array_keys(safetyMenu($screen)))->toBe(['unmute', 'block']);
+        ->and(array_keys(safetyMenu($screen)))->toBe(['unmute', 'block', 'report']);
 });
 
 it('unmutes once you confirm', function () {
@@ -171,7 +172,7 @@ it('unmutes once you confirm', function () {
         ->assertMissingElement('column', fn (array $node): bool => ($node['ref'] ?? null) === 'muted');
 
     expect(safetySent('DELETE', 'users/ada/mute'))->toBeTrue()
-        ->and(array_keys(safetyMenu($screen)))->toBe(['mute', 'block']);
+        ->and(array_keys(safetyMenu($screen)))->toBe(['mute', 'block', 'report']);
 });
 
 it('puts the mute back, and says why, when devnull says no', function () {
@@ -187,7 +188,7 @@ it('puts the mute back, and says why, when devnull says no', function () {
         ->assertMissingElement('column', fn (array $node): bool => ($node['ref'] ?? null) === 'muted');
 
     expect($screen->instance()->profile->isMuting)->toBeFalse()
-        ->and(array_keys(safetyMenu($screen)))->toBe(['mute', 'block']);
+        ->and(array_keys(safetyMenu($screen)))->toBe(['mute', 'block', 'report']);
 });
 
 it("blocks once you confirm with the web's Block dialog, and shows the blocked page", function () {
@@ -219,9 +220,10 @@ it("blocks once you confirm with the web's Block dialog, and shows the blocked p
     expect(safetySent('POST', 'users/ada/block'))->toBeTrue()
         ->and(kept('users/ada'))->toBeNull()
         ->and(kept('users/ada/commits'))->toBeNull()
-        // A blocked profile offers only Unblock, as the web's blocked page does.
+        // A blocked profile offers Unblock, as the web's blocked page does, and Report.
         ->and(safetyMenu($screen))->toBe([
             'unblock' => ['id' => 'unblock', 'icon' => 'custom:ban', 'label' => 'Unblock @ada'],
+            'report' => ['id' => 'report', 'icon' => 'custom:flag', 'label' => 'Report @ada', 'destructive' => true],
         ]);
 });
 
@@ -239,7 +241,7 @@ it("puts the profile back as it was when devnull won't block", function () {
         ->assertSee('Notes on the engine')
         ->assertDontSee('is blocked');
 
-    expect(array_keys(safetyMenu($screen)))->toBe(['mute', 'block']);
+    expect(array_keys(safetyMenu($screen)))->toBe(['mute', 'block', 'report']);
 });
 
 it('shows who you blocked as devnull sends them, with nothing kept', function () {
@@ -250,7 +252,7 @@ it('shows who you blocked as devnull sends them, with nothing kept', function ()
         ->assertSee("You blocked Ada Lovelace. Neither of you can follow, reply to, or star the other, or see each other's commits.")
         ->assertElement('image', fn (array $node): bool => ($node['props']['src'] ?? $node['props']['url'] ?? null) === safetyAdaJson()['avatar_url']);
 
-    expect(array_keys(safetyMenu($screen)))->toBe(['unblock']);
+    expect(array_keys(safetyMenu($screen)))->toBe(['unblock', 'report']);
 });
 
 it("unblocks from the menu once you confirm, in the web's words, and shows the profile again without the follows", function () {
@@ -285,7 +287,7 @@ it("unblocks from the menu once you confirm, in the web's words, and shows the p
         ->assertSee('Notes on the engine');
 
     expect(safetySent('DELETE', 'users/ada/block'))->toBeTrue()
-        ->and(array_keys(safetyMenu($screen)))->toBe(['mute', 'block']);
+        ->and(array_keys(safetyMenu($screen)))->toBe(['mute', 'block', 'report']);
 });
 
 it("unblocks straight away from the blocked page's own button, as the web's does, and stays blocked when devnull says no", function () {
@@ -353,4 +355,22 @@ it('takes the commits of someone you mute out of the log as soon as you come bac
     $profile->goBack()
         ->assertDontSee('Ada on Trending')
         ->assertSee('Someone else on Trending');
+});
+
+it("reports someone to devnull's moderators from their profile's menu, without blocking them", function () {
+    serveApi([
+        'GET /api/v1/users/ada' => [safetyProfileJson()],
+        'GET /api/v1/users/ada/commits' => [pageJson([])],
+        'POST /api/v1/users/ada/reports' => [null, 204],
+    ]);
+
+    Native::visit('/log/users/ada', platform: 'ios')
+        ->press('reportUser')
+        ->assertSee('Report @ada')
+        ->selectRadio('reporting-reason', 'spam')
+        ->tap('send-reporting')
+        ->assertSee('Report received. Moderators will review it privately.');
+
+    expect(safetySent('POST', 'users/ada/reports'))->toBeTrue()
+        ->and(safetySent('POST', 'users/ada/block'))->toBeFalse();
 });

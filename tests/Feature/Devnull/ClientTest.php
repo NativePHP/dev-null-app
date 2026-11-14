@@ -726,3 +726,21 @@ it('shows the server message for a code it leaves to devnull, and for one it doe
     'a code from a newer server' => ['something_new'],
     'no code' => [null],
 ]);
+
+it('reports a Remotes message and a person with signed POSTs of the reason, and the details when there are some', function (Closure $report, string $path, string $body) {
+    Http::fake(['devnull.test/*' => Http::response(null, 204)]);
+
+    $report(app(Client::class));
+
+    Http::assertSent(function (Request $request) use ($path, $body): bool {
+        expect($request->method())->toBe('POST')
+            ->and($request->url())->toBe('http://devnull.test/api/v1/'.$path)
+            ->and($request->body())->toBe($body)
+            ->and(receivedMessage($request))->toEndWith("\nPOST\n/api/v1/{$path}\n".$body);
+
+        return true;
+    });
+})->with([
+    'a message' => [fn (Client $devnull) => $devnull->reportMessage(42, ReportReason::Harassment, 'Threats.'), 'remotes/messages/42/reports', '{"reason":"harassment","details":"Threats."}'],
+    'a person' => [fn (Client $devnull) => $devnull->reportUser('ada', ReportReason::Spam), 'users/ada/reports', '{"reason":"spam"}'],
+]);

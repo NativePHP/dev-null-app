@@ -23,6 +23,7 @@ use App\NativeComponents\Concerns\OpensAchievements;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\ReportsToModerators;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Concerns\WatchesForCalls;
@@ -77,6 +78,7 @@ class Profile extends NativeComponent
     }
     use OpensLiveStream;
     use RefreshesInBackground;
+    use ReportsToModerators;
     use ShowsCommits;
     use TalksToDevnull;
     use WatchesForCalls;
@@ -228,9 +230,9 @@ class Profile extends NativeComponent
     }
 
     /**
-     * The web's safety menu: Mute or Unmute, then Block, in red. A profile you
-     * blocked offers only Unblock, as the web's blocked page does, and one that
-     * blocked you offers nothing. It waits for devnull to say whether you mute
+     * The web's safety menu: Mute or Unmute, then Block and Report, in red. A
+     * profile you blocked offers Unblock and Report, and one that blocked you
+     * offers nothing. It waits for devnull to say whether you mute
      * them.
      *
      * @return list<NavAction>
@@ -239,8 +241,10 @@ class Profile extends NativeComponent
     {
         $handle = '@'.$this->username;
 
+        $report = NavAction::make('report')->label("Report {$handle}")->icon(ios: Lucide::Flag->ios(), android: Lucide::Flag->android())->destructive()->press('reportUser');
+
         if ($this->isBlocking()) {
-            return [NavAction::make('unblock')->label("Unblock {$handle}")->icon(ios: Lucide::Ban->ios(), android: Lucide::Ban->android())->press('confirmBlock')];
+            return [NavAction::make('unblock')->label("Unblock {$handle}")->icon(ios: Lucide::Ban->ios(), android: Lucide::Ban->android())->press('confirmBlock'), $report];
         }
 
         if (! $this->canChangeSafety()) {
@@ -253,7 +257,19 @@ class Profile extends NativeComponent
         return [
             NavAction::make($muting ? 'unmute' : 'mute')->label(($muting ? 'Unmute ' : 'Mute ').$handle)->icon(ios: $muteIcon->ios(), android: $muteIcon->android())->press('confirmMute'),
             NavAction::make('block')->label("Block {$handle}")->icon(ios: Lucide::Ban->ios(), android: Lucide::Ban->android())->destructive()->press('confirmBlock'),
+            $report,
         ];
+    }
+
+    /**
+     * Report, from the safety menu: the report sheet, for someone you could
+     * mute or block, or have blocked.
+     */
+    public function reportUser(): void
+    {
+        if ($this->canChangeSafety() || $this->isBlocking()) {
+            $this->openUserReport($this->username);
+        }
     }
 
     /**
