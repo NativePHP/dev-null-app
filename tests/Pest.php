@@ -270,15 +270,6 @@ function tapProfileTab(TestableComponent $screen, string $tab): TestableComponen
 }
 
 /**
- * A tap on one of the notifications filters along the top, which the pager
- * draws, as for the Log's tabs (see tapLogTab).
- */
-function tapFilter(TestableComponent $screen, string $type): TestableComponent
-{
-    return $screen->changeTab($screen->get('type') === $type ? 'backToTop' : 'showPage', (int) array_search($type, array_keys(Notifications::Types), true));
-}
-
-/**
  * Whether a tree shows some text.
  *
  * @param  array<string, mixed>  $tree
