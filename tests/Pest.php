@@ -772,6 +772,15 @@ function sheetButtonEnabled(TestableComponent $screen, string $ref): bool
 }
 
 /**
+ * Whether a composer's round send button (partials/send-button) can be tapped. A disabled one is drawn as a plain
+ * circle, not a pressable.
+ */
+function canSend(TestableComponent $screen, string $ref): bool
+{
+    return nodeByRef($screen, $ref)['type'] === 'pressable';
+}
+
+/**
  * The circle of a round button in a sheet's bar, whether it can be tapped or not.
  *
  * @return array<string, mixed>

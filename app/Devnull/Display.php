@@ -29,6 +29,18 @@ final class Display
     public const int ReplyBarStashLabelHeight = 28;
 
     /**
+     * A bar holding partials/composer-box with one line of draft, as drawn on an iPhone: the bar's hairline and
+     * padding, then the box with its field over the row of tools and the send button.
+     */
+    public const int ComposerBoxBarHeight = 97;
+
+    /**
+     * About how many characters fit on a line of the box's field. It runs the width of the box, so more fit than
+     * beside the reply bar's tools and button.
+     */
+    public const int ComposerBoxCharactersPerLine = 46;
+
+    /**
      * The strip under the home indicator on Face ID iPhones. EDGE doesn't
      * hand pushed screens the real inset (it's 0 inside a tab), so this errs
      * long on phones without one.
@@ -228,6 +240,15 @@ final class Display
             + ($draftRow ? self::ReplyBarStashLabelHeight : 0)
             + (CommitBody::hasOversizedUrl($draft) ? 3 * self::ReplyBarLineHeight : 0)
             + self::HomeIndicatorHeight;
+    }
+
+    /**
+     * How much taller a composer-box bar is than with one line, as the draft grows to its five lines. A screen pads
+     * its end by this on top of ComposerBoxBarHeight to keep its last row clear of the bar.
+     */
+    public static function composerBoxGrowth(string $draft): int
+    {
+        return (min(self::ReplyBarMaxLines, self::lineCount($draft, self::ComposerBoxCharactersPerLine)) - 1) * self::ReplyBarLineHeight;
     }
 
     /**

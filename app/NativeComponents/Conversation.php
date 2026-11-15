@@ -243,10 +243,10 @@ class Conversation extends NativeComponent
     public bool $composing = false;
 
     /**
-     * The composer bar's height with one line in its field, the same as the reply bar on a commit's page: its top
-     * line, then the field, its tools and Push with 8 points above and below.
+     * The composer bar's height with one line in its field: its top line, then the box holding the field over the +
+     * and Push (see partials/composer-box), with 8 points above and below.
      */
-    public const int ComposerBarHeight = Display::ReplyBarHeight;
+    public const int ComposerBarHeight = Display::ComposerBoxBarHeight;
 
     /**
      * The "Replying to …" bar above the field.
@@ -1836,9 +1836,7 @@ class Conversation extends NativeComponent
      */
     private static function composerClearance(string $draft, bool $replying, bool $hasPhotos, bool $describing): int
     {
-        $grownBy = Display::replyBarClearance($draft) - Display::ReplyBarHeight - Display::HomeIndicatorHeight;
-
-        return self::ComposerBarHeight + $grownBy
+        return self::ComposerBarHeight + Display::composerBoxGrowth($draft)
             + ($replying ? self::ReplyingBarHeight : 0)
             + ($hasPhotos ? self::PhotosHeight : 0)
             + ($hasPhotos && $describing ? self::DescriptionHeight : 0)

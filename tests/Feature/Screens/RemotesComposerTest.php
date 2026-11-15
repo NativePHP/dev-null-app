@@ -129,11 +129,11 @@ it('pushes photos alone, with the descriptions given them', function () {
 
     $screen = threadWithAda();
 
-    expect(nodeByRef($screen, 'push')['props']['disabled'] ?? false)->toBeTrue();
+    expect(canSend($screen, 'push'))->toBeFalse();
 
     photosPicked($screen, [testPhoto(), testPhoto()])->tap('photo-0-alt')->input('photo-description-input', 'A terminal.');
 
-    expect(nodeByRef($screen, 'push')['props']['disabled'] ?? false)->toBeFalse();
+    expect(canSend($screen, 'push'))->toBeTrue();
 
     finishRefreshes($screen->tap('push'))->assertSet('pending', []);
 
@@ -252,30 +252,56 @@ it('keeps the keyboard up through presses in the thread, and the field in place 
         ->and(childRefs($screen, 'composer-bar'))->toBe($rows);
 });
 
-it('puts a + for photos, a voice note and Ping inside the Liquid Glass field on iOS', function () {
+it('draws one box with the field over the + and a round Push, on both platforms', function (string $platform) {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
-    $screen = threadWithAda('ios');
-    $bar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
+    $screen = threadWithAda($platform);
+    $actions = childRefs($screen, 'message-actions');
 
-    expect(childRefs($screen, 'message-plate'))->toBe(['message-field', 'composer-tools'])
+    expect(childRefs($screen, 'message-row'))->toBe(['message-box'])
+        ->and(childRefs($screen, 'message-box'))->toBe(['message-field-row', 'message-actions'])
+        ->and(childRefs($screen, 'message-field-row'))->toBe(['message-field'])
+        ->and($actions[0])->toBe('composer-tools')
+        ->and(end($actions))->toBe('push')
         ->and(array_slice(childRefs($screen, 'composer-tools'), 0, 3))->toBe(['attach-photos', 'record-voice-note', 'ping'])
-        ->and(nodeByRef($screen, 'message-plate')['props']['glass'] ?? null)->toBe(1)
-        ->and($bar['children'][0]['ref'] ?? null)->toBe('composer-bar')
-        ->and($bar['children'][0]['style']['bg_color'] ?? null)->toBeNull()
-        ->and(nodeByRef($screen, 'ping')['props']['label'])->toBe('Ping @ada');
-});
+        ->and(nodeByRef($screen, 'ping')['props']['label'])->toBe('Ping @ada')
+        ->and(nodeByRef($screen, 'push')['props']['a11y_label'] ?? nodeByRef($screen, 'push')['a11y_label'] ?? null)->toBe('Push');
+})->with(['ios', 'android']);
 
-it('leads the bar with the + on Android, on a solid bar', function () {
+it('puts the bar on Liquid Glass tinted with the surface on iOS, and on the solid surface on Android', function () {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
-    $screen = threadWithAda('android');
+    $ios = nodeByRef(threadWithAda('ios'), 'composer-bar');
+    $android = nodeByRef(threadWithAda('android'), 'composer-bar');
 
-    expect(array_slice(childRefs($screen, 'message-row'), 0, 2))->toBe(['composer-tools', 'message-plate'])
-        ->and(childRefs($screen, 'message-plate'))->toBe(['message-field'])
-        ->and(nodeByRef($screen, 'message-plate')['props']['glass'] ?? null)->toBeNull()
-        ->and(nodeByRef($screen, 'composer-bar')['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'));
+    expect($ios['props']['glass'] ?? null)->toBe(1)
+        ->and($ios['style']['bg_color'] ?? null)->not->toBeNull()
+        ->and($android['props']['glass'] ?? null)->toBeNull()
+        ->and($android['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'));
 });
+
+it('counts a long message beside Push from 1,600 characters, amber from 1,900 and red at 2,000', function (int $length, ?string $colour) {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda()->input('message-input', str_repeat('a', $length));
+
+    if ($colour === null) {
+        expect(rendersRef($screen, 'message-length'))->toBeFalse();
+
+        return;
+    }
+
+    $actions = childRefs($screen, 'message-actions');
+
+    expect(nodeByRef($screen, 'message-length')['props']['text'])->toBe(number_format($length).'/2,000')
+        ->and(strtolower(nodeByRef($screen, 'message-length')['props']['color'] ?? ''))->toBe(strtolower(config("native-ui.theme.light.{$colour}")))
+        ->and(array_slice($actions, -2))->toBe(['message-length', 'push']);
+})->with([
+    'short' => [1599, null],
+    'long' => [1600, 'ink-muted'],
+    'nearly full' => [1900, 'pending'],
+    'full' => [2000, 'destructive'],
+]);
 
 it('pings Ada, logging it in the thread as the web does and buzzing the phone', function () {
     serveThreadWithAda([remoteMessageJson(['id' => 1, 'body' => 'you there?'])], ['read_through_id' => 1]);

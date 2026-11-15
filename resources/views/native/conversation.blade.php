@@ -73,25 +73,28 @@
 
     @if ($loaded)
         {{--
-            The composer, drawn as the reply bar on a commit's page is (see partials/composer-plate): on iOS the bar is
-            bare and the field is a Liquid Glass plate with the tools inside it, on Android the bar is the surface with
-            a hairline and the tools lead it. The web's tools, photos, the microphone and Ping, open from one + here. Above the field
-            sit what you're replying to and the photos on the draft, on glass of their own on iOS. While the thread
-            can't take a message, the bar is solid on both, with why in the field's place.
+            The composer: one rounded box with the field over a row holding the + and the round send button (see
+            partials/composer-box), on a bar that is Liquid Glass on iOS, tinted with the surface so the thread
+            scrolling under it is blurred out of the way, and the solid surface with a hairline on Android. The web's
+            tools, photos, the microphone and Ping, open from the one +. Above the box sit the people to mention, what
+            you're replying to and the photos on the draft. While the thread can't take a message, the bar is solid
+            on both, with why in the box's place.
         --}}
         <native:bottom-bar>
-            <native:column native:key="composer-bar" ref="composer-bar" class="w-full {{ $canPush ? 'android:bg-theme-surface' : 'bg-theme-surface' }}">
+            <native:column native:key="composer-bar" ref="composer-bar" class="w-full {{ $canPush ? 'android:bg-theme-surface ios:bg-theme-surface/70 ios:glass' : 'bg-theme-surface' }}">
                 <native:column class="w-full h-[1] {{ $canPush ? 'android:bg-theme-hairline' : 'bg-theme-hairline' }}" />
                 @if ($canPush)
                     {{--
                         The members to mention, what you're replying to and the photos on the draft each keep a slot,
                         empty and no height when there's nothing in it, so the field's row never moves. Android rebuilds
-                        a row that moves among its siblings, field and all, which drops the keyboard.
+                        a row that moves among its siblings, field and all, which drops the keyboard. An empty slot is
+                        h-[0.1]: on iOS an empty one otherwise takes 10 points of the bar, and EDGE drops a height of 0.
                     --}}
-                    <native:row native:key="mention-slot" ref="mention-slot" class="w-full {{ $mentionPeople !== [] ? 'pt-1 ios:px-4' : '' }}">
+                    @php($mentioning = ($mention['field'] ?? null) === 'draft' && ($mentionPeople !== [] || $mentionOrganizations !== []))
+                    <native:row native:key="mention-slot" ref="mention-slot" class="w-full {{ $mentioning ? 'pt-1 ios:px-4' : 'h-[0.1]' }}">
                         @include('native.partials.mention-suggestions', ['field' => 'draft', 'heading' => ($mention['query'] ?? null) === '' ? 'Members' : null])
                     </native:row>
-                    <native:row native:key="replying-slot" ref="replying-slot" class="w-full {{ $replyTo ? 'ios:px-4' : '' }}">
+                    <native:row native:key="replying-slot" ref="replying-slot" class="w-full {{ $replyTo ? 'ios:px-4' : 'h-[0.1]' }}">
                         @if ($replyTo)
                             <native:row ref="replying" class="flex-1 h-[44] px-4 gap-3 items-center ios:rounded-[18] ios:glass">
                                 <native:column class="w-[2] h-[28] rounded-full bg-theme-{{ $myColour }}" />
@@ -105,30 +108,28 @@
                             </native:row>
                         @endif
                     </native:row>
-                    <native:column native:key="message-photos" ref="message-photos" class="w-full {{ $photos !== [] ? 'px-4 pt-2' : '' }}">
+                    <native:column native:key="message-photos" ref="message-photos" class="w-full {{ $photos !== [] ? 'px-4 pt-2' : 'h-[0.1]' }}">
                         @include('native.partials.composer-photos', ['photos' => $photos, 'photoRef' => 'photo', 'describeClass' => 'ios:glass'])
                     </native:column>
-                    {{-- The same room above and below the field, so the bar sits evenly on the keyboard. --}}
-                    <native:row native:key="message-row" ref="message-row" class="w-full ios:pl-4 android:pl-2 pr-4 py-2 gap-2 items-center">
-                        {{--
-                            The web's tools, photos, a voice note and Ping, are one + here, which opens them in a menu (see
-                            ComposerMenu), so the field keeps its room. A voice note takes the field's place, and the +'s,
-                            while it's recorded and waits to be pushed.
-                        --}}
-                        @include('native.partials.composer-plate', [
+                    {{--
+                        The box keeps its row, and the row its place among the bar's, so the field inside never moves.
+                        A voice note takes the field's place, and the +'s, while it's recorded and waits to be pushed.
+                    --}}
+                    <native:row native:key="message-row" ref="message-row" class="w-full px-4 py-2">
+                        @include('native.partials.composer-box', [
                             'ref' => 'message',
                             'field' => $recorder === null ? 'native.partials.message-field' : 'native.partials.voice-recorder',
                             'tools' => $recorder !== null ? [] : [
                                 ['ref' => 'composer-tools', 'icon' => \App\Icons\Lucide::Plus, 'label' => 'Photos, a voice note or a ping', 'menu' => \App\Devnull\ComposerMenu::items(count($photos) >= \App\Devnull\DraftImages::MaxImages, trim($draft) !== '' || $photos !== [], $pingLabel)],
                             ],
+                            'counter' => ['native.partials.message-length'],
+                            'send' => [
+                                'ref' => 'push',
+                                'label' => 'Push',
+                                'press' => 'send',
+                                'disabled' => $recorder === null ? trim($draft) === '' && $photos === [] : $recorder === 'stopping' || ($recorder === 'recording' && ! $recordingStarted),
+                            ],
                         ])
-                        @php($length = mb_strlen($draft))
-                        @if ($length >= 1600)
-                            <native:text ref="message-length" font="mono" class="text-[11px] {{ $length >= 2000 ? 'text-theme-destructive' : ($length >= 1900 ? 'text-theme-pending' : 'text-theme-ink-muted') }}">{{ number_format($length) }}/2,000</native:text>
-                        @endif
-                        <native:column class="w-[72]">
-                            <native:button ref="push" :variant="$myColour" size="sm" :disabled="$recorder === null ? trim($draft) === '' && $photos === [] : $recorder === 'stopping' || ($recorder === 'recording' && ! $recordingStarted)" @press="send" class="w-full">Push</native:button>
-                        </native:column>
                     </native:row>
                 @else
                     <native:column ref="access-bar" class="w-full px-4 pt-3 pb-4 gap-3">
