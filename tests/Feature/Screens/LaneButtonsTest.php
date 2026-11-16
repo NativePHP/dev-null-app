@@ -59,14 +59,6 @@ dataset('main buttons', [
 
         return Native::visit('/log');
     }, 'follow-ada'],
-    'Follow, on a profile' => [function (): TestableComponent {
-        serveApi([
-            'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']), 'is_following' => false]],
-            'GET /api/v1/users/ada/commits' => [pageJson([])],
-        ]);
-
-        return Native::visit('/log/users/ada');
-    }, 'follow'],
     'Follow, in a profile\'s followers' => [function (): TestableComponent {
         serveApi(['GET /api/v1/users/ada/followers' => [pageJson([userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace', 'is_followed' => false, 'follows_you' => false])])]]);
 
@@ -193,3 +185,27 @@ it('makes Unlink Apple ID large too', function () {
 
     expect(buttonProps(Native::visit('/profile/device', platform: 'ios'), 'unlink-apple')['size'] ?? null)->toBe('lg');
 });
+
+it('fills Follow on a profile and an organization with your lane, with a label that reads on it', function (string $path, array $api, int $lane) {
+    signIn(['lane' => $lane]);
+    serveApi($api);
+
+    $screen = finishRefreshes(Native::visit($path));
+    $pill = nodeByRef($screen, 'follow-pill');
+    $label = findNode($pill, fn (array $node): bool => ($node['type'] ?? null) === 'text');
+
+    expect(strtolower($pill['style']['bg_color']))->toBe(strtolower(config("native-ui.theme.light.lane-{$lane}")))
+        ->and(strtolower($label['props']['color']))->toBe(strtolower(config("native-ui.theme.light.on-lane-{$lane}")));
+})->with([
+    'a profile' => ['/log/users/ada', [
+        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']), 'is_following' => false]],
+        'GET /api/v1/users/ada/commits' => [pageJson([])],
+    ]],
+    'an organization' => ['/log/organizations/laravel', [
+        'GET /api/v1/organizations/laravel' => [['data' => ['handle' => 'laravel', 'name' => 'Laravel', 'type' => 'organization', 'followers_count' => 1], 'is_following' => false]],
+        'GET /api/v1/organizations/laravel/commits' => [pageJson([])],
+    ]],
+])->with([
+    'green, labelled in ink' => 1,
+    'rose, labelled in white' => 4,
+]);
