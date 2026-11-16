@@ -17,6 +17,11 @@
     A commit page draws its replies $muted, smaller and in muted ink, so the commit they answer stays the main thing.
 
     A reply you just sent that devnull doesn't have yet is staged: dimmed, with the staged chip and no actions.
+
+    In a feed a reply's replies button opens them under it ($repliesInPlace, see App\Devnull\ThreadRows); deeper in,
+    or on a commit page, it opens the reply's page. A feed's thread rows fade in as they open and out as they close
+    ($fades): drawn see-through and nudged up while they're in $fadedRows (see Concerns\ExpandsThreads), and eased
+    to where they belong. Only what's beside the rail fades, so the commit's rail running past never blinks.
 --}}
 @php($previousLane ??= null)
 @php($muted ??= false)
@@ -26,11 +31,14 @@
 @php($tombstones ??= false)
 @php($more ??= null)
 @php($avatarLine = 76 + $indent)
+@php($repliesInPlace ??= false)
+@php($fades ??= false)
+@php($faded = $fades && in_array($reply->id, $fadedRows ?? [], true))
 @if ($reply->isDeleted())
     @php($opened = $tombstones && array_key_exists($reply->id, $tombstoneReplies ?? []))
     <native:row native:key="thread-reply-{{ $reply->id }}" ref="thread-reply-{{ $reply->id }}" class="w-full bg-theme-surface">
         <native:column :width="64" />
-        <native:column class="flex-1">
+        <native:column class="flex-1 {{ $faded ? 'opacity-0' : '' }}" :animate-duration="$fades ? \App\Devnull\ThreadRows::Fade : null" :translate-y="$fades ? ($faded ? -8 : 0) : null">
             <native:row class="w-full pr-4 pt-[10] gap-2 {{ $last && $more === null ? 'pb-3' : 'pb-1' }} {{ $indent > 0 ? 'pl-['.$indent.']' : '' }}">
                 <native:column :width="24" :height="24" class="rounded-full">
                     @include('native.partials.dashed-ring', ['size' => 24, 'lane' => \App\Devnull\Lane::Rail])
@@ -67,7 +75,7 @@
     <native:pressable native:key="thread-reply-{{ $reply->id }}" ref="thread-reply-{{ $reply->id }}" @press="openCommit('{{ $reply->id }}')" class="w-full bg-theme-surface">
         <native:row class="w-full">
             <native:column :width="64" />
-            <native:column class="flex-1">
+            <native:column class="flex-1 {{ $faded ? 'opacity-0' : '' }}" :animate-duration="$fades ? \App\Devnull\ThreadRows::Fade : null" :translate-y="$fades ? ($faded ? -8 : 0) : null">
                 <native:row class="w-full pr-4 pt-[10] gap-2 {{ $last && $more === null ? 'pb-3' : '' }} {{ $indent > 0 ? 'pl-['.$indent.']' : '' }}">
                     <native:pressable @press="openProfile('{{ $reply->author->username }}')" a11y-label="{{ $reply->author->name }}'s profile">
                         @include('native.partials.rail-avatar', ['user' => $reply->author, 'lane' => $reply->lane(), 'size' => 24, 'staged' => false])
@@ -84,7 +92,7 @@
                         @include('native.partials.commit-body', ['size' => $muted ? 'text-sm' : 'text-[15px]'])
                         @include('native.partials.commit-media', ['withEmbeds' => false])
                         @unless ($reply->isStaged())
-                            @include('native.partials.commit-actions', ['expandable' => false, 'withQuote' => false, 'compact' => $muted])
+                            @include('native.partials.commit-actions', ['expandable' => $repliesInPlace, 'withQuote' => false, 'compact' => $muted])
                         @endunless
                     </native:column>
                 </native:row>

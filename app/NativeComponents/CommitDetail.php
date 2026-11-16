@@ -39,9 +39,9 @@ use Native\Mobile\Edge\NativeComponent;
  * The commit opens near the top, under the commit it replies to, with the
  * ones before that behind "↑ N earlier commits" and its replies behind
  * "› N replies", each opened in place. Opened from a "› N replies" button
- * ($data['replies']), its replies already show. They come five at a time
+ * ($data['replies']), its replies already show. They come ten at a time
  * (see Client::RepliesPerPage), and "Show more" under the last asks for the
- * next five, as it does under a deleted reply's replies opened in place.
+ * next ten, as it does under a deleted reply's replies opened in place.
  *
  * It opens on the commit as it was last time, or opened from a row, on what
  * the row knew of it, then asks devnull for the rest behind it and fills it in.

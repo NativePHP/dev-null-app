@@ -431,36 +431,36 @@ it('opens with its replies showing from a replies button', function () {
         ->assertSee('Hide replies');
 });
 
-it('asks for the replies five at a time, and the next five from Show more', function () {
+it('asks for the replies a page at a time, and the next page from Show more', function () {
     $replies = fn (int ...$numbers): array => array_map(fn (int $n): array => replyJson(['id' => "r{$n}", 'parent_id' => 'c2', 'body' => "Reply {$n}"]), $numbers);
 
     Http::fake(fn (Request $request) => match (parse_url($request->url(), PHP_URL_PATH)) {
         '/api/v1/commits/c2/replies' => Http::response(str_contains($request->url(), 'cursor=page2')
-            ? pageJson($replies(6))
-            : pageJson($replies(1, 2, 3, 4, 5), 'page2', 'http://devnull.test/api/v1/commits/c2/replies')),
+            ? pageJson($replies(11))
+            : pageJson($replies(...range(1, 10)), 'page2', 'http://devnull.test/api/v1/commits/c2/replies')),
         '/api/v1/commits/c2/related' => Http::response(['data' => []]),
-        default => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'replies_count' => 6]))),
+        default => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'replies_count' => 11]))),
     });
 
     $screen = Native::visit('/log/commits/c2', ['replies' => true])
-        ->assertSee('Reply 5')
-        ->assertDontSee('Reply 6')
+        ->assertSee('Reply 10')
+        ->assertDontSee('Reply 11')
         ->tap('more-replies-c2')
-        ->assertSee('Reply 6')
+        ->assertSee('Reply 11')
         ->assertDontSee('Show more');
 
     $asked = collect(Http::recorded())->map(fn (array $sent): string => $sent[0]->url())->filter(fn (string $url): bool => str_contains($url, '/replies'));
 
     expect($asked)->toHaveCount(2)
-        ->and($asked->every(fn (string $url): bool => str_contains($url, 'limit=5')))->toBeTrue();
+        ->and($asked->every(fn (string $url): bool => str_contains($url, 'limit=10')))->toBeTrue();
 
-    // Asking again for the first five keeps the one loaded after them.
+    // Asking again for the first page keeps the one loaded after it.
     $screen->call('load')
-        ->assertSee('Reply 6')
+        ->assertSee('Reply 11')
         ->assertDontSee('Show more');
 });
 
-it('opens the replies of a deleted reply five at a time too', function () {
+it('opens the replies of a deleted reply a page at a time too', function () {
     $nested = fn (int ...$numbers): array => array_map(fn (int $n): array => replyJson(['id' => "n{$n}", 'parent_id' => 'r1', 'body' => "Nested {$n}"]), $numbers);
 
     Http::fake(fn (Request $request) => match (parse_url($request->url(), PHP_URL_PATH)) {
@@ -486,7 +486,7 @@ it('opens the replies of a deleted reply five at a time too', function () {
         ->assertSee('Nested 6')
         ->assertMissingElement('pressable', $more);
 
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/r1/replies?cursor=page2&limit=5');
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/r1/replies?cursor=page2&limit=10');
 });
 
 it('keeps deleted ancestors on the rail as tombstones', function () {
