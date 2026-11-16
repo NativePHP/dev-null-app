@@ -12,19 +12,22 @@ use Carbon\CarbonInterface;
 final class Display
 {
     /**
-     * The commit page's reply bar with one line of draft: its hairline, the
-     * field and the padding around them, as drawn on an iPhone.
+     * How much a line of draft adds to a composer bar's field.
      */
-    public const int ReplyBarHeight = 53;
-
     public const int ReplyBarLineHeight = 21;
 
     public const int ReplyBarMaxLines = 5;
 
-    public const int ReplyBarCharactersPerLine = 34;
+    /**
+     * The reply box on a commit's page grown by its expand button: it starts this many lines tall, and grows to
+     * ExpandedReplyMaxLines.
+     */
+    public const int ExpandedReplyMinLines = 8;
+
+    public const int ExpandedReplyMaxLines = 12;
 
     /**
-     * The row under the reply bar's field that marks a restored draft (see partials/stash-label) and counts its photos.
+     * The row under the reply box that marks a restored draft (see partials/stash-label).
      */
     public const int ReplyBarStashLabelHeight = 28;
 
@@ -35,8 +38,7 @@ final class Display
     public const int ComposerBoxBarHeight = 97;
 
     /**
-     * About how many characters fit on a line of the box's field. It runs the width of the box, so more fit than
-     * beside the reply bar's tools and button.
+     * About how many characters fit on a line of the box's field, which runs the width of the box.
      */
     public const int ComposerBoxCharactersPerLine = 46;
 
@@ -228,16 +230,22 @@ final class Display
      * How far a commit page has to scroll past its last reply to clear the
      * reply bar. A pushed screen is drawn under its bottom bar and the home
      * indicator, with no inset for either, so the page pads its own end: the
-     * bar as the draft grows to its five lines, and the indicator below it.
-     * With the keyboard up the bar sits on the keyboard instead, which only
-     * leaves a little more room. A restored draft, or one with photos, adds
-     * the row under the field ($draftRow).
+     * bar (partials/composer-box) as the draft grows to its five lines, and
+     * the indicator below it. With the keyboard up the bar sits on the
+     * keyboard instead, which only leaves a little more room. Grown by its
+     * expand button ($expanded), the box is ExpandedReplyMinLines tall to
+     * start with. A restored draft adds the row under the box that marks it
+     * ($restored), and a link too long for devnull the line that says so.
      */
-    public static function replyBarClearance(string $draft, bool $draftRow = false): int
+    public static function replyBarClearance(string $draft, bool $expanded = false, bool $restored = false): int
     {
-        return self::ReplyBarHeight
-            + (min(self::ReplyBarMaxLines, self::lineCount($draft, self::ReplyBarCharactersPerLine)) - 1) * self::ReplyBarLineHeight
-            + ($draftRow ? self::ReplyBarStashLabelHeight : 0)
+        $lines = $expanded
+            ? max(self::ExpandedReplyMinLines, min(self::ExpandedReplyMaxLines, self::lineCount($draft, self::ComposerBoxCharactersPerLine)))
+            : null;
+
+        return self::ComposerBoxBarHeight
+            + ($lines === null ? self::composerBoxGrowth($draft) : ($lines - 1) * self::ReplyBarLineHeight)
+            + ($restored ? self::ReplyBarStashLabelHeight : 0)
             + (CommitBody::hasOversizedUrl($draft) ? 3 * self::ReplyBarLineHeight : 0)
             + self::HomeIndicatorHeight;
     }

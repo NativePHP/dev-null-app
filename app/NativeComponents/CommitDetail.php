@@ -3,6 +3,7 @@
 namespace App\NativeComponents;
 
 use App\Devnull\Account;
+use App\Devnull\Beat;
 use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitThread;
@@ -50,11 +51,18 @@ use Native\Mobile\Edge\NativeComponent;
  * leaving the page keeps it, and it's in the reply bar again, marked as
  * restored, when you come back to the commit.
  *
- * The reply bar has no room for photos or a preview, so its expand button
- * opens the reply in the composer sheet, which has them (see replyInSheet()).
+ * The reply bar's expand button gives the reply more room where it is: the
+ * box grows taller over the page, with the same field in it, so the keyboard
+ * stays up (see toggleReplyExpanded()). A sheet can't do that: presenting
+ * one takes the keyboard down and puts it back up on both platforms, however
+ * soon its field takes focus. Grown, the box has the photos and preview
+ * button, which opens the reply in the composer sheet (see replyInSheet()).
  * The draft goes with it, and back to the bar if the sheet closes unsent.
- * Photos left in it show as a count under the bar's field, which opens the
- * sheet on them, and Reply in the bar sends them with the text.
+ * Photos left in it show as a count in the box, which opens the sheet on
+ * them, and Reply in the bar sends them with the text.
+ *
+ * Related commits wait under a header with their count, closed, and open
+ * in place when it's tapped (see toggleRelated()).
  *
  * A reply goes at once: the bar empties and the reply shows staged under the
  * commit while it goes to devnull from the outbox (see SyncsOutbox), then the
@@ -100,6 +108,36 @@ class CommitDetail extends NativeComponent
      * @var list<Commit>
      */
     public array $related = [];
+
+    /**
+     * Whether the reply box has grown to give the reply more room.
+     */
+    public bool $replyExpanded = false;
+
+    /**
+     * Whether the related commits show under their header.
+     */
+    public bool $relatedShown = false;
+
+    /**
+     * Whether the related commits are drawn see-through: about to fade in, or fading out on their way to closing.
+     */
+    public bool $relatedFaded = false;
+
+    /**
+     * Whether the related commits are fading out, still drawn until they have.
+     */
+    public bool $relatedClosing = false;
+
+    /**
+     * How long the related commits take to fade in or out, in milliseconds, as a Log thread's replies do.
+     */
+    public const int RelatedFade = 220;
+
+    /**
+     * How much later each related commit starts fading in than the one above it, in milliseconds.
+     */
+    public const int RelatedStagger = 40;
 
     /**
      * Whether the replies have been kept or fetched. Until then they show as loading.
@@ -279,6 +317,50 @@ class CommitDetail extends NativeComponent
     }
 
     /**
+     * The expand button in the reply box: the box grows taller where it is,
+     * the same field in it, so the keyboard stays where it was, and again it
+     * shrinks back.
+     */
+    public function toggleReplyExpanded(): void
+    {
+        $this->replyExpanded = ! $this->replyExpanded;
+    }
+
+    /**
+     * The related commits' header opens them, and closes them again. EDGE
+     * can't animate a node coming into the page or leaving it, so they're
+     * drawn see-through first and shown once a Beat comes back, which each
+     * row fades and slides to, a little after the one above. Closing fades
+     * them out the same way, then takes them out.
+     */
+    public function toggleRelated(): void
+    {
+        if ($this->relatedClosing) {
+            return;
+        }
+
+        if (! $this->relatedShown) {
+            $this->relatedShown = true;
+            $this->relatedFaded = true;
+            $shown = fn () => $this->relatedFaded = false;
+
+            Beat::dispatch(Beat::Step)->finished($shown)->failed($shown);
+
+            return;
+        }
+
+        $this->relatedFaded = true;
+        $this->relatedClosing = true;
+        $closed = function (): void {
+            $this->relatedShown = false;
+            $this->relatedFaded = false;
+            $this->relatedClosing = false;
+        };
+
+        Beat::dispatch(self::RelatedFade)->finished($closed)->failed($closed);
+    }
+
+    /**
      * A deleted reply has no page of its own, so its replies open in place below it.
      */
     public function toggleTombstone(string $id): void
@@ -357,6 +439,7 @@ class CommitDetail extends NativeComponent
 
         $this->reply = '';
         $this->replyImages = [];
+        $this->replyExpanded = false;
         $this->forgetMention('reply');
         $this->updatedReply();
         $this->repliesShown = true;

@@ -206,8 +206,9 @@ it('stashes a reply per commit, and brings it back in the reply bar marked as re
 
     expect(nodeByRef($screen, 'reply-input')['props']['value'])->toBe('A reply in progress')
         ->and(stashLabel($screen, 'reply-stash'))->toBe(['stash@{0}', 'Discard the restored draft'])
-        ->and(nodeByRef($screen, 'send-reply')['props']['disabled'] ?? false)->toBeFalse()
-        // The page ends above the row that marks it, too.
+        ->and(canSend($screen, 'send-reply'))->toBeTrue()
+        // It's marked on a row under the box, and the page ends above that too.
+        ->and(childRefs($screen, 'reply-stash-row'))->toBe(['reply-stash'])
         ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual($clearance + Display::ReplyBarStashLabelHeight);
 });
 

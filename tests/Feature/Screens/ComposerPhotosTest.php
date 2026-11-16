@@ -237,7 +237,7 @@ it('opens a commit\'s reply in the sheet with what the reply bar had, and replie
 
     $screen = Native::visit('/log/commits/c2')
         ->input('reply-input', 'Here it')
-        ->tap('reply-expand')
+        ->tap('reply-expand')->tap('reply-attach')
         ->assertSee('Reply to @ada');
 
     expect(nodeByRef($screen, 'sheet-body')['props'])->toMatchArray(['value' => 'Here it', 'placeholder' => 'Reply to @ada'])
@@ -267,7 +267,7 @@ it('hands the reply back to the reply bar when the sheet goes unsent', function 
 
     $screen = Native::visit('/log/commits/c2')
         ->input('reply-input', 'Half')
-        ->tap('reply-expand')
+        ->tap('reply-expand')->tap('reply-attach')
         ->input('sheet-body', 'Half a reply')
         ->dismissSheet('sheet');
 
@@ -284,12 +284,14 @@ it('hands the reply\'s photos back to the reply bar too, which counts them, keep
         'POST /api/v1/commits' => [['data' => replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'Look'])], 201],
     ]);
 
-    $screen = photosPicked(Native::visit('/log/commits/c2')->input('reply-input', 'Look')->tap('reply-expand'), [testPhoto()])
+    $screen = photosPicked(Native::visit('/log/commits/c2')->input('reply-input', 'Look')->tap('reply-expand')->tap('reply-attach'), [testPhoto()])
         ->dismissSheet('sheet');
     $path = $screen->instance()->replyImages[0]->path;
 
     expect(treeShows(nodeByRef($screen, 'reply-photos'), '1 photo'))->toBeTrue()
-        ->and(nodeByRef($screen, 'reply-photos')['props']['a11y_label'] ?? null)->toBe('1 photo attached');
+        ->and(nodeByRef($screen, 'reply-photos')['props']['a11y_label'] ?? null)->toBe('1 photo attached')
+        // In the box, after its other tools.
+        ->and(array_slice(childRefs($screen, 'reply-actions'), 0, 3))->toBe(['reply-expand', 'reply-attach', 'reply-photos']);
 
     // Coming back to the commit, the bar has them still.
     $screen = Native::visit('/log/commits/c2');
@@ -322,7 +324,7 @@ it('hands the reply and its photos back to the reply bar when Cancel closes the 
         'GET /api/v1/commits/c2/replies' => [pageJson([])],
     ]);
 
-    $screen = photosPicked(Native::visit('/log/commits/c2', platform: 'android')->input('reply-input', 'Half')->tap('reply-expand'), [testPhoto()])
+    $screen = photosPicked(Native::visit('/log/commits/c2', platform: 'android')->input('reply-input', 'Half')->tap('reply-expand')->tap('reply-attach'), [testPhoto()])
         ->input('sheet-body', 'Half a reply')
         ->tap('sheet-cancel')
         ->input('reply-input', 'Half a reply, and more');
