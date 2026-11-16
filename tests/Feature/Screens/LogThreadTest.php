@@ -3,6 +3,8 @@
 use App\Devnull\Pop;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Events\Async\AsyncTaskFinished;
+use Native\Mobile\Support\AsyncTaskTransport;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 
@@ -99,7 +101,8 @@ it('opens the replies under a commit from its replies button, on a dashed elbow 
     expect($elbow)->not->toBeNull()
         ->and(dashColours($elbow))->toBe([config('native-ui.theme.light.lane-1')])
         ->and($elbow['props'])->toMatchArray(['border_l' => 1.0, 'border_b' => 1.0, 'border_t' => 0.0, 'border_r' => 0.0, 'radius_bl' => 12.0])
-        ->and($elbow['layout'])->toMatchArray(['width' => 31.5, 'height' => 22.5, 'position' => [0.0, 0.0, 0.0, 31.5]])
+        // Level with the middle of the avatar, which sits 3pt down, under the commit row's 7pt of bottom padding.
+        ->and($elbow['layout'])->toMatchArray(['width' => 31.5, 'height' => 15.5, 'position' => [0.0, 0.0, 0.0, 31.5]])
         // A reply's own actions: the star and Reply, but no Quote.
         ->and(refNode($reply, 'reply-to-r1'))->not->toBeNull()
         ->and(refNode($reply, 'quote-r1'))->toBeNull()
@@ -343,21 +346,63 @@ it('stops the rail at the end dot, past the replies line, and carries it on in d
 
     $screen->tap('replies-c1');
 
-    // Open: no padding under the replies line, and the dashes run on from the dot's foot to the row's.
+    // Open: the same 7pt padding without the hairline, so the dot stays put, and the dashes run on from the dot's foot
+    // to the row's, where the first reply's elbow takes over.
     $dashes = findNode(nodeByRef($screen, 'commit-c1'), fn (array $node): bool => ($node['props']['border_style'] ?? null) === 1 && ($node['layout']['position'][2] ?? null) === 0.0);
 
-    expect($tail()['layout']['position'][2])->toBe(65.0)
-        ->and($dashes['layout']['height'] ?? null)->toBe(49.0);
+    expect($tail()['layout']['position'][2])->toBe(72.0)
+        ->and($dashes['layout']['height'] ?? null)->toBe(56.0)
+        ->and(refNode(nodeByRef($screen, 'thread-reply-r1'), 'thread-elbow')['layout']['position'][0])->toBe(0.0);
 });
+
+it("keeps a commit's row the same height with its replies shut, opening, open and closing, so the list never moves it", function (string $platform) {
+    holdRefreshes();
+    keep('log/following', pageJson([commitJson(['id' => 'c1', 'author' => grace(), 'replies_count' => 2])]));
+    keep('commits/c1/replies', pageJson(repliesJson('c1', 2)));
+    serveApi(fn () => Http::response(pageJson([])));
+
+    $screen = Native::visit('/log', platform: $platform);
+    $content = fn (): array => nodeByRef($screen, 'commit-c1')['children'][0];
+    $heights = fn (): array => [
+        $content()['layout'],
+        nodeByRef($screen, 'actions-c1')['layout'],
+        nodeByRef($screen, 'replies-c1')['layout'],
+    ];
+    $hairline = fn (): ?float => $content()['props']['border_b'] ?? null;
+
+    $shut = $heights();
+
+    // 12pt above, and under the replies line the 6pt the action row leaves and the hairline's 1pt.
+    expect($shut[0]['padding'])->toEqual([12, 16, 7, 0])
+        ->and($hairline())->toBe(1.0);
+
+    $screen->tap('replies-c1');
+    expect($heights())->toBe($shut);
+
+    finishBeats($screen);
+    expect($heights())->toBe($shut)
+        ->and($hairline())->toBeNull()
+        // The first reply takes the 7pt off its 10pt top, so the thread sits where it did; the next keeps its 10pt.
+        ->and(nodeByRef($screen, 'thread-reply-r1')['children'][0]['children'][1]['children'][0]['layout']['padding'][0])->toEqual(3)
+        ->and(nodeByRef($screen, 'thread-reply-r2')['children'][0]['children'][1]['children'][0]['layout']['padding'][0])->toEqual(10);
+
+    $screen->tap('replies-c1')->assertSee('2 replies');
+    expect($heights())->toBe($shut);
+
+    finishBeats($screen);
+    expect(refNode($screen->tree(), 'thread-reply-r1'))->toBeNull()
+        ->and($heights())->toBe($shut)
+        ->and($hairline())->toBe(1.0);
+})->with(['ios', 'android']);
 
 it('drops a reply that went from an open thread when the log refreshes, and keeps the pages loaded after the first', function () {
     $gone = false;
 
     Http::fake(function (Request $request) use (&$gone) {
         return Http::response(match (true) {
-        str_contains($request->url(), '/log/following') => pageJson([threadedJson(12)]),
-        str_contains($request->url(), 'cursor=page2') => pageJson(repliesJson('c1', 2, from: 11), path: 'http://devnull.test/api/v1/commits/c1/replies'),
-        default => pageJson(array_values(array_filter(repliesJson('c1', 10), fn (array $reply): bool => ! ($gone && $reply['id'] === 'r3'))), 'page2', 'http://devnull.test/api/v1/commits/c1/replies'),
+            str_contains($request->url(), '/log/following') => pageJson([threadedJson(12)]),
+            str_contains($request->url(), 'cursor=page2') => pageJson(repliesJson('c1', 2, from: 11), path: 'http://devnull.test/api/v1/commits/c1/replies'),
+            default => pageJson(array_values(array_filter(repliesJson('c1', 10), fn (array $reply): bool => ! ($gone && $reply['id'] === 'r3'))), 'page2', 'http://devnull.test/api/v1/commits/c1/replies'),
         });
     });
 
@@ -393,7 +438,7 @@ function finishBeats(TestableComponent $screen, int $times = PHP_INT_MAX): Testa
 
     for ($round = 0; $round < $times; $round++) {
         $beats = array_filter($screen->bridge()->callsTo('AsyncTask.Dispatch'), function (array $call) use (&$done): bool {
-            $payload = \Native\Mobile\Support\AsyncTaskTransport::readPayload($call['params']['id']);
+            $payload = AsyncTaskTransport::readPayload($call['params']['id']);
 
             return ! isset($done[$call['params']['id']]) && $payload !== null && str_contains($payload, 'App\\Devnull\\Beat');
         });
@@ -404,7 +449,7 @@ function finishBeats(TestableComponent $screen, int $times = PHP_INT_MAX): Testa
 
         foreach ($beats as $call) {
             $done[$call['params']['id']] = true;
-            $screen->emitNative(\Native\Mobile\Events\Async\AsyncTaskFinished::class, ['id' => $call['params']['id'], 'result' => true]);
+            $screen->emitNative(AsyncTaskFinished::class, ['id' => $call['params']['id'], 'result' => true]);
         }
     }
 

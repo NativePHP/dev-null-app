@@ -27,6 +27,15 @@ final class ThreadRows
     public const int Fade = 220;
 
     /**
+     * The space above the first reply's avatar, 7pt less than a reply's usual
+     * 10pt. The commit's row keeps the 7pt of padding under its replies line,
+     * where its hairline was, so it's as tall with its thread open as shut,
+     * and a list never moves the commit when the thread opens or closes (see
+     * partials/commit-row-content).
+     */
+    public const int FirstReplyTop = 3;
+
+    /**
      * @param  array<string, list<Commit>>  $threads  Open threads, by the id of the commit or reply they answer.
      * @param  array<string, string>  $cursors  Where each open thread with more carries on.
      * @param  array<string, int>  $shown  How many of each open thread's replies show.
@@ -58,6 +67,7 @@ final class ThreadRows
                 'railLane' => $railLane,
                 'thread' => $commit,
                 'repliesInPlace' => true,
+                ...($index === 0 ? ['top' => self::FirstReplyTop] : []),
             ]);
 
             foreach ($nested as $nestedIndex => $nestedReply) {

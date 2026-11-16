@@ -20,6 +20,13 @@
     A list builds and measures every node of a row as it scrolls in, so the content is one column: the rail's 64pt
     gutter is its left margin, and the hairline under it is its bottom border. A border draws inside the box, so the
     bottom padding takes the hairline's 1pt to keep the row as tall as it was.
+
+    In a feed the row is as tall with its replies open as shut. The replies are rows of their own, and when a row
+    whose top is off screen changes height, an iOS list can hold the row below it still and move this one instead,
+    so its photo jumped by the difference. With the replies open the row keeps its bottom padding, the hairline's 1pt
+    included, and only the hairline goes. The first reply takes that padding off its own top (see ThreadRows), so the
+    thread looks the same. A commit page's scroll view holds its top, so there the commit it's about ($focused) lets
+    its replies come straight up under it.
 --}}
 @php($author = $commit->author)
 @php($muted ??= false)
@@ -34,7 +41,7 @@
 @php($hasHairline = $hairline && ! $threadBelow)
 @php($inset = $focused ? 16 : 12)
 {{-- The action row's 36pt reaches 6pt into the inset below it, as its buttons are taller than their icons. --}}
-@php($bottom = $threadBelow ? 0 : $inset - 6 + ($hasHairline ? 1 : 0))
+@php($bottom = $threadBelow && $focused ? 0 : $inset - 6 + ($hairline ? 1 : 0))
 @php($padding = 'pt-['.$inset.']'.($bottom > 0 ? ' pb-['.$bottom.']' : ''))
 @php($repliesLine = ! $commit->isStaged() && ! $commit->isDeleted() && ($focused ? ($replyCount ?? $commit->repliesCount) : $commit->repliesCount) > 0 ? 40 : 0)
 @php($dotInActions = $endsWithDot && ! $commit->isStaged())

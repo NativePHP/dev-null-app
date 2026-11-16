@@ -14,6 +14,9 @@
     The last reply carries the thread's "Show more" when there's more ($more, what it presses), with the line from its
     avatar running down to it.
 
+    $top is the space above the avatar, 10pt, less for the first reply in a feed, which sits under the commit row's
+    bottom padding (see ThreadRows::FirstReplyTop). The lines beside it are placed from the avatar, so they move with it.
+
     A commit page draws its replies $muted, smaller and in muted ink, so the commit they answer stays the main thing.
 
     A reply you just sent that devnull doesn't have yet is staged: dimmed, with the staged chip and no actions.
@@ -33,13 +36,14 @@
 @php($avatarLine = 76 + $indent)
 @php($repliesInPlace ??= false)
 @php($fades ??= false)
+@php($top ??= 10)
 @php($faded = $fades && in_array($reply->id, $fadedRows ?? [], true))
 @if ($reply->isDeleted())
     @php($opened = $tombstones && array_key_exists($reply->id, $tombstoneReplies ?? []))
     <native:row native:key="thread-reply-{{ $reply->id }}" ref="thread-reply-{{ $reply->id }}" class="w-full bg-theme-surface">
         <native:column :width="64" />
         <native:column class="flex-1 {{ $faded ? 'opacity-0' : '' }}" :animate-duration="$fades ? \App\Devnull\ThreadRows::Fade : null" :translate-y="$fades ? ($faded ? -8 : 0) : null">
-            <native:row class="w-full pr-4 pt-[10] gap-2 {{ $last && $more === null ? 'pb-3' : 'pb-1' }} {{ $indent > 0 ? 'pl-['.$indent.']' : '' }}">
+            <native:row class="w-full pr-4 pt-[{{ $top }}] gap-2 {{ $last && $more === null ? 'pb-3' : 'pb-1' }} {{ $indent > 0 ? 'pl-['.$indent.']' : '' }}">
                 <native:column :width="24" :height="24" class="rounded-full">
                     @include('native.partials.dashed-ring', ['size' => 24, 'lane' => \App\Devnull\Lane::Rail])
                 </native:column>
@@ -67,7 +71,7 @@
         @include('native.partials.thread-links')
         @if ($opened && ($tombstoneReplies[$reply->id] ?? []) !== [])
             {{-- The spine its own replies hang off, down from its ring. --}}
-            @include('native.partials.dashed-line', ['position' => 'top-[38] bottom-0', 'left' => $avatarLine - 0.5, 'lane' => \App\Devnull\Lane::Rail])
+            @include('native.partials.dashed-line', ['position' => 'top-['.($top + 28).'] bottom-0', 'left' => $avatarLine - 0.5, 'lane' => \App\Devnull\Lane::Rail])
         @endif
     </native:row>
 @else
@@ -76,7 +80,7 @@
         <native:row class="w-full">
             <native:column :width="64" />
             <native:column class="flex-1 {{ $faded ? 'opacity-0' : '' }}" :animate-duration="$fades ? \App\Devnull\ThreadRows::Fade : null" :translate-y="$fades ? ($faded ? -8 : 0) : null">
-                <native:row class="w-full pr-4 pt-[10] gap-2 {{ $last && $more === null ? 'pb-3' : '' }} {{ $indent > 0 ? 'pl-['.$indent.']' : '' }}">
+                <native:row class="w-full pr-4 pt-[{{ $top }}] gap-2 {{ $last && $more === null ? 'pb-3' : '' }} {{ $indent > 0 ? 'pl-['.$indent.']' : '' }}">
                     <native:pressable @press="openProfile('{{ $reply->author->username }}')" a11y-label="{{ $reply->author->name }}'s profile">
                         @include('native.partials.rail-avatar', ['user' => $reply->author, 'lane' => $reply->lane(), 'size' => 24, 'staged' => false])
                     </native:pressable>
