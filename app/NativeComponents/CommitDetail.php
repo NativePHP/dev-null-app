@@ -13,6 +13,7 @@ use App\Devnull\Data\StashedDraft;
 use App\Devnull\Display;
 use App\Devnull\DraftImages;
 use App\Devnull\Outbox;
+use App\Devnull\PostAs;
 use App\Devnull\ResponseCache;
 use App\Devnull\RowCache;
 use App\Devnull\Stash;
@@ -62,6 +63,10 @@ use Native\Mobile\Edge\NativeComponent;
  * wrote is back in the bar, or in the sheet with its photos. Edit, on the
  * toast of a reply or a quote turned down after you'd left, opens its commit
  * here with it ($data['edit']).
+ *
+ * A member of a GitHub organization can reply as it, from the avatar at the
+ * start of the bar, as the web's reply composer does (see PostAs). The sheet
+ * takes the choice with the draft, and gives it back.
  */
 class CommitDetail extends NativeComponent
 {
@@ -128,6 +133,11 @@ class CommitDetail extends NativeComponent
      * @var list<DraftImage>
      */
     public array $replyImages = [];
+
+    /**
+     * The handle of the organization the reply bar posts as, or null for you (see PostAs).
+     */
+    public ?string $replyAuthor = null;
 
     /**
      * Whether the reply was stashed when the page opened, which the bar marks until you empty it or drop it.
@@ -349,6 +359,7 @@ class CommitDetail extends NativeComponent
             'images' => PendingWrite::imagePayload($this->replyImages),
             'stash' => $this->replyStashName(),
             'composer' => 'bar',
+            ...PendingWrite::authorPayload(PostAs::author($this->replyAuthor)),
         ]);
 
         if ($write === null) {
@@ -362,6 +373,32 @@ class CommitDetail extends NativeComponent
         $this->repliesShown = true;
         $this->keepStagedReplies();
         $this->sendFromOutbox($write);
+    }
+
+    /**
+     * Post as, from the reply bar's avatar: an organization's handle, or '' for you.
+     */
+    public function postAsInReply(string $handle = ''): void
+    {
+        $this->replyAuthor = PostAs::author($handle)?->username;
+    }
+
+    /**
+     * The reply in the sheet starts as whoever the bar posts as.
+     */
+    protected function sheetAuthorFor(string $view): ?string
+    {
+        return $view === 'reply' && $this->sheetCommit?->id === $this->id ? $this->replyAuthor : null;
+    }
+
+    /**
+     * A choice made in the reply's sheet goes back to the bar with the draft.
+     */
+    protected function sheetAuthorChanged(): void
+    {
+        if ($this->sheetView === 'reply' && $this->sheetCommit?->id === $this->id) {
+            $this->replyAuthor = $this->sheetAuthor;
+        }
     }
 
     /**
@@ -535,6 +572,7 @@ class CommitDetail extends NativeComponent
     {
         $this->reply = $write->body();
         $this->replyImages = $write->images();
+        $this->replyAuthor = $write->author();
         $this->replyRestored = true;
         $this->focusReply = true;
         $this->updatedReply();

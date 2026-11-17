@@ -120,10 +120,14 @@
             is bare and the field is a Liquid Glass plate instead, the way the HIG floats controls over content; the
             hairline stays as a clear 1pt so the bar keeps the height Display::ReplyBarHeight counts on.
 
+            A member of a GitHub organization has the web's Post as at the start of the row: the avatar of whoever the
+            reply goes out as, which opens the menu (see PostAs), and Reply in that one's lane.
+
             The expand button opens the reply in the composer sheet, which has the photos and preview the bar has no
             room for. It sits where partials/composer-plate puts a composer's tools: inside the plate on iOS, ahead of
             the field on Android.
         --}}
+        @php($replyPostingMe = app(\App\Devnull\Account::class)->user())
         <native:bottom-bar>
             <native:column ref="reply-bar" class="w-full android:bg-theme-surface">
                 <native:column class="w-full h-[1] android:bg-theme-hairline" />
@@ -137,13 +141,16 @@
                     @include('native.partials.mention-suggestions', ['field' => 'reply', 'label' => 'Mention a developer'])
                 </native:row>
                 <native:row ref="reply-row" class="w-full ios:pl-4 android:pl-2 pr-4 py-2 gap-2 items-center">
+                    @if ($replyPostingMe !== null && \App\Devnull\PostAs::offered($replyAuthor))
+                        @include('native.partials.post-as', ['ref' => 'reply-post-as', 'me' => $replyPostingMe, 'picked' => $replyAuthor, 'method' => 'postAsInReply', 'size' => 32])
+                    @endif
                     @include('native.partials.composer-plate', [
                         'ref' => 'reply',
                         'field' => 'native.partials.reply-field',
                         'tools' => [['ref' => 'reply-expand', 'icon' => \App\Icons\Lucide::Maximize2, 'label' => 'Reply with photos or a preview', 'press' => "replyInSheet('{$commit->id}')"]],
                     ])
                     @include('native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget'])
-                    <native:button ref="send-reply" :variant="$myColour" size="sm" :disabled="! \App\Devnull\Data\Draft::canCommit($reply, $replyImages)" @press="sendReply">Reply</native:button>
+                    <native:button ref="send-reply" :variant="$replyPostingMe === null ? $myColour : \App\Devnull\PostAs::colour($replyPostingMe, \App\Devnull\PostAs::author($replyAuthor))" size="sm" :disabled="! \App\Devnull\Data\Draft::canCommit($reply, $replyImages)" @press="sendReply">Reply</native:button>
                 </native:row>
                 @if (\App\Devnull\Data\CommitBody::hasOversizedUrl($reply))
                     <native:text ref="reply-link-error" class="w-full px-4 pb-2 text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>

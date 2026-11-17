@@ -155,6 +155,7 @@ trait RefreshesInBackground
                 app(Account::class)->remember($current->user);
                 app(Account::class)->rememberPasteis($current->pasteis());
                 app(Account::class)->rememberRemotes($current->remotes);
+                app(Account::class)->rememberOrganizations($current->organizations);
                 $this->takeTerms($current);
             }
 
