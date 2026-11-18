@@ -18,10 +18,12 @@ use App\Devnull\ResponseCache;
 use App\Devnull\RowCache;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
+use App\Devnull\Toasts;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\OpensLiveStream;
+use App\NativeComponents\Concerns\RedrawsOnAppearanceChange;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -49,17 +51,16 @@ use Native\Mobile\Edge\NativeComponent;
  *
  * The reply is stashed as you type, per commit, as on the web (see Stash), so
  * leaving the page keeps it, and it's in the reply bar again, marked as
- * restored, when you come back to the commit.
+ * restored, when you come back to the commit. Drop throws it away whenever
+ * there's anything in it.
  *
- * The reply bar's expand button gives the reply more room where it is: the
- * box grows taller over the page, with the same field in it, so the keyboard
- * stays up (see toggleReplyExpanded()). A sheet can't do that: presenting
- * one takes the keyboard down and puts it back up on both platforms, however
- * soon its field takes focus. Grown, the box has the photos and preview
- * button, which opens the reply in the composer sheet (see replyInSheet()).
- * The draft goes with it, and back to the bar if the sheet closes unsent.
- * Photos left in it show as a count in the box, which opens the sheet on
- * them, and Reply in the bar sends them with the text.
+ * The reply bar does everything the composer sheet did for a reply, so a
+ * reply never needs the sheet: presenting one takes the keyboard down and
+ * puts it back up on both platforms, however soon its field takes focus.
+ * Photos come from the library or the camera into the bar, above the field,
+ * each with its ✕ and ALT (see AttachesPhotos), and Preview shows the reply
+ * as it will look in the field's place (see toggleReplyPreview()). Reply in
+ * the bar sends them all.
  *
  * Related commits wait under a header with their count, closed, and open
  * in place when it's tapped (see toggleRelated()).
@@ -75,11 +76,16 @@ class CommitDetail extends NativeComponent
 {
     use OpensInTab;
     use OpensLiveStream;
+    use RedrawsOnAppearanceChange;
     use RefreshesInBackground;
     use ShowsCommits {
         reopenFailedCommit as private reopenFailedCommitInSheet;
         editFailedCommit as private editFailedCommitInSheet;
         mentionFields as private sheetMentionFields;
+        attachedPhotos as private sheetPhotos;
+        photosChanged as private sheetPhotosChanged;
+        takesPhotos as private sheetTakesPhotos;
+        photoFailed as private sheetPhotoFailed;
     }
     use TalksToDevnull;
 
@@ -110,9 +116,16 @@ class CommitDetail extends NativeComponent
     public array $related = [];
 
     /**
-     * Whether the reply box has grown to give the reply more room.
+     * Whether the reply bar shows the reply as it will look, in the field's place.
      */
-    public bool $replyExpanded = false;
+    public bool $replyPreviewing = false;
+
+    /**
+     * What devnull sent back for the reply's body, with the body it was for under `draft`.
+     *
+     * @var array<string, mixed>|null
+     */
+    public ?array $replyPreview = null;
 
     /**
      * Whether the related commits show under their header.
@@ -317,13 +330,34 @@ class CommitDetail extends NativeComponent
     }
 
     /**
-     * The expand button in the reply box: the box grows taller where it is,
-     * the same field in it, so the keyboard stays where it was, and again it
-     * shrinks back.
+     * The web's preview toggle, in the reply bar: the reply shows as it will
+     * look in the field's place, at once, and devnull is asked for its body,
+     * with its code and mentions, unless it already said for this one. The
+     * keyboard goes down with the field. Pressed again, the field comes back
+     * with the keyboard.
      */
-    public function toggleReplyExpanded(): void
+    public function toggleReplyPreview(): void
     {
-        $this->replyExpanded = ! $this->replyExpanded;
+        $this->replyPreviewing = ! $this->replyPreviewing;
+        $this->describing = null;
+
+        if (! $this->replyPreviewing) {
+            $this->focusReply = true;
+
+            return;
+        }
+
+        $body = trim($this->reply);
+
+        if ($body === '' || ($this->replyPreview['draft'] ?? null) === $body) {
+            return;
+        }
+
+        $this->writeInBackground('POST', Client::PreviewPath, ['body' => $body], function (array $json) use ($body): void {
+            if (is_array($json['data'] ?? null)) {
+                $this->replyPreview = [...$json['data'], 'draft' => $body];
+            }
+        }, fn (): null => null);
     }
 
     /**
@@ -439,7 +473,8 @@ class CommitDetail extends NativeComponent
 
         $this->reply = '';
         $this->replyImages = [];
-        $this->replyExpanded = false;
+        $this->replyPreviewing = false;
+        $this->replyPreview = null;
         $this->forgetMention('reply');
         $this->updatedReply();
         $this->repliesShown = true;
@@ -473,13 +508,17 @@ class CommitDetail extends NativeComponent
     }
 
     /**
-     * The web's drop, beside a restored reply: it's thrown away, photos too, and the field starts again empty.
+     * The web's drop, beside the reply while there's anything in it: it's thrown away, photos too, and the field
+     * starts again empty.
      */
     public function dropReplyStash(): void
     {
         app(DraftImages::class)->discard($this->replyImages);
         $this->reply = '';
         $this->replyImages = [];
+        $this->replyPreviewing = false;
+        $this->replyPreview = null;
+        $this->describing = null;
         $this->updatedReply();
     }
 
@@ -550,6 +589,57 @@ class CommitDetail extends NativeComponent
 
         $this->sheetOpen = false;
         $this->takeFailedReply($write);
+    }
+
+    /**
+     * The photos on the draft being written: the sheet's while it's up, otherwise the reply bar's.
+     *
+     * @return list<DraftImage>
+     */
+    protected function attachedPhotos(): array
+    {
+        return $this->sheetOpen ? $this->sheetPhotos() : $this->replyImages;
+    }
+
+    /**
+     * Photos added in the reply bar, or taken off it, go in the reply's stash with its text.
+     *
+     * @param  list<DraftImage>  $photos
+     */
+    protected function photosChanged(array $photos): void
+    {
+        if ($this->sheetOpen) {
+            $this->sheetPhotosChanged($photos);
+
+            return;
+        }
+
+        $this->replyImages = $photos;
+        $this->updatedReply();
+    }
+
+    /**
+     * A reply can have photos, as on the web, unless its commit has gone.
+     */
+    protected function takesPhotos(): bool
+    {
+        return $this->sheetOpen ? $this->sheetTakesPhotos() : $this->commit !== null && ! $this->commit->isDeleted();
+    }
+
+    /**
+     * Why a photo won't do comes as a toast, from the top, clear of the reply bar, as it does in Remotes.
+     */
+    protected function photoFailed(?string $error): void
+    {
+        if ($this->sheetOpen) {
+            $this->sheetPhotoFailed($error);
+
+            return;
+        }
+
+        if ($error !== null) {
+            Toasts::failed($error);
+        }
     }
 
     /**

@@ -228,107 +228,106 @@ it('keeps the photos with the draft when the sheet goes unsent, and deletes them
         ->and(app(Stash::class)->names(app(Account::class)->user()?->id))->toBe([]);
 });
 
-it('opens a commit\'s reply in the sheet with what the reply bar had, and replies with photos', function () {
+/**
+ * The commit page for c2, by Ada, which a reply can be sent to.
+ */
+function replyPage(string $platform = 'ios'): TestableComponent
+{
     serveApi([
         'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])]))],
-        'GET /api/v1/commits/c2/replies' => [pageJson([])],
-        'POST /api/v1/commits' => [['data' => replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'Here it is'])], 201],
-    ]);
-
-    $screen = Native::visit('/log/commits/c2')
-        ->input('reply-input', 'Here it')
-        ->tap('reply-expand')->tap('reply-attach')
-        ->assertSee('Reply to @ada');
-
-    expect(nodeByRef($screen, 'sheet-body')['props'])->toMatchArray(['value' => 'Here it', 'placeholder' => 'Reply to @ada'])
-        ->and(nodeByRef($screen, 'quote-card')['props']['a11y_label'])->toBe('Replying to Ada')
-        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-stash'))->toBeNull()
-        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-poll'))->toBeNull()
-        ->and(nodeByRef($screen, 'sheet-commit')['props']['a11y_label'] ?? null)->toBe('Reply');
-
-    photosPicked($screen, [testPhoto()])
-        ->input('sheet-body', 'Here it is')
-        ->tap('sheet-commit')
-        ->dismissSheet('sheet')
-        ->assertSee('Here it is');
-
-    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST' && multipartParts($request)[0]['contents'] === '{"body":"Here it is","parent_id":"c2"}');
-
-    expect(array_map(fn ($reply): string => $reply->id, $screen->instance()->replies))->toBe(['r9'])
-        ->and($screen->instance()->reply)->toBe('')
-        ->and(nodeByRef($screen, 'reply-input')['props']['value'])->toBe('');
-});
-
-it('hands the reply back to the reply bar when the sheet goes unsent', function () {
-    serveApi([
-        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]))],
-        'GET /api/v1/commits/c2/replies' => [pageJson([])],
-    ]);
-
-    $screen = Native::visit('/log/commits/c2')
-        ->input('reply-input', 'Half')
-        ->tap('reply-expand')->tap('reply-attach')
-        ->input('sheet-body', 'Half a reply')
-        ->dismissSheet('sheet');
-
-    expect(nodeByRef($screen, 'reply-input')['props']['value'])->toBe('Half a reply')
-        ->and(app(Stash::class)->get(app(Account::class)->user()?->id, 'reply-c2')->body)->toBe('Half a reply');
-
-    Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
-});
-
-it('hands the reply\'s photos back to the reply bar too, which counts them, keeps them and replies with them', function () {
-    serveApi([
-        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]))],
         'GET /api/v1/commits/c2/replies' => [pageJson([])],
         'POST /api/v1/commits' => [['data' => replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'Look'])], 201],
     ]);
 
-    $screen = photosPicked(Native::visit('/log/commits/c2')->input('reply-input', 'Look')->tap('reply-expand')->tap('reply-attach'), [testPhoto()])
-        ->dismissSheet('sheet');
+    return Native::visit('/log/commits/c2', platform: $platform);
+}
+
+it('adds photos to a reply from the bar, from the library or the camera, without the sheet', function () {
+    $screen = replyPage()->input('reply-input', 'Look')->tap('reply-pick-photos');
+
+    $screen->assertNativeCalled('Camera.PickMedia', fn (array $params): bool => $params['mediaType'] === 'images' && $params['multiple'] === true && $params['maxItems'] === 3);
+
+    photosPicked($screen, [testPhoto()])->tap('reply-take-photo')->assertNativeCalled('Camera.GetPhoto');
+    $screen->emitNative(PhotoTaken::class, ['path' => testPhoto('jpg', 30, 40), 'mimeType' => 'image/jpeg']);
+
+    // They show above the field, which keeps its place, and go in the reply's stash with its text.
+    expect($screen->instance()->replyImages)->toHaveCount(2)
+        ->and(childRefs($screen, 'reply-bar'))->toBe(['reply-mention-slot', 'reply-photos-slot', 'reply-row'])
+        ->and(nodeByRef($screen, 'reply-photo-0'))->not->toBeNull()
+        ->and(nodeByRef($screen, 'reply-photo-1'))->not->toBeNull()
+        ->and(nodeByRef($screen, 'sheet')['props']['visible'] ?? false)->toBeFalse()
+        ->and(app(Stash::class)->get(app(Account::class)->user()?->id, 'reply-c2')->images)->toHaveCount(2);
+
+    // A third fills it, and the button can't add more.
+    photosPicked($screen, [testPhoto()]);
+
+    expect(menuItems($screen, 'reply-add-photos'))->toBe([])
+        ->and(nodeByRef($screen, 'reply-add-photos')['a11y_label'] ?? nodeByRef($screen, 'reply-add-photos')['props']['a11y_label'] ?? null)->toBe('A reply can have up to 3 photos');
+});
+
+it('takes a photo off the reply in the bar with its ✕, and off the phone', function () {
+    $screen = photosPicked(replyPage(), [testPhoto(), testPhoto()]);
+    $removed = $screen->instance()->replyImages[0]->path;
+
+    $screen->tap('reply-photo-0-remove');
+
+    expect($screen->instance()->replyImages)->toHaveCount(1)
+        ->and(file_exists($removed))->toBeFalse()
+        ->and(app(Stash::class)->get(app(Account::class)->user()?->id, 'reply-c2')->images)->toHaveCount(1);
+});
+
+it('keeps a reply\'s photos for when you come back to the commit, and replies with them', function () {
+    photosPicked(replyPage()->input('reply-input', 'Look'), [testPhoto()]);
+
+    $screen = Native::visit('/log/commits/c2');
     $path = $screen->instance()->replyImages[0]->path;
 
-    expect(treeShows(nodeByRef($screen, 'reply-photos'), '1 photo'))->toBeTrue()
-        ->and(nodeByRef($screen, 'reply-photos')['props']['a11y_label'] ?? null)->toBe('1 photo attached')
-        // In the box, after its other tools.
-        ->and(array_slice(childRefs($screen, 'reply-actions'), 0, 3))->toBe(['reply-expand', 'reply-attach', 'reply-photos']);
-
-    // Coming back to the commit, the bar has them still.
-    $screen = Native::visit('/log/commits/c2');
-
     expect($screen->instance()->reply)->toBe('Look')
-        ->and($screen->instance()->replyImages)->toHaveCount(1)
+        ->and(nodeByRef($screen, 'reply-photo-0'))->not->toBeNull()
         ->and(nodeByRef($screen, 'reply-stash'))->not->toBeNull();
 
-    // The count opens the sheet on them.
-    $screen->tap('reply-photos');
-
-    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
-        ->and($screen->instance()->sheetImages[0]->path)->toBe($path);
-
-    $screen->dismissSheet('sheet')->tap('send-reply')->assertSee('Look');
+    $screen->tap('send-reply')->assertSee('Look');
 
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
         && multipartParts($request)[0]['contents'] === '{"body":"Look","parent_id":"c2"}'
         && multipartParts($request)[1]['name'] === 'images[]');
 
     expect($screen->instance()->replyImages)->toBe([])
-        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'reply-photos'))->toBeNull()
+        ->and(rendersRef($screen, 'reply-photo-0'))->toBeFalse()
         ->and(file_exists($path))->toBeFalse()
         ->and(app(Stash::class)->names(app(Account::class)->user()?->id))->toBe([]);
 });
 
-it('hands the reply and its photos back to the reply bar when Cancel closes the sheet on Android, which never says it has gone', function () {
-    serveApi([
-        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]))],
-        'GET /api/v1/commits/c2/replies' => [pageJson([])],
-    ]);
+it('previews a reply with its photos in the bar', function () {
+    $screen = photosPicked(replyPage()->input('reply-input', 'Look'), [testPhoto()])->tap('reply-preview');
 
-    $screen = photosPicked(Native::visit('/log/commits/c2', platform: 'android')->input('reply-input', 'Half')->tap('reply-expand')->tap('reply-attach'), [testPhoto()])
-        ->input('sheet-body', 'Half a reply')
-        ->tap('sheet-cancel')
-        ->input('reply-input', 'Half a reply, and more');
-
-    expect($screen->instance()->replyImages)->toHaveCount(1)
-        ->and(app(Stash::class)->get(app(Account::class)->user()?->id, 'reply-c2')->images)->toHaveCount(1);
+    // The photos move into the preview, as the reply will show them, and their row above the field goes.
+    expect(treeShows(nodeByRef($screen, 'reply-draft-preview'), 'Look'))->toBeTrue()
+        ->and(findNode(nodeByRef($screen, 'reply-draft-preview'), fn (array $node): bool => ($node['type'] ?? null) === 'image'))->not->toBeNull()
+        ->and(rendersRef($screen, 'reply-photo-0'))->toBeFalse();
 });
+
+it('drops a reply\'s photos with it, off the phone', function () {
+    $screen = photosPicked(replyPage(), [testPhoto()]);
+    $path = $screen->instance()->replyImages[0]->path;
+
+    $screen->tap('reply-stash-drop');
+
+    expect($screen->instance()->replyImages)->toBe([])
+        ->and(file_exists($path))->toBeFalse()
+        ->and(app(Stash::class)->names(app(Account::class)->user()?->id))->toBe([]);
+});
+
+it('hands a reply opened in the sheet back to the reply bar, photos too, when the sheet goes unsent', function (string $platform) {
+    $screen = replyPage($platform)->input('reply-input', 'Half')->call('replyInSheet', 'c2');
+
+    photosPicked($screen, [testPhoto()])->input('sheet-body', 'Half a reply');
+
+    $platform === 'ios' ? $screen->dismissSheet('sheet') : $screen->tap('sheet-cancel');
+
+    expect(nodeByRef($screen, 'reply-input')['props']['value'])->toBe('Half a reply')
+        ->and($screen->instance()->replyImages)->toHaveCount(1)
+        ->and(app(Stash::class)->get(app(Account::class)->user()?->id, 'reply-c2')->images)->toHaveCount(1);
+
+    Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
+})->with(['ios', 'android']);

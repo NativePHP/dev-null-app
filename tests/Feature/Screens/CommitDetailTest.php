@@ -107,7 +107,7 @@ it('keeps the reply field the same view while the thread above it changes, so th
         ->and(idsDownTo($screen->tree(), 'reply-input'))->toBe($field);
 });
 
-it('draws the reply bar as one box, the field over the expand button and a round Reply, on both platforms', function (string $platform) {
+it('draws the reply bar with the field over the photo and preview buttons and a round Reply, on both platforms', function (string $platform) {
     fakeThread();
 
     $screen = Native::visit('/log/commits/c2', platform: $platform);
@@ -116,9 +116,11 @@ it('draws the reply bar as one box, the field over the expand button and a round
     expect(childRefs($screen, 'reply-row'))->toBe(['reply-box'])
         ->and(childRefs($screen, 'reply-box'))->toBe(['reply-field-row', 'reply-actions'])
         ->and(childRefs($screen, 'reply-field-row'))->toBe(['reply-field'])
-        ->and($actions[0])->toBe('reply-expand')
+        ->and(array_slice($actions, 0, 2))->toBe(['reply-add-photos', 'reply-preview'])
         ->and(end($actions))->toBe('send-reply')
+        ->and(array_column(menuItems($screen, 'reply-add-photos'), 0))->toBe(['reply-pick-photos', 'reply-take-photo'])
         ->and(nodeByRef($screen, 'send-reply')['props']['a11y_label'] ?? nodeByRef($screen, 'send-reply')['a11y_label'] ?? null)->toBe('Reply')
+        ->and(rendersRef($screen, 'reply-expand'))->toBeFalse()
         ->and(canSend($screen, 'send-reply'))->toBeFalse();
 
     $screen->input('reply-input', 'Ready');
@@ -126,46 +128,74 @@ it('draws the reply bar as one box, the field over the expand button and a round
     expect(canSend($screen, 'send-reply'))->toBeTrue();
 })->with(['ios', 'android']);
 
-it('grows the reply box where it is for more room, keeping the same field so the keyboard stays up', function (string $platform) {
+it('keeps the same field, up to five lines and then scrolling, however long the reply grows', function (string $platform) {
     fakeThread();
 
-    $screen = Native::visit('/log/commits/c2', platform: $platform)->input('reply-input', 'A long one');
+    $screen = Native::visit('/log/commits/c2', platform: $platform)->input('reply-input', 'A short one');
     $field = idsDownTo($screen->tree(), 'reply-input');
-    $clearance = nodeByRef($screen, 'reply-bar-clearance')['layout']['height'];
 
-    expect(nodeByRef($screen, 'reply-input')['props']['max_lines'])->toBe(5)
-        ->and(rendersRef($screen, 'reply-attach'))->toBeFalse();
+    $screen->input('reply-input', str_repeat("A line of a long reply\n", 12));
 
-    $screen->tap('reply-expand');
-
+    // The field sizes itself: the page only says how many lines it can take, which never changes as you type.
     expect(idsDownTo($screen->tree(), 'reply-input'))->toBe($field)
-        ->and(nodeByRef($screen, 'reply-input')['props']['min_lines'])->toBe(8)
-        ->and(nodeByRef($screen, 'reply-input')['props']['max_lines'])->toBe(12)
-        ->and(nodeByRef($screen, 'reply-expand')['props']['a11y_label'] ?? null)->toBe('Give the reply less room')
-        ->and(childRefs($screen, 'reply-actions')[1])->toBe('reply-attach')
-        ->and(nodeByRef($screen, 'sheet')['props']['visible'] ?? false)->toBeFalse()
-        ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual($clearance + 7 * 21);
-
-    // Photos and a preview are a tap further, in the composer sheet, with the draft.
-    $screen->tap('reply-attach');
-
-    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
-        ->and($screen->instance()->sheetBody)->toBe('A long one');
-
-    $screen->dismissSheet('sheet')->tap('reply-expand');
-
-    expect(idsDownTo($screen->tree(), 'reply-input'))->toBe($field)
-        ->and(nodeByRef($screen, 'reply-input')['props']['max_lines'])->toBe(5)
-        ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual($clearance);
+        ->and(nodeByRef($screen, 'reply-input')['props']['max_lines'])->toBe(Display::ReplyBarMaxLines)
+        ->and(nodeByRef($screen, 'reply-input')['props']['min_lines'] ?? null)->toBeNull()
+        ->and(nodeByRef($screen, 'sheet')['props']['visible'] ?? false)->toBeFalse();
 })->with(['ios', 'android']);
 
-it('shrinks the grown reply box back once the reply is sent', function () {
-    fakeThread(extra: ['POST /api/v1/commits' => [['data' => replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'Sent'])], 201]]);
+it('previews the reply in the field\'s place, with the body devnull keeps, and brings the field back with the keyboard', function () {
+    fakeThread(extra: ['POST /api/v1/commits/preview' => [['data' => [
+        'body' => 'Shipped 🚀 with @ada',
+        'body_segments' => [['type' => 'text', 'text' => 'Shipped 🚀 with @ada']],
+        'preview_segments' => null,
+        'mentions' => [['handle' => 'ada', 'offset' => 15, 'length' => 4]],
+    ]]]]);
+    $screen = Native::visit('/log/commits/c2')->input('reply-input', 'Shipped :rocket: with @ada');
+    holdRefreshes();
+    $screen->tap('reply-preview');
 
-    $screen = Native::visit('/log/commits/c2')->tap('reply-expand')->input('reply-input', 'Sent')->tap('send-reply');
+    // At once, the reply as written, in the field's place, while devnull is asked. The sheet never opens.
+    expect(rendersRef($screen, 'reply-input'))->toBeFalse()
+        ->and(childRefs($screen, 'reply-field-row'))->toBe(['reply-preview-pane'])
+        ->and(nodeByRef($screen, 'reply-preview')['props']['a11y_label'])->toBe('Edit')
+        ->and(treeShows(nodeByRef($screen, 'reply-draft-preview'), 'Shipped :rocket: with @ada'))->toBeTrue()
+        ->and(nodeByRef($screen, 'sheet')['props']['visible'] ?? false)->toBeFalse();
 
-    expect($screen->instance()->replyExpanded)->toBeFalse()
-        ->and(nodeByRef($screen, 'reply-input')['props']['max_lines'])->toBe(5);
+    finishRefreshes($screen);
+
+    expect(treeShows(nodeByRef($screen, 'reply-draft-preview'), 'Shipped 🚀 with '))->toBeTrue()
+        ->and(canSend($screen, 'send-reply'))->toBeTrue();
+
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/api/v1/commits/preview')
+        && $request->body() === '{"body":"Shipped :rocket: with @ada"}');
+
+    $screen->tap('reply-preview');
+
+    expect(nodeByRef($screen, 'reply-input')['props'])->toMatchArray(['value' => 'Shipped :rocket: with @ada', 'autofocus' => true])
+        ->and(nodeByRef($screen, 'reply-preview')['props']['a11y_label'])->toBe('Preview');
+});
+
+it('shows a drop beside Reply as soon as the reply has anything in it, which throws it away', function () {
+    fakeThread();
+
+    $screen = Native::visit('/log/commits/c2');
+
+    expect(rendersRef($screen, 'reply-stash'))->toBeFalse();
+
+    $screen->input('reply-input', 'Not this after all');
+    $actions = childRefs($screen, 'reply-actions');
+
+    // A draft you're writing now has drop alone. Only one that came back from the stash says stash@{0}.
+    expect(array_slice($actions, -2))->toBe(['reply-stash', 'send-reply'])
+        ->and(childRefs($screen, 'reply-stash'))->toBe(['reply-stash-drop'])
+        ->and(nodeByRef($screen, 'reply-stash-drop')['props']['a11y_label'] ?? null)->toBe('Discard the draft');
+
+    $screen->tap('reply-stash-drop');
+
+    expect($screen->instance()->reply)->toBe('')
+        ->and(nodeByRef($screen, 'reply-input')['props']['value'])->toBe('')
+        ->and(rendersRef($screen, 'reply-stash'))->toBeFalse()
+        ->and(app(Stash::class)->names(app(Account::class)->user()?->id))->toBe([]);
 });
 
 it('says nothing about a long reply being folded in feeds, beside Reply or in the sheet, and still counts down near the limit', function () {
@@ -835,21 +865,21 @@ it('lets a drag that starts on an ancestor or a reply scroll the thread', functi
     expect(pressFeedbackInScroller($screen))->toBe([]);
 });
 
-it('puts the reply bar on Liquid Glass tinted with the surface on iOS, and on the solid surface on Android', function () {
+it('puts the reply bar on the surface with no glass or line, and fades the page out above it, on both platforms', function (string $platform) {
     fakeThread();
 
-    $ios = Native::visit('/log/commits/c2', platform: 'ios');
-    $android = Native::visit('/log/commits/c2', platform: 'android');
-    $bar = findNode($android->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
+    $screen = Native::visit('/log/commits/c2', platform: $platform);
+    $bar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
+    $surface = strtoupper(config('native-ui.theme.light.surface'));
 
-    expect(nodeByRef($ios, 'reply-bar')['props']['glass'] ?? null)->toBe(1)
-        ->and(nodeByRef($ios, 'reply-bar')['style']['bg_color'] ?? null)->not->toBeNull()
-        ->and($bar['children'][0]['ref'] ?? null)->toBe('reply-bar')
+    expect($bar['children'][0]['ref'] ?? null)->toBe('reply-bar')
         ->and($bar['children'][0]['props']['glass'] ?? null)->toBeNull()
         ->and($bar['children'][0]['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
         ->and($bar['children'][0]['props']['dark_bg_color'] ?? null)->toBe(config('native-ui.theme.dark.surface'))
-        ->and($bar['children'][0]['children'][0]['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.hairline'));
-});
+        ->and(childRefs($screen, 'reply-bar')[0])->toBe('reply-mention-slot')
+        ->and(childRefs($screen, 'thread-stack'))->toBe(['thread-scroll', 'reply-fade'])
+        ->and(str_ends_with(nodeByRef($screen, 'reply-fade')['props']['gradient_stops'] ?? '', $surface))->toBeTrue();
+})->with(['ios', 'android']);
 
 it('ends the page above the reply bar, and further as the draft grows', function () {
     fakeThread(replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'The last reply'])]);
@@ -858,15 +888,17 @@ it('ends the page above the reply bar, and further as the draft grows', function
     $scroller = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'scroll_view');
     $page = $scroller['children'][0]['children'];
 
-    // The clearance is the last thing on the page, under the last reply: the bar's line and the home indicator.
+    // The clearance is the last thing on the page, under the last reply: the fade, the bar and the home indicator.
+    $bar = 24 + Display::ComposerFadeHeight + Display::ComposerBoxBarHeight + 34;
+
     expect(end($page)['ref'] ?? null)->toBe('reply-bar-clearance')
-        ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual(24 + Display::ComposerBoxBarHeight + 34);
+        ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual($bar);
 
     $screen->input('reply-input', "Three lines\nof a\ndraft");
 
-    expect(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual(24 + Display::ComposerBoxBarHeight + 2 * 21 + 34);
+    expect(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual($bar + 2 * 21);
 
     $screen->input('reply-input', str_repeat("A line\n", 12));
 
-    expect(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual(24 + Display::ComposerBoxBarHeight + 4 * 21 + 34);
+    expect(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual($bar + 4 * 21);
 });

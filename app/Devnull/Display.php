@@ -19,17 +19,12 @@ final class Display
     public const int ReplyBarMaxLines = 5;
 
     /**
-     * The reply box on a commit's page grown by its expand button: it starts this many lines tall, and grows to
-     * ExpandedReplyMaxLines.
+     * The photos on a reply's draft, above the field in the reply bar (see partials/composer-photos), and the
+     * description of one under them while it's open.
      */
-    public const int ExpandedReplyMinLines = 8;
+    public const int ReplyBarPhotosHeight = 88;
 
-    public const int ExpandedReplyMaxLines = 12;
-
-    /**
-     * The row under the reply box that marks a restored draft (see partials/stash-label).
-     */
-    public const int ReplyBarStashLabelHeight = 28;
+    public const int ReplyBarDescriptionHeight = 100;
 
     /**
      * A bar holding partials/composer-box with one line of draft, as drawn on an iPhone: the bar's padding, then the
@@ -235,22 +230,21 @@ final class Display
      * How far a commit page has to scroll past its last reply to clear the
      * reply bar. A pushed screen is drawn under its bottom bar and the home
      * indicator, with no inset for either, so the page pads its own end: the
-     * bar (partials/composer-box) as the draft grows to its five lines, and
-     * the indicator below it. With the keyboard up the bar sits on the
-     * keyboard instead, which only leaves a little more room. Grown by its
-     * expand button ($expanded), the box is ExpandedReplyMinLines tall to
-     * start with. A restored draft adds the row under the box that marks it
-     * ($restored), and a link too long for devnull the line that says so.
+     * fade over its foot (partials/composer-fade), the bar
+     * (partials/composer-box) as the draft grows to its five lines, and the
+     * indicator below it. With the keyboard up the bar sits on the keyboard
+     * instead, which only leaves a little more room. Photos on the draft add
+     * their row above the field ($hasPhotos), and an open description of one
+     * its box under them ($describing). A link too long for devnull adds the
+     * line that says so.
      */
-    public static function replyBarClearance(string $draft, bool $expanded = false, bool $restored = false): int
+    public static function replyBarClearance(string $draft, bool $hasPhotos = false, bool $describing = false): int
     {
-        $lines = $expanded
-            ? max(self::ExpandedReplyMinLines, min(self::ExpandedReplyMaxLines, self::lineCount($draft, self::ComposerBoxCharactersPerLine)))
-            : null;
-
-        return self::ComposerBoxBarHeight
-            + ($lines === null ? self::composerBoxGrowth($draft) : ($lines - 1) * self::ReplyBarLineHeight)
-            + ($restored ? self::ReplyBarStashLabelHeight : 0)
+        return self::ComposerFadeHeight
+            + self::ComposerBoxBarHeight
+            + self::composerBoxGrowth($draft)
+            + ($hasPhotos ? self::ReplyBarPhotosHeight : 0)
+            + ($hasPhotos && $describing ? self::ReplyBarDescriptionHeight : 0)
             + (CommitBody::hasOversizedUrl($draft) ? 3 * self::ReplyBarLineHeight : 0)
             + self::HomeIndicatorHeight;
     }

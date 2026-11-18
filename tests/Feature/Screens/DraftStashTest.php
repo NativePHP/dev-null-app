@@ -3,7 +3,6 @@
 use App\Devnull\Account;
 use App\Devnull\Data\Pasteis;
 use App\Devnull\Data\StashedDraft;
-use App\Devnull\Display;
 use App\Devnull\Stash;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
@@ -199,17 +198,18 @@ it('stashes a reply per commit, and brings it back in the reply bar marked as re
     $screen = Native::visit('/log/commits/c2')->input('reply-input', 'A reply in progress');
     $clearance = nodeByRef($screen, 'reply-bar-clearance')['layout']['height'];
 
+    // While you write it, there's only drop.
     expect(stashed('reply-c2'))->toBe('A reply in progress')
-        ->and(showsRef($screen, 'reply-stash'))->toBeFalse();
+        ->and(stashLabel($screen, 'reply-stash'))->toBe(['drop', 'Discard the draft']);
 
     $screen = Native::visit('/log/commits/c2');
 
     expect(nodeByRef($screen, 'reply-input')['props']['value'])->toBe('A reply in progress')
         ->and(stashLabel($screen, 'reply-stash'))->toBe(['stash@{0}', 'Discard the restored draft'])
         ->and(canSend($screen, 'send-reply'))->toBeTrue()
-        // It's marked on a row under the box, and the page ends above that too.
-        ->and(childRefs($screen, 'reply-stash-row'))->toBe(['reply-stash'])
-        ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual($clearance + Display::ReplyBarStashLabelHeight);
+        // It's marked in the row under the field, beside Reply, so the bar is no taller for it.
+        ->and(array_slice(childRefs($screen, 'reply-actions'), -2))->toBe(['reply-stash', 'send-reply'])
+        ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual($clearance);
 });
 
 it("forgets a reply's stash once it's sent", function () {
