@@ -1,6 +1,7 @@
 <?php
 
 use App\Devnull\ImageCache;
+use App\Devnull\ImageViewer;
 use Devnull\Photos\Events\Saved;
 use Devnull\Photos\Events\SaveFailed;
 use Illuminate\Support\Facades\File;
@@ -189,6 +190,48 @@ it('pans a zoomed image instead of paging or closing, until a pinch brings it ba
     expect($screen->instance()->viewerZoomed)->toBeFalse()
         ->and(nodeByRef($screen, 'viewer-gestures-0')['props'])->not->toHaveKey('pan-x-id')
         ->and(nodeByRef($screen, 'viewer-dismiss')['props'])->toHaveKey('pan-y-id');
+});
+
+it('takes a double tap\'s zoom as it takes a pinch\'s, to twice and back to its whole self', function () {
+    $screen = logWithImages(2)->tap('image-i1');
+
+    // A double tap zooms to half the most an image zooms, and says so through the pinch's end.
+    expect(ImageViewer::DoubleTapZoom)->toBe(ImageViewer::MaxZoom / 2);
+
+    $screen->pinch('viewer-gestures-0', ImageViewer::DoubleTapZoom);
+
+    expect($screen->instance()->viewerZoomed)->toBeTrue()
+        ->and(nodeByRef($screen, 'viewer-gestures-0')['props']['pan-x-id'])->toBe($screen->instance()->viewerPansX[0]->id)
+        ->and(nodeByRef($screen, 'viewer-dismiss')['props'])->not->toHaveKey('pan-y-id');
+
+    $screen->pinch('viewer-gestures-0', 1.0);
+
+    expect($screen->instance()->viewerZoomed)->toBeFalse()
+        ->and(nodeByRef($screen, 'viewer-gestures-0')['props'])->not->toHaveKey('pan-x-id')
+        ->and(nodeByRef($screen, 'viewer-dismiss')['props'])->toHaveKey('pan-y-id');
+});
+
+it('grows out of the image the row was tapped in, and shrinks back into whichever image it has paged to', function () {
+    $screen = logWithImages(3);
+
+    // Each of the row's images has a ref of its own, beside the pressable's, for the viewer to grow out of.
+    expect(nodeByRef($screen, 'thumb-i1')['props'])->toMatchArray(['src' => 'https://img.test/1', 'fit' => 2])
+        ->and(nodeByRef($screen, 'thumb-i3')['props']['src'])->toBe('https://img.test/3');
+
+    $screen->tap('image-i2');
+
+    $viewing = $screen->instance();
+
+    expect($viewing->viewerSources)->toBe(['thumb-i1', 'thumb-i2', 'thumb-i3'])
+        ->and($viewing->viewerSources[$viewing->viewerIndex])->toBe('thumb-i2');
+
+    $screen->changeTab('viewerPaged', 2);
+
+    expect($screen->instance()->viewerSources[$screen->instance()->viewerIndex])->toBe('thumb-i3');
+
+    $screen->dismissSheet('image-viewer');
+
+    expect($screen->instance()->viewerSources)->toBe([]);
 });
 
 it('closes when the image is dragged far enough up or down, and springs back from a short drag', function (float $settled, bool $closes) {

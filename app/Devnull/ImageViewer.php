@@ -22,4 +22,9 @@ final class ImageViewer
      * The most an image zooms, as many times its whole self.
      */
     public const float MaxZoom = 4;
+
+    /**
+     * How far a double tap zooms an image at its whole self: half the most it zooms.
+     */
+    public const float DoubleTapZoom = self::MaxZoom / 2;
 }
