@@ -2,6 +2,7 @@
 
 namespace App\NativeComponents;
 
+use App\Devnull\Beat;
 use App\Devnull\Client;
 use App\Devnull\Data\Notification;
 use App\Devnull\Data\Page;
@@ -34,6 +35,12 @@ use Native\Mobile\Edge\NativeComponent;
  * kind on or off on its own, kept per user on this phone. A group of more
  * than one opens in place to list them all, as the web expands it.
  *
+ * A group opens and closes as replies do on the Log: its toggle's chevron
+ * turns, and its notifications fade in nudged down into place, and fade out
+ * the same way before they go. EDGE can't animate a node as it first appears,
+ * so they're drawn see-through for a frame ($fadedItems) and drawn again as
+ * they should be once a Beat comes back, which they animate to.
+ *
  * It opens on the notifications as they were last time, all read by then,
  * then asks devnull behind them. devnull marks everything read as it lists
  * any of it, and says when, so the groups read since then are the new ones,
@@ -55,6 +62,12 @@ class Notifications extends NativeComponent
      * Every frame goes in full, as on the Log (see Log::$forceFullFrames).
      */
     protected bool $forceFullFrames = true;
+
+    /**
+     * How long a group's notifications take to fade in or out, and its
+     * chevron to turn, in milliseconds: as long as replies take on the Log.
+     */
+    public const int GroupFade = 220;
 
     /**
      * The kinds that are on, as the settings screen keeps them (see NotificationFilter).
@@ -101,6 +114,22 @@ class Notifications extends NativeComponent
      * @var list<string>
      */
     public array $failedGroups = [];
+
+    /**
+     * What an opened group draws see-through: notifications about to fade in,
+     * or a group fading out. A notification goes by its id, a group's guide
+     * line and "Show older" by "group-" and the group's id.
+     *
+     * @var list<string>
+     */
+    public array $fadedItems = [];
+
+    /**
+     * Groups fading out, still drawn until they've faded.
+     *
+     * @var list<string>
+     */
+    public array $closingGroups = [];
 
     public function mount(): void
     {
@@ -186,6 +215,8 @@ class Notifications extends NativeComponent
         $this->expanded = [];
         $this->expandedCursors = [];
         $this->failedGroups = [];
+        $this->fadedItems = [];
+        $this->closingGroups = [];
         $this->showKept();
         $this->revalidate();
     }
@@ -209,7 +240,9 @@ class Notifications extends NativeComponent
         $this->refresh('notifications', Client::notificationsQuery($type), fn (array $json) => $this->takeFresh($type, $json));
 
         foreach (array_keys($this->expanded) as $id) {
-            $this->refreshGroup((string) $id);
+            if ($this->isOpenGroup((string) $id)) {
+                $this->refreshGroup((string) $id);
+            }
         }
     }
 
@@ -288,8 +321,13 @@ class Notifications extends NativeComponent
      */
     public function toggleGroup(string $id): void
     {
-        if (array_key_exists($id, $this->expanded) || in_array($id, $this->failedGroups, true)) {
-            unset($this->expanded[$id], $this->expandedCursors[$id]);
+        if (array_key_exists($id, $this->expanded)) {
+            $this->fadeOutGroup($id);
+
+            return;
+        }
+
+        if (in_array($id, $this->failedGroups, true)) {
             $this->failedGroups = array_values(array_diff($this->failedGroups, [$id]));
 
             return;
@@ -298,11 +336,20 @@ class Notifications extends NativeComponent
         if (($kept = $this->cached($this->groupPath($id), Client::notificationsQuery($this->typeQuery()))) !== null) {
             $this->takeGroup($id, $kept);
             $this->refreshGroup($id);
+            $this->fadeIn([...$this->itemIds($this->expanded[$id]), 'group-'.$id]);
 
             return;
         }
 
         $this->loadGroup($id);
+    }
+
+    /**
+     * Whether a group is open, and not on its way out.
+     */
+    public function isOpenGroup(string $id): bool
+    {
+        return array_key_exists($id, $this->expanded) && ! in_array($id, $this->closingGroups, true);
     }
 
     /**
@@ -312,7 +359,7 @@ class Notifications extends NativeComponent
     {
         $cursor = $older ? ($this->expandedCursors[$id] ?? null) : null;
 
-        if ($older && $cursor === null) {
+        if (($older && $cursor === null) || in_array($id, $this->closingGroups, true)) {
             return;
         }
 
@@ -332,6 +379,7 @@ class Notifications extends NativeComponent
 
         $this->expanded[$id] = $older ? [...($this->expanded[$id] ?? []), ...$page->items] : $page->items;
         $this->setGroupCursor($id, $page->nextCursor);
+        $this->fadeIn($older ? $this->itemIds($page->items) : [...$this->itemIds($page->items), 'group-'.$id]);
     }
 
     /**
@@ -383,7 +431,7 @@ class Notifications extends NativeComponent
 
         $this->refresh($this->groupPath($id), Client::notificationsQuery($type), function (array $json) use ($id, $type): void {
             // Folded away, or another filter, while it was on its way.
-            if ($type === $this->typeQuery() && array_key_exists($id, $this->expanded)) {
+            if ($type === $this->typeQuery() && $this->isOpenGroup($id)) {
                 $this->takeGroup($id, $json);
             }
         }, quiet: true);
@@ -409,6 +457,56 @@ class Notifications extends NativeComponent
         }
 
         $this->expandedCursors[$id] = $cursor;
+    }
+
+    /**
+     * Draws a group's notifications see-through for a frame, then as they are, which they fade to.
+     *
+     * @param  list<string>  $items
+     */
+    private function fadeIn(array $items): void
+    {
+        if ($items === []) {
+            return;
+        }
+
+        $this->fadedItems = array_values(array_unique([...$this->fadedItems, ...$items]));
+
+        $shown = fn () => $this->fadedItems = array_values(array_diff($this->fadedItems, $items));
+
+        Beat::dispatch(Beat::Step)->finished($shown)->failed($shown);
+    }
+
+    /**
+     * Fades a group's notifications out, then folds it away.
+     */
+    private function fadeOutGroup(string $id): void
+    {
+        if (in_array($id, $this->closingGroups, true)) {
+            return;
+        }
+
+        $items = [...$this->itemIds($this->expanded[$id] ?? []), 'group-'.$id];
+        $this->closingGroups[] = $id;
+        $this->fadedItems = array_values(array_unique([...$this->fadedItems, ...$items]));
+
+        $closed = function () use ($id, $items): void {
+            unset($this->expanded[$id], $this->expandedCursors[$id]);
+            $this->failedGroups = array_values(array_diff($this->failedGroups, [$id]));
+            $this->closingGroups = array_values(array_diff($this->closingGroups, [$id]));
+            $this->fadedItems = array_values(array_diff($this->fadedItems, $items));
+        };
+
+        Beat::dispatch(self::GroupFade)->finished($closed)->failed($closed);
+    }
+
+    /**
+     * @param  list<Notification>  $items
+     * @return list<string>
+     */
+    private function itemIds(array $items): array
+    {
+        return array_map(fn (Notification $item): string => $item->id, $items);
     }
 
     private function groupPath(string $id): string

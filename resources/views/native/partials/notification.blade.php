@@ -17,6 +17,12 @@
 
     A group of more than one opens in place from a Commit Blue toggle ("5 stars"), listing each event behind a Rail
     Gray guide line (see notification-group). A group of followers has no follow back of its own, as on the web.
+    The toggle's chevron turns down while the group is open, and back as it closes, as the Log's replies button does.
+    It carries the animation shut as well as open: iOS only animates a change on a node that already had it. Opening,
+    it turns a frame after the row grows, as the notifications start to fade in ($turned): iOS animates everything
+    about a node that changes in the frame its animated props do, and the row growing in that frame moved the
+    chevron down and back up as it turned. A group fading out ($closingGroups) is still drawn, with the toggle
+    already back to its count.
 
     No press-* feedback: on iOS it holds any drag that starts on the row, and these rows cover the whole list.
     The name's run carries font-semibold as well as the font: inside a sentence, NativeUITextRenderer sets each run's
@@ -26,7 +32,9 @@
 @php($lane = Lane::token($laneNumber))
 @php($icon = Lucide::forNotification($notification->type))
 @php($iconColour = $notification->isModeration() ? 'text-theme-ink-muted' : 'text-theme-'.$lane)
-@php($open = array_key_exists($notification->id, $expanded))
+@php($drawn = array_key_exists($notification->id, $expanded))
+@php($open = $drawn && ! in_array($notification->id, $closingGroups ?? [], true))
+@php($turned = $open && ! in_array('group-'.$notification->id, $fadedItems ?? [], true))
 @php($failed = in_array($notification->id, $failedGroups, true))
 @php($noun = $notification->groupNoun())
 @php($second = $notification->secondActor())
@@ -119,12 +127,12 @@
                 @if ($notification->isGrouped())
                     <native:pressable ref="group-{{ $notification->id }}" @press="toggleGroup('{{ $notification->id }}')" class="-ml-2 mt-1 px-2 py-[2]" a11y-label="{{ $open ? 'Hide '.$noun : $notification->eventCount.' '.$noun }}">
                         <native:row class="gap-1 items-center">
-                            <native:icon :ios="($open ? Lucide::ChevronDown : Lucide::ChevronRight)->ios()" :android="($open ? Lucide::ChevronDown : Lucide::ChevronRight)->android()" :size="14" class="text-theme-primary" />
+                            <native:icon ref="group-chevron-{{ $notification->id }}" :ios="Lucide::ChevronRight->ios()" :android="Lucide::ChevronRight->android()" :size="14" class="text-theme-primary" :rotate="$turned ? 90 : 0" :animate-duration="\App\NativeComponents\Notifications::GroupFade" />
                             <native:text font="medium" class="text-[13px] text-theme-primary">{{ $open ? 'Hide '.$noun : $notification->eventCount.' '.$noun }}</native:text>
                         </native:row>
                     </native:pressable>
 
-                    @if ($open || $failed)
+                    @if ($drawn || $failed)
                         @include('native.partials.notification-group', ['group' => $notification, 'items' => $expanded[$notification->id] ?? []])
                     @endif
                 @endif

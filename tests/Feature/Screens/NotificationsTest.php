@@ -459,6 +459,81 @@ it('opens a group in place, as the web expands it, and folds it away again', fun
     Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/notifications/n-starred/group');
 });
 
+it("turns a group's chevron and fades its notifications in as it opens, and out as it closes, as replies do on the Log", function (string $platform) {
+    holdRefreshes();
+    $group = pageJson([
+        notificationJson('starred', ['id' => 'n-star-2', 'actor' => personJson('grace', 'Grace')]),
+        notificationJson('starred', ['id' => 'n-star-1', 'actor' => personJson('linus', 'Linus')]),
+    ]);
+    keep('notifications', inboxJson([notificationJson('starred', ['event_count' => 2])]), ['type' => null]);
+    keep('notifications/n-starred/group', $group, ['type' => null]);
+    serveApi(fn (Request $request) => Http::response(str_contains($request->url(), '/group') ? $group : inboxJson([notificationJson('starred', ['event_count' => 2])])));
+
+    $screen = Native::visit('/notifications', platform: $platform);
+    $chevron = fn (): array => nodeByRef($screen, 'group-chevron-n-starred')['props'];
+    $item = fn (string $id): array => nodeByRef($screen, 'group-item-'.$id)['children'][0];
+    $guide = fn (): array => nodeByRef($screen, 'group-guide-n-starred');
+
+    // Shut, it points right, and already carries the animation, so the turn animates on iOS.
+    expect($chevron())->toMatchArray(['name' => 'custom:chevron-right', 'rotate' => 0.0, 'animate-duration' => 220.0]);
+
+    // Opened, the notifications are drawn see-through and nudged up first, with the animation they ease in by. The
+    // chevron waits for that frame too, so it turns in place rather than riding the row as it grows.
+    $screen->tap('group-n-starred')->assertSee('Hide stars');
+    expect($chevron())->toMatchArray(['rotate' => 0.0, 'animate-duration' => 220.0])
+        ->and($item('n-star-2')['style']['opacity'] ?? null)->toBe(0.0)
+        ->and($item('n-star-2')['props']['translate-y'] ?? null)->toBe(-8.0)
+        ->and($item('n-star-2')['props']['animate-duration'] ?? null)->toBe(220.0)
+        ->and($item('n-star-1')['style']['opacity'] ?? null)->toBe(0.0)
+        ->and($guide()['style']['opacity'] ?? null)->toBe(0.0);
+
+    finishRefreshes($screen);
+    expect($chevron()['rotate'])->toBe(90.0)
+        ->and($item('n-star-2')['style']['opacity'] ?? 1.0)->toBe(1.0)
+        ->and($item('n-star-2')['props']['translate-y'] ?? null)->toBe(0.0)
+        ->and($item('n-star-1')['style']['opacity'] ?? 1.0)->toBe(1.0)
+        ->and($guide()['style']['opacity'] ?? 1.0)->toBe(1.0);
+
+    // Closing turns the chevron back and fades them out while they're still drawn, and a tap meanwhile does nothing.
+    $screen->tap('group-n-starred')->tap('group-n-starred')->assertSee('2 stars')->assertDontSee('Hide stars');
+    expect($chevron()['rotate'])->toBe(0.0)
+        ->and($item('n-star-2')['style']['opacity'] ?? null)->toBe(0.0)
+        ->and($item('n-star-2')['props']['translate-y'] ?? null)->toBe(-8.0)
+        ->and($guide()['style']['opacity'] ?? null)->toBe(0.0);
+
+    // They go once they've faded.
+    finishRefreshes($screen);
+    expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'group-items-n-starred'))->toBeNull()
+        ->and($screen->instance()->expanded)->toBe([])
+        ->and($screen->instance()->closingGroups)->toBe([])
+        ->and($screen->instance()->fadedItems)->toBe([]);
+})->with(['ios', 'android']);
+
+it('fades older notifications in as they come, and leaves the ones already showing as they are', function () {
+    holdRefreshes();
+    keep('notifications', inboxJson([notificationJson('followed', ['event_count' => 2, 'actors_count' => 2])]), ['type' => null]);
+    serveApi(function (Request $request) {
+        $url = $request->url();
+
+        return match (true) {
+            str_contains($url, '/group') && str_contains($url, 'cursor=older') => Http::response(pageJson([notificationJson('followed', ['id' => 'n-follow-1', 'actor' => personJson('linus', 'Linus')])])),
+            str_contains($url, '/group') => Http::response(pageJson([notificationJson('followed', ['id' => 'n-follow-2', 'actor' => personJson('grace', 'Grace')])], 'older')),
+            default => Http::response(inboxJson([notificationJson('followed', ['event_count' => 2, 'actors_count' => 2])])),
+        };
+    });
+
+    $screen = finishRefreshes(finishRefreshes(Native::visit('/notifications'))->tap('group-n-followed'));
+    $opacity = fn (string $id): float => nodeByRef($screen, 'group-item-'.$id)['children'][0]['style']['opacity'] ?? 1.0;
+
+    $screen->tap('group-older-n-followed')->assertSee('Linus');
+    expect($opacity('n-follow-1'))->toBe(0.0)
+        ->and($opacity('n-follow-2'))->toBe(1.0)
+        ->and(nodeByRef($screen, 'group-guide-n-followed')['style']['opacity'] ?? 1.0)->toBe(1.0);
+
+    finishRefreshes($screen);
+    expect($opacity('n-follow-1'))->toBe(1.0);
+});
+
 it('opens a group with the kinds it was listed under, and pages its older ones', function () {
     chooseKinds(['follows']);
 
