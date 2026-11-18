@@ -1,0 +1,26 @@
+{
+    "name": "devnull/nativephp-photos",
+    "description": "Saves an image to the phone's photo library for the devnull app",
+    "type": "nativephp-plugin",
+    "version": "1.0.0",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "nativephp/mobile": "^4.6.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Devnull\\Photos\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Devnull\\Photos\\PhotosServiceProvider"
+            ]
+        },
+        "nativephp": {
+            "manifest": "nativephp.json"
+        }
+    }
+}

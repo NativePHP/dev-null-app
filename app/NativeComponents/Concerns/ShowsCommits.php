@@ -18,7 +18,6 @@ use App\Devnull\Timezone;
 use App\Devnull\Toasts;
 use Closure;
 use Native\Mobile\Attributes\On;
-use Native\Mobile\Edge\SharedValue;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Facades\Browser;
 use Native\Mobile\Facades\Dialog;
@@ -45,6 +44,7 @@ trait ShowsCommits
     use OpensCommitSheet;
     use OpensHashtags;
     use OpensStargazers;
+    use ShowsImageViewer;
     use VotesOnPolls;
     use WritesInBackground;
 
@@ -61,37 +61,6 @@ trait ShowsCommits
      * The commit the delete alert is asking about.
      */
     public ?string $deleting = null;
-
-    /**
-     * Whether the image viewer is up, over everything else on the screen,
-     * sheet included.
-     */
-    public bool $viewerOpen = false;
-
-    /**
-     * The images of the commit being viewed, as they were when it opened, so
-     * the viewer keeps what it shows while it slides away even if the commit
-     * leaves the screen.
-     *
-     * @var list<CommitImage>
-     */
-    public array $viewerImages = [];
-
-    /**
-     * Which of the viewer's images is showing.
-     */
-    public int $viewerIndex = 0;
-
-    /**
-     * The zoom and pan of the image being viewed, driven on the phone by the
-     * viewer's gesture area. Fresh ones on every open and every move between
-     * images, so each starts at rest; nulled on close.
-     */
-    public ?SharedValue $viewerZoom = null;
-
-    public ?SharedValue $viewerPanX = null;
-
-    public ?SharedValue $viewerPanY = null;
 
     /**
      * Every commit the screen is showing.
@@ -308,61 +277,15 @@ trait ShowsCommits
     }
 
     /**
-     * Opens a commit's image full-screen in the app (see partials/image-viewer),
-     * from the one the row tapped: the image whole rather than cropped, pinch
-     * zoom between its whole self and four times, a drag to pan, and the
-     * chevrons under it to move between the commit's other images. An image the
-     * screen isn't showing, or one at no web address, opens nothing, as it did
-     * in the browser.
+     * Opens a commit's image full-screen in the app (see ShowsImageViewer), from
+     * the one the row tapped, which it grows out of. An image the screen isn't
+     * showing, or one at no web address, opens nothing, as it did in the browser.
      */
     public function openImage(string $id, int $index = 0): void
     {
         $images = $this->shownCommit($id)?->images ?? [];
-        $image = $images[$index] ?? null;
 
-        if ($image === null || ! SiteLink::isWebUrl($image->url)) {
-            return;
-        }
-
-        $this->viewerImages = $images;
-        $this->viewerIndex = $index;
-        $this->restViewerImage();
-        $this->viewerOpen = true;
-    }
-
-    /**
-     * The chevron under the viewer: the commit's next image, at rest again. At
-     * the last image there's no chevron to press, and a next at no web address
-     * goes nowhere, as an image at one never opens.
-     */
-    public function viewNextImage(): void
-    {
-        $this->showInViewedImage($this->viewerIndex + 1);
-    }
-
-    /**
-     * The chevron under the viewer: the commit's previous image, at rest
-     * again. At the first image there's no chevron to press, and a previous at
-     * no web address goes nowhere either.
-     */
-    public function viewPreviousImage(): void
-    {
-        $this->showInViewedImage($this->viewerIndex - 1);
-    }
-
-    /**
-     * The viewer's close, back or outside tap, however the phone reports it:
-     * the viewer goes and forgets the image and what its gestures left behind,
-     * so the next one opens as this one did.
-     */
-    public function closeImageViewer(): void
-    {
-        $this->viewerOpen = false;
-        $this->viewerImages = [];
-        $this->viewerIndex = 0;
-        $this->viewerZoom = null;
-        $this->viewerPanX = null;
-        $this->viewerPanY = null;
+        $this->showImagesInViewer($images, $index, array_map(fn (CommitImage $image): string => $image->thumbRef(), $images));
     }
 
     /**
@@ -631,34 +554,5 @@ trait ShowsCommits
         if (SiteLink::isWebUrl($url)) {
             Browser::inApp($url);
         }
-    }
-
-    /**
-     * Puts the viewer's image back at rest: fresh shared values, which the
-     * phone seeds at one and none, so what the last image's gestures left
-     * behind can't carry over to it.
-     */
-    private function restViewerImage(): void
-    {
-        $this->viewerZoom = SharedValue::make(1.0);
-        $this->viewerPanX = SharedValue::make();
-        $this->viewerPanY = SharedValue::make();
-    }
-
-    /**
-     * Moves the viewer to one of its commit's images by its place among them,
-     * or nowhere when there's no image there or it's at no web address, so the
-     * viewer never comes to show one the phone shouldn't be asked for.
-     */
-    private function showInViewedImage(int $index): void
-    {
-        $image = $this->viewerImages[$index] ?? null;
-
-        if (! $this->viewerOpen || $image === null || ! SiteLink::isWebUrl($image->url)) {
-            return;
-        }
-
-        $this->viewerIndex = $index;
-        $this->restViewerImage();
     }
 }
