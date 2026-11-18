@@ -34,6 +34,10 @@
     A commit page opens its replies under its commit in place: it passes what the toggle presses ($repliesToggle),
     whether they're open ($repliesOpen) and how many there are ($repliesCount). $compact draws the row smaller, for
     the commits around the one a page is about.
+
+    Wherever the button opens the replies in place, in a feed or on a commit page, its chevron turns down while they
+    show and back as they close, over the time a feed's thread takes to fade (ThreadRows::Fade). The chevron carries
+    the animation shut as well as open: iOS only animates a change on a node that already had it.
 --}}
 @php($withReply ??= true)
 @php($withReplies ??= true)
@@ -42,6 +46,7 @@
 @php($expandable ??= isset($threads))
 @php($isOpen = $repliesOpen ?? ($expandable && array_key_exists($commit->id, $threads) && ! in_array($commit->id, $closingThreads ?? [], true)))
 @php($repliesPress = $repliesToggle ?? ($expandable ? "toggleReplies('{$commit->id}')" : "openReplies('{$commit->id}')"))
+@php($opensInPlace = $expandable || isset($repliesToggle))
 @php($repliesCount ??= $commit->repliesCount)
 @php($iconSize = $compact ? 14 : 16)
 @php($labelSize = $compact ? 'text-xs' : 'text-[13px]')
@@ -127,7 +132,7 @@
 
 @if ($showsReplies)
     <native:pressable ref="replies-{{ $commit->id }}" @press="{{ $repliesPress }}" class="flex-row self-start h-[36] -ml-2 px-2 gap-1 items-center" a11y-label="{{ $isOpen ? 'Hide replies' : \App\Devnull\Display::count($repliesCount, 'reply', 'replies') }}">
-        <native:icon :ios="\App\Icons\Lucide::ChevronRight->ios()" :android="\App\Icons\Lucide::ChevronRight->android()" :size="14" class="text-theme-primary" :rotate="$expandable ? ($isOpen ? 90 : 0) : null" :animate-duration="$expandable ? \App\Devnull\ThreadRows::Fade : null" />
+        <native:icon :ios="\App\Icons\Lucide::ChevronRight->ios()" :android="\App\Icons\Lucide::ChevronRight->android()" :size="14" class="text-theme-primary" :rotate="$opensInPlace ? ($isOpen ? 90 : 0) : null" :animate-duration="$opensInPlace ? \App\Devnull\ThreadRows::Fade : null" />
         <native:text class="{{ $labelSize }} text-theme-primary">{{ $isOpen ? 'Hide replies' : \App\Devnull\Display::count($repliesCount, 'reply', 'replies') }}</native:text>
     </native:pressable>
 @endif

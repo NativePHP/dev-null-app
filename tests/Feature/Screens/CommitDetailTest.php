@@ -411,6 +411,26 @@ it('opens ancestors, replies and profiles', function () {
     Native::visit('/log/commits/c2')->call('openProfile', 'ada')->assertNavigatedTo('/log/users/ada');
 });
 
+it("turns the replies button's chevron down while the replies show, as the Log does, and back as they close", function (string $platform) {
+    fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'replies_count' => 1])]);
+
+    $screen = Native::visit('/log/commits/c2', platform: $platform);
+    $chevron = fn (string $ref): array => findNode(nodeByRef($screen, $ref), fn (array $node): bool => ($node['type'] ?? null) === 'icon');
+
+    // Shut, it points right, and already carries the animation, so the turn animates on iOS.
+    expect($chevron('replies-c2')['props'])->toMatchArray(['name' => 'custom:chevron-right', 'rotate' => 0.0, 'animate-duration' => 220.0]);
+
+    $screen->tap('replies-c2')->assertSee('First reply')->assertSee('Hide replies');
+    expect($chevron('replies-c2')['props'])->toMatchArray(['name' => 'custom:chevron-right', 'rotate' => 90.0, 'animate-duration' => 220.0]);
+
+    $screen->tap('replies-c2')->assertDontSee('First reply')->assertSee('1 reply');
+    expect($chevron('replies-c2')['props'])->toMatchArray(['name' => 'custom:chevron-right', 'rotate' => 0.0, 'animate-duration' => 220.0]);
+
+    // A reply's button opens its page rather than its replies in place, so its chevron stays put.
+    $screen->tap('replies-c2');
+    expect($chevron('replies-r1')['props'])->not->toHaveKey('rotate');
+})->with(['ios', 'android']);
+
 it('opens with its replies showing from a replies button', function () {
     fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'replies_count' => 1])], extra: [
         'GET /api/v1/commits/r1' => [commitPageJson(replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'replies_count' => 1]))],
