@@ -267,15 +267,6 @@ trait OpensCommitSheet
     {
         $this->sheetAuthor = PostAs::author($handle)?->username;
         $this->sheetError = null;
-        $this->sheetAuthorChanged();
-    }
-
-    /**
-     * The sheet's author changed. A screen whose own composer handed it the draft keeps the choice too.
-     */
-    protected function sheetAuthorChanged(): void
-    {
-        //
     }
 
     /**
@@ -658,16 +649,14 @@ trait OpensCommitSheet
 
     /**
      * The sheet starts from its stashed draft, with its photos and poll, as
-     * you, or as the screen's own composer had it (see sheetAuthorFor()). A
-     * commit devnull turned down that was written under it comes back whole,
-     * as the organization it was to go out as, and leaves the outbox: from
-     * here it's a draft again.
+     * you. A commit devnull turned down that was written under it comes back
+     * whole, as the organization it was to go out as, and leaves the outbox:
+     * from here it's a draft again.
      */
     private function restoreSheetDraft(): void
     {
         $name = $this->sheetStashName();
         $failed = $name === null ? null : app(Outbox::class)->failedDraft($name);
-        $this->sheetAuthor = $this->sheetAuthorFor($this->sheetView);
 
         if ($failed !== null) {
             $this->sheetAuthor = $failed->author();
@@ -681,14 +670,6 @@ trait OpensCommitSheet
         $this->sheetPoll = $this->sheetView === 'reply' ? null : $draft->poll;
         $this->sheetPollLength = $draft->pollLength;
         $this->sheetRestored = ! $draft->isEmpty();
-    }
-
-    /**
-     * Who the sheet starts out posting as for $view: you, unless the screen's own composer handed it a choice.
-     */
-    protected function sheetAuthorFor(string $view): ?string
-    {
-        return null;
     }
 
     private function takeFailedCommit(PendingWrite $write): void

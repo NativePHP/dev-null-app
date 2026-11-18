@@ -5,7 +5,9 @@
     @include('native.partials.live-stream-sheet')
     @include('native.partials.stargazers-sheet')
 
-    <native:scroll-view native:key="thread-{{ $scrollKey }}" ref="thread-scroll" class="w-full flex-1 bg-theme-surface">
+    {{-- The stack around the page holds the fade over its foot, just above the reply bar (see partials/composer-fade). --}}
+    <native:stack ref="thread-stack" class="w-full flex-1">
+    <native:scroll-view native:key="thread-{{ $scrollKey }}" ref="thread-scroll" class="w-full h-full bg-theme-surface">
         <native:column ref="thread-page" class="w-full bg-theme-surface">
             @if (! $commit && $error === null)
                 <native:column ref="loading-commit" class="w-full items-center py-16" a11y-label="Loading commit">
@@ -105,78 +107,91 @@
 
             {{--
                 A pushed screen runs under its bottom bar, so the page clears the reply bar itself (see
-                Display::replyBarClearance): the last reply and its actions end above the bar, keyboard up or down.
+                Display::replyBarClearance): the last reply and its actions end above the fade and the bar, keyboard
+                up or down.
             --}}
             @if ($commit)
-                <native:column ref="reply-bar-clearance" class="w-full h-[{{ 24 + \App\Devnull\Display::replyBarClearance($reply, $replyRestored || $replyImages !== []) }}]" />
+                <native:column ref="reply-bar-clearance" class="w-full h-[{{ 24 + \App\Devnull\Display::replyBarClearance($reply, $replyImages !== [] && ! $replyPreviewing, $describing !== null) }}]" />
             @endif
         </native:column>
     </native:scroll-view>
 
+    @if ($commit && ! \App\Devnull\Display::fadesInBar())
+        @include('native.partials.composer-fade', ['ref' => 'reply-fade'])
+    @endif
+    </native:stack>
+
     @if ($commit)
         {{--
-            The bar is painted from its first child's background: native:bottom-bar takes no classes of its own, so
-            the surface and the hairline above it belong to this column, or the replies show through. On iOS the bar
-            is bare and the field is a Liquid Glass plate instead, the way the HIG floats controls over content; the
-            hairline stays as a clear 1pt so the bar keeps the height Display::ReplyBarHeight counts on.
+            The reply bar, drawn as the Remotes composer is: the field across the top and a row under it with the
+            tools on the left and the round send button on the right (see partials/composer-box), with the page fading
+            out above it (see partials/composer-fade). On iOS the bar is Liquid Glass, faded in at the top, so the page
+            shows through it blurred (see Display::composerBarGlass()). On Android it's the surface, painted from this
+            column. Either fills the strip under the home indicator.
 
-            A member of a GitHub organization has the web's Post as at the start of the row: the avatar of whoever the
-            reply goes out as, which opens the menu (see PostAs), and Reply in that one's lane.
+            The bar does everything the composer sheet did for a reply, so a reply never needs the sheet, whose
+            presenting takes the keyboard down and back up on both platforms. The photo button adds photos from the
+            library or the camera, which show above the field with their ✕ and ALT. Preview shows the reply as it will
+            look in the field's place, and pressed again brings the field back. Beside the send button, drop throws
+            the draft away whenever there's anything in it, after the web's stash@{0} when the draft came back from
+            the stash, then how long the reply is near the limit.
 
-            The expand button opens the reply in the composer sheet, which has the photos and preview the bar has no
-            room for. It sits where partials/composer-plate puts a composer's tools: inside the plate on iOS, ahead of
-            the field on Android.
+            A member of a GitHub organization has the web's Post as at the start of the row, as composer-box's $lead:
+            the avatar of whoever the reply goes out as, which opens the menu (see PostAs). The send button is then
+            filled with that one's lane.
         --}}
         @php($replyPostingMe = app(\App\Devnull\Account::class)->user())
-        <native:bottom-bar>
-            <native:column ref="reply-bar" class="w-full android:bg-theme-surface">
-                <native:column class="w-full h-[1] android:bg-theme-hairline" />
+        @php($replyPostsAs = $replyPostingMe !== null && \App\Devnull\PostAs::offered($replyAuthor))
+        <native:bottom-bar class="{{ \App\Devnull\Display::composerBarGlass() }}">
+            <native:column ref="reply-bar" class="w-full {{ \App\Devnull\Display::composerBar() }}">
+                @if (\App\Devnull\Display::fadesInBar())
+                    @include('native.partials.composer-fade', ['ref' => 'reply-fade', 'inBar' => true])
+                @endif
+                <native:column native:key="reply-rows" ref="reply-rows" class="w-full {{ \App\Devnull\Display::composerSurface() }}">
                 {{--
-                    The people to mention keep a slot above the field, empty and no height when there's no one, so the
-                    field's row never moves. Android rebuilds a row that moves among its siblings, field and all, which
-                    drops the keyboard.
+                    The people to mention and the photos on the reply keep a slot each above the field, empty and
+                    0.1pt tall when there's nothing in it, so the field's row never moves. Android rebuilds a row that
+                    moves among its siblings, field and all, which drops the keyboard. On iOS an empty slot would
+                    otherwise take 10pt of the bar, and EDGE drops a height of 0.
                 --}}
                 @php($mentioning = ($mention['field'] ?? null) === 'reply' && ($mentionPeople !== [] || $mentionOrganizations !== []))
-                <native:row native:key="reply-mention-slot" ref="reply-mention-slot" class="w-full {{ $mentioning ? 'pt-1 ios:px-4' : '' }}">
+                <native:row native:key="reply-mention-slot" ref="reply-mention-slot" class="w-full {{ $mentioning ? 'pt-1 ios:px-4' : 'h-[0.1]' }}">
                     @include('native.partials.mention-suggestions', ['field' => 'reply', 'label' => 'Mention a developer'])
                 </native:row>
-                <native:row ref="reply-row" class="w-full ios:pl-4 android:pl-2 pr-4 py-2 gap-2 items-center">
-                    @if ($replyPostingMe !== null && \App\Devnull\PostAs::offered($replyAuthor))
-                        @include('native.partials.post-as', ['ref' => 'reply-post-as', 'me' => $replyPostingMe, 'picked' => $replyAuthor, 'method' => 'postAsInReply', 'size' => 32])
+                @php($showsPhotos = $replyImages !== [] && ! $replyPreviewing)
+                <native:column native:key="reply-photos-slot" ref="reply-photos-slot" class="w-full {{ $showsPhotos ? 'pl-8 pr-4 pt-2' : 'h-[0.1]' }}">
+                    @if ($showsPhotos)
+                        @include('native.partials.composer-photos', ['photos' => $replyImages, 'photoRef' => 'reply-photo'])
                     @endif
-                    @include('native.partials.composer-plate', [
+                </native:column>
+                <native:row native:key="reply-row" ref="reply-row" class="w-full px-4 py-2">
+                    @php($hasDraft = trim($reply) !== '' || $replyImages !== [])
+                    @php($photosFull = count($replyImages) >= \App\Devnull\DraftImages::MaxImages)
+                    @include('native.partials.composer-box', [
                         'ref' => 'reply',
-                        'field' => 'native.partials.reply-field',
-                        'tools' => [['ref' => 'reply-expand', 'icon' => \App\Icons\Lucide::Maximize2, 'label' => 'Reply with photos or a preview', 'press' => "replyInSheet('{$commit->id}')"]],
+                        'field' => $replyPreviewing ? 'native.partials.reply-preview' : 'native.partials.reply-field',
+                        'lead' => $replyPostsAs ? [['native.partials.post-as', ['ref' => 'reply-post-as', 'me' => $replyPostingMe, 'picked' => $replyAuthor, 'method' => 'postAsInReply', 'size' => 28]]] : [],
+                        'tools' => [
+                            ['ref' => 'reply-add-photos', 'icon' => \App\Icons\Lucide::ImagePlus, 'label' => $photosFull ? 'A reply can have up to 3 photos' : 'Add photos', 'menu' => $photosFull ? null : \App\Devnull\ComposerMenu::photoItems(), 'disabled' => $photosFull],
+                            ['ref' => 'reply-preview', 'icon' => \App\Icons\Lucide::Eye, 'label' => $replyPreviewing ? 'Edit' : 'Preview', 'press' => 'toggleReplyPreview', 'active' => $replyPreviewing],
+                        ],
+                        'trail' => [
+                            ...($hasDraft ? [['native.partials.stash-label', ['ref' => 'reply-stash', 'drop' => 'dropReplyStash', 'size' => 'text-xs', 'restored' => $replyRestored]]] : []),
+                            ['native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget']],
+                        ],
+                        'send' => [
+                            'ref' => 'send-reply',
+                            'label' => 'Reply',
+                            'press' => 'sendReply',
+                            'disabled' => ! \App\Devnull\Data\Draft::canCommit($reply, $replyImages),
+                            'colour' => $replyPostingMe === null ? $myColour : \App\Devnull\PostAs::colour($replyPostingMe, \App\Devnull\PostAs::author($replyAuthor)),
+                        ],
                     ])
-                    @include('native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget'])
-                    <native:button ref="send-reply" :variant="$replyPostingMe === null ? $myColour : \App\Devnull\PostAs::colour($replyPostingMe, \App\Devnull\PostAs::author($replyAuthor))" size="sm" :disabled="! \App\Devnull\Data\Draft::canCommit($reply, $replyImages)" @press="sendReply">Reply</native:button>
                 </native:row>
                 @if (\App\Devnull\Data\CommitBody::hasOversizedUrl($reply))
                     <native:text ref="reply-link-error" class="w-full px-4 pb-2 text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
                 @endif
-                {{--
-                    A reply stashed when you left the commit comes back with the web's stash@{0} and drop under it.
-                    Photos attached in the sheet show as a count on the left, which opens the sheet on them, and Reply
-                    sends them.
-                --}}
-                @if ($replyRestored || $replyImages !== [])
-                    <native:row class="w-full px-4 -mt-2 items-center">
-                        @if ($replyImages !== [])
-                            @php($photoCount = \App\Devnull\Display::count(count($replyImages), 'photo', 'photos'))
-                            <native:pressable ref="reply-photos" @press="replyInSheet('{{ $commit->id }}')" a11y-label="{{ $photoCount }} attached" a11y-hint="Opens the reply with its photos">
-                                <native:row class="h-[36] gap-1 items-center">
-                                    <native:icon :ios="\App\Icons\Lucide::ImagePlus->ios()" :android="\App\Icons\Lucide::ImagePlus->android()" :size="14" class="text-theme-ink-muted" />
-                                    <native:text class="text-xs text-theme-ink-muted">{{ $photoCount }}</native:text>
-                                </native:row>
-                            </native:pressable>
-                            <native:spacer />
-                        @endif
-                        @if ($replyRestored)
-                            @include('native.partials.stash-label', ['ref' => 'reply-stash', 'drop' => 'dropReplyStash', 'size' => 'text-xs'])
-                        @endif
-                    </native:row>
-                @endif
+                </native:column>
             </native:column>
         </native:bottom-bar>
     @endif

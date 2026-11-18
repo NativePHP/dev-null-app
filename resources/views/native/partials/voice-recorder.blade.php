@@ -1,5 +1,5 @@
 {{--
-    The voice note in the composer, in the field's place (see partials/composer-plate), as the web's recorder draws
+    The voice note in the composer, in the field's place (see partials/composer-box), as the web's recorder draws
     it: the trash, then "opening microphone…" until it records, then a pulsing dot, the microphone's level coming in
     on the right, and the clock counting to the minute, amber in the last ten seconds, with Stop; then the recording
     itself, to listen to before Push sends it. The same height as the field with one line, so the bar doesn't move.
@@ -7,9 +7,9 @@
     While it records, the thread renders five times a second for the meter (RecordsVoiceNotes::MeterInterval).
 --}}
 @if ($recorder === 'recording')
-<native:row native:key="voice-recorder" ref="voice-recorder" class="flex-1 h-[36] gap-2 items-center ios:pl-1" native:poll="200ms">
+<native:row native:key="voice-recorder" ref="voice-recorder" class="flex-1 h-[36] gap-2 items-center" native:poll="200ms">
 @else
-<native:row native:key="voice-recorder" ref="voice-recorder" class="flex-1 h-[36] gap-2 items-center ios:pl-1">
+<native:row native:key="voice-recorder" ref="voice-recorder" class="flex-1 h-[36] gap-2 items-center">
 @endif
     <native:pressable ref="discard-voice-note" @press="discardVoiceNote" a11y-label="Discard voice note">
         <native:column class="min-w-[36] h-[36] items-center justify-center rounded-md">

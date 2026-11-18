@@ -210,7 +210,8 @@ it('replies from the commit page as the organization picked in the bar', functio
 
     $screen = Native::visit('/log/commits/c2');
 
-    expect(childRefs($screen, 'reply-row')[0])->toBe('reply-post-as')
+    // It leads the row under the field, ahead of the photo button.
+    expect(array_slice(childRefs($screen, 'reply-actions'), 0, 2))->toBe(['reply-post-as', 'reply-add-photos'])
         ->and(array_column(menuItems($screen, 'reply-post-as'), 0))->toBe(['post-as-local_dev', 'post-as-dev-null-sh']);
 
     $screen->call('postAsInReply', 'dev-null-sh')
@@ -222,7 +223,48 @@ it('replies from the commit page as the organization picked in the bar', functio
         ->and($screen->instance()->replies[0]->author->username)->toBe('dev-null-sh');
 });
 
-it('hands the bar\'s choice to the reply sheet and takes the sheet\'s back', function () {
+it("fills the reply bar's send button with the lane of the organization it replies as", function () {
+    memberOf([memberOrganizationJson(['handle' => 'nativephp', 'name' => 'NativePHP', 'lane' => 5])]);
+    fakeApi([
+        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit']))],
+        'GET /api/v1/commits/c2/replies' => [pageJson([])],
+        'GET /api/v1/commits/c2/related' => [['data' => []]],
+    ]);
+
+    $screen = Native::visit('/log/commits/c2')->input('reply-input', 'Agreed');
+    $mine = nodeByRef($screen, 'send-reply-circle')['style']['bg_color'];
+
+    $screen->call('postAsInReply', 'nativephp');
+
+    expect(strtolower(nodeByRef($screen, 'send-reply-circle')['style']['bg_color']))->toBe(strtolower(config('native-ui.theme.light.lane-5')))
+        ->and(nodeByRef($screen, 'reply-post-as')['props']['a11y_label'])->toBe('Posting as @nativephp. Choose who to post as');
+
+    $screen->call('postAsInReply', '');
+
+    expect(nodeByRef($screen, 'send-reply-circle')['style']['bg_color'])->toBe($mine);
+});
+
+it('replies as the organization picked in the bar with photos', function () {
+    memberOf([memberOrganizationJson()]);
+    fakeApi([
+        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit']))],
+        'GET /api/v1/commits/c2/replies' => [pageJson([])],
+        'GET /api/v1/commits/c2/related' => [['data' => []]],
+        'POST /api/v1/commits' => [['data' => replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'Look', 'author' => memberOrganizationJson()])], 201],
+    ]);
+
+    $screen = photosPicked(Native::visit('/log/commits/c2')->call('postAsInReply', 'dev-null-sh')->input('reply-input', 'Look'), [testPhoto()])
+        ->tap('send-reply')
+        ->assertSee('Look');
+
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+        && multipartParts($request)[0]['contents'] === '{"body":"Look","parent_id":"c2","author":"dev-null-sh"}'
+        && multipartParts($request)[1]['name'] === 'images[]');
+
+    expect($screen->instance()->replies[0]->author->username)->toBe('dev-null-sh');
+});
+
+it('posts as the organization picked in a reply sheet, which starts as you, apart from the bar', function () {
     memberOf([memberOrganizationJson()]);
     fakeApi([
         'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit']))],
@@ -231,12 +273,15 @@ it('hands the bar\'s choice to the reply sheet and takes the sheet\'s back', fun
         'POST /api/v1/commits' => [['data' => replyJson(['id' => 'r9', 'parent_id' => 'c2', 'body' => 'Sheet reply'])], 201],
     ]);
 
+    // The bar no longer opens the sheet, but a reply written there before it took over comes back to it if devnull
+    // turned it down.
     $screen = Native::visit('/log/commits/c2', platform: 'ios')
         ->call('postAsInReply', 'dev-null-sh')
         ->call('replyInSheet', 'c2')
-        ->assertSet('sheetAuthor', 'dev-null-sh');
+        ->assertSet('sheetAuthor', null);
 
-    $screen->call('postAsInSheet', '')->assertSet('replyAuthor', null);
+    expect(rendersRef($screen, 'sheet-post-as'))->toBeTrue();
+
     $screen->call('postAsInSheet', 'dev-null-sh')->input('sheet-body', 'Sheet reply')->tap('sheet-commit');
 
     expect(commitsSent())->toBe([['body' => 'Sheet reply', 'parent_id' => 'c2', 'author' => 'dev-null-sh']]);

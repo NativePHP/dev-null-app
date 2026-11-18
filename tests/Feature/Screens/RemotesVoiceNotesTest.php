@@ -184,10 +184,11 @@ it("records 16 kHz WAV for up to a minute, with the microphone's level and the c
         && $params['maxDuration'] == 60
         && $params['id'] === $screen->instance()->recordingId);
 
-    expect(childRefs($screen, 'message-plate'))->toBe(['voice-recorder'])
+    expect(childRefs($screen, 'message-field-row'))->toBe(['voice-recorder'])
+        ->and(childRefs($screen, 'message-actions'))->not->toContain('composer-tools')
         ->and(nodeByRef($screen, 'voice-elapsed')['props']['text'] ?? null)->toBe('0:00/1:00')
         ->and(rendersEvery($screen))->toBe([200])
-        ->and(nodeByRef($screen, 'push')['props']['disabled'] ?? false)->toBeFalse();
+        ->and(canSend($screen, 'push'))->toBeTrue();
 
     // The level is the loudest sample since the last look, square-rooted as the web draws it, and the clock turns amber
     // in the last ten seconds.
@@ -207,7 +208,7 @@ it('says it is opening the microphone until it records, as while the phone asks 
 
     $screen = voiceThread()->tap('record-voice-note')->assertSee('opening microphone…');
 
-    expect(nodeByRef($screen, 'push')['props']['disabled'] ?? false)->toBeTrue();
+    expect(canSend($screen, 'push'))->toBeFalse();
 
     // The clock counts from when the microphone starts, not from the tap.
     $this->travel(5)->seconds();
@@ -217,7 +218,7 @@ it('says it is opening the microphone until it records, as while the phone asks 
     $screen->call('poll');
 
     expect(nodeByRef($screen, 'voice-elapsed')['props']['text'])->toBe('0:02/1:00')
-        ->and(nodeByRef($screen, 'push')['props']['disabled'] ?? false)->toBeFalse();
+        ->and(canSend($screen, 'push'))->toBeTrue();
 });
 
 it('stops to listen to the recording first, then pushes it staged at once and pushed once devnull has it', function () {
@@ -228,7 +229,7 @@ it('stops to listen to the recording first, then pushes it staged at once and pu
     $screen = voiceThread()->tap('record-voice-note')->tap('stop-voice-note');
     $screen->assertNativeCalled('Microphone.Stop')->assertSee('encoding…');
 
-    expect(nodeByRef($screen, 'push')['props']['disabled'] ?? false)->toBeTrue();
+    expect(canSend($screen, 'push'))->toBeFalse();
 
     voiceRecorded($screen, $recording);
     $kept = $screen->instance()->recorded->url;
@@ -245,7 +246,7 @@ it('stops to listen to the recording first, then pushes it staged at once and pu
     $screen->tap('push')->assertSee('staged')->assertSet('recorder', null)->assertNativeCalled('MediaPlayer.Stop');
     $clientId = $screen->instance()->pending[0]->clientId;
 
-    expect(childRefs($screen, 'message-plate'))->toBe(['message-field', 'composer-tools'])
+    expect(childRefs($screen, 'message-field-row'))->toBe(['message-field'])
         ->and(nodeByRef($screen, 'voice-'.$clientId.'-clock')['props']['text'])->toBe('0:02');
 
     finishRefreshes($screen)->assertSee('pushed')->assertSet('pending', []);
@@ -321,7 +322,7 @@ it('throws a recording away with the trash, and one that arrives after that too'
     }
 
     expect(file_exists($recording))->toBeFalse()
-        ->and(childRefs($screen, 'message-plate'))->toBe(['message-field', 'composer-tools'])
+        ->and(childRefs($screen, 'message-field-row'))->toBe(['message-field'])
         ->and(voiceUploads())->toBe([]);
 })->with(['while recording' => [true], 'once recorded' => [false]]);
 

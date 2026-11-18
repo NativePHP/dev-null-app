@@ -3,6 +3,7 @@
 namespace App\NativeComponents;
 
 use App\Devnull\Account;
+use App\Devnull\Beat;
 use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitThread;
@@ -18,10 +19,12 @@ use App\Devnull\ResponseCache;
 use App\Devnull\RowCache;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
+use App\Devnull\Toasts;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\OpensLiveStream;
+use App\NativeComponents\Concerns\RedrawsOnAppearanceChange;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -49,13 +52,19 @@ use Native\Mobile\Edge\NativeComponent;
  *
  * The reply is stashed as you type, per commit, as on the web (see Stash), so
  * leaving the page keeps it, and it's in the reply bar again, marked as
- * restored, when you come back to the commit.
+ * restored, when you come back to the commit. Drop throws it away whenever
+ * there's anything in it.
  *
- * The reply bar has no room for photos or a preview, so its expand button
- * opens the reply in the composer sheet, which has them (see replyInSheet()).
- * The draft goes with it, and back to the bar if the sheet closes unsent.
- * Photos left in it show as a count under the bar's field, which opens the
- * sheet on them, and Reply in the bar sends them with the text.
+ * The reply bar does everything the composer sheet did for a reply, so a
+ * reply never needs the sheet: presenting one takes the keyboard down and
+ * puts it back up on both platforms, however soon its field takes focus.
+ * Photos come from the library or the camera into the bar, above the field,
+ * each with its ✕ and ALT (see AttachesPhotos), and Preview shows the reply
+ * as it will look in the field's place (see toggleReplyPreview()). Reply in
+ * the bar sends them all.
+ *
+ * Related commits wait under a header with their count, closed, and open
+ * in place when it's tapped (see toggleRelated()).
  *
  * A reply goes at once: the bar empties and the reply shows staged under the
  * commit while it goes to devnull from the outbox (see SyncsOutbox), then the
@@ -65,18 +74,22 @@ use Native\Mobile\Edge\NativeComponent;
  * here with it ($data['edit']).
  *
  * A member of a GitHub organization can reply as it, from the avatar at the
- * start of the bar, as the web's reply composer does (see PostAs). The sheet
- * takes the choice with the draft, and gives it back.
+ * start of the bar's row, as the web's reply composer does (see PostAs).
  */
 class CommitDetail extends NativeComponent
 {
     use OpensInTab;
     use OpensLiveStream;
+    use RedrawsOnAppearanceChange;
     use RefreshesInBackground;
     use ShowsCommits {
         reopenFailedCommit as private reopenFailedCommitInSheet;
         editFailedCommit as private editFailedCommitInSheet;
         mentionFields as private sheetMentionFields;
+        attachedPhotos as private sheetPhotos;
+        photosChanged as private sheetPhotosChanged;
+        takesPhotos as private sheetTakesPhotos;
+        photoFailed as private sheetPhotoFailed;
     }
     use TalksToDevnull;
 
@@ -105,6 +118,43 @@ class CommitDetail extends NativeComponent
      * @var list<Commit>
      */
     public array $related = [];
+
+    /**
+     * Whether the reply bar shows the reply as it will look, in the field's place.
+     */
+    public bool $replyPreviewing = false;
+
+    /**
+     * What devnull sent back for the reply's body, with the body it was for under `draft`.
+     *
+     * @var array<string, mixed>|null
+     */
+    public ?array $replyPreview = null;
+
+    /**
+     * Whether the related commits show under their header.
+     */
+    public bool $relatedShown = false;
+
+    /**
+     * Whether the related commits are drawn see-through: about to fade in, or fading out on their way to closing.
+     */
+    public bool $relatedFaded = false;
+
+    /**
+     * Whether the related commits are fading out, still drawn until they have.
+     */
+    public bool $relatedClosing = false;
+
+    /**
+     * How long the related commits take to fade in or out, in milliseconds, as a Log thread's replies do.
+     */
+    public const int RelatedFade = 220;
+
+    /**
+     * How much later each related commit starts fading in than the one above it, in milliseconds.
+     */
+    public const int RelatedStagger = 40;
 
     /**
      * Whether the replies have been kept or fetched. Until then they show as loading.
@@ -289,6 +339,71 @@ class CommitDetail extends NativeComponent
     }
 
     /**
+     * The web's preview toggle, in the reply bar: the reply shows as it will
+     * look in the field's place, at once, and devnull is asked for its body,
+     * with its code and mentions, unless it already said for this one. The
+     * keyboard goes down with the field. Pressed again, the field comes back
+     * with the keyboard.
+     */
+    public function toggleReplyPreview(): void
+    {
+        $this->replyPreviewing = ! $this->replyPreviewing;
+        $this->describing = null;
+
+        if (! $this->replyPreviewing) {
+            $this->focusReply = true;
+
+            return;
+        }
+
+        $body = trim($this->reply);
+
+        if ($body === '' || ($this->replyPreview['draft'] ?? null) === $body) {
+            return;
+        }
+
+        $this->writeInBackground('POST', Client::PreviewPath, ['body' => $body], function (array $json) use ($body): void {
+            if (is_array($json['data'] ?? null)) {
+                $this->replyPreview = [...$json['data'], 'draft' => $body];
+            }
+        }, fn (): null => null);
+    }
+
+    /**
+     * The related commits' header opens them, and closes them again. EDGE
+     * can't animate a node coming into the page or leaving it, so they're
+     * drawn see-through first and shown once a Beat comes back, which each
+     * row fades and slides to, a little after the one above. Closing fades
+     * them out the same way, then takes them out.
+     */
+    public function toggleRelated(): void
+    {
+        if ($this->relatedClosing) {
+            return;
+        }
+
+        if (! $this->relatedShown) {
+            $this->relatedShown = true;
+            $this->relatedFaded = true;
+            $shown = fn () => $this->relatedFaded = false;
+
+            Beat::dispatch(Beat::Step)->finished($shown)->failed($shown);
+
+            return;
+        }
+
+        $this->relatedFaded = true;
+        $this->relatedClosing = true;
+        $closed = function (): void {
+            $this->relatedShown = false;
+            $this->relatedFaded = false;
+            $this->relatedClosing = false;
+        };
+
+        Beat::dispatch(self::RelatedFade)->finished($closed)->failed($closed);
+    }
+
+    /**
      * A deleted reply has no page of its own, so its replies open in place below it.
      */
     public function toggleTombstone(string $id): void
@@ -368,6 +483,8 @@ class CommitDetail extends NativeComponent
 
         $this->reply = '';
         $this->replyImages = [];
+        $this->replyPreviewing = false;
+        $this->replyPreview = null;
         $this->forgetMention('reply');
         $this->updatedReply();
         $this->repliesShown = true;
@@ -381,24 +498,6 @@ class CommitDetail extends NativeComponent
     public function postAsInReply(string $handle = ''): void
     {
         $this->replyAuthor = PostAs::author($handle)?->username;
-    }
-
-    /**
-     * The reply in the sheet starts as whoever the bar posts as.
-     */
-    protected function sheetAuthorFor(string $view): ?string
-    {
-        return $view === 'reply' && $this->sheetCommit?->id === $this->id ? $this->replyAuthor : null;
-    }
-
-    /**
-     * A choice made in the reply's sheet goes back to the bar with the draft.
-     */
-    protected function sheetAuthorChanged(): void
-    {
-        if ($this->sheetView === 'reply' && $this->sheetCommit?->id === $this->id) {
-            $this->replyAuthor = $this->sheetAuthor;
-        }
     }
 
     /**
@@ -427,13 +526,17 @@ class CommitDetail extends NativeComponent
     }
 
     /**
-     * The web's drop, beside a restored reply: it's thrown away, photos too, and the field starts again empty.
+     * The web's drop, beside the reply while there's anything in it: it's thrown away, photos too, and the field
+     * starts again empty.
      */
     public function dropReplyStash(): void
     {
         app(DraftImages::class)->discard($this->replyImages);
         $this->reply = '';
         $this->replyImages = [];
+        $this->replyPreviewing = false;
+        $this->replyPreview = null;
+        $this->describing = null;
         $this->updatedReply();
     }
 
@@ -504,6 +607,57 @@ class CommitDetail extends NativeComponent
 
         $this->sheetOpen = false;
         $this->takeFailedReply($write);
+    }
+
+    /**
+     * The photos on the draft being written: the sheet's while it's up, otherwise the reply bar's.
+     *
+     * @return list<DraftImage>
+     */
+    protected function attachedPhotos(): array
+    {
+        return $this->sheetOpen ? $this->sheetPhotos() : $this->replyImages;
+    }
+
+    /**
+     * Photos added in the reply bar, or taken off it, go in the reply's stash with its text.
+     *
+     * @param  list<DraftImage>  $photos
+     */
+    protected function photosChanged(array $photos): void
+    {
+        if ($this->sheetOpen) {
+            $this->sheetPhotosChanged($photos);
+
+            return;
+        }
+
+        $this->replyImages = $photos;
+        $this->updatedReply();
+    }
+
+    /**
+     * A reply can have photos, as on the web, unless its commit has gone.
+     */
+    protected function takesPhotos(): bool
+    {
+        return $this->sheetOpen ? $this->sheetTakesPhotos() : $this->commit !== null && ! $this->commit->isDeleted();
+    }
+
+    /**
+     * Why a photo won't do comes as a toast, from the top, clear of the reply bar, as it does in Remotes.
+     */
+    protected function photoFailed(?string $error): void
+    {
+        if ($this->sheetOpen) {
+            $this->sheetPhotoFailed($error);
+
+            return;
+        }
+
+        if ($error !== null) {
+            Toasts::failed($error);
+        }
     }
 
     /**
