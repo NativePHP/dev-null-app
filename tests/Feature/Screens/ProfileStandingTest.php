@@ -98,23 +98,54 @@ it('opens all achievements from the compact shelf even with none earned', functi
     expect(childRefs($screen, 'sheet-badges'))->toBe(['sheet-badge-init', 'sheet-badge-stdout', 'sheet-badge-max_payload']);
 })->with(['earned' => [true, '+1 more'], 'none earned' => [false, 'View achievements']]);
 
-it('opens tagged bio and company accounts on GitHub rather than as devnull users', function (string $ref, string $url) {
+it('draws the accounts a bio and company tag as badges with their GitHub icon, words between them', function () {
     $json = standingJson();
-    $json['data']['bio'] = 'Builds @laravel with @nunomaduro.';
+    $json['data']['bio'] = "Builds @laravel, with @nunomaduro.\nTea first.";
     $json['data']['company'] = '@nativephp';
     fakeApi(['GET /api/v1/users/ada' => [$json], 'GET /api/v1/users/ada/commits' => [pageJson([])]]);
 
-    Native::visit('/log/users/ada')->tap($ref)
-        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === $url)
-        ->assertNoNavigation();
+    $screen = Native::visit('/log/users/ada');
+    $badge = nodeByRef($screen, 'profile-bio-mention-0');
+    $icon = findNode($badge, fn (array $node): bool => ($node['type'] ?? null) === 'image');
+    $texts = fn (string $ref): array => array_values(array_filter(array_map(
+        fn (array $node): ?string => $node['props']['text'] ?? null,
+        findNodes(nodeByRef($screen, $ref), fn (array $node): bool => ($node['type'] ?? null) === 'text'),
+    )));
+
+    expect($icon['props']['src'] ?? $icon['props']['url'] ?? null)->toContain('https://github.com/laravel.png')
+        ->and($texts('profile-bio'))->toBe(['Builds', 'laravel', ',', 'with', 'nunomaduro', '.', 'Tea', 'first.'])
+        ->and(nodeByRef($screen, 'profile-company-text-mention-0'))->not->toBeNull();
+});
+
+it('opens a tagged account that has a page on devnull here in the app, and anything else on GitHub, as the web links them', function (array $types, string $ref, ?string $screenPath, ?string $url) {
+    $json = standingJson([
+        'bio_profiles' => ['laravel' => 'laravel', 'nunomaduro' => 'nunomaduro', 'taylor' => 'taylor'],
+        ...($types === [] ? [] : ['bio_profile_types' => $types]),
+    ]);
+    $json['data']['bio'] = 'Builds @Laravel with @nunomaduro, @taylor and @nativephp.';
+    fakeApi(['GET /api/v1/users/ada' => [$json], 'GET /api/v1/users/ada/commits' => [pageJson([])]]);
+
+    $screen = Native::visit('/log/users/ada')->tap($ref);
+
+    if ($screenPath !== null) {
+        $screen->assertNavigatedTo($screenPath)->assertNativeNotCalled('Browser.OpenInApp');
+    } else {
+        $screen->assertNoNavigation()->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === $url);
+    }
 })->with([
-    'bio' => ['profile-bio-mention-7', 'https://github.com/laravel'],
-    'company' => ['profile-company-text-mention-0', 'https://github.com/nativephp'],
+    'a page of unknown kind opens as a user' => [[], 'profile-bio-mention-0', '/log/users/Laravel', null],
+    'an organization' => [['laravel' => 'organization'], 'profile-bio-mention-0', '/log/organizations/Laravel', null],
+    'a user' => [['nunomaduro' => 'user'], 'profile-bio-mention-1', '/log/users/nunomaduro', null],
+    'an unclaimed developer' => [['taylor' => 'unclaimed'], 'profile-bio-mention-2', null, 'https://github.com/taylor'],
+    'no page on devnull' => [[], 'profile-bio-mention-3', null, 'https://github.com/nativephp'],
 ]);
 
-it('ignores profile mention actions for accounts that are not in the bio or company', function () {
-    fakeApi(['GET /api/v1/users/ada' => [standingJson()], 'GET /api/v1/users/ada/commits' => [pageJson([])]]);
-    Native::visit('/log/users/ada')->call('openGitHubMention', 'nobody')->assertNativeNotCalled('Browser.OpenInApp');
+it('ignores tag taps for accounts that are not in the bio or company', function () {
+    fakeApi(['GET /api/v1/users/ada' => [standingJson(['bio_profiles' => ['nobody' => 'nobody']])], 'GET /api/v1/users/ada/commits' => [pageJson([])]]);
+
+    Native::visit('/log/users/ada')->call('openBioMention', 'nobody')
+        ->assertNativeNotCalled('Browser.OpenInApp')
+        ->assertNoNavigation();
 });
 
 it('marks a profile you mute, as the web does', function () {
