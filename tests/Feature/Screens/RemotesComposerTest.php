@@ -196,6 +196,20 @@ it('opens the library for the photos there is still room for, and greys the butt
     expect(nodeByRef($screen, 'attach-photos')['props']['disabled'] ?? false)->toBeTrue();
 });
 
+it('keeps every photo picked at once, however long ago they were taken', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    // The library hands photos over with the time they were taken, which a photo nothing holds yet shares with one
+    // forgotten a day ago.
+    $picked = [testPhoto(), testPhoto()];
+    array_walk($picked, fn (string $path): bool => touch($path, now()->subYears(5)->getTimestamp()));
+
+    $screen = photosPicked(threadWithAda(), $picked);
+
+    expect($screen->instance()->photos)->toHaveCount(2)
+        ->and(array_filter($screen->instance()->photos, fn ($photo): bool => file_exists($photo->path)))->toHaveCount(2);
+});
+
 it('takes a photo off the draft and the phone with its ✕', function () {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
