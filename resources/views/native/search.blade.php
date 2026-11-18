@@ -50,7 +50,9 @@
 
                 @if ($commitsFoundFor === null && $error === null)
                     @foreach (range(1, 3) as $skeleton)
-                        @include('native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Searching commits'])
+                        @php
+                            $rowCache->include('loading-'.$skeleton, [], 'native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Searching commits'], []);
+                        @endphp
                     @endforeach
                 @elseif ($commitsFoundFor !== null && $commits === [])
                     @include('native.partials.empty', [
