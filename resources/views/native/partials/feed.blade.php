@@ -5,8 +5,8 @@
     with "Show more" under the last, and a reply's own replies opened under it one step in (see App\Devnull\ThreadRows).
     The commit's rail runs on past them when its author's run goes on below.
 
-    Given a $rowCache (see App\Devnull\RowCache), commits and replies that haven't changed since the last frame are
-    drawn from it rather than built again. Given a $rowWindow (see App\Devnull\RowWindow), rows far from the screen
+    Given a $rowCache (see App\Devnull\RowCache), commits, replies and markers that haven't changed since the last frame
+    are drawn from it rather than built again. Given a $rowWindow (see App\Devnull\RowWindow), rows far from the screen
     go as placeholders with the keys their partials give them, so the phone keeps each one's place and height.
 --}}
 @php
@@ -16,11 +16,18 @@
 @endphp
 @foreach ($rows as $feedIndex => $row)
     @if ($row->isDayMarker())
-        @if ($rowWindow?->place($feedIndex) ?? true)
+        @php
+            $markerDraws = $rowWindow?->place($feedIndex) ?? true;
+        @endphp
+        @if (! $markerDraws)
+            @php
+                $rowWindow->placeholder('day-'.$row->label);
+            @endphp
+        @elseif ($rowCache === null)
             @include('native.partials.day-marker', ['label' => $row->label, 'lane' => $row->previousLane])
         @else
             @php
-                $rowWindow->placeholder('day-'.$row->label);
+                $rowCache->include('day-'.$row->label, [], 'native.partials.day-marker', ['label' => $row->label, 'lane' => $row->previousLane], []);
             @endphp
         @endif
     @elseif ($row->isWhoToFollow())
@@ -32,11 +39,18 @@
             @endphp
         @endif
     @elseif ($row->isLastVisitMarker())
-        @if ($rowWindow?->place($feedIndex) ?? true)
+        @php
+            $markerDraws = $rowWindow?->place($feedIndex) ?? true;
+        @endphp
+        @if (! $markerDraws)
+            @php
+                $rowWindow->placeholder('last-visit');
+            @endphp
+        @elseif ($rowCache === null)
             @include('native.partials.last-visit-marker', ['lane' => $row->previousLane])
         @else
             @php
-                $rowWindow->placeholder('last-visit');
+                $rowCache->include('last-visit', [], 'native.partials.last-visit-marker', ['lane' => $row->previousLane], []);
             @endphp
         @endif
     @else

@@ -130,3 +130,25 @@ it('asks the account for you and your pastéis once a frame, not once a row', fu
     $screen->call('isRanked');
     expect($reads['devnull.pasteis'] ?? 0)->toBe(1);
 });
+
+it('keeps the skeleton, loading and day rows, and draws them as building them again would', function () {
+    $built = [];
+    View::composer(['native.partials.rail-loading', 'native.partials.day-marker'], function ($view) use (&$built) {
+        $built[] = $view->name();
+    });
+
+    // Latest is beside Following and has nothing kept, so it shows skeleton rows; Following ends in a loading row.
+    keep('log/following', pageJson([commitJson(['id' => 'c9', 'created_at' => now()->subDays(2)->toIso8601ZuluString()])], 'next'));
+    $screen = Native::visit('/log');
+    $built = [];
+
+    $screen->call('isRanked');
+    expect($built)->toBe([]);
+
+    // Swiping to Latest stops the loading row pulsing on Following, and starts the skeletons pulsing on Latest.
+    foreach (['latest', 'following'] as $log) {
+        $before = $screen->tree();
+        tapLogTab($screen, $log);
+        expectKeptRowsToMatchFreshOnes($screen, $before);
+    }
+});
