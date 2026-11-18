@@ -30,6 +30,14 @@
                 @include('native.partials.earlier-commits', ['count' => $earlierCount, 'lane' => $earlierLane])
             @endif
 
+            {{--
+                Related commits start with a full-width line of their own (see partials/related-commits). The last row
+                above them leaves out its hairline, which runs from the text's edge, so the two don't stack up into a
+                line and a half. Replies end with no hairline on a commit page, and "No replies yet" keeps the commit's.
+            --}}
+            @php($noReplies = $commit && $replyCount === 0 && $repliesLoaded && $series === [])
+            @php($relatedBelow = $commit && $related !== [] && ! $noReplies)
+
             @foreach ($rows as $row)
                 @php($isFocused = $row->commit->id === $commit?->id)
                 @php($hasThread = $isFocused && $repliesShown && $replies !== [])
@@ -43,6 +51,7 @@
                     'muted' => ! $isFocused,
                     'seriesExpanded' => true,
                     'withTail' => ! $loop->last,
+                    'hairline' => ! ($loop->last && $relatedBelow),
                 ])
                 @if ($isFocused && $repliesShown && $replies === [] && ! $repliesLoaded && $error === null)
                     <native:row ref="loading-replies" class="w-full pl-[64] pr-4 py-4 gap-2 items-center" a11y-label="Loading replies">
@@ -95,7 +104,7 @@
                 @endif
             @endforeach
 
-            @if ($commit && $replyCount === 0 && $repliesLoaded && $series === [])
+            @if ($noReplies)
                 <native:column class="w-full pl-[64] pr-4 py-4">
                     <native:text class="text-sm text-theme-ink-muted">No replies yet.</native:text>
                 </native:column>
