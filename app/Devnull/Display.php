@@ -5,6 +5,7 @@ namespace App\Devnull;
 use App\Devnull\Data\CommitBody;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Native\Mobile\Platform;
 
 /**
  * How the machine prints things: relative times and short hashes, as the web does.
@@ -268,6 +269,27 @@ final class Display
         $surface = strtolower((string) theme('surface', '#ffffff'));
 
         return "bg-gradient-to-b from-{$surface}/0 via-{$surface}/70 to-{$surface}";
+    }
+
+    /**
+     * Whether the fade goes at the top of the composer bar itself, rather than over the foot of the screen above it.
+     * On iOS the screen runs on under its bottom bar, so a fade lying over the screen's foot would be under the bar,
+     * and the bar has to draw it. On Android the screen stops where the bar starts, so the fade lies over the screen.
+     */
+    public static function fadesInBar(): bool
+    {
+        return Platform::isIos();
+    }
+
+    /**
+     * The composer bar's own classes. On Android it's the surface. On iOS it has no background at all: mobile-air
+     * paints a bar's background colour behind the whole bar, which would cover what the fade at its top should show,
+     * so only the bar's rows have the surface (see partials/composer-fade). The strip under the home indicator still
+     * comes out the surface there, from the scroll view's background running on under it.
+     */
+    public static function composerBar(): string
+    {
+        return self::fadesInBar() ? '' : 'bg-theme-surface';
     }
 
     /**

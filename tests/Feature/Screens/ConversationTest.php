@@ -1026,8 +1026,8 @@ it('shows the latest pinned message in a bar over the thread, which opens them a
         ->assertSee('pinned · 2')
         ->assertSee(' release checklist');
 
-    // It lies over the thread, which clears it at the top, under the fade over the thread's foot.
-    expect(childRefs($screen, 'thread-stack'))->toBe(['thread', 'pinned-bar', 'composer-fade'])
+    // It lies over the thread, which clears it at the top.
+    expect(array_slice(childRefs($screen, 'thread-stack'), 0, 2))->toBe(['thread', 'pinned-bar'])
         ->and(childRefs($screen, 'thread')[0])->toBe('pinned-clearance')
         ->and(nodeByRef($screen, 'pinned-bar')['props']['a11y_label'] ?? null)->toBe('2 pinned messages. Latest from Ada Lovelace: release checklist');
 

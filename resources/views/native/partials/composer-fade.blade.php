@@ -1,8 +1,11 @@
 {{--
-    The soft edge over the foot of a screen, just above its composer bar: a gradient from see-through at the top to
-    the surface at the bottom, where the bar starts, so whatever scrolls down to the bar fades out instead of meeting a
-    hard line. It lies over the screen's scroll view, at the bottom of the stack around it, on both platforms: on iOS
-    the thread runs on under the bar, which hides it, and on Android it stops at the bar. Its colours come from
-    Display::composerFade(). $ref names it.
+    The soft edge between a screen and its composer bar: a gradient from see-through at the top to the surface at the
+    bottom, where the bar's rows start, so whatever scrolls down to the bar fades out instead of meeting a hard line.
+    Its colours come from Display::composerFade().
+
+    Where it goes depends on the platform (Display::fadesInBar()). On iOS the screen runs on under the bar, so the fade
+    is the bar's first row ($inBar), over what runs under it. On Android the screen stops at the bar, so the fade lies
+    over the foot of the screen's scroll view, at the bottom of the stack around it. $ref names it.
 --}}
-<native:column ref="{{ $ref }}" class="absolute bottom-0 left-0 w-full h-[{{ \App\Devnull\Display::ComposerFadeHeight }}] {{ \App\Devnull\Display::composerFade() }}" />
+@php($inBar ??= false)
+<native:column ref="{{ $ref }}" class="{{ $inBar ? '' : 'absolute bottom-0 left-0' }} w-full h-[{{ \App\Devnull\Display::ComposerFadeHeight }}] {{ \App\Devnull\Display::composerFade() }}" />
