@@ -229,6 +229,14 @@ final class Account
     }
 
     /**
+     * Which commits are yours: your own and your organizations' (see Ownership).
+     */
+    public function ownership(): Ownership
+    {
+        return Ownership::of($this->user(), $this->organizations());
+    }
+
+    /**
      * Remembers the organizations you can post as. With null, from a devnull too old to say, it keeps what it had.
      *
      * @param  list<User>|null  $organizations

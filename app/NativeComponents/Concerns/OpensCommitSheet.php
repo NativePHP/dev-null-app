@@ -540,18 +540,24 @@ trait OpensCommitSheet
         return $this->sheetOpen && $this->sheetStashName() === $write->stashName();
     }
 
+    /**
+     * A published commit, or one of yours still waiting for approval, as the web's Quote shows.
+     */
     private function canQuote(Commit $commit): bool
     {
-        $viewer = $this->me();
+        $ownership = $this->ownership();
 
-        return $viewer !== null && ! $commit->isDeleted() && ! $commit->isStaged() && ($commit->isApproved() || $commit->author->id === $viewer->id);
+        return $ownership->isSignedIn() && ! $commit->isDeleted() && ! $commit->isStaged() && ($commit->isApproved() || $ownership->owns($commit));
     }
 
+    /**
+     * Someone else's published commit: never yours or an organization's you're in, which devnull won't take a report of.
+     */
     private function canReport(Commit $commit): bool
     {
-        $viewer = $this->me();
+        $ownership = $this->ownership();
 
-        return $viewer !== null && ! $commit->isDeleted() && $commit->isApproved() && $commit->author->id !== $viewer->id;
+        return $ownership->isSignedIn() && ! $commit->isDeleted() && $commit->isApproved() && ! $ownership->owns($commit);
     }
 
     /**

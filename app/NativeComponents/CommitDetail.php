@@ -844,9 +844,12 @@ class CommitDetail extends NativeComponent
         }
     }
 
+    /**
+     * Whether the commit is yours, or an organization's you're in, which puts Delete in the nav bar (see Ownership).
+     */
     public function isOwn(): bool
     {
-        return $this->commit !== null && $this->commit->author->username === $this->me()?->username;
+        return $this->commit !== null && $this->ownership()->owns($this->commit);
     }
 
     public function render(): View
@@ -861,6 +864,7 @@ class CommitDetail extends NativeComponent
             'replyRows' => $this->replyRows,
             'myColour' => $this->myColour(),
             'viewer' => $viewer,
+            'ownership' => $this->ownership(),
             'stashed' => app(Stash::class)->names($viewer?->id),
             'pasteis' => app(Account::class)->pasteis(),
             'rows' => $this->commit === null ? [] : Timeline::thread(
