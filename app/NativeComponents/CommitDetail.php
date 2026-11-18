@@ -12,6 +12,7 @@ use App\Devnull\Data\Page;
 use App\Devnull\Data\StashedDraft;
 use App\Devnull\Display;
 use App\Devnull\DraftImages;
+use App\Devnull\Exceptions\ApiException;
 use App\Devnull\Outbox;
 use App\Devnull\ResponseCache;
 use App\Devnull\RowCache;
@@ -19,6 +20,7 @@ use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
+use App\NativeComponents\Concerns\LeavesGonePush;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RefreshesInBackground;
@@ -65,6 +67,7 @@ use Native\Mobile\Edge\NativeComponent;
  */
 class CommitDetail extends NativeComponent
 {
+    use LeavesGonePush;
     use OpensInTab;
     use OpensLiveStream;
     use RefreshesInBackground;
@@ -244,6 +247,14 @@ class CommitDetail extends NativeComponent
                 }
             });
         }
+    }
+
+    /**
+     * A commit a push opened that has since been deleted goes back to Notifications.
+     */
+    protected function refused(ApiException $exception): bool
+    {
+        return $this->leaveGonePush($exception, 'That commit has been deleted.');
     }
 
     protected function showsContent(): bool

@@ -6,6 +6,10 @@ namespace App\Devnull;
  * Where a tap on a push from devnull goes: the tab it belongs to, and the screen to open in it, if the push says
  * which. devnull puts the push's data in its link's query (devnull://push?type=replied&commit_id=…), and the
  * values are strings.
+ *
+ * A notification opens what a tap on it in the Notifications tab opens (Data\Notification::commitToOpen()): a follow
+ * opens the follower's profile, and anything else about a commit opens the commit. A Remotes message or ping opens
+ * its thread: an org's by the conversation's id, a direct one by the sender's handle.
  */
 final readonly class PushTap
 {
@@ -27,9 +31,9 @@ final readonly class PushTap
                 $value('kind') === 'direct' && $value('handle') !== null => '/conversations/'.rawurlencode($value('handle')),
                 default => null,
             }),
-            'replied', 'mentioned' => new self('/notifications', $value('commit_id') === null ? null : '/commits/'.rawurlencode($value('commit_id'))),
             'followed' => new self('/notifications', $value('handle') === null ? null : '/users/'.rawurlencode($value('handle'))),
-            default => new self('/notifications'),
+            'leveled_up' => new self('/notifications'),
+            default => new self('/notifications', $value('commit_id') === null ? null : '/commits/'.rawurlencode($value('commit_id'))),
         };
     }
 }
