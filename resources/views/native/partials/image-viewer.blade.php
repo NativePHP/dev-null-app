@@ -2,11 +2,21 @@
     Images full-screen, over everything else on the screen, sheet included (see Concerns\ShowsImageViewer), on black
     that reaches every edge. Any screen can hang it: use the trait and include this once.
 
+    It doesn't slide up. The black fades in over the screen while the tapped picture grows out of the image it was
+    tapped in (morph-from, the source's ref) into its place here (morph-to), and closing runs that backwards: the black
+    fades out while the picture shrinks back into the image on the screen. Paged to another image, it shrinks into
+    that one's. With no source, or one that has gone off screen, it only fades.
+
+    The fade, the morph, the double tap and the zoom's own pan need NativePHP/mobile-ui#221, mobile-ui#220 and
+    NativePHP/mobile-air#716. Without them the modal ignores transition and morph-*, and the gesture area ignores
+    double-tap-zoom and zoom-pan-*, so the viewer slides up as before and a double tap does nothing.
+
     A swipe sideways pages through the images, one per page, and the dashes at the bottom say which is showing, the
-    bright one sliding along as the page changes. A pinch zooms an image between its whole self and four times,
-    around the fingers once it's zoomed, and a zoomed image pans; both run on the phone with no frame trip. Bounded by
-    the picture's own shape, it can't be lost off screen. Zoomed, a drag pans rather than pages or closes, so the
-    pager and the drag to close only take over again once a pinch brings it back to its whole self.
+    bright one sliding along as the page changes. A pinch zooms an image between its whole self and four times, and a
+    double tap at its whole self zooms to twice, aimed at the tapped point; a double tap on a zoomed image takes it
+    back to its whole self. A zoomed image pans. All of it runs on the phone with no frame trip. Bounded by the
+    picture's own shape, it can't be lost off screen. Zoomed, a drag pans rather than pages or closes, so the pager and
+    the drag to close only take over again once a pinch or a double tap brings it back to its whole self.
 
     At its whole self, a drag up or down takes the image with the finger and fades the black and the buttons with it.
     Let go short of halfway to ImageViewer::DismissDistance and it springs back; past that, or with a flick, it carries on
@@ -20,7 +30,7 @@
     so its pages coming and going don't shift the ids of whatever the screen draws after it.
 --}}
 @php($viewerOwnRow = \Native\Mobile\Platform::isAndroid())
-<native:modal native:key="image-viewer" ref="image-viewer" :visible="$viewerOpen" :dismissible="$viewerOwnRow" a11y-label="Image viewer" @dismiss="closeImageViewer">
+<native:modal native:key="image-viewer" ref="image-viewer" :visible="$viewerOpen" :dismissible="$viewerOwnRow" transition="fade" :morph-from="$viewerSources[$viewerIndex] ?? ''" :morph-to="'viewed-image-'.$viewerIndex" a11y-label="Image viewer" @dismiss="closeImageViewer">
     @if ($viewerImages !== [])
         @php($far = \App\Devnull\ImageViewer::DismissDistance)
         @php($count = count($viewerImages))

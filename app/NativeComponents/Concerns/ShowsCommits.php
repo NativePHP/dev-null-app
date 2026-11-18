@@ -5,6 +5,7 @@ namespace App\NativeComponents\Concerns;
 use App\Devnull\Account;
 use App\Devnull\Client;
 use App\Devnull\Data\Commit;
+use App\Devnull\Data\CommitImage;
 use App\Devnull\Data\Pasteis;
 use App\Devnull\Data\User;
 use App\Devnull\Display;
@@ -277,12 +278,14 @@ trait ShowsCommits
 
     /**
      * Opens a commit's image full-screen in the app (see ShowsImageViewer), from
-     * the one the row tapped. An image the screen isn't showing, or one at no
-     * web address, opens nothing, as it did in the browser.
+     * the one the row tapped, which it grows out of. An image the screen isn't
+     * showing, or one at no web address, opens nothing, as it did in the browser.
      */
     public function openImage(string $id, int $index = 0): void
     {
-        $this->showImagesInViewer($this->shownCommit($id)?->images ?? [], $index);
+        $images = $this->shownCommit($id)?->images ?? [];
+
+        $this->showImagesInViewer($images, $index, array_map(fn (CommitImage $image): string => $image->thumbRef(), $images));
     }
 
     /**

@@ -20,12 +20,13 @@ use Throwable;
 /**
  * Images full-screen, over everything else on the screen, sheet included (see partials/image-viewer): a commit's,
  * or a message's, from the one tapped. Any screen can show it: use this trait, include the partial once, and call
- * showImagesInViewer() with the images and the one to start from.
+ * showImagesInViewer() with the images, the one to start from, and the refs of the images on the screen they were
+ * opened from, which the viewer grows out of as it opens and shrinks back into as it closes.
  *
  * Swiping sideways pages through the images, which the dashes under them follow. A pinch zooms one between its whole
- * self and four times, and a zoomed one pans. Dragging one up or down at its whole self takes the viewer with it, and
- * letting go far enough, or flicking it, closes the viewer. The round buttons over the top close it and save the
- * image to the phone's photos.
+ * self and four times, a double tap zooms to twice and back, and a zoomed one pans. Dragging one up or down at its
+ * whole self takes the viewer with it, and letting go far enough, or flicking it, closes the viewer. The round buttons
+ * over the top close it and save the image to the phone's photos.
  */
 trait ShowsImageViewer
 {
@@ -46,6 +47,15 @@ trait ShowsImageViewer
      * Which of the viewer's images is showing.
      */
     public int $viewerIndex = 0;
+
+    /**
+     * The ref of the image on the screen each of the viewer's images was opened from, by place: the picture grows
+     * out of the showing one's as the viewer opens, and shrinks back into it as it closes. An image with none, or
+     * whose one is off screen, fades in and out instead.
+     *
+     * @var array<int, string>
+     */
+    public array $viewerSources = [];
 
     /**
      * The zoom and pan of each image, by its place, driven on the phone by its page's gesture area. Fresh ones when
@@ -82,12 +92,14 @@ trait ShowsImageViewer
     public bool $savingViewedImage = false;
 
     /**
-     * Opens the viewer on $images, from the one at $index. An image at no web address opens nothing, and the viewer
-     * never pages to one.
+     * Opens the viewer on $images, from the one at $index. $sources are the refs of the `native:image`s on the screen
+     * they were tapped in, in the same order. An image at no web address opens nothing, and the viewer never pages
+     * to one.
      *
      * @param  list<CommitImage>  $images
+     * @param  list<string>  $sources
      */
-    public function showImagesInViewer(array $images, int $index = 0): void
+    public function showImagesInViewer(array $images, int $index = 0, array $sources = []): void
     {
         $images = array_values($images);
         $image = $images[$index] ?? null;
@@ -98,6 +110,7 @@ trait ShowsImageViewer
 
         $this->viewerImages = $images;
         $this->viewerIndex = $index;
+        $this->viewerSources = array_slice(array_values($sources), 0, count($images));
         $this->viewerZooms = $this->viewerPansX = $this->viewerPansY = [];
 
         foreach (array_keys($images) as $place) {
@@ -128,7 +141,7 @@ trait ShowsImageViewer
     }
 
     /**
-     * A pinch on the showing image ended, at $scale.
+     * A pinch or a double tap on the showing image ended, at $scale.
      */
     public function viewerZoomEnded(float $scale): void
     {
@@ -155,6 +168,7 @@ trait ShowsImageViewer
         $this->viewerOpen = false;
         $this->viewerImages = [];
         $this->viewerIndex = 0;
+        $this->viewerSources = [];
         $this->viewerZooms = $this->viewerPansX = $this->viewerPansY = [];
         $this->viewerZoomed = false;
         $this->viewerDrag = null;
