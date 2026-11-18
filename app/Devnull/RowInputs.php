@@ -26,13 +26,15 @@ final class RowInputs
      */
     public static function for(Commit $commit, array $scope): array
     {
-        $viewer = $scope['viewer'] ?? app(Account::class)->user();
+        // The screen's own answer, null included: null is a real answer (signed out, pastéis mode off), so it's
+        // only read from the account when the screen gave none. Reading it again cost a query a row on a phone.
+        $viewer = array_key_exists('viewer', $scope) ? $scope['viewer'] : app(Account::class)->user();
         $ownership = $scope['ownership'] ?? app(Account::class)->ownership();
 
         return [
             'viewer' => $viewer?->id,
             'organizations' => $ownership->organizationIds,
-            'pasteis' => $scope['pasteis'] ?? app(Account::class)->pasteis(),
+            'pasteis' => array_key_exists('pasteis', $scope) ? $scope['pasteis'] : app(Account::class)->pasteis(),
             'stashed' => $scope['stashed'] ?? [],
             'unfolded' => $scope['unfolded'] ?? [],
             'expandable' => isset($scope['threads']),

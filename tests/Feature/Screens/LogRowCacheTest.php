@@ -6,6 +6,9 @@ use App\Devnull\Data\StashedDraft;
 use App\Devnull\ImageCache;
 use App\Devnull\Stash;
 use App\NativeComponents\Log;
+use Illuminate\Cache\Events\CacheHit;
+use Illuminate\Cache\Events\CacheMissed;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\View;
 use Native\Mobile\Testing\Native;
@@ -108,4 +111,22 @@ it('only builds the rows that changed since the last frame', function () {
 
     $screen->tap('star-c1');
     expect($built)->toBe(['c1']);
+});
+
+it('asks the account for you and your pastéis once a frame, not once a row', function () {
+    $screen = Native::visit('/log')->tap('replies-c2');
+    $reads = [];
+    Event::listen([CacheHit::class, CacheMissed::class], function (CacheHit|CacheMissed $event) use (&$reads) {
+        $reads[$event->key] = ($reads[$event->key] ?? 0) + 1;
+    });
+
+    // Pastéis mode is off: null is the answer, not a reason to ask again.
+    $screen->call('isRanked');
+    expect($reads['devnull.pasteis'] ?? 0)->toBe(1);
+
+    // Every row built afresh asks no more often.
+    $reads = [];
+    Closure::bind(fn () => $this->rowCaches = [], $screen->instance(), Log::class)();
+    $screen->call('isRanked');
+    expect($reads['devnull.pasteis'] ?? 0)->toBe(1);
 });

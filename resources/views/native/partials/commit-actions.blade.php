@@ -22,7 +22,9 @@
 
     A commit with a quote or a reply you started and didn't send marks that button, as the web does with stash@{0}
     beside its label. That doesn't fit the row, so here it's a dot after the label, inside the button.
-    The screen passes the names of the drafts it has kept ($stashed, see App\Devnull\Stash).
+    The screen passes the names of the drafts it has kept ($stashed, see App\Devnull\Stash). It passes you ($viewer)
+    and your pastéis ($pasteis) too, and null is an answer: a row only asks the account when the screen gave neither,
+    since asking is a query on a phone, and with pastéis mode off every row asked again.
 
     Each action is at least 44pt wide and 36pt tall to tap, as Apple asks. The row has no negative vertical margins:
     Android draws a negative margin as an offset and keeps the space, so the row sat 6pt lower there than on iOS, and
@@ -52,7 +54,7 @@
 @php($repliesCount ??= $commit->repliesCount)
 @php($iconSize = $compact ? 14 : 16)
 @php($labelSize = $compact ? 'text-xs' : 'text-[13px]')
-@php($viewer ??= app(\App\Devnull\Account::class)->user())
+@php($viewer = array_key_exists('viewer', get_defined_vars()) ? $viewer : app(\App\Devnull\Account::class)->user())
 @php($ownership ??= app(\App\Devnull\Account::class)->ownership())
 @php($stashed ??= [])
 @php($hasQuoteStash = in_array('quote-'.$commit->id, $stashed, true))
@@ -63,7 +65,7 @@
 @php($endDot ??= null)
 @php($starPop = \App\Devnull\Pop::transform($popping['star-'.$commit->id] ?? null, 'star'))
 @php($pastelPop = \App\Devnull\Pop::transform($popping['pastel-'.$commit->id] ?? null, 'pastel'))
-@php($pasteis ??= app(\App\Devnull\Account::class)->pasteis())
+@php($pasteis = array_key_exists('pasteis', get_defined_vars()) ? $pasteis : app(\App\Devnull\Account::class)->pasteis())
 @php($showsPastel = $pasteis !== null && ! $commit->author->isOrganization)
 @php($canGivePastel = $showsPastel && $viewer !== null && ! $isOwn && $commit->isApproved())
 @php($pastelLabel = \App\Devnull\Display::count($commit->pasteisCount, 'pastel', 'pastéis'))
