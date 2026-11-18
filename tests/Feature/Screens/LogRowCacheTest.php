@@ -3,6 +3,7 @@
 use App\Devnull\Account;
 use App\Devnull\Data\Pasteis;
 use App\Devnull\Data\StashedDraft;
+use App\Devnull\Data\User;
 use App\Devnull\ImageCache;
 use App\Devnull\Stash;
 use App\NativeComponents\Log;
@@ -27,6 +28,11 @@ beforeEach(function () {
         'GET /api/v1/log/following' => [pageJson([
             commitJson(['id' => 'c3', 'body' => $long, 'preview_segments' => [['type' => 'text', 'text' => substr($long, 0, 270).'…']]]),
             commitJson(['id' => 'c2', 'replies_count' => 1, 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada', 'avatar_url' => 'https://avatars.githubusercontent.com/u/2?v=4'])]),
+            commitJson(['id' => 'p1', 'body' => 'Tabs or spaces?', 'author' => $grace, 'poll' => [
+                'id' => 'poll1', 'closes_at' => now()->addDay()->toIso8601ZuluString(), 'is_closed' => false, 'has_voted' => false,
+                'options' => [['id' => 'o1', 'label' => 'Tabs'], ['id' => 'o2', 'label' => 'Spaces']],
+            ]]),
+            commitJson(['id' => 'g1', 'body' => 'From the organization', 'author' => userJson(['type' => 'organization', 'id' => 'o1', 'handle' => 'acme', 'name' => 'Acme'])]),
             commitJson(['id' => 'c1', 'body' => 'The oldest commit', 'author' => $grace]),
         ])],
         'GET /api/v1/commits/c2/replies' => [pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'A reply in place'])])],
@@ -70,6 +76,16 @@ it('draws a kept row as building it again would, whatever changed', function () 
         },
         'pastéis mode' => function () use ($screen) {
             app(Account::class)->rememberPasteis(new Pasteis);
+            $screen->call('isRanked');
+        },
+        // An organization's commit is yours once you're in it, whoever posted it.
+        'joining an organization' => function () use ($screen) {
+            app(Account::class)->rememberOrganizations([User::fromArray(userJson(['type' => 'organization', 'id' => 'o1', 'handle' => 'acme', 'name' => 'Acme']))]);
+            $screen->call('isRanked');
+        },
+        // A poll's Vote button wears your lane colour.
+        'your colour' => function () use ($screen) {
+            app(Account::class)->remember(User::fromArray(userJson(['lane' => 5])));
             $screen->call('isRanked');
         },
     ];
