@@ -142,6 +142,16 @@ final readonly class Client
      */
     public const string ScheduledCommitsPath = 'scheduled-commits';
 
+    /**
+     * Where the call ringing for you is, as the web checks for one every few seconds.
+     */
+    public const string IncomingCallPath = 'remotes/call';
+
+    /**
+     * How long a request may take, in seconds, before it gives up as one that couldn't connect.
+     */
+    public const int Timeout = 20;
+
     public function __construct(private DeviceKey $deviceKey, private string $baseUrl, private ResponseCache $cache) {}
 
     /**
@@ -685,7 +695,17 @@ final readonly class Client
      */
     public function incomingCall(): ?IncomingCall
     {
-        $call = $this->json($this->send('GET', 'remotes/call'))['call'] ?? null;
+        return self::incomingCallIn($this->json($this->send('GET', self::IncomingCallPath)));
+    }
+
+    /**
+     * The call ringing for you in devnull's answer to a call check, or null.
+     *
+     * @param  array<string, mixed>  $json
+     */
+    public static function incomingCallIn(array $json): ?IncomingCall
+    {
+        $call = $json['call'] ?? null;
 
         return is_array($call) ? IncomingCall::fromArray($call) : null;
     }
@@ -888,13 +908,14 @@ final readonly class Client
     /**
      * Sends a request signed elsewhere, exactly as signed: the body as the
      * bytes that were signed, or no body and no Content-Type when there was
-     * none. Returns the response whatever its status.
+     * none. Returns the response whatever its status. One that takes longer
+     * than $timeout seconds gives up as one that couldn't connect.
      *
      * @throws ConnectionException
      */
-    public static function sendSigned(SignedRequest $request): Response
+    public static function sendSigned(SignedRequest $request, int $timeout = self::Timeout): Response
     {
-        $pending = Http::acceptJson()->withHeaders($request->headers)->timeout(20);
+        $pending = Http::acceptJson()->withHeaders($request->headers)->timeout($timeout);
 
         $pending = $request->body === ''
             ? $pending->withRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withoutHeader('Content-Type'))
@@ -947,7 +968,7 @@ final readonly class Client
         $body = self::body($payload);
         $headers = $this->sign($method, $target, $body);
 
-        $request = Http::acceptJson()->withHeaders($headers)->timeout(20);
+        $request = Http::acceptJson()->withHeaders($headers)->timeout(self::Timeout);
 
         $request = $payload === null
             ? $request->withRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withoutHeader('Content-Type'))

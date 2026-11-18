@@ -22,8 +22,9 @@ use Native\Mobile\AsyncTask;
  * this, since it waits in memory until you scroll near it anyway.
  *
  * A write's body goes with the type it was signed with: JSON, or multipart
- * for a commit with photos. It comes last, since a task's arguments are
- * passed in order.
+ * for a commit with photos. It comes after the rest, since a task's arguments
+ * are passed in order, and so does how long the request may take, for a check
+ * that is soon worth nothing, such as one for a call ringing.
  */
 final class FetchInBackground extends AsyncTask
 {
@@ -67,14 +68,14 @@ final class FetchInBackground extends AsyncTask
      * @param  array<string, string>  $headers
      * @return array{status: int, json: mixed, retry_after: string, from_devnull: bool}
      */
-    public function handle(string $url, array $headers, string $method = 'GET', string $body = '', bool $withImages = false, ?int $pruneBefore = null, string $contentType = 'application/json'): array
+    public function handle(string $url, array $headers, string $method = 'GET', string $body = '', bool $withImages = false, ?int $pruneBefore = null, string $contentType = 'application/json', int $timeout = Client::Timeout): array
     {
         if ($pruneBefore !== null) {
             DownloadImages::prune($pruneBefore);
         }
 
         try {
-            $response = Client::sendSigned(new SignedRequest($url, $headers, $method, $body, $contentType));
+            $response = Client::sendSigned(new SignedRequest($url, $headers, $method, $body, $contentType), $timeout);
         } catch (ConnectionException) {
             return ['status' => 0, 'json' => null, 'retry_after' => '', 'from_devnull' => false];
         }
