@@ -35,8 +35,9 @@ final class RowInputs
             'viewer' => $viewer?->id,
             'organizations' => $ownership->organizationIds,
             'pasteis' => array_key_exists('pasteis', $scope) ? $scope['pasteis'] : app(Account::class)->pasteis(),
-            'stashed' => $scope['stashed'] ?? [],
-            'unfolded' => $scope['unfolded'] ?? [],
+            // Only this commit's own drafts and unfolding: a draft started anywhere used to build every row again.
+            'stashed' => [in_array('quote-'.$commit->id, $scope['stashed'] ?? [], true), in_array('reply-'.$commit->id, $scope['stashed'] ?? [], true)],
+            'unfolded' => in_array($commit->id, $scope['unfolded'] ?? [], true),
             'expandable' => isset($scope['threads']),
             'opened' => array_key_exists($commit->id, $scope['threads'] ?? []) && ! in_array($commit->id, $scope['closingThreads'] ?? [], true),
             'faded' => in_array($commit->id, $scope['fadedRows'] ?? [], true),

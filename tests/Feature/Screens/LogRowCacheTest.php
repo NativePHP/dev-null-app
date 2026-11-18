@@ -127,6 +127,12 @@ it('only builds the rows that changed since the last frame', function () {
 
     $screen->tap('star-c1');
     expect($built)->toBe(['c1']);
+
+    // A draft marks the button of the commit it's for, and only that row.
+    $built = [];
+    app(Stash::class)->put(app(Account::class)->user()?->id, 'reply-c1', new StashedDraft('Half a reply'));
+    $screen->call('isRanked');
+    expect($built)->toBe(['c1']);
 });
 
 it('asks the account for you and your pastéis once a frame, not once a row', function () {
