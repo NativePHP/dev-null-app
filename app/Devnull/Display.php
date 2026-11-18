@@ -60,12 +60,6 @@ final class Display
     public const int HomeIndicatorHeight = 34;
 
     /**
-     * How far below the top of a reply's row its elbow comes level with the
-     * middle of the reply's avatar.
-     */
-    public const int ElbowLevel = 22;
-
-    /**
      * How long ago a commit was made, as the web prints it beside the commit:
      * "now", "5m", "3h", "2d", then the date, in the same time zone as dayLabel().
      */

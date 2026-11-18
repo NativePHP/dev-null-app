@@ -296,7 +296,7 @@ class Organization extends NativeComponent
         $this->tab = $tab;
         $this->listKey = $this->listKeys[$tab] ?? 0;
         $this->commits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->nextCursor = null;
         $this->commitsLoaded = false;
         $this->commitsFailed = false;

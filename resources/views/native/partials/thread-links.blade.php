@@ -11,12 +11,13 @@
 @endif
 
 @if ($previousLane === null)
-    @include('native.partials.thread-elbow', ['lane' => $lane, 'from' => $indent > 0 ? 75.5 : 31.5, 'to' => 64 + $indent])
+    @include('native.partials.thread-elbow', ['lane' => $lane, 'from' => $indent > 0 ? 75.5 : 31.5, 'to' => 64 + $indent, 'level' => $top + 12])
 @else
-    @include('native.partials.dashed-line', ['position' => 'top-0 h-[6]', 'left' => $avatarLine - 0.5, 'lane' => $previousLane])
+    @include('native.partials.dashed-line', ['position' => 'top-0 h-['.($top - 4).']', 'left' => $avatarLine - 0.5, 'lane' => $previousLane])
 @endif
 
 @if ($hasNext)
-    {{-- Down to the next reply, or to the top of Show more's dot: 12pt under it, its padding and the hairline below. --}}
-    @include('native.partials.dashed-line', ['position' => 'top-[38] '.($more !== null ? 'bottom-[34]' : 'bottom-0'), 'left' => $avatarLine - 0.5, 'lane' => $reply->lane()])
+    {{-- From 4pt under the avatar down to the next reply, or to the top of Show more's dot: 12pt under it, its padding
+         and the hairline below. --}}
+    @include('native.partials.dashed-line', ['position' => 'top-['.($top + 28).'] '.($more !== null ? 'bottom-[34]' : 'bottom-0'), 'left' => $avatarLine - 0.5, 'lane' => $reply->lane()])
 @endif
