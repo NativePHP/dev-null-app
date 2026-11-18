@@ -2,7 +2,7 @@
     A composer bar's field, tools and send button, laid out the way the Claude and Messages apps lay theirs out: the
     field across the top, growing to its five lines, and under it a row with the tools on the left and a round send
     button in your colour on the right. The same on both platforms. Nothing is drawn around them: they sit straight on
-    the bar, which is the surface, under the fade the screen lays over its foot (see partials/composer-fade).
+    the bar, which is glass on iOS and the surface on Android, under the fade at its top (see partials/composer-fade).
 
     $ref names the box ("{$ref}-box", also its key, so the field keeps its place as rows above it come and go) and its
     rows ("{$ref}-field-row", "{$ref}-actions"). $field is the partial that draws the field, keyed itself, so it stays

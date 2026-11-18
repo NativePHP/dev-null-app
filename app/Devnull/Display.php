@@ -36,9 +36,15 @@ final class Display
     public const int ComposerBoxBarHeight = 94;
 
     /**
-     * The fade over the foot of a screen, just above its composer bar (see partials/composer-fade).
+     * The fade over the foot of a screen, just above its composer bar (see partials/composer-fade). On iOS the glass
+     * under the bar fades in over the same height (see composerBarGlass()).
      */
     public const int ComposerFadeHeight = 28;
+
+    /**
+     * How much of the surface, in percent, tints the glass under a composer bar on iOS (see composerSurface()).
+     */
+    public const int ComposerGlassTint = 40;
 
     /**
      * About how many characters fit on a line of the box's field. It runs the width of the box, so more fit than
@@ -258,15 +264,22 @@ final class Display
     }
 
     /**
-     * The fade's classes (see partials/composer-fade): a gradient down from see-through to the surface, where the bar
-     * starts. EDGE takes a gradient's stops as they are, without the dark companion a theme colour gets, so the stops
-     * are the surface of the appearance the phone is in now, and a screen with the fade draws again when that
-     * changes (see RedrawsOnAppearanceChange). It climbs to 70% of the surface by halfway, so what's under it has
-     * mostly faded before it reaches the bar.
+     * The fade's classes (see partials/composer-fade): a gradient down from see-through to the bar's surface, where
+     * the bar's rows start. EDGE takes a gradient's stops as they are, without the dark companion a theme colour gets,
+     * so the stops are the surface of the appearance the phone is in now, and a screen with the fade draws again when
+     * that changes (see RedrawsOnAppearanceChange).
+     *
+     * On Android it climbs to 70% of the surface by halfway and ends solid, so what's under it has mostly faded before
+     * it reaches the bar. On iOS it ends at the glass's tint (composerSurface()), since the bar is glass there and the
+     * glass fades in under it over the same height.
      */
     public static function composerFade(): string
     {
         $surface = strtolower((string) theme('surface', '#ffffff'));
+
+        if (self::fadesInBar()) {
+            return "bg-gradient-to-b from-{$surface}/0 to-{$surface}/".self::ComposerGlassTint;
+        }
 
         return "bg-gradient-to-b from-{$surface}/0 via-{$surface}/70 to-{$surface}";
     }
@@ -282,14 +295,36 @@ final class Display
     }
 
     /**
+     * The classes for a composer's native:bottom-bar. On iOS that's Liquid Glass: what scrolls under the bar shows
+     * through it, blurred. A patched mobile-air draws the glass behind the whole bar, under the home indicator too,
+     * and fades it in over the bar's top ComposerFadeHeight points, so it has no hard top edge. EDGE's own glass on
+     * an element can't be faded, and stops short of the home indicator. Android has no glass, so the bar stays the
+     * surface there.
+     */
+    public static function composerBarGlass(): string
+    {
+        return self::fadesInBar() ? 'glass' : '';
+    }
+
+    /**
      * The composer bar's own classes. On Android it's the surface. On iOS it has no background at all: mobile-air
-     * paints a bar's background colour behind the whole bar, which would cover what the fade at its top should show,
-     * so only the bar's rows have the surface (see partials/composer-fade). The strip under the home indicator still
-     * comes out the surface there, from the scroll view's background running on under it.
+     * paints a bar's background colour behind the whole bar, which would cover the fade at its top, so the bar's
+     * rows carry the tint instead (composerSurface()).
      */
     public static function composerBar(): string
     {
         return self::fadesInBar() ? '' : 'bg-theme-surface';
+    }
+
+    /**
+     * The classes for the rows of a composer bar, under its fade. On Android it's the surface. On iOS it's the
+     * surface at ComposerGlassTint percent, which tints the glass behind the bar to the screen's own colour, so in
+     * dark mode the bar doesn't come out lighter than the screen. A fill reaches under the home indicator, so the
+     * tint runs on there with the glass.
+     */
+    public static function composerSurface(): string
+    {
+        return self::fadesInBar() ? 'bg-theme-surface/'.self::ComposerGlassTint : 'bg-theme-surface';
     }
 
     /**
