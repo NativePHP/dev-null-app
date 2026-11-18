@@ -285,32 +285,40 @@ it('draws one box with the field over the + and a round Push, on both platforms'
         ->and(nodeByRef($screen, 'push')['props']['a11y_label'] ?? nodeByRef($screen, 'push')['a11y_label'] ?? null)->toBe('Push');
 })->with(['ios', 'android']);
 
-it('puts the bar on the surface with no glass or line, and fades the thread out above it, on both platforms', function (string $platform) {
+it('puts the bar on glass on iOS and the surface on Android, with no box or line, and fades the thread out above it', function (string $platform) {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
     $screen = threadWithAda($platform);
+    $bottomBar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
     $bar = nodeByRef($screen, 'composer-bar');
     $fade = nodeByRef($screen, 'composer-fade');
-    $surface = strtoupper(config('native-ui.theme.light.surface'));
+    $surface = substr(strtoupper(config('native-ui.theme.light.surface')), 1);
+    $darkSurface = substr(strtoupper(config('native-ui.theme.dark.surface')), 1);
 
     expect($bar['props']['glass'] ?? null)->toBeNull()
-        ->and(nodeByRef($screen, 'composer-rows')['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
         ->and(childRefs($screen, 'composer-rows')[0])->toBe('mention-slot')
         ->and(nodeByRef($screen, 'message-box')['style']['border_width'] ?? 0)->toEqual(0)
         ->and(nodeByRef($screen, 'message-box')['style']['bg_color'] ?? null)->toBeNull()
-        ->and($fade['props']['gradient_stops'] ?? null)->toBe('#00'.substr($surface, 1).',#B3'.substr($surface, 1).','.$surface)
         ->and($fade['layout']['height'] ?? null)->toEqual(Display::ComposerFadeHeight);
 
     if ($platform === 'ios') {
-        // The thread runs on under the bar, so the bar draws the fade at its top, and has no background of its own,
-        // which iOS would paint behind the fade.
-        expect(childRefs($screen, 'composer-bar'))->toBe(['composer-fade', 'composer-rows'])
+        // The thread runs on under the bar, which is glass, so it shows through blurred. The bar draws the fade at its
+        // top, ending at the glass's tint, and its rows carry the tint, in either appearance. The bar itself has no
+        // background, which iOS would paint behind the fade.
+        expect($bottomBar['props']['glass'] ?? null)->toBe(1)
+            ->and(childRefs($screen, 'composer-bar'))->toBe(['composer-fade', 'composer-rows'])
             ->and($bar['style']['bg_color'] ?? null)->toBeNull()
+            ->and(nodeByRef($screen, 'composer-rows')['style']['bg_color'] ?? null)->toBe('#66'.$surface)
+            ->and(nodeByRef($screen, 'composer-rows')['props']['dark_bg_color'] ?? null)->toBe('#66'.$darkSurface)
+            ->and($fade['props']['gradient_stops'] ?? null)->toBe('#00'.$surface.',#66'.$surface)
             ->and(childRefs($screen, 'thread-stack'))->not->toContain('composer-fade');
     } else {
-        // The thread stops at the bar, so the fade lies over its foot, and the bar is the surface.
-        expect(childRefs($screen, 'composer-bar'))->toBe(['composer-rows'])
+        // No glass on Android. The thread stops at the bar, so the fade lies over its foot, and the bar is the surface.
+        expect($bottomBar['props']['glass'] ?? null)->toBeNull()
+            ->and(childRefs($screen, 'composer-bar'))->toBe(['composer-rows'])
             ->and($bar['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
+            ->and(nodeByRef($screen, 'composer-rows')['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
+            ->and($fade['props']['gradient_stops'] ?? null)->toBe('#00'.$surface.',#B3'.$surface.',#'.$surface)
             ->and(array_slice(childRefs($screen, 'thread-stack'), -1))->toBe(['composer-fade']);
     }
 })->with(['ios', 'android']);
@@ -319,8 +327,8 @@ it('fades to the dark surface in dark mode, and draws again when the phone switc
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
     $screen = threadWithAda();
-    $light = strtoupper(config('native-ui.theme.light.surface'));
-    $dark = strtoupper(config('native-ui.theme.dark.surface'));
+    $light = substr(strtoupper(config('native-ui.theme.light.surface')), 1);
+    $dark = substr(strtoupper(config('native-ui.theme.dark.surface')), 1);
 
     expect(str_ends_with(nodeByRef($screen, 'composer-fade')['props']['gradient_stops'], $light))->toBeTrue();
 
