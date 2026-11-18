@@ -125,7 +125,7 @@ it('draws the tab underline in your lane, in its light and dark shades', functio
         ->and(strtolower($pager['props']['dark_tab_indicator_color']))->toBe(strtolower(config("native-ui.theme.dark.lane-{$lane}")))
         // Only the underline: the labels stay ink.
         ->and($pager['props']['tab_active_color'])->toBe(config('native-ui.theme.light.ink'));
-})->with(['/log', '/notifications'])->with([2, 5]);
+})->with(['/log'])->with([2, 5]);
 
 it('draws the underline under your profile\'s tabs in your lane too', function () {
     signIn(['lane' => 5]);

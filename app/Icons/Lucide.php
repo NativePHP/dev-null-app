@@ -32,6 +32,7 @@ enum Lucide
     case ChevronLeft;
     case ChevronDown;
     case ChevronsUp;
+    case Hourglass;
     case ArrowUpRight;
     case ArrowUp;
     case Pin;
@@ -126,6 +127,8 @@ enum Lucide
             'mentioned' => self::AtSign,
             'approved' => self::Check,
             'rejected' => self::X,
+            'timed_out' => self::Hourglass,
+            'first_commit' => self::GitCommitVertical,
             default => self::MessageSquareReply,
         };
     }
@@ -178,6 +181,7 @@ enum Lucide
             self::ArrowUpRight => 'arrow-up-right',
             self::ArrowUp => 'arrow-up',
             self::ChevronsUp => 'chevrons-up',
+            self::Hourglass => 'hourglass',
             self::ListOrdered => 'list-ordered',
             self::Building2 => 'building-2',
             self::MapPin => 'map-pin',
