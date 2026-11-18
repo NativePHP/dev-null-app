@@ -27,7 +27,7 @@
                 <native:pressable ref="profile-picture" @press="viewProfilePicture" :width="92" :height="92" a11y-label="View {{ $user->name }}'s profile picture">
                     <native:stack :width="92" :height="92" class="rounded-full bg-theme-{{ \App\Devnull\Lane::token($user->lane()) }}">
                         <native:stack :width="88" :height="88" class="rounded-full bg-theme-surface">
-                            @include('native.partials.avatar', ['user' => $user, 'size' => 80])
+                            @include('native.partials.avatar', ['user' => $user, 'size' => 80, 'imageRef' => \App\NativeComponents\Profile::ProfilePictureRef])
                         </native:stack>
                     </native:stack>
                 </native:pressable>

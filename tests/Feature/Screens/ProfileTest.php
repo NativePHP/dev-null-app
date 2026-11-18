@@ -3,6 +3,7 @@
 use App\Devnull\Account;
 use App\Devnull\Data\User;
 use App\Devnull\Lane;
+use App\NativeComponents\Profile;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
@@ -512,13 +513,19 @@ it('opens the profile picture full-screen from the avatar, at the 1024 pixels th
         'GET /api/v1/users/ada/commits' => [pageJson([])],
     ]);
 
-    $screen = Native::visit('/log/users/ada')->tap('profile-picture');
+    $screen = Native::visit('/log/users/ada');
+
+    // The header's avatar is named, so the viewer grows the picture out of it.
+    expect(nodeByRef($screen, Profile::ProfilePictureRef)['type'])->toBe('image');
+
+    $screen->tap('profile-picture');
 
     expect(nodeByRef($screen, 'image-viewer')['props']['visible'])->toBeTrue()
         ->and(nodeByRef($screen, 'viewed-image-0')['props'])->toMatchArray([
             'src' => 'https://avatars.githubusercontent.com/u/42?v=4&s=1024',
             'alt' => "Ada Lovelace's profile picture",
-        ]);
+        ])
+        ->and($screen->instance()->viewerSources)->toBe([Profile::ProfilePictureRef]);
 
     $screen->assertNativeNotCalled('Browser.OpenInApp');
 });

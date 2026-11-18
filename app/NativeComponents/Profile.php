@@ -110,6 +110,11 @@ class Profile extends NativeComponent
     public const int ProfilePicturePixels = 1024;
 
     /**
+     * The ref of the avatar in the profile's header, which the image viewer grows the profile picture out of.
+     */
+    public const string ProfilePictureRef = 'profile-picture-image';
+
+    /**
      * The alerts the safety menu confirms with, as the web words them. Each one's id names the profile too, so an
      * answer only reaches the profile that asked.
      */
@@ -653,7 +658,7 @@ class Profile extends NativeComponent
             width: self::ProfilePicturePixels,
             height: self::ProfilePicturePixels,
             description: "{$user->name}'s profile picture",
-        )]);
+        )], sources: [self::ProfilePictureRef]);
     }
 
     public function openGitHubProfile(): void
