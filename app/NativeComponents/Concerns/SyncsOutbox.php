@@ -135,8 +135,9 @@ trait SyncsOutbox
             return;
         }
 
-        // The task gave up waiting, so devnull may have a commit without having said so.
-        if ($status === 'failed') {
+        // The task gave up waiting, or devnull took the request and never answered it in time, so devnull may have a
+        // commit without having said so.
+        if ($status === 'failed' || FetchInBackground::timedOut($result)) {
             $this->writeTurnedDown($write, $write->isCommit() ? Outbox::NoAnswer : 'fatal: '.($message ?? 'the request did not finish.'));
 
             return;
