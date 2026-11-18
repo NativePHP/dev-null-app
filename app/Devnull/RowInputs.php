@@ -48,6 +48,8 @@ final class RowInputs
             'poll' => [$scope['pollChoices'][$commit->id] ?? null, in_array($commit->id, $scope['voting'] ?? [], true)],
             'selected' => ($scope['selectedCommit'] ?? null) === $commit->id,
             'video' => $commit->linkPreview?->embed === null ? null : VideoDetails::card($commit->linkPreview),
+            // A poll's Vote button wears your lane colour.
+            'colour' => $scope['myColour'] ?? null,
         ];
     }
 
