@@ -1,5 +1,6 @@
 <?php
 
+use App\Devnull\Account;
 use App\NativeComponents\CommitDetail;
 use App\NativeComponents\Profile;
 use App\NativeComponents\Starred;
@@ -88,10 +89,43 @@ it("keeps a thread's unchanged replies between renders, and only builds the ones
     });
     $screen = Native::visit('/log/commits/c2')->tap('replies-c2')->assertSee('Second reply');
 
-    // The commits above the replies read what the screen shows of the thread, so they're built every time. "Show
-    // more" is a row of its own, so the last reply of a page stays as it was when the next page comes.
-    expect(rowsBuiltBy(fn () => $screen->call('navTitle')))->toBe(['c2'])
-        ->and(rowsBuiltBy(fn () => $screen->call('loadMoreReplies')->assertSee('Third reply')))->toBe(['c2', 'r3']);
+    // The commits above the replies are kept like the replies, and "Show more" is a row of its own, so the last reply
+    // of a page stays as it was when the next page comes. Only the reply that page brings is built.
+    expect(rowsBuiltBy(fn () => $screen->call('navTitle')))->toBe([])
+        ->and(rowsBuiltBy(fn () => $screen->call('loadMoreReplies')->assertSee('Third reply')))->toBe(['r3']);
 
     expectKeptRowsMatchFreshOnes($screen, CommitDetail::class, 'replyRows', null);
+});
+
+it("keeps a commit page's commits between renders, and builds the commit again when what it shows of its thread changes", function () {
+    fakeApi([
+        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'replies_count' => 1, 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])]), [commitJson(['id' => 'c1', 'body' => 'What it replies to'])])],
+        'GET /api/v1/commits/c2/replies' => [pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply'])])],
+        'GET /api/v1/commits/c2/related' => [['data' => [commitJson(['id' => 'x1', 'body' => 'Another thread'])]]],
+        'POST /api/v1/commits/c2/star' => [['data' => commitJson(['id' => 'c2', 'replies_count' => 1, 'stars_count' => 1, 'starred' => true, 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])])]],
+    ]);
+    $screen = finishRefreshes(Native::visit('/log/commits/c2'))->tap('related-commits-toggle');
+
+    // Typing a reply only builds the commit it replies to once, when the draft is first kept, which its row marks.
+    expect(rowsBuiltBy(fn () => $screen->input('reply-input', 'N')))->toBe(['c2'])
+        ->and(rowsBuiltBy(fn () => $screen->input('reply-input', 'Nice')))->toBe([]);
+
+    $changes = [
+        'its replies opened' => fn () => $screen->tap('replies-c2')->assertSee('First reply'),
+        'a star' => fn () => $screen->tap('star-c2'),
+        'its replies closed' => fn () => $screen->tap('replies-c2'),
+        'the time' => function () use ($screen) {
+            $this->travel(2)->hours();
+            $screen->call('navTitle')->assertSee('2h');
+        },
+        'your timezone' => function () use ($screen) {
+            app(Account::class)->rememberTimezone('Asia/Tokyo');
+            $screen->call('navTitle');
+        },
+    ];
+
+    foreach ($changes as $change) {
+        $change();
+        expectKeptRowsMatchFreshOnes($screen, CommitDetail::class, 'replyRows', null);
+    }
 });

@@ -289,7 +289,9 @@ class CommitDetail extends NativeComponent
     public string $openedId = '';
 
     /**
-     * The replies from the last frame, so a render only builds the replies that changed, as the Log does its rows.
+     * The page's rows from the last frame, so a render only builds the ones that changed, as the Log does its rows:
+     * the commit, what it replies to and the rest of its series, its replies, and the related commits. Typing a reply
+     * draws a frame a few times a second, and each used to build every commit above the reply bar again.
      */
     private ?RowCache $replyRows = null;
 
