@@ -12,6 +12,11 @@ use App\Devnull\Data\User;
  * opening their profile. As on the web, only you see who starred your
  * commits, and it asks devnull again each time it opens, so stars given in
  * the meantime show.
+ *
+ * An organization's commit is every member's (see Ownership), so its star
+ * opens the sheet too. The web lists who starred it to any member, but the
+ * API only to the member who posted it, and to anyone else it says the list
+ * isn't there. The sheet says so then, rather than offering Try again.
  */
 trait OpensStargazers
 {
@@ -38,6 +43,11 @@ trait OpensStargazers
     public bool $stargazersFailed = false;
 
     /**
+     * Whether devnull only shows who starred this organization's commit to the member who posted it.
+     */
+    public bool $stargazersForPoster = false;
+
+    /**
      * The load the sheet is waiting for. An answer to an earlier one, sent
      * before the sheet closed or opened again, is left alone.
      */
@@ -47,7 +57,7 @@ trait OpensStargazers
     {
         $commit = $this->shownCommit($id);
 
-        if ($commit === null || $commit->isDeleted() || $commit->starsCount === 0 || $commit->author->id !== $this->me()?->id) {
+        if ($commit === null || $commit->isDeleted() || $commit->starsCount === 0 || ! $this->ownership()->owns($commit)) {
             return;
         }
 
@@ -81,10 +91,11 @@ trait OpensStargazers
             $this->stargazers = [...$this->stargazers, ...$page->items];
             $this->stargazersCursor = $page->nextCursor;
             $this->loadingStargazers = false;
-        }, again: true, quiet: true, failed: function () use ($load): void {
+        }, again: true, quiet: true, failed: function (int $status = 0) use ($load): void {
             if ($load === $this->stargazersLoad) {
                 $this->loadingStargazers = false;
-                $this->stargazersFailed = true;
+                $this->stargazersForPoster = $status === 404 && $this->shownCommit((string) $this->stargazersOf)?->author->isOrganization === true;
+                $this->stargazersFailed = ! $this->stargazersForPoster;
             }
         });
     }
@@ -113,5 +124,6 @@ trait OpensStargazers
         $this->stargazersCursor = null;
         $this->loadingStargazers = false;
         $this->stargazersFailed = false;
+        $this->stargazersForPoster = false;
     }
 }

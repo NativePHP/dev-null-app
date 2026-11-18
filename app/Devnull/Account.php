@@ -36,6 +36,8 @@ final class Account
 
     private const string TermsKey = 'devnull.terms-to-accept';
 
+    private const string OrganizationsKey = 'devnull.organizations';
+
     public function user(): ?User
     {
         $attributes = Cache::get(self::CacheKey);
@@ -215,7 +217,39 @@ final class Account
     }
 
     /**
-     * Signs this phone out: who it was, the badges, its pastéis and Remotes, your timezone, the terms you owe, every
+     * The GitHub organizations you can post as, as devnull last said, oldest membership first. None until it has.
+     *
+     * @return list<User>
+     */
+    public function organizations(): array
+    {
+        $kept = Cache::get(self::OrganizationsKey);
+
+        return is_array($kept) ? array_values(array_map(User::fromArray(...), array_filter($kept, is_array(...)))) : [];
+    }
+
+    /**
+     * Which commits are yours: your own and your organizations' (see Ownership).
+     */
+    public function ownership(): Ownership
+    {
+        return Ownership::of($this->user(), $this->organizations());
+    }
+
+    /**
+     * Remembers the organizations you can post as. With null, from a devnull too old to say, it keeps what it had.
+     *
+     * @param  list<User>|null  $organizations
+     */
+    public function rememberOrganizations(?array $organizations): void
+    {
+        if ($organizations !== null) {
+            Cache::forever(self::OrganizationsKey, array_map(fn (User $organization): array => $organization->toArray(), $organizations));
+        }
+    }
+
+    /**
+     * Signs this phone out: who it was, the badges, its pastéis and Remotes, your organizations, your timezone, the terms you owe, every
      * answer, image and voice note kept for a quick start, and your unsent drafts and recordings.
      */
     public function forget(): void
@@ -234,5 +268,6 @@ final class Account
         Cache::forget(self::PinWarningKey);
         Cache::forget(self::TimezoneKey);
         Cache::forget(self::TermsKey);
+        Cache::forget(self::OrganizationsKey);
     }
 }

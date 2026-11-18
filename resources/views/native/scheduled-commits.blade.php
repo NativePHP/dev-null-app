@@ -47,6 +47,13 @@
                             <native:column class="flex-1 gap-1">
                                 <native:text ref="scheduled-status-{{ $item->id }}" font="medium" class="text-sm text-theme-ink">{{ $item->label($now) }}</native:text>
                                 <native:text ref="scheduled-at-{{ $item->id }}" font="mono" class="text-xs text-theme-ink-muted">{{ Display::scheduleTime($item->scheduledAt, $timezone) }}</native:text>
+                                @if ($item->author)
+                                    {{-- The organization it goes out as, as the web's list shows it under the time. --}}
+                                    <native:row ref="scheduled-author-{{ $item->id }}" class="mt-1 gap-1.5 items-center" a11y-label="As {{ $item->author->handle() }}">
+                                        @include('native.partials.avatar', ['user' => $item->author, 'size' => 16])
+                                        <native:text class="text-xs text-theme-ink-muted" :max-lines="1">As {{ $item->author->handle() }}</native:text>
+                                    </native:row>
+                                @endif
                             </native:column>
                             @if ($item->isWaiting())
                                 @php($when = Display::scheduleTime($item->scheduledAt, $timezone))
