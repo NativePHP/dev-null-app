@@ -244,6 +244,42 @@ it('keeps related commits closed under a header with their count until it is tap
     expect(nodeByRef($screen, 'related-commits-chevron')['props']['rotate'] ?? 0.0)->toEqual(0.0);
 })->with(['ios', 'android']);
 
+it("draws one full-width line above related commits, with the replies shut or open, and no hairline from the commit's text", function (string $platform) {
+    serveRelatedThread([commitJson(['id' => 'c9', 'body' => 'Closest match'])], [
+        'GET /api/v1/commits/c1' => [commitPageJson(commitJson(['id' => 'c1', 'body' => 'The focused commit', 'replies_count' => 1]))],
+        'GET /api/v1/commits/c1/replies' => [pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c1', 'body' => 'A reply'])])],
+    ]);
+
+    $screen = Native::visit('/log/commits/c1', platform: $platform)->assertSee('Related commits');
+    $commitLine = fn (): float => (float) (nodeByRef($screen, 'focused-commit')['children'][0]['props']['border_b'] ?? 0);
+    $relatedLine = fn (): float => (float) (nodeByRef($screen, 'related-commits')['props']['border_t'] ?? 0);
+
+    // Shut, the commit sits right on the section, whose line is the only one.
+    expect(childRefs($screen, 'thread-page'))->toBe(['focused-commit', 'related-commits', 'reply-bar-clearance'])
+        ->and($commitLine())->toBe(0.0)
+        ->and($relatedLine())->toBe(1.0);
+
+    // Open, the last reply ends with no hairline of its own, so the section's line is still the only one.
+    $screen->tap('replies-c1')->assertSee('A reply');
+    expect(childRefs($screen, 'thread-page'))->toBe(['focused-commit', 'thread-reply-r1', 'related-commits', 'reply-bar-clearance'])
+        ->and($commitLine())->toBe(0.0)
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'thread-end-r1'))->toBeNull()
+        ->and($relatedLine())->toBe(1.0);
+})->with(['ios', 'android']);
+
+it('keeps the hairline under the commit when nothing comes after it, or "No replies yet" does', function (array $commit, array $related) {
+    serveRelatedThread($related, [
+        'GET /api/v1/commits/c1' => [commitPageJson(commitJson(['id' => 'c1', 'body' => 'The focused commit', ...$commit]))],
+    ]);
+
+    $screen = Native::visit('/log/commits/c1');
+
+    expect((float) (nodeByRef($screen, 'focused-commit')['children'][0]['props']['border_b'] ?? 0))->toBe(1.0);
+})->with([
+    'no related commits' => [['replies_count' => 1], []],
+    'no replies yet' => [['replies_count' => 0], [commitJson(['id' => 'c9', 'body' => 'Closest match'])]],
+]);
+
 it('fades related commits in one after another as they open, and out together as they close', function () {
     holdRefreshes();
     serveRelatedThread([
