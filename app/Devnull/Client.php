@@ -301,13 +301,15 @@ final readonly class Client
     /**
      * Commits, as a reply to $parentId or quoting $quotedCommitId, as the web's
      * composer, reply box and Quote do. devnull takes one or the other, not both.
-     * A new commit or a quote may start a poll (see PollDraft::payload()).
+     * A new commit or a quote may start a poll (see PollDraft::payload()). With
+     * $author, the handle of an organization you're a member of, it goes out as
+     * that organization, as the web's Post as picks (see PostAs).
      *
      * @param  array{options: list<string>, duration: int}|null  $poll
      */
-    public function createCommit(string $body, ?string $parentId = null, ?string $quotedCommitId = null, ?array $poll = null): Commit
+    public function createCommit(string $body, ?string $parentId = null, ?string $quotedCommitId = null, ?array $poll = null, ?string $author = null): Commit
     {
-        $commit = $this->data($this->send('POST', 'commits', payload: self::commitPayload($body, $parentId, $quotedCommitId, poll: $poll)));
+        $commit = $this->data($this->send('POST', 'commits', payload: self::commitPayload($body, $parentId, $quotedCommitId, $poll, $author)));
         $this->cache->commitAdded($commit);
 
         return Commit::fromArray($commit);
@@ -319,9 +321,9 @@ final readonly class Client
      *
      * @param  array{options: list<string>, duration: int}|null  $poll
      */
-    public function signedCommit(string $body, ?string $parentId = null, ?string $quotedCommitId = null, ?array $poll = null): SignedRequest
+    public function signedCommit(string $body, ?string $parentId = null, ?string $quotedCommitId = null, ?array $poll = null, ?string $author = null): SignedRequest
     {
-        return $this->signedWrite('POST', 'commits', self::commitPayload($body, $parentId, $quotedCommitId, poll: $poll));
+        return $this->signedWrite('POST', 'commits', self::commitPayload($body, $parentId, $quotedCommitId, $poll, $author));
     }
 
     /**
@@ -331,9 +333,9 @@ final readonly class Client
      *
      * @param  list<DraftImage>  $images
      */
-    public function signedCommitWithImages(string $body, array $images, ?string $parentId = null, ?string $quotedCommitId = null): SignedRequest
+    public function signedCommitWithImages(string $body, array $images, ?string $parentId = null, ?string $quotedCommitId = null, ?string $author = null): SignedRequest
     {
-        return $this->signedWithImages('commits', self::commitPayload($body, $parentId, $quotedCommitId), $images);
+        return $this->signedWithImages('commits', self::commitPayload($body, $parentId, $quotedCommitId, author: $author), $images);
     }
 
     /**
@@ -360,14 +362,15 @@ final readonly class Client
      * Signs a commit to be submitted at $at, as the web's Schedule commit
      * does, for the background to send. Only you see it until then. With
      * photos it goes as multipart, as a commit with photos does, and a poll
-     * goes in its JSON.
+     * goes in its JSON. With $author it goes out as that organization when it's
+     * due, as long as you're still in it then.
      *
      * @param  list<DraftImage>  $images
      * @param  array<string, mixed>|null  $poll
      */
-    public function signedScheduledCommit(string $body, CarbonInterface $at, array $images = [], ?array $poll = null): SignedRequest
+    public function signedScheduledCommit(string $body, CarbonInterface $at, array $images = [], ?array $poll = null, ?string $author = null): SignedRequest
     {
-        $payload = array_filter(['body' => $body, 'scheduled_at' => self::scheduleTime($at), 'poll' => $poll], fn (mixed $value): bool => $value !== null);
+        $payload = array_filter(['body' => $body, 'scheduled_at' => self::scheduleTime($at), 'poll' => $poll, 'author' => $author], fn (mixed $value): bool => $value !== null);
 
         return $images === []
             ? $this->signedWrite('POST', self::ScheduledCommitsPath, $payload)
@@ -976,13 +979,14 @@ final readonly class Client
      * @param  array{options: list<string>, duration: int}|null  $poll
      * @return array<string, mixed>
      */
-    private static function commitPayload(string $body, ?string $parentId, ?string $quotedCommitId, ?array $poll = null): array
+    private static function commitPayload(string $body, ?string $parentId, ?string $quotedCommitId, ?array $poll = null, ?string $author = null): array
     {
         return array_filter([
             'body' => $body,
             'parent_id' => $parentId,
             'quoted_commit_id' => $quotedCommitId,
             'poll' => $poll,
+            'author' => $author,
         ], fn (mixed $value): bool => $value !== null);
     }
 

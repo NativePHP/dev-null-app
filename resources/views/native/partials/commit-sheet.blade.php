@@ -19,6 +19,10 @@
     field, its placeholder in it, and Open issue (the same check) in Commit's place in the bar. Opened, the sheet says
     so, with View issue and Done.
 
+    A member of a GitHub organization sees who the commit goes out as above the field, as the web's composer shows its
+    avatar: theirs, or the organization's, with its name and handle. A tap opens Post as (see PostAs). Commit is then
+    filled with the organization's lane. An issue always comes from you, so it hides there.
+
     A commit's page opens its reply here too, as "Reply to @handle", with the commit being answered as a static card
     over the field, for the photos and the preview its reply bar has no room for. Commit says Reply there.
 
@@ -51,6 +55,8 @@
             @php($quoting = $sheetView === 'quote')
             @php($replying = $sheetView === 'reply')
             @php($issueCommand = $sheetIssue === null ? null : \App\Devnull\IssueCommand::from($sheetIssue))
+            @php($postingMe = app(\App\Devnull\Account::class)->user())
+            @php($postsAs = $postingMe !== null && ! $issueCommand && \App\Devnull\PostAs::offered($sheetAuthor))
             <native:column class="w-full flex-1">
                 @php($canCommit = \App\Devnull\Data\Draft::canCommit($sheetBody, $sheetImages, $replying ? null : $sheetPoll))
                 <native:row class="w-full p-4 items-center gap-3">
@@ -60,12 +66,18 @@
                         @include('native.partials.sheet-bar-button', ['ref' => 'sheet-open-issue', 'icon' => \App\Icons\Lucide::Check, 'label' => 'Open issue', 'main' => true, 'loading' => $openingIssue, 'press' => $openingIssue || ! \App\Devnull\IssueCommand::fits($sheetBody) ? null : 'openIssueFromSheet'])
                     @else
                         @php($schedulingThis = $scheduling && $sheetView === 'compose')
-                        @include('native.partials.sheet-bar-button', ['ref' => 'sheet-commit', 'icon' => \App\Icons\Lucide::Check, 'label' => match (true) { $schedulingThis => 'Schedule commit', $replying => 'Reply', default => 'Commit' }, 'main' => true, 'loading' => $sendingSchedule, 'press' => $sendingSchedule || ! $canCommit || ($schedulingThis && ! $hasScheduledTime) ? null : 'commitFromSheet'])
+                        @include('native.partials.sheet-bar-button', ['ref' => 'sheet-commit', 'icon' => \App\Icons\Lucide::Check, 'label' => match (true) { $schedulingThis => 'Schedule commit', $replying => 'Reply', default => 'Commit' }, 'main' => true, 'mainColour' => $postingMe === null ? $myColour : \App\Devnull\PostAs::colour($postingMe, \App\Devnull\PostAs::author($sheetAuthor)), 'loading' => $sendingSchedule, 'press' => $sendingSchedule || ! $canCommit || ($schedulingThis && ! $hasScheduledTime) ? null : 'commitFromSheet'])
                     @endif
                 </native:row>
                 <native:column class="w-full h-[1] bg-theme-hairline" />
                 <native:scroll-view ref="sheet-composer" class="w-full flex-1">
                     <native:column class="w-full px-5 pt-4 pb-10 gap-4">
+                        @if ($postsAs)
+                            <native:row native:key="sheet-post-as-row" class="w-full">
+                                @include('native.partials.post-as', ['ref' => 'sheet-post-as', 'me' => $postingMe, 'picked' => $sheetAuthor, 'method' => 'postAsInSheet', 'size' => 36, 'withName' => true])
+                            </native:row>
+                        @endif
+
                         @if ($sheetError)
                             <native:text ref="sheet-error" class="w-full text-sm text-theme-destructive">{{ $sheetError }}</native:text>
                         @endif

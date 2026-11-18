@@ -25,9 +25,11 @@ final class RowInputs
     public static function for(Commit $commit, array $scope): array
     {
         $viewer = $scope['viewer'] ?? app(Account::class)->user();
+        $ownership = $scope['ownership'] ?? app(Account::class)->ownership();
 
         return [
             'viewer' => $viewer?->id,
+            'organizations' => $ownership->organizationIds,
             'pasteis' => $scope['pasteis'] ?? app(Account::class)->pasteis(),
             'stashed' => $scope['stashed'] ?? [],
             'unfolded' => $scope['unfolded'] ?? [],

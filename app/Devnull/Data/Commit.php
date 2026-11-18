@@ -4,6 +4,7 @@ namespace App\Devnull\Data;
 
 use App\Devnull\Display;
 use App\Devnull\Lane;
+use App\Devnull\Ownership;
 use Carbon\CarbonImmutable;
 use Closure;
 use Throwable;
@@ -327,15 +328,15 @@ final readonly class Commit
     }
 
     /**
-     * Whether $viewer may vote on the commit's poll, as the web decides it: someone else's published commit, whose
-     * poll is open and hasn't had their vote yet.
+     * Whether you may vote on the commit's poll, as the web decides it: a published commit that isn't yours or your
+     * organization's (see Ownership), whose poll is open and hasn't had your vote yet.
      */
-    public function canBeVotedOnBy(?User $viewer): bool
+    public function canBeVotedOnBy(Ownership $ownership): bool
     {
-        return $viewer !== null
+        return $ownership->isSignedIn()
             && $this->poll !== null
             && $this->isApproved()
-            && $this->author->id !== $viewer->id
+            && ! $ownership->owns($this)
             && $this->poll->closesAt !== null
             && ! $this->poll->hasVoted
             && ! $this->poll->showsResults()
