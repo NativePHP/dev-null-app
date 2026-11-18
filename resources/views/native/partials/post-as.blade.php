@@ -2,16 +2,18 @@
     Who a composer posts as (see PostAs): the avatar of whoever it is now, round for you and a rounded square for an
     organization, with a small chevron on its corner, as the web's Post as button draws it. A tap opens the menu of you
     and your organizations, which calls $method with the handle picked, or '' for you. With $withName, their name and
-    handle follow the avatar, for the sheet, which has the room.
+    handle follow the avatar, for the sheet, which has the room. $inset pads it inside its tap target, so a bar can line
+    the avatar up with its field.
 
     $picked is the handle the composer holds. An organization you've left since posts as you, so your avatar shows.
 --}}
 @php($size ??= 32)
 @php($withName ??= false)
+@php($inset ??= '')
 @php($author = \App\Devnull\PostAs::author($picked))
 @php($identity = $author ?? $me)
 <native:pressable ref="{{ $ref }}" :menu="\App\Devnull\PostAs::menu($me, $author, $method)" class="flex-shrink-0" a11y-label="{{ \App\Devnull\PostAs::label($me, $author) }}">
-    <native:row class="gap-3 items-center">
+    <native:row class="gap-3 items-center {{ $inset }}">
         <native:column :width="$size + 4" :height="$size + 4">
             @include('native.partials.avatar', ['user' => $identity, 'size' => $size])
             <native:stack :width="16" :height="16" center class="absolute top-[{{ $size - 12 }}] left-[{{ $size - 12 }}] rounded-full border border-theme-hairline bg-theme-surface">

@@ -137,8 +137,8 @@
             the stash, then how long the reply is near the limit.
 
             A member of a GitHub organization has the web's Post as at the start of the row, as composer-box's $lead:
-            the avatar of whoever the reply goes out as, which opens the menu (see PostAs). The send button is then
-            filled with that one's lane.
+            the avatar of whoever the reply goes out as, lined up with the field's text, which opens the menu (see
+            PostAs). The send button is then filled with that one's lane.
         --}}
         @php($replyPostingMe = app(\App\Devnull\Account::class)->user())
         @php($replyPostsAs = $replyPostingMe !== null && \App\Devnull\PostAs::offered($replyAuthor))
@@ -170,7 +170,7 @@
                     @include('native.partials.composer-box', [
                         'ref' => 'reply',
                         'field' => $replyPreviewing ? 'native.partials.reply-preview' : 'native.partials.reply-field',
-                        'lead' => $replyPostsAs ? [['native.partials.post-as', ['ref' => 'reply-post-as', 'me' => $replyPostingMe, 'picked' => $replyAuthor, 'method' => 'postAsInReply', 'size' => 28]]] : [],
+                        'lead' => $replyPostsAs ? [['native.partials.post-as', ['ref' => 'reply-post-as', 'me' => $replyPostingMe, 'picked' => $replyAuthor, 'method' => 'postAsInReply', 'size' => 28, 'inset' => 'pl-3']]] : [],
                         'tools' => [
                             ['ref' => 'reply-add-photos', 'icon' => \App\Icons\Lucide::ImagePlus, 'label' => $photosFull ? 'A reply can have up to 3 photos' : 'Add photos', 'menu' => $photosFull ? null : \App\Devnull\ComposerMenu::photoItems(), 'disabled' => $photosFull],
                             ['ref' => 'reply-preview', 'icon' => \App\Icons\Lucide::Eye, 'label' => $replyPreviewing ? 'Edit' : 'Preview', 'press' => 'toggleReplyPreview', 'active' => $replyPreviewing],
