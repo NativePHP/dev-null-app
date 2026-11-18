@@ -228,7 +228,7 @@ it('keeps the keyboard up through presses in the thread, and the field in place 
 
     $screen = threadWithAda()->input('message-input', 'on it');
     $field = idsDownTo($screen->tree(), 'message-input');
-    $rows = childRefs($screen, 'composer-bar');
+    $rows = childRefs($screen, 'composer-rows');
 
     expect(nodeByRef($screen, 'message-input')['props']['keep_focus_on_submit'] ?? false)->toBeTrue();
 
@@ -238,7 +238,7 @@ it('keeps the keyboard up through presses in the thread, and the field in place 
     // The strip fills a slot the bar always has, so the field's row keeps its place among the bar's rows, which
     // Android needs as well as the same id to keep the field.
     expect(idsDownTo($screen->tree(), 'message-input'))->toBe($field)
-        ->and(childRefs($screen, 'composer-bar'))->toBe($rows);
+        ->and(childRefs($screen, 'composer-rows'))->toBe($rows);
 
     $screen->tap('cancel-reply');
 
@@ -252,7 +252,7 @@ it('keeps the keyboard up through presses in the thread, and the field in place 
 
     expect($withPhotos)->not->toBe($field)
         ->and(idsDownTo($screen->tree(), 'message-input'))->toBe($withPhotos)
-        ->and(childRefs($screen, 'composer-bar'))->toBe($rows);
+        ->and(childRefs($screen, 'composer-rows'))->toBe($rows);
 });
 
 it('draws one box with the field over the + and a round Push, on both platforms', function (string $platform) {
@@ -280,13 +280,25 @@ it('puts the bar on the surface with no glass or line, and fades the thread out 
     $surface = strtoupper(config('native-ui.theme.light.surface'));
 
     expect($bar['props']['glass'] ?? null)->toBeNull()
-        ->and($bar['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
-        ->and(childRefs($screen, 'composer-bar')[0])->toBe('mention-slot')
+        ->and(nodeByRef($screen, 'composer-rows')['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
+        ->and(childRefs($screen, 'composer-rows')[0])->toBe('mention-slot')
         ->and(nodeByRef($screen, 'message-box')['style']['border_width'] ?? 0)->toEqual(0)
         ->and(nodeByRef($screen, 'message-box')['style']['bg_color'] ?? null)->toBeNull()
-        ->and(array_slice(childRefs($screen, 'thread-stack'), -1))->toBe(['composer-fade'])
         ->and($fade['props']['gradient_stops'] ?? null)->toBe('#00'.substr($surface, 1).',#B3'.substr($surface, 1).','.$surface)
         ->and($fade['layout']['height'] ?? null)->toEqual(Display::ComposerFadeHeight);
+
+    if ($platform === 'ios') {
+        // The thread runs on under the bar, so the bar draws the fade at its top, and has no background of its own,
+        // which iOS would paint behind the fade.
+        expect(childRefs($screen, 'composer-bar'))->toBe(['composer-fade', 'composer-rows'])
+            ->and($bar['style']['bg_color'] ?? null)->toBeNull()
+            ->and(childRefs($screen, 'thread-stack'))->not->toContain('composer-fade');
+    } else {
+        // The thread stops at the bar, so the fade lies over its foot, and the bar is the surface.
+        expect(childRefs($screen, 'composer-bar'))->toBe(['composer-rows'])
+            ->and($bar['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
+            ->and(array_slice(childRefs($screen, 'thread-stack'), -1))->toBe(['composer-fade']);
+    }
 })->with(['ios', 'android']);
 
 it('fades to the dark surface in dark mode, and draws again when the phone switches', function () {

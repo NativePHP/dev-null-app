@@ -70,8 +70,8 @@
         @include('native.partials.pinned-bar')
     @endif
 
-    {{-- The thread fades out above the composer instead of meeting it at a hard edge. --}}
-    @if ($loaded)
+    {{-- The thread fades out above the composer instead of meeting it at a hard edge. On iOS the bar draws the fade. --}}
+    @if ($loaded && ! \App\Devnull\Display::fadesInBar())
         @include('native.partials.composer-fade', ['ref' => 'composer-fade'])
     @endif
     </native:stack>
@@ -85,7 +85,11 @@
             photos on the draft. While the thread can't take a message, why goes in the field's place.
         --}}
         <native:bottom-bar>
-            <native:column native:key="composer-bar" ref="composer-bar" class="w-full bg-theme-surface">
+            <native:column native:key="composer-bar" ref="composer-bar" class="w-full {{ \App\Devnull\Display::composerBar() }}">
+                @if (\App\Devnull\Display::fadesInBar())
+                    @include('native.partials.composer-fade', ['ref' => 'composer-fade', 'inBar' => true])
+                @endif
+                <native:column native:key="composer-rows" ref="composer-rows" class="w-full bg-theme-surface">
                 @if ($canPush)
                     {{--
                         The members to mention, what you're replying to and the photos on the draft each keep a slot,
@@ -157,6 +161,7 @@
                         @endif
                     </native:column>
                 @endif
+                </native:column>
             </native:column>
         </native:bottom-bar>
     @endif
