@@ -17,6 +17,7 @@ use App\NativeComponents\NewRemote;
 use App\NativeComponents\Notifications;
 use App\NativeComponents\NotificationSettings;
 use App\NativeComponents\Onboarding;
+use App\NativeComponents\OpenPush;
 use App\NativeComponents\Organization;
 use App\NativeComponents\OrgMembers;
 use App\NativeComponents\Profile;
@@ -31,6 +32,9 @@ use Illuminate\Support\Facades\Route;
 Route::native('/', Launch::class);
 Route::native('/onboarding', Onboarding::class);
 Route::native('/auth/callback', AuthCallback::class);
+
+// A tap on a push, from devnull://push?type=…, cold or while the app runs.
+Route::native(OpenPush::Path, OpenPush::class);
 
 // Terms you have yet to accept stand in front of everything, tabs included.
 Route::native(AcceptTerms::Path, AcceptTerms::class);

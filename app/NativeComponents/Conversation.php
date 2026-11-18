@@ -24,6 +24,7 @@ use App\Devnull\VoiceNotes;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\AttachesPhotos;
+use App\NativeComponents\Concerns\LeavesGonePush;
 use App\NativeComponents\Concerns\OpensHashtags;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\PlaysVoiceNotes;
@@ -107,6 +108,7 @@ use NativePHP\Clipboard\Facades\Clipboard;
 class Conversation extends NativeComponent
 {
     use AttachesPhotos;
+    use LeavesGonePush;
     use OpensHashtags;
     use OpensInTab;
     use PlaysVoiceNotes;
@@ -469,6 +471,14 @@ class Conversation extends NativeComponent
     {
         $this->refresh($this->messagesPath(), [], fn (array $json) => $this->takeThread($json, fresh: true));
         $this->refreshUnreadNotifications();
+    }
+
+    /**
+     * A thread a push opened that you can no longer read, as after leaving the org, goes back to Remotes.
+     */
+    protected function refused(ApiException $exception): bool
+    {
+        return $this->leaveGonePush($exception, "That Remote isn't there any more.");
     }
 
     protected function showsContent(): bool
