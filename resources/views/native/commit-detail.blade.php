@@ -124,9 +124,10 @@
     @if ($commit)
         {{--
             The reply bar, drawn as the Remotes composer is: the field across the top and a row under it with the
-            tools on the left and the round send button on the right (see partials/composer-box), straight on the
-            surface, with the page fading out above it (see partials/composer-fade). native:bottom-bar takes no classes
-            of its own, so the bar is painted from this column, which also fills the strip under the home indicator.
+            tools on the left and the round send button on the right (see partials/composer-box), with the page fading
+            out above it (see partials/composer-fade). On iOS the bar is Liquid Glass, faded in at the top, so the page
+            shows through it blurred (see Display::composerBarGlass()). On Android it's the surface, painted from this
+            column. Either fills the strip under the home indicator.
 
             The bar does everything the composer sheet did for a reply, so a reply never needs the sheet, whose
             presenting takes the keyboard down and back up on both platforms. The photo button adds photos from the
@@ -138,12 +139,12 @@
             A "post as" avatar, for people in a GitHub organization, goes at the start of the row as composer-box's
             $lead.
         --}}
-        <native:bottom-bar>
+        <native:bottom-bar class="{{ \App\Devnull\Display::composerBarGlass() }}">
             <native:column ref="reply-bar" class="w-full {{ \App\Devnull\Display::composerBar() }}">
                 @if (\App\Devnull\Display::fadesInBar())
                     @include('native.partials.composer-fade', ['ref' => 'reply-fade', 'inBar' => true])
                 @endif
-                <native:column native:key="reply-rows" ref="reply-rows" class="w-full bg-theme-surface">
+                <native:column native:key="reply-rows" ref="reply-rows" class="w-full {{ \App\Devnull\Display::composerSurface() }}">
                 {{--
                     The people to mention and the photos on the reply keep a slot each above the field, empty and
                     0.1pt tall when there's nothing in it, so the field's row never moves. Android rebuilds a row that

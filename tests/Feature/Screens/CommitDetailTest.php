@@ -865,26 +865,40 @@ it('lets a drag that starts on an ancestor or a reply scroll the thread', functi
     expect(pressFeedbackInScroller($screen))->toBe([]);
 });
 
-it('puts the reply bar on the surface with no glass or line, and fades the page out above it, on both platforms', function (string $platform) {
+it('puts the reply bar on glass on iOS and the surface on Android, with no line, and fades the page out above it', function (string $platform) {
     fakeThread();
 
     $screen = Native::visit('/log/commits/c2', platform: $platform);
-    $bar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar')['children'][0];
-    $surface = strtoupper(config('native-ui.theme.light.surface'));
+    $bottomBar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
+    $bar = $bottomBar['children'][0];
+    $surface = substr(strtoupper(config('native-ui.theme.light.surface')), 1);
+    $darkSurface = substr(strtoupper(config('native-ui.theme.dark.surface')), 1);
 
-    // The bar's rows have the surface. The bar itself has it only on Android: iOS would paint it behind the fade.
     expect($bar['ref'] ?? null)->toBe('reply-bar')
         ->and($bar['props']['glass'] ?? null)->toBeNull()
-        ->and($bar['style']['bg_color'] ?? null)->toBe($platform === 'ios' ? null : config('native-ui.theme.light.surface'))
-        ->and(nodeByRef($screen, 'reply-rows')['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
-        ->and(nodeByRef($screen, 'reply-rows')['props']['dark_bg_color'] ?? null)->toBe(config('native-ui.theme.dark.surface'))
-        ->and(childRefs($screen, 'reply-rows')[0])->toBe('reply-mention-slot')
-        ->and(str_ends_with(nodeByRef($screen, 'reply-fade')['props']['gradient_stops'] ?? '', $surface))->toBeTrue();
+        ->and(childRefs($screen, 'reply-rows')[0])->toBe('reply-mention-slot');
 
-    // On iOS the page runs on under the bar, which draws the fade. On Android the page stops at the bar, and the fade
-    // lies over its foot.
-    expect(childRefs($screen, 'reply-bar'))->toBe($platform === 'ios' ? ['reply-fade', 'reply-rows'] : ['reply-rows'])
-        ->and(childRefs($screen, 'thread-stack'))->toBe($platform === 'ios' ? ['thread-scroll'] : ['thread-scroll', 'reply-fade']);
+    if ($platform === 'ios') {
+        // The page runs on under the bar, which is glass, so it shows through blurred. The bar draws the fade at its
+        // top, ending at the glass's tint, and its rows carry the tint. The bar itself has no background, which iOS
+        // would paint behind the fade.
+        expect($bottomBar['props']['glass'] ?? null)->toBe(1)
+            ->and($bar['style']['bg_color'] ?? null)->toBeNull()
+            ->and(nodeByRef($screen, 'reply-rows')['style']['bg_color'] ?? null)->toBe('#66'.$surface)
+            ->and(nodeByRef($screen, 'reply-rows')['props']['dark_bg_color'] ?? null)->toBe('#66'.$darkSurface)
+            ->and(nodeByRef($screen, 'reply-fade')['props']['gradient_stops'] ?? null)->toBe('#00'.$surface.',#66'.$surface)
+            ->and(childRefs($screen, 'reply-bar'))->toBe(['reply-fade', 'reply-rows'])
+            ->and(childRefs($screen, 'thread-stack'))->toBe(['thread-scroll']);
+    } else {
+        // No glass on Android. The page stops at the bar, which is the surface, and the fade lies over its foot.
+        expect($bottomBar['props']['glass'] ?? null)->toBeNull()
+            ->and($bar['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
+            ->and(nodeByRef($screen, 'reply-rows')['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
+            ->and(nodeByRef($screen, 'reply-rows')['props']['dark_bg_color'] ?? null)->toBe(config('native-ui.theme.dark.surface'))
+            ->and(str_ends_with(nodeByRef($screen, 'reply-fade')['props']['gradient_stops'] ?? '', ',#'.$surface))->toBeTrue()
+            ->and(childRefs($screen, 'reply-bar'))->toBe(['reply-rows'])
+            ->and(childRefs($screen, 'thread-stack'))->toBe(['thread-scroll', 'reply-fade']);
+    }
 })->with(['ios', 'android']);
 
 it('ends the page above the reply bar, and further as the draft grows', function () {
