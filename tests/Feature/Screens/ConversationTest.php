@@ -1422,7 +1422,9 @@ it("opens a message's image full-screen from the one tapped, and pages through t
     expect(nodeByRef($screen, 'image-viewer')['props']['visible'])->toBeFalse()
         ->and(nodeByRef($screen, 'image-1-1')['on_press'] ?? null)->not->toBeNull();
 
-    $screen->tap('image-1-1')->assertSet('viewerOpen', true)->assertSet('viewerIndex', 1);
+    $screen->tap('image-1-1')->assertSet('viewerOpen', true)->assertSet('viewerIndex', 1)
+        // It grows out of the message's own images, by their refs, and shrinks back into whichever it pages to.
+        ->assertSet('viewerSources', ['image-1-0', 'image-1-1', 'image-1-2']);
 
     $shown = findNodes(nodeByRef($screen, 'image-viewer'), fn (array $node): bool => ($node['type'] ?? null) === 'image');
 

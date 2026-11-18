@@ -1114,13 +1114,16 @@ class Conversation extends NativeComponent
 
     /**
      * Opens a message's images full-screen (see ShowsImageViewer), from the one
-     * tapped, paging through that message's images only, as a commit's do. A
-     * message the thread isn't showing opens nothing, nor does one still being
-     * pushed, whose images are only on the phone.
+     * tapped, which it grows out of, paging through that message's images only,
+     * as a commit's do. A message the thread isn't showing opens nothing, nor
+     * does one still being pushed, whose images are only on the phone.
      */
     public function openMessageImage(int $id, int $index = 0): void
     {
-        $this->showImagesInViewer($this->findMessage($id)?->images ?? [], $index);
+        $images = $this->findMessage($id)?->images ?? [];
+
+        // The refs partials/message-images gives them, keyed by the message's id.
+        $this->showImagesInViewer($images, $index, array_map(fn (int $place): string => "image-{$id}-{$place}", array_keys($images)));
     }
 
     /**
