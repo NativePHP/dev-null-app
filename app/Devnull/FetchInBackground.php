@@ -55,6 +55,16 @@ final class FetchInBackground extends AsyncTask
     }
 
     /**
+     * Whether the request this task sent ran out of time before devnull
+     * answered: devnull, or something in front of it, took the connection and
+     * never said anything back. A write may have reached devnull all the same.
+     */
+    public static function timedOut(mixed $result): bool
+    {
+        return is_array($result) && ($result['timed_out'] ?? false) === true;
+    }
+
+    /**
      * The JSON devnull answered a write with, or an empty array for a write it answered with nothing.
      *
      * @return array<string, mixed>
@@ -66,7 +76,7 @@ final class FetchInBackground extends AsyncTask
 
     /**
      * @param  array<string, string>  $headers
-     * @return array{status: int, json: mixed, retry_after: string, from_devnull: bool}
+     * @return array{status: int, json: mixed, retry_after: string, from_devnull: bool, timed_out?: bool}
      */
     public function handle(string $url, array $headers, string $method = 'GET', string $body = '', bool $withImages = false, ?int $pruneBefore = null, string $contentType = 'application/json', int $timeout = Client::Timeout): array
     {
@@ -76,8 +86,9 @@ final class FetchInBackground extends AsyncTask
 
         try {
             $response = Client::sendSigned(new SignedRequest($url, $headers, $method, $body, $contentType), $timeout);
-        } catch (ConnectionException) {
-            return ['status' => 0, 'json' => null, 'retry_after' => '', 'from_devnull' => false];
+        } catch (ConnectionException $exception) {
+            // cURL's "Operation timed out", as against a connection refused or a name that didn't resolve.
+            return ['status' => 0, 'json' => null, 'retry_after' => '', 'from_devnull' => false, 'timed_out' => str_contains($exception->getMessage(), 'cURL error 28')];
         }
 
         $result = [
