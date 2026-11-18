@@ -116,7 +116,7 @@
         </native:column>
     </native:scroll-view>
 
-    @if ($commit)
+    @if ($commit && ! \App\Devnull\Display::fadesInBar())
         @include('native.partials.composer-fade', ['ref' => 'reply-fade'])
     @endif
     </native:stack>
@@ -125,8 +125,8 @@
         {{--
             The reply bar, drawn as the Remotes composer is: the field across the top and a row under it with the
             tools on the left and the round send button on the right (see partials/composer-box), straight on the
-            surface, with the page fading out above it. native:bottom-bar takes no classes of its own, so the bar is
-            painted from this column, which also fills the strip under the home indicator.
+            surface, with the page fading out above it (see partials/composer-fade). native:bottom-bar takes no classes
+            of its own, so the bar is painted from this column, which also fills the strip under the home indicator.
 
             The bar does everything the composer sheet did for a reply, so a reply never needs the sheet, whose
             presenting takes the keyboard down and back up on both platforms. The photo button adds photos from the
@@ -139,7 +139,11 @@
             $lead.
         --}}
         <native:bottom-bar>
-            <native:column ref="reply-bar" class="w-full bg-theme-surface">
+            <native:column ref="reply-bar" class="w-full {{ \App\Devnull\Display::composerBar() }}">
+                @if (\App\Devnull\Display::fadesInBar())
+                    @include('native.partials.composer-fade', ['ref' => 'reply-fade', 'inBar' => true])
+                @endif
+                <native:column native:key="reply-rows" ref="reply-rows" class="w-full bg-theme-surface">
                 {{--
                     The people to mention and the photos on the reply keep a slot each above the field, empty and
                     0.1pt tall when there's nothing in it, so the field's row never moves. Android rebuilds a row that
@@ -181,6 +185,7 @@
                 @if (\App\Devnull\Data\CommitBody::hasOversizedUrl($reply))
                     <native:text ref="reply-link-error" class="w-full px-4 pb-2 text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
                 @endif
+                </native:column>
             </native:column>
         </native:bottom-bar>
     @endif

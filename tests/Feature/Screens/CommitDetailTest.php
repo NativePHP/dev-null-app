@@ -869,16 +869,22 @@ it('puts the reply bar on the surface with no glass or line, and fades the page 
     fakeThread();
 
     $screen = Native::visit('/log/commits/c2', platform: $platform);
-    $bar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
+    $bar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar')['children'][0];
     $surface = strtoupper(config('native-ui.theme.light.surface'));
 
-    expect($bar['children'][0]['ref'] ?? null)->toBe('reply-bar')
-        ->and($bar['children'][0]['props']['glass'] ?? null)->toBeNull()
-        ->and($bar['children'][0]['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
-        ->and($bar['children'][0]['props']['dark_bg_color'] ?? null)->toBe(config('native-ui.theme.dark.surface'))
-        ->and(childRefs($screen, 'reply-bar')[0])->toBe('reply-mention-slot')
-        ->and(childRefs($screen, 'thread-stack'))->toBe(['thread-scroll', 'reply-fade'])
+    // The bar's rows have the surface. The bar itself has it only on Android: iOS would paint it behind the fade.
+    expect($bar['ref'] ?? null)->toBe('reply-bar')
+        ->and($bar['props']['glass'] ?? null)->toBeNull()
+        ->and($bar['style']['bg_color'] ?? null)->toBe($platform === 'ios' ? null : config('native-ui.theme.light.surface'))
+        ->and(nodeByRef($screen, 'reply-rows')['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
+        ->and(nodeByRef($screen, 'reply-rows')['props']['dark_bg_color'] ?? null)->toBe(config('native-ui.theme.dark.surface'))
+        ->and(childRefs($screen, 'reply-rows')[0])->toBe('reply-mention-slot')
         ->and(str_ends_with(nodeByRef($screen, 'reply-fade')['props']['gradient_stops'] ?? '', $surface))->toBeTrue();
+
+    // On iOS the page runs on under the bar, which draws the fade. On Android the page stops at the bar, and the fade
+    // lies over its foot.
+    expect(childRefs($screen, 'reply-bar'))->toBe($platform === 'ios' ? ['reply-fade', 'reply-rows'] : ['reply-rows'])
+        ->and(childRefs($screen, 'thread-stack'))->toBe($platform === 'ios' ? ['thread-scroll'] : ['thread-scroll', 'reply-fade']);
 })->with(['ios', 'android']);
 
 it('ends the page above the reply bar, and further as the draft grows', function () {

@@ -252,7 +252,7 @@ it('adds photos to a reply from the bar, from the library or the camera, without
 
     // They show above the field, which keeps its place, and go in the reply's stash with its text.
     expect($screen->instance()->replyImages)->toHaveCount(2)
-        ->and(childRefs($screen, 'reply-bar'))->toBe(['reply-mention-slot', 'reply-photos-slot', 'reply-row'])
+        ->and(childRefs($screen, 'reply-rows'))->toBe(['reply-mention-slot', 'reply-photos-slot', 'reply-row'])
         ->and(nodeByRef($screen, 'reply-photo-0'))->not->toBeNull()
         ->and(nodeByRef($screen, 'reply-photo-1'))->not->toBeNull()
         ->and(nodeByRef($screen, 'sheet')['props']['visible'] ?? false)->toBeFalse()
