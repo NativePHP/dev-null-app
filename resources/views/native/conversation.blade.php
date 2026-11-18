@@ -69,20 +69,23 @@
     @if ($pinned !== [])
         @include('native.partials.pinned-bar')
     @endif
+
+    {{-- The thread fades out above the composer instead of meeting it at a hard edge. --}}
+    @if ($loaded)
+        @include('native.partials.composer-fade', ['ref' => 'composer-fade'])
+    @endif
     </native:stack>
 
     @if ($loaded)
         {{--
-            The composer: one rounded box with the field over a row holding the + and the round send button (see
-            partials/composer-box), on a bar that is Liquid Glass on iOS, tinted with the surface so the thread
-            scrolling under it is blurred out of the way, and the solid surface with a hairline on Android. The web's
-            tools, photos, the microphone and Ping, open from the one +. Above the box sit the people to mention, what
-            you're replying to and the photos on the draft. While the thread can't take a message, the bar is solid
-            on both, with why in the box's place.
+            The composer: the field over a row holding the + and the round send button (see partials/composer-box), on
+            the surface, with the thread fading out above it (see partials/composer-fade) rather than a line or a
+            blur. The surface also fills the strip under the home indicator. The web's tools, photos, the microphone
+            and Ping, open from the one +. Above the field sit the people to mention, what you're replying to and the
+            photos on the draft. While the thread can't take a message, why goes in the field's place.
         --}}
         <native:bottom-bar>
-            <native:column native:key="composer-bar" ref="composer-bar" class="w-full {{ $canPush ? 'android:bg-theme-surface ios:bg-theme-surface/70 ios:glass' : 'bg-theme-surface' }}">
-                <native:column class="w-full h-[1] {{ $canPush ? 'android:bg-theme-hairline' : 'bg-theme-hairline' }}" />
+            <native:column native:key="composer-bar" ref="composer-bar" class="w-full bg-theme-surface">
                 @if ($canPush)
                     {{--
                         The members to mention, what you're replying to and the photos on the draft each keep a slot,
@@ -122,7 +125,7 @@
                             'tools' => $recorder !== null ? [] : [
                                 ['ref' => 'composer-tools', 'icon' => \App\Icons\Lucide::Plus, 'label' => 'Photos, a voice note or a ping', 'menu' => \App\Devnull\ComposerMenu::items(count($photos) >= \App\Devnull\DraftImages::MaxImages, trim($draft) !== '' || $photos !== [], $pingLabel)],
                             ],
-                            'counter' => ['native.partials.message-length'],
+                            'trail' => [['native.partials.message-length']],
                             'send' => [
                                 'ref' => 'push',
                                 'label' => 'Push',

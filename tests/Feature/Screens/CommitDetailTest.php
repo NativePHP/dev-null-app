@@ -1,6 +1,8 @@
 <?php
 
 use App\Devnull\Account;
+use App\Devnull\Data\Commit;
+use App\Devnull\Display;
 use App\Devnull\Stash;
 use App\Models\PendingWrite;
 use Illuminate\Http\Client\Request;
@@ -166,26 +168,22 @@ it('shrinks the grown reply box back once the reply is sent', function () {
         ->and(nodeByRef($screen, 'reply-input')['props']['max_lines'])->toBe(5);
 });
 
-it('says a reply long enough to be folded in feeds is, in words beside Reply and in the sheet, rather than an icon', function () {
+it('says nothing about a long reply being folded in feeds, beside Reply or in the sheet, and still counts down near the limit', function () {
     fakeThread();
 
-    $screen = Native::visit('/log/commits/c2')->input('reply-input', 'Short');
+    $screen = Native::visit('/log/commits/c2')->input('reply-input', str_repeat('a', 281));
 
-    expect(rendersRef($screen, 'reply-budget-fold'))->toBeFalse();
+    expect(rendersRef($screen, 'reply-budget-fold'))->toBeFalse()
+        ->and(rendersRef($screen, 'reply-budget'))->toBeFalse();
 
-    $screen->input('reply-input', str_repeat('a', 281));
-    $hint = nodeByRef($screen, 'reply-budget-fold');
+    $screen->input('reply-input', str_repeat('a', Commit::MaxLength - 20));
 
-    expect($hint['type'])->toBe('text')
-        ->and($hint['props']['text'])->toBe('folded in feeds')
-        ->and($hint['props']['a11y_label'] ?? $hint['a11y_label'] ?? null)->toBe('Feeds show the first 280 characters or 8 lines, then Show more.')
-        ->and(array_slice(childRefs($screen, 'reply-actions'), -2))->toBe(['reply-budget-fold', 'send-reply'])
-        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'icon' && ($node['ref'] ?? null) === 'reply-budget-fold'))->toBeNull();
+    expect(nodeByRef($screen, 'reply-budget')['props']['text'])->toBe('20');
 
-    $screen->tap('reply-expand')->tap('reply-attach');
+    $screen->call('replyInSheet', 'c2');
 
-    expect(nodeByRef($screen, 'sheet-budget-fold')['type'])->toBe('text')
-        ->and(nodeByRef($screen, 'sheet-budget-fold')['props']['text'])->toBe('folded in feeds');
+    expect(rendersRef($screen, 'sheet-budget-fold'))->toBeFalse()
+        ->and(nodeByRef($screen, 'sheet-budget')['props']['text'])->toBe('20');
 });
 
 it('runs the rail from the folded ancestors into the parent, which shows its avatar', function () {
@@ -862,13 +860,13 @@ it('ends the page above the reply bar, and further as the draft grows', function
 
     // The clearance is the last thing on the page, under the last reply: the bar's line and the home indicator.
     expect(end($page)['ref'] ?? null)->toBe('reply-bar-clearance')
-        ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual(24 + 97 + 34);
+        ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual(24 + Display::ComposerBoxBarHeight + 34);
 
     $screen->input('reply-input', "Three lines\nof a\ndraft");
 
-    expect(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual(24 + 97 + 2 * 21 + 34);
+    expect(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual(24 + Display::ComposerBoxBarHeight + 2 * 21 + 34);
 
     $screen->input('reply-input', str_repeat("A line\n", 12));
 
-    expect(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual(24 + 97 + 4 * 21 + 34);
+    expect(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual(24 + Display::ComposerBoxBarHeight + 4 * 21 + 34);
 });

@@ -158,7 +158,7 @@
                                 ['ref' => 'reply-photos', 'icon' => \App\Icons\Lucide::ImagePlus, 'text' => $photoCount, 'label' => $photoCount.' attached', 'hint' => 'Opens the reply with its photos', 'press' => "replyInSheet('{$commit->id}')"],
                             ]),
                         ],
-                        'counter' => ['native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget']],
+                        'trail' => [['native.partials.body-counter', ['body' => $reply, 'ref' => 'reply-budget']]],
                         'send' => [
                             'ref' => 'send-reply',
                             'label' => 'Reply',

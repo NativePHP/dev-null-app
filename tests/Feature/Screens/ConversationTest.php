@@ -2,6 +2,7 @@
 
 use App\Devnull\Account;
 use App\Devnull\Data\Remotes;
+use App\Devnull\Display;
 use App\NativeComponents\Conversation;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -760,18 +761,18 @@ it('opens no link preview that is not a web page', function () {
         ->assertNativeNotCalled('Browser.OpenInApp');
 });
 
-it('pads the end of the thread for the composer bar alone, and for the reply bar while replying', function () {
+it('pads the end of the thread for the fade and the composer bar alone, and for the reply bar while replying', function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
 
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
     $clearance = fn (): mixed => nodeByRef($screen, 'composer-clearance')['layout']['height'] ?? null;
 
     // The scroll view adds the home indicator itself while the keyboard is down, so it isn't counted here.
-    expect($clearance())->toEqual(Conversation::ComposerBarHeight + 8);
+    expect($clearance())->toEqual(Display::ComposerFadeHeight + Conversation::ComposerBarHeight + 8);
 
     $screen->trigger('swipe-1');
 
-    expect($clearance())->toEqual(Conversation::ComposerBarHeight + Conversation::ReplyingBarHeight + 8);
+    expect($clearance())->toEqual(Display::ComposerFadeHeight + Conversation::ComposerBarHeight + Conversation::ReplyingBarHeight + 8);
 });
 
 // ── Pins ────────────────────────────────
@@ -1025,8 +1026,8 @@ it('shows the latest pinned message in a bar over the thread, which opens them a
         ->assertSee('pinned · 2')
         ->assertSee(' release checklist');
 
-    // It lies over the thread, which clears it at the top.
-    expect(childRefs($screen, 'thread-stack'))->toBe(['thread', 'pinned-bar'])
+    // It lies over the thread, which clears it at the top, under the fade over the thread's foot.
+    expect(childRefs($screen, 'thread-stack'))->toBe(['thread', 'pinned-bar', 'composer-fade'])
         ->and(childRefs($screen, 'thread')[0])->toBe('pinned-clearance')
         ->and(nodeByRef($screen, 'pinned-bar')['props']['a11y_label'] ?? null)->toBe('2 pinned messages. Latest from Ada Lovelace: release checklist');
 
