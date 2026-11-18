@@ -39,6 +39,31 @@ it('checks the sign-in before opening a push, as the first screen does', functio
     Native::visit('/push?type=replied&commit_id=c1')->assertReplacedWith('/onboarding');
 });
 
+it('opens a push after onboarding signs back in with the key, when the stored sign-in is gone', function () {
+    // As on Android after an update, where clearing the app's caches takes the stored sign-in with them.
+    fakeKeychain(testSeed());
+    serveApi(['GET /api/v1/me' => [['data' => userWithCountsJson(), 'unread_notifications_count' => 0]]]);
+    $this->freezeTime();
+
+    $push = Native::visit('/push?type=replied&commit_id=c1')->assertReplacedWith('/onboarding');
+
+    expect($push->navigationIntent()->data)->toBe(['then' => '/push?type=replied&commit_id=c1']);
+
+    $onboarding = Native::visit('/onboarding', $push->navigationIntent()->data);
+    $this->travel(1)->seconds();
+    $onboarding->firePoll('tick')->assertReplacedWith('/push?type=replied&commit_id=c1');
+});
+
+it('signs back in to the log when onboarding is handed anything but a push', function () {
+    fakeKeychain(testSeed());
+    serveApi(['GET /api/v1/me' => [['data' => userWithCountsJson(), 'unread_notifications_count' => 0]]]);
+    $this->freezeTime();
+
+    $onboarding = Native::visit('/onboarding', ['then' => '/profile/device']);
+    $this->travel(1)->seconds();
+    $onboarding->firePoll('tick')->assertReplacedWith('/log');
+});
+
 it('puts owed terms in front of a push', function () {
     signIn();
     app(Account::class)->rememberTermsToAccept('2026-11-01T14:35:00Z');

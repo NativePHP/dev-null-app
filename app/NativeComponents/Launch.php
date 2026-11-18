@@ -24,7 +24,7 @@ class Launch extends NativeComponent
     public function mount(Account $account, DeviceKey $deviceKey): void
     {
         if ($account->user() === null) {
-            $this->replace('/onboarding');
+            $this->signedOut();
 
             return;
         }
@@ -43,6 +43,14 @@ class Launch extends NativeComponent
         }
 
         $this->openApp();
+    }
+
+    /**
+     * Where a device with no stored sign-in goes.
+     */
+    protected function signedOut(): void
+    {
+        $this->replace('/onboarding');
     }
 
     /**

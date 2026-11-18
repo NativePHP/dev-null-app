@@ -13,6 +13,15 @@ class OpenPush extends Launch
 {
     public const string Path = '/push';
 
+    /**
+     * A phone can still be signed in with no stored sign-in, as on Android after an update clears the app's cache.
+     * Onboarding then signs back in with the phone's key by itself, and comes back here to open the push.
+     */
+    protected function signedOut(): void
+    {
+        $this->replace('/onboarding', ['then' => self::Path.'?'.http_build_query($this->query() ?? [], encoding_type: PHP_QUERY_RFC3986)]);
+    }
+
     protected function openApp(): void
     {
         $tap = PushTap::from($this->query() ?? []);
