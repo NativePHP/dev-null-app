@@ -29,10 +29,15 @@ final class Display
     public const int ReplyBarStashLabelHeight = 28;
 
     /**
-     * A bar holding partials/composer-box with one line of draft, as drawn on an iPhone: the bar's hairline and
-     * padding, then the box with its field over the row of tools and the send button.
+     * A bar holding partials/composer-box with one line of draft, as drawn on an iPhone: the bar's padding, then the
+     * field over the row of tools and the send button.
      */
-    public const int ComposerBoxBarHeight = 97;
+    public const int ComposerBoxBarHeight = 94;
+
+    /**
+     * The fade over the foot of a screen, just above its composer bar (see partials/composer-fade).
+     */
+    public const int ComposerFadeHeight = 28;
 
     /**
      * About how many characters fit on a line of the box's field. It runs the width of the box, so more fit than
@@ -249,6 +254,20 @@ final class Display
     public static function composerBoxGrowth(string $draft): int
     {
         return (min(self::ReplyBarMaxLines, self::lineCount($draft, self::ComposerBoxCharactersPerLine)) - 1) * self::ReplyBarLineHeight;
+    }
+
+    /**
+     * The fade's classes (see partials/composer-fade): a gradient down from see-through to the surface, where the bar
+     * starts. EDGE takes a gradient's stops as they are, without the dark companion a theme colour gets, so the stops
+     * are the surface of the appearance the phone is in now, and a screen with the fade draws again when that
+     * changes (see RedrawsOnAppearanceChange). It climbs to 70% of the surface by halfway, so what's under it has
+     * mostly faded before it reaches the bar.
+     */
+    public static function composerFade(): string
+    {
+        $surface = strtolower((string) theme('surface', '#ffffff'));
+
+        return "bg-gradient-to-b from-{$surface}/0 via-{$surface}/70 to-{$surface}";
     }
 
     /**

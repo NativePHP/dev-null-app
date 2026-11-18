@@ -1,10 +1,13 @@
 <?php
 
+use App\Devnull\Display;
 use App\Devnull\DraftImages;
 use App\NativeComponents\Conversation;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Events\System\AppearanceChanged;
+use Native\Mobile\Facades\System;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 
@@ -213,11 +216,11 @@ it('pads the end of the thread for the photos on the draft and an open descripti
 
     photosPicked($screen, [testPhoto()]);
 
-    expect($clearance())->toEqual(Conversation::ComposerBarHeight + Conversation::PhotosHeight + 8);
+    expect($clearance())->toEqual(Display::ComposerFadeHeight + Conversation::ComposerBarHeight + Conversation::PhotosHeight + 8);
 
     $screen->tap('photo-0-alt');
 
-    expect($clearance())->toEqual(Conversation::ComposerBarHeight + Conversation::PhotosHeight + Conversation::DescriptionHeight + 8);
+    expect($clearance())->toEqual(Display::ComposerFadeHeight + Conversation::ComposerBarHeight + Conversation::PhotosHeight + Conversation::DescriptionHeight + 8);
 });
 
 it('keeps the keyboard up through presses in the thread, and the field in place as the reply strip and photos come and go', function () {
@@ -268,16 +271,42 @@ it('draws one box with the field over the + and a round Push, on both platforms'
         ->and(nodeByRef($screen, 'push')['props']['a11y_label'] ?? nodeByRef($screen, 'push')['a11y_label'] ?? null)->toBe('Push');
 })->with(['ios', 'android']);
 
-it('puts the bar on Liquid Glass tinted with the surface on iOS, and on the solid surface on Android', function () {
+it('puts the bar on the surface with no glass or line, and fades the thread out above it, on both platforms', function (string $platform) {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
-    $ios = nodeByRef(threadWithAda('ios'), 'composer-bar');
-    $android = nodeByRef(threadWithAda('android'), 'composer-bar');
+    $screen = threadWithAda($platform);
+    $bar = nodeByRef($screen, 'composer-bar');
+    $fade = nodeByRef($screen, 'composer-fade');
+    $surface = strtoupper(config('native-ui.theme.light.surface'));
 
-    expect($ios['props']['glass'] ?? null)->toBe(1)
-        ->and($ios['style']['bg_color'] ?? null)->not->toBeNull()
-        ->and($android['props']['glass'] ?? null)->toBeNull()
-        ->and($android['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'));
+    expect($bar['props']['glass'] ?? null)->toBeNull()
+        ->and($bar['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
+        ->and(childRefs($screen, 'composer-bar')[0])->toBe('mention-slot')
+        ->and(nodeByRef($screen, 'message-box')['style']['border_width'] ?? 0)->toEqual(0)
+        ->and(nodeByRef($screen, 'message-box')['style']['bg_color'] ?? null)->toBeNull()
+        ->and(array_slice(childRefs($screen, 'thread-stack'), -1))->toBe(['composer-fade'])
+        ->and($fade['props']['gradient_stops'] ?? null)->toBe('#00'.substr($surface, 1).',#B3'.substr($surface, 1).','.$surface)
+        ->and($fade['layout']['height'] ?? null)->toEqual(Display::ComposerFadeHeight);
+})->with(['ios', 'android']);
+
+it('fades to the dark surface in dark mode, and draws again when the phone switches', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda();
+    $light = strtoupper(config('native-ui.theme.light.surface'));
+    $dark = strtoupper(config('native-ui.theme.dark.surface'));
+
+    expect(str_ends_with(nodeByRef($screen, 'composer-fade')['props']['gradient_stops'], $light))->toBeTrue();
+
+    System::rememberAppearance('dark');
+
+    try {
+        $screen->emitNative(AppearanceChanged::class, ['mode' => 'dark']);
+
+        expect(str_ends_with(nodeByRef($screen, 'composer-fade')['props']['gradient_stops'], $dark))->toBeTrue();
+    } finally {
+        System::rememberAppearance('light');
+    }
 });
 
 it('counts a long message beside Push from 1,600 characters, amber from 1,900 and red at 2,000', function (int $length, ?string $colour) {

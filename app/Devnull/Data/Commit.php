@@ -35,13 +35,6 @@ final readonly class Commit
     public const int CountFrom = 200;
 
     /**
-     * A list shows a body longer than this, or longer than PreviewLines lines, as its start and "Show more".
-     */
-    public const int PreviewLength = 280;
-
-    public const int PreviewLines = 8;
-
-    /**
      * The status of a commit you made that devnull doesn't have yet, which
      * stands in for it on the screen (see PendingWrite::stagedCommit()).
      */
@@ -209,18 +202,6 @@ final readonly class Commit
             && $length >= self::MinLength
             && $length <= self::MaxLength
             && ! CommitBody::hasOversizedUrl($body);
-    }
-
-    /**
-     * Whether a list would show only the start of a body, as the web's composer
-     * works it out: more than PreviewLength characters or PreviewLines lines,
-     * once blank lines in a run are counted as one.
-     */
-    public static function isFoldedInLists(string $body): bool
-    {
-        $normalized = CommitBody::normalize($body);
-
-        return mb_strlen($normalized) > self::PreviewLength || count(explode("\n", $normalized)) > self::PreviewLines;
     }
 
     /**

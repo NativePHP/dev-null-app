@@ -28,6 +28,7 @@ use App\NativeComponents\Concerns\OpensHashtags;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\PlaysVoiceNotes;
 use App\NativeComponents\Concerns\RecordsVoiceNotes;
+use App\NativeComponents\Concerns\RedrawsOnAppearanceChange;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SuggestsMentions;
 use App\NativeComponents\Concerns\SyncsOutbox;
@@ -108,6 +109,7 @@ class Conversation extends NativeComponent
     use OpensInTab;
     use PlaysVoiceNotes;
     use RecordsVoiceNotes;
+    use RedrawsOnAppearanceChange;
     use RefreshesInBackground;
     use SuggestsMentions;
     use SyncsOutbox;
@@ -243,8 +245,8 @@ class Conversation extends NativeComponent
     public bool $composing = false;
 
     /**
-     * The composer bar's height with one line in its field: its top line, then the box holding the field over the +
-     * and Push (see partials/composer-box), with 8 points above and below.
+     * The composer bar's height with one line in its field: the field over the + and Push (see partials/composer-box),
+     * with 8 points above and below.
      */
     public const int ComposerBarHeight = Display::ComposerBoxBarHeight;
 
@@ -1830,13 +1832,14 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * How far the thread pads its end to clear the composer bar: the bar with one line in its field, the lines the
-     * draft has grown by, the reply bar while replying, the photos and an open description, and a little room. The
-     * scroll view adds the home indicator itself while the keyboard is down, so this is the same either way.
+     * How far the thread pads its end to clear the composer bar: the fade above it, the bar with one line in its
+     * field, the lines the draft has grown by, the reply bar while replying, the photos and an open description, and
+     * a little room. The scroll view adds the home indicator itself while the keyboard is down, so this is the same
+     * either way.
      */
     private static function composerClearance(string $draft, bool $replying, bool $hasPhotos, bool $describing): int
     {
-        return self::ComposerBarHeight + Display::composerBoxGrowth($draft)
+        return Display::ComposerFadeHeight + self::ComposerBarHeight + Display::composerBoxGrowth($draft)
             + ($replying ? self::ReplyingBarHeight : 0)
             + ($hasPhotos ? self::PhotosHeight : 0)
             + ($hasPhotos && $describing ? self::DescriptionHeight : 0)
