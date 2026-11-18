@@ -79,7 +79,15 @@
                         @endif
 
                         @if ($previewing)
-                            @include('native.partials.composer-preview')
+                            @include('native.partials.composer-preview', [
+                                'ref' => 'sheet-draft',
+                                'body' => $sheetBody,
+                                'preview' => $sheetPreview,
+                                'images' => $sheetImages,
+                                'poll' => $replying ? null : $sheetPoll,
+                                'pollLength' => $sheetPollLength,
+                                'quoted' => $quoting ? $sheetCommit : null,
+                            ])
                         @else
                             <native:bare-text-input
                                 native:key="sheet-body"

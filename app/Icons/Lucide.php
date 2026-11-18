@@ -73,7 +73,6 @@ enum Lucide
     case Eye;
     case EyeOff;
     case Plus;
-    case Maximize2;
     case Vibrate;
 
     // The achievement badges, named as devnull names their icons (see forBadge()).
@@ -213,7 +212,6 @@ enum Lucide
             self::Eye => 'eye',
             self::EyeOff => 'eye-off',
             self::Plus => 'plus',
-            self::Maximize2 => 'maximize-2',
             self::Vibrate => 'vibrate',
             self::Terminal => 'terminal',
             self::FileCode => 'file-code',
