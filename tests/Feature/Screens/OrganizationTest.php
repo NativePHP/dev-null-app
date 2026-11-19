@@ -154,12 +154,48 @@ it('shares the organization page and opens its admins', function () {
         ->assertNavigatedTo('/log/users/nunomaduro');
 });
 
+it("says a handle that's neither a member nor an organization isn't on /dev/null yet, and offers its page on the web, which looks it up", function () {
+    // A mention of someone who never joined lands here: their profile was missing too, so the profile handed over.
+    Http::fake(['devnull.test/api/v1/organizations/*' => Http::response(['message' => 'Not Found'], 404)]);
+
+    $screen = finishRefreshes(Native::visit('/log/organizations/karpathy'))->assertNavTitle('karpathy');
+
+    $screen->assertSee("@karpathy isn't on /dev/null yet.")
+        ->assertSee('Follow them on the web for when they join')
+        ->assertDontSee("didn't load")
+        ->assertDontSee('Not Found');
+    expect(findNode($screen->tree(), fn (array $node): bool => in_array($node['ref'] ?? null, ['error', 'organization-header'], true)))->toBeNull();
+
+    $screen->tap('empty-link')
+        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'http://devnull.test/@karpathy');
+});
+
+it("keeps an organization that's showing when devnull later has nothing by its handle", function () {
+    serveApi([
+        'GET /api/v1/organizations/laravel' => [organizationJson()],
+        'GET /api/v1/organizations/laravel/commits' => [pageJson([])],
+    ]);
+
+    $screen = finishRefreshes(Native::visit('/log/organizations/laravel'));
+
+    serveApi([
+        'GET /api/v1/organizations/laravel' => [['message' => 'Not Found'], 404],
+        'GET /api/v1/organizations/laravel/commits' => [pageJson([])],
+    ]);
+
+    $screen = finishRefreshes($screen->call('load'))
+        ->assertSee('The PHP framework for web artisans.')
+        ->assertDontSee("isn't on /dev/null yet");
+
+    expect($screen->instance()->isNotOnDevnull)->toBeFalse();
+});
+
 it("says the page didn't load when devnull can't send the organization, and offers its page on the web", function () {
-    Http::fake(['devnull.test/api/v1/organizations/*' => Http::response(['message' => 'Not Found.'], 404)]);
+    Http::fake(['devnull.test/api/v1/organizations/*' => Http::response(['message' => 'Server Error'], 500)]);
 
     $screen = finishRefreshes(Native::visit('/log/organizations/nobody'))->assertNavTitle('nobody');
 
-    $screen->assertSee("This organization's page didn't load here.");
+    $screen->assertSee("This organization's page didn't load here.")->assertSee('Open it on /dev/null')->assertDontSee('Server Error');
     expect(findNode($screen->tree(), fn (array $node): bool => in_array($node['ref'] ?? null, ['error', 'organization-header'], true)))->toBeNull();
 
     $screen->tap('empty-link')
