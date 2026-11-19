@@ -439,3 +439,13 @@ it("keeps the Remotes inbox and a thread's first page, but never a thread's poll
         ->and(ResponseCache::caches('remotes', ['before' => 'conv-1']))->toBeFalse()
         ->and(ResponseCache::caches('remotes/reactions'))->toBeFalse();
 });
+
+it('keeps the guild directory, but not a search of it, so typing a search never pushes kept pages out', function () {
+    expect(ResponseCache::caches('guilds'))->toBeTrue()
+        ->and(ResponseCache::caches('guilds', ['q' => 'rust']))->toBeFalse()
+        ->and(ResponseCache::caches('guilds', ['page' => '2']))->toBeFalse();
+
+    $this->cache->put('guilds', ['q' => 'rust'], ['data' => []]);
+
+    expect($this->cache->get('guilds', ['q' => 'rust']))->toBeNull();
+});

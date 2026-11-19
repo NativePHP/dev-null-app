@@ -52,6 +52,7 @@ final class ResponseCache
         '#^remotes/@[^/]+/messages$#',
         '#^remotes/orgs/[^/]+/messages$#',
         '#^scheduled-commits$#',
+        '#^guilds$#',
     ];
 
     /**
@@ -113,7 +114,8 @@ final class ResponseCache
     public static function caches(string $path, array $query = []): bool
     {
         // A cursor's page, a numbered page, and a Remotes thread's messages before or after one, aren't the first page.
-        if (array_intersect_key(self::normalise($query), array_flip(['cursor', 'page', 'before', 'after'])) !== []) {
+        // A search (q) isn't kept either: each term would push a kept page out, and screens open on the unsearched list.
+        if (array_intersect_key(self::normalise($query), array_flip(['cursor', 'page', 'before', 'after', 'q'])) !== []) {
             return false;
         }
 

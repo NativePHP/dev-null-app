@@ -702,6 +702,26 @@ function findNode(array $node, callable $matches): ?array
 }
 
 /**
+ * The tabs along the bottom, in order, as label => URL.
+ *
+ * @return array<string, string>
+ */
+function tabsShown(TestableComponent $screen): array
+{
+    return collect(findNodes($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_nav_item'))
+        ->mapWithKeys(fn (array $tab): array => [$tab['props']['label'] => $tab['props']['url']])
+        ->all();
+}
+
+/**
+ * Whether the screen's top bar has the action with this id.
+ */
+function hasTopBarAction(TestableComponent $screen, string $id): bool
+{
+    return findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'top_bar_action' && ($node['props']['id'] ?? null) === $id) !== null;
+}
+
+/**
  * Whether anything with this ref was rendered.
  */
 function rendersRef(TestableComponent $screen, string $ref): bool

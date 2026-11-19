@@ -538,7 +538,7 @@ trait ShowsCommits
 
     private function canPin(Commit $commit): bool
     {
-        return ! $commit->isDeleted() && $commit->isApproved() && $commit->parentId === null && $commit->author->id === $this->me()?->id;
+        return ! $commit->isDeleted() && $commit->isApproved() && $commit->parentId === null && $commit->guild === null && $commit->author->id === $this->me()?->id;
     }
 
     private function canDelete(Commit $commit): bool

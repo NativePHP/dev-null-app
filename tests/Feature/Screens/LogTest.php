@@ -792,3 +792,45 @@ it("wears the web header's logo in place of its title, in the system appearance"
     // Other screens keep their text titles.
     expect($titleView(Native::visit('/notifications')->assertNavTitle('Notifications')))->toBeNull();
 });
+
+/**
+ * Answers GET guilds with what $guilds gives, and the Log's own requests with an empty page.
+ */
+function serveGuildsProbe(Closure $guilds): void
+{
+    serveApi(fn (Request $request) => parse_url($request->url(), PHP_URL_PATH) === '/api/v1/guilds' ? $guilds() : Http::response(pageJson([])));
+}
+
+it('leaves guilds to their tab, with Search and New commit in its bar', function () {
+    serveApi(fn (Request $request) => Http::response(pageJson([])));
+
+    $screen = finishRefreshes(Native::visit('/log'));
+
+    expect(hasTopBarAction($screen, 'guilds'))->toBeFalse()
+        ->and(hasTopBarAction($screen, 'search'))->toBeTrue()
+        ->and(hasTopBarAction($screen, 'compose'))->toBeTrue();
+});
+
+it('asks devnull whether guilds are on until it knows, for the next launch\'s tabs', function (Closure $serve, ?bool $remembered) {
+    $serve();
+
+    finishRefreshes(Native::visit('/log'));
+
+    expect(app(Account::class)->guildsAvailable())->toBe($remembered);
+})->with([
+    'on' => [fn () => serveGuildsProbe(fn () => Http::response(pageJson([]))), true],
+    'off' => [fn () => serveGuildsProbe(fn () => Http::response(['message' => 'Not Found'], 404)), false],
+    'a 404 devnull did not send' => [fn () => serveGuildsProbe(fn () => Http::response('<html>Example: Hotel Wi-Fi sign-in</html>', 404)), null],
+    'devnull failing' => [fn () => serveGuildsProbe(fn () => Http::response(['message' => 'Server Error'], 500)), null],
+    // No connection at launch must not hide the tab next time.
+    'no connection' => [fn () => fakeOffline(), null],
+]);
+
+it('stops asking whether guilds are on once it knows they are', function () {
+    app(Account::class)->rememberGuildsAvailable(true);
+    serveApi(fn (Request $request) => Http::response(pageJson([])));
+
+    finishRefreshes(Native::visit('/log'));
+
+    Http::assertNotSent(fn (Request $request): bool => parse_url($request->url(), PHP_URL_PATH) === '/api/v1/guilds');
+});

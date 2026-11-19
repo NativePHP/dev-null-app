@@ -6,8 +6,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\File;
 
 /**
- * Remote images kept on the device: avatars, commit images and link preview
- * images. NativePHP's image element streams a remote URL every time it comes
+ * Remote images kept on the device: avatars, guild icons, commit images and link
+ * preview images. NativePHP's image element streams a remote URL every time it comes
  * into view, but draws a file on the device from memory, so an image is
  * downloaded once in the background (see DownloadImages) and drawn from its
  * file until it's older than config('devnull.image_cache_hours').
@@ -61,6 +61,14 @@ final class ImageCache
         }
 
         return app(self::class)->sources[$url] ??= self::freshPath($url) ?? $url;
+    }
+
+    /**
+     * Whether a fresh downloaded copy of this URL's image is on the device.
+     */
+    public static function has(string $url): bool
+    {
+        return self::isRemote($url) && self::freshPath($url) !== null;
     }
 
     /**
@@ -132,7 +140,7 @@ final class ImageCache
 
     /**
      * Every image URL in an answer, wherever it's nested: people's avatars,
-     * commits' images and link previews' images.
+     * guilds' icons, commits' images and link previews' images.
      *
      * @param  array<array-key, mixed>  $json
      * @return list<string>
@@ -142,7 +150,7 @@ final class ImageCache
         $urls = [];
 
         foreach ($json as $key => $value) {
-            if (in_array($key, ['avatar_url', 'image_url'], true) && self::isRemote($value)) {
+            if (in_array($key, ['avatar_url', 'image_url', 'icon_url'], true) && self::isRemote($value)) {
                 $urls[] = $value;
             } elseif ($key === 'images' && is_array($value)) {
                 foreach ($value as $image) {

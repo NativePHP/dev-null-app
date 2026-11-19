@@ -7,6 +7,7 @@ use App\Devnull\Data\CommitThread;
 use App\Devnull\Data\Connection;
 use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\DraftImage;
+use App\Devnull\Data\Guild;
 use App\Devnull\Data\IncomingCall;
 use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\Notification;
@@ -452,6 +453,22 @@ final readonly class Client
     public function starred(?string $cursor = null): Page
     {
         return Page::fromArray($this->get('starred', ['cursor' => $cursor]), Commit::fromArray(...));
+    }
+
+    /**
+     * This is a list of Guilds from the web. It might be:
+     * - Biggest first, 24 per page.
+     * - Guilds matching $term in a name, #handle or description
+     *
+     * They're paged by number, which a Page carries as a cursor.
+     *
+     * @return Page<Guild>
+     */
+    public function guilds(string $term = '', ?string $page = null): Page
+    {
+        $guilds = Page::fromArray($this->get('guilds', ['q' => $term === '' ? null : $term, 'page' => $page]), Guild::fromArray(...));
+
+        return new Page(array_values(array_filter($guilds->items)), $guilds->nextCursor);
     }
 
     /**
