@@ -9,7 +9,7 @@
 
     The fade, the morph, the double tap and the zoom's own pan need NativePHP/mobile-ui#221, mobile-ui#220 and
     NativePHP/mobile-air#716. Without them the modal ignores transition and morph-*, and the gesture area ignores
-    double-tap-zoom and zoom-pan-*, so the viewer slides up as before and a double tap does nothing.
+    @doubleTap.zoom and zoom-pan-*, so the viewer slides up as before and a double tap does nothing.
 
     A swipe sideways pages through the images, one per page, and the dashes at the bottom say which is showing, the
     bright one sliding along as the page changes. A pinch zooms an image between its whole self and four times, and a

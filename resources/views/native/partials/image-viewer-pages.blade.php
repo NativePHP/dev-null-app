@@ -19,7 +19,7 @@
                         :pinch="$viewerZooms[$place]"
                         pinch-min="1"
                         :pinch-max="\App\Devnull\ImageViewer::MaxZoom"
-                        :double-tap-zoom="\App\Devnull\ImageViewer::DoubleTapZoom"
+                        @doubleTap.zoom="{{ \App\Devnull\ImageViewer::DoubleTapZoom }}"
                         @pinchEnd="viewerZoomEnded"
                         :pan-x="$pans ? $viewerPansX[$place] : null"
                         :pan-y="$pans ? $viewerPansY[$place] : null"
