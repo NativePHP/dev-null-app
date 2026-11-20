@@ -24,6 +24,7 @@ use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
+use App\NativeComponents\Concerns\SlotsInNewCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use App\NativeComponents\Concerns\WatchesForCalls;
 use Closure;
@@ -58,7 +59,8 @@ use Native\Mobile\Facades\Share;
  *
  * It opens on the profile as it was last time, or opened from a commit, on
  * what the commit knew of its author, then asks devnull again behind it. The
- * header changes in place; newer commits wait in the pill (see HoldsNewCommits).
+ * header changes in place. There's no new commits pill: newer commits go in
+ * on top while you're at the top, and otherwise wait (see SlotsInNewCommits).
  *
  * Commits and Replies are pages you swipe between, as on the Log (see Log),
  * under a header that scrolls up with the page you're on until the tabs pin
@@ -78,6 +80,7 @@ class Profile extends NativeComponent
     use OpensLiveStream;
     use RefreshesInBackground;
     use ShowsCommits;
+    use SlotsInNewCommits;
     use TalksToDevnull;
     use WatchesForCalls;
 
@@ -167,6 +170,7 @@ class Profile extends NativeComponent
      */
     public function onResume(): void
     {
+        $this->mayBeScrolled = true;
         $this->forgetRefreshes();
         $this->showKept();
         $this->revalidate();
@@ -261,6 +265,7 @@ class Profile extends NativeComponent
      */
     public function load(): void
     {
+        $this->mayBeScrolled = false;
         $this->refreshProfile(showNewer: true);
     }
 
@@ -282,6 +287,7 @@ class Profile extends NativeComponent
     public function backToTop(int $index): void
     {
         if ((self::Tabs[$index] ?? null) === $this->tab) {
+            $this->backAtTheTop();
             $this->listKey++;
         }
     }
@@ -304,6 +310,7 @@ class Profile extends NativeComponent
         $this->nextCursor = null;
         $this->commitsLoaded = false;
         $this->forgetNewCommits();
+        $this->mayBeScrolled = false;
 
         if (($kept = $this->cached($this->commitsPath(), $this->commitsQuery())) !== null) {
             $this->takeCommits($tab, $kept);
@@ -314,6 +321,8 @@ class Profile extends NativeComponent
 
     public function loadMore(): void
     {
+        $this->mayBeScrolled = true;
+
         if ($this->nextCursor === null) {
             return;
         }
@@ -865,7 +874,7 @@ class Profile extends NativeComponent
             return;
         }
 
-        $this->layFreshCommits($json, $showNewer || ! $this->commitsLoaded);
+        $this->layFreshCommits($json, $this->newCommitsGoIn($showNewer) || ! $this->commitsLoaded);
         $this->commitsLoaded = true;
     }
 
@@ -897,7 +906,6 @@ class Profile extends NativeComponent
             'isBlocked' => $this->isBlocking(),
             'isMe' => $this->isMe(),
             'canRemote' => $this->canRemote(),
-            'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),
             'stashed' => app(Stash::class)->names($this->me()?->id),
             'pages' => $pages,
