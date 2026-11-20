@@ -8,6 +8,7 @@ use App\Devnull\Data\Commit;
 use App\Devnull\Data\Mention;
 use App\Devnull\Data\Organization as OrganizationData;
 use App\Devnull\Data\Page;
+use App\Devnull\Exceptions\ApiException;
 use App\Devnull\RowCache;
 use App\Devnull\SiteLink;
 use App\Devnull\Stash;
@@ -87,6 +88,13 @@ class Organization extends NativeComponent
      * devnull didn't send the tab you're on, so it says so instead of its commits.
      */
     public bool $commitsFailed = false;
+
+    /**
+     * devnull has no organization by this handle, nor a member, since a profile hands a handle no member has over to
+     * this screen. It's someone on GitHub who isn't on /dev/null yet, so the page says that rather than that it
+     * didn't load, and offers the web's page for them, where you can follow them for when they join.
+     */
+    public bool $isNotOnDevnull = false;
 
     /**
      * Each tab's rows from the last frame, so a render only builds the rows that changed, as on a profile.
@@ -273,6 +281,23 @@ class Organization extends NativeComponent
     }
 
     /**
+     * devnull has nothing by this handle, so the page says it isn't on /dev/null yet (see $isNotOnDevnull). Anything
+     * else that stops it loading, the page says didn't load. Only a page with no organization on it yet says so: once
+     * one is showing, what else devnull refuses, such as a thread's replies or its stargazers, keeps it showing.
+     */
+    protected function refused(ApiException $exception): bool
+    {
+        if ($exception->status !== 404 || $this->organization !== null) {
+            return false;
+        }
+
+        $this->isNotOnDevnull = true;
+        $this->error = null;
+
+        return true;
+    }
+
+    /**
      * @return iterable<Commit>
      */
     protected function shownCommits(): iterable
@@ -358,6 +383,7 @@ class Organization extends NativeComponent
         // An answer with no organization in it, like a maintenance page, leaves what's showing alone.
         if ($organization->organization->username !== '') {
             $this->organization = $organization;
+            $this->isNotOnDevnull = false;
         }
     }
 
