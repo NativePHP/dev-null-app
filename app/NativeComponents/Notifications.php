@@ -59,7 +59,8 @@ class Notifications extends NativeComponent
     use WritesInBackground;
 
     /**
-     * Every frame goes in full, as on the Log (see Log::$forceFullFrames).
+     * Every frame goes in full. EDGE's subtree reuse could refer to rows the
+     * phone never got once the list had changed, which drew it blank.
      */
     protected bool $forceFullFrames = true;
 

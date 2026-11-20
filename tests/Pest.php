@@ -15,6 +15,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\AsyncTask;
+use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Events\Async\AsyncTaskFailed;
 use Native\Mobile\Events\Async\AsyncTaskFinished;
 use Native\Mobile\Events\Gallery\MediaSelected;
@@ -1114,4 +1115,110 @@ function skipWithoutSkia(): void
     if (! class_exists(SkiaServiceProvider::class)) {
         test()->markTestSkipped('needs the Skia plugin installed');
     }
+}
+
+/**
+ * Turns EDGE's subtree reuse on for the screens a test opens next, as every phone has it: a frame sends a node the
+ * phone already holds as a reuse marker. Skips the test where the installed nativephp/mobile can't keep the phone's
+ * tree in step with that (anything before NativePHP/mobile-air#699, whose reader asks for a full frame when it
+ * can't), since partial frames would draw lists blank there.
+ */
+function sendPartialFrames(): FakeBridge
+{
+    if (! defined(NativeComponent::class.'::EVENT_FULL_FRAME')) {
+        test()->markTestSkipped('needs nativephp/mobile with NativePHP/mobile-air#699');
+    }
+
+    $bridge = FakeBridge::enable();
+    $bridge->runtimeFlags = 0x02;
+
+    return $bridge;
+}
+
+/**
+ * The tree the phone holds after every frame the screen has published, built as EDGE's reader builds it: a reuse
+ * marker takes the node with that id from the tree before. A marker for a node the phone doesn't hold fails the test.
+ *
+ * @return array<string, mixed>
+ */
+function phoneTree(TestableComponent $screen): array
+{
+    $tree = null;
+
+    foreach ($screen->bridge()->publishes as $n => $frame) {
+        $held = [];
+        $index = function (array $node) use (&$index, &$held): void {
+            $held[$node['id']] = $node;
+            foreach ($node['children'] ?? [] as $child) {
+                $index($child);
+            }
+        };
+        if ($tree !== null) {
+            $index($tree);
+        }
+
+        $build = function (array $node) use (&$build, $held, $n): array {
+            if ((($node['flags'] ?? 0) & 1) === 1) {
+                expect(array_key_exists($node['id'], $held))->toBeTrue("Frame {$n} reuses node {$node['id']} ({$node['type']}), which the phone doesn't hold.");
+
+                return $held[$node['id']];
+            }
+
+            if (isset($node['children'])) {
+                $node['children'] = array_map($build, $node['children']);
+            }
+
+            return $node;
+        };
+
+        $tree = $build($frame);
+    }
+
+    expect($tree)->not->toBeNull('The screen has published nothing.');
+
+    return $tree;
+}
+
+/**
+ * Expects the phone to hold what the screen would send it in full right now, so partial frames left nothing stale or
+ * missing. Draws one full frame to compare with, which the phone never gets.
+ */
+function expectPhoneInStep(TestableComponent $screen, string $after = ''): void
+{
+    $onPhone = phoneTree($screen);
+    $bridge = $screen->bridge();
+    $flags = $bridge->runtimeFlags;
+    $sent = count($bridge->publishes);
+
+    $bridge->runtimeFlags = 0;
+    $full = $screen->call('navTitle')->tree();
+    $bridge->runtimeFlags = $flags;
+    $bridge->publishes = array_slice($bridge->publishes, 0, $sent);
+
+    $strip = function (array $node) use (&$strip): array {
+        unset($node['_hash']);
+        if (isset($node['children'])) {
+            $node['children'] = array_map($strip, $node['children']);
+        }
+
+        return $node;
+    };
+
+    expect($strip($onPhone))->toBe($strip($full), "The phone isn't in step after: {$after}");
+}
+
+/**
+ * How many nodes the screen's last frame sent in full, rather than as reuse markers.
+ */
+function nodesSentInFull(TestableComponent $screen): int
+{
+    $count = function (array $node) use (&$count): int {
+        if ((($node['flags'] ?? 0) & 1) === 1) {
+            return 0;
+        }
+
+        return 1 + array_sum(array_map($count, $node['children'] ?? []));
+    };
+
+    return $count(end($screen->bridge()->publishes));
 }

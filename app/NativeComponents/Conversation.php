@@ -176,7 +176,7 @@ class Conversation extends NativeComponent
     public const int PinnedLines = 3;
 
     /**
-     * Every frame goes in full, as on the Log (see Log::$forceFullFrames): messages come in at the bottom and their
+     * Every frame goes in full: messages come in at the bottom and their
      * reactions change in place, which EDGE's subtree reuse would otherwise miss.
      */
     protected bool $forceFullFrames = true;
