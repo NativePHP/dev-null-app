@@ -289,3 +289,64 @@ it('keeps Starred on the phone in step as rows leave from the middle', function 
 
     expect($sentInFull['one unstarred from the middle'])->toBeLessThan(40);
 });
+
+/**
+ * A page of notifications, as devnull sends them.
+ *
+ * @param  list<array<string, mixed>>  $groups
+ * @return array<string, mixed>
+ */
+function partialFrameInbox(array $groups, ?string $cursor = null): array
+{
+    return [...pageJson($groups, $cursor, path: 'http://devnull.test/api/v1/notifications'), 'filters' => ['type' => 'all'], 'read_at' => now()->toIso8601ZuluString()];
+}
+
+it('keeps Notifications on the phone in step as new ones come in, groups open and the kinds change', function () {
+    sendPartialFrames();
+    holdRefreshes();
+
+    $notification = fn (string $id, string $type = 'starred', int $events = 1): array => notificationJson($type, [
+        'id' => $id,
+        'event_count' => $events,
+        'actor' => userJson(['id' => "u-{$id}", 'handle' => "person{$id}", 'name' => "Person {$id}", 'lane' => 2]),
+        'commit' => notificationCommitJson(['id' => "c-{$id}", 'body' => "About {$id}"]),
+    ]);
+    $state = ['new' => []];
+    serveApi(function (Request $request) use ($notification, &$state) {
+        $path = parse_url($request->url(), PHP_URL_PATH);
+        $all = [...$state['new'], $notification('g1', events: 3), ...array_map(fn (int $n): array => $notification("n{$n}"), range(1, 15))];
+
+        return match (true) {
+            $path === '/api/v1/notifications' && str_contains($request->url(), 'cursor=page2') => Http::response(partialFrameInbox(array_map(fn (int $n): array => $notification("o{$n}"), range(1, 10)))),
+            $path === '/api/v1/notifications' => Http::response(partialFrameInbox($all, 'page2')),
+            $path === '/api/v1/notifications/g1/group' => Http::response(pageJson([$notification('g1-older'), $notification('g1-oldest')])),
+            $path === '/api/v1/me' => Http::response(['data' => userWithCountsJson(), 'unread_notifications_count' => 0]),
+            default => Http::response(['message' => "No fake for {$path}."], 404),
+        };
+    });
+
+    $screen = finishRefreshes(Native::visit('/notifications'));
+    expect(treeShows(phoneTree($screen), 'About n15'))->toBeTrue();
+    expectPhoneInStep($screen, 'opening');
+
+    $steps = [
+        'a group opened' => fn () => finishRefreshes($screen->call('toggleGroup', 'g1')),
+        'two new ones on top' => function () use ($screen, &$state, $notification) {
+            $state['new'] = [$notification('new2', 'followed'), $notification('new1', 'mentioned')];
+            finishRefreshes($screen->call('load'));
+        },
+        'the next page' => fn () => finishRefreshes($screen->call('loadMore')),
+        'the group closed' => fn () => finishRefreshes($screen->call('toggleGroup', 'g1')),
+        'every kind shown again, in a new list' => fn () => finishRefreshes($screen->call('showAll')),
+    ];
+
+    $sentInFull = [];
+    foreach ($steps as $name => $step) {
+        $step();
+        $sentInFull[$name] = nodesSentInFull($screen);
+        expectPhoneInStep($screen, $name);
+    }
+
+    expect(treeShows(phoneTree($screen), 'Person new1'))->toBeTrue()
+        ->and($sentInFull['the group closed'])->toBeLessThan(40);
+});
