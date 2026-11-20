@@ -10,6 +10,7 @@ use App\NativeComponents\Notifications;
 use App\NativeComponents\Organization;
 use App\NativeComponents\Profile;
 use App\NativeComponents\Remotes;
+use App\NativeComponents\Search;
 use App\NativeComponents\Starred;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -362,7 +363,7 @@ it('sends only what changed on the timeline screens, not every frame in full', f
     Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
     $sendsInFull = fn (string $screen): bool => (fn (): bool => $this->forceFullFrames)->call(Native::test($screen)->instance());
 
-    foreach ([Log::class, Profile::class, Organization::class, CommitDetail::class, Starred::class, Notifications::class, Remotes::class] as $screen) {
+    foreach ([Log::class, Profile::class, Organization::class, CommitDetail::class, Starred::class, Notifications::class, Remotes::class, Search::class] as $screen) {
         expect($sendsInFull($screen))->toBeFalse();
     }
 });
