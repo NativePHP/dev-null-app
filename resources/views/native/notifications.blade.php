@@ -43,7 +43,7 @@
         @foreach ($notifications as $index => $notification)
             @php($before = $notifications[$index - 1] ?? null)
             @if ($notification->id === $lastVisitBefore)
-                @include('native.partials.last-visit-marker', ['label' => 'Notifications above are new since your last visit', 'muted' => true])
+                @include('native.partials.last-visit-marker', ['label' => 'Notifications above are new since your last visit'])
             @endif
             @if ($notification->createdAt && ($before?->createdAt === null || Display::dayKey($before->createdAt) !== Display::dayKey($notification->createdAt)))
                 @include('native.partials.day-marker', ['label' => Display::dayLabel($notification->createdAt), 'lane' => null])
