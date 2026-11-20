@@ -19,6 +19,11 @@ use Native\Mobile\Edge\Element;
  * when none of its ids is already in the frame. Otherwise, and for a row with no
  * keyed parent, whose ids would come from the frame's running count, the row
  * makes its node afresh.
+ *
+ * With EDGE's subtree reuse on, the row goes out as EDGE sends any node: a part
+ * of it the phone already holds, by id and content hash, is sent as a reuse
+ * marker and taken from the phone's last tree. So a row that hasn't changed
+ * costs the frame one marker, and a starred one only the parts the star touched.
  */
 final class CachedRow extends Element
 {
@@ -65,45 +70,63 @@ final class CachedRow extends Element
             && array_intersect_key($this->nodeIds, $emittedIds) === []) {
             $emittedIds += $this->nodeIds;
 
-            return $this->node;
+            return self::send($this->node, $lastNodeHashes);
         }
 
-        $node = $this->row->toArray($registry, $nextId, $parentKeyPath, $indexInParent, $emittedIds, $lastNodeHashes);
+        // Built against no hashes, the row's node is whole, so it can be kept and sent again in any later frame.
+        $sentNothing = [];
+        $node = $this->row->toArray($registry, $nextId, $parentKeyPath, $indexInParent, $emittedIds, $sentNothing);
         $ids = [];
+        self::collectIds($node, $ids);
 
-        if (self::collectFullIds($node, $ids)) {
-            $this->node = $node;
-            $this->nodePlace = $place;
-            $this->nodeRegistry = $registry;
-            $this->nodeIds = $ids;
-        } else {
-            $this->node = null;
+        $this->node = $node;
+        $this->nodePlace = $place;
+        $this->nodeRegistry = $registry;
+        $this->nodeIds = $ids;
+
+        return self::send($node, $lastNodeHashes);
+    }
+
+    /**
+     * A node as this frame sends it: a reuse marker where the phone already holds
+     * it, by its id and hash, as EDGE's own walk does, and otherwise in full, its
+     * children each sent the same way, and its hash noted as what the phone holds
+     * next. With subtree reuse off the hashes start empty every frame, so every
+     * node goes in full.
+     *
+     * @param  array<string, mixed>  $node
+     * @param  array<int, string>  $lastNodeHashes
+     * @return array<string, mixed>
+     */
+    private static function send(array $node, array &$lastNodeHashes): array
+    {
+        if (($lastNodeHashes[$node['id']] ?? null) === $node['_hash']) {
+            return ['id' => $node['id'], 'type' => $node['type'], 'flags' => 1, '_hash' => $node['_hash']];
+        }
+
+        $lastNodeHashes[$node['id']] = $node['_hash'];
+
+        if (isset($node['children'])) {
+            foreach ($node['children'] as $i => $child) {
+                $node['children'][$i] = self::send($child, $lastNodeHashes);
+            }
         }
 
         return $node;
     }
 
     /**
-     * Collects a node's ids, and its children's. False when any of them is a
-     * reuse marker, which only stands for a node the phone got in an earlier frame.
+     * Collects a node's ids, and its children's.
      *
      * @param  array<string, mixed>  $node
      * @param  array<int, true>  $ids
      */
-    private static function collectFullIds(array $node, array &$ids): bool
+    private static function collectIds(array $node, array &$ids): void
     {
-        if ((($node['flags'] ?? 0) & 1) !== 0) {
-            return false;
-        }
-
         $ids[$node['id']] = true;
 
         foreach ($node['children'] ?? [] as $child) {
-            if (! self::collectFullIds($child, $ids)) {
-                return false;
-            }
+            self::collectIds($child, $ids);
         }
-
-        return true;
     }
 }

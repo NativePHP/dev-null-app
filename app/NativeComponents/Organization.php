@@ -53,11 +53,6 @@ class Organization extends NativeComponent
     use ShowsCommits;
     use TalksToDevnull;
 
-    /**
-     * Every frame goes in full, as on a profile (see Profile::$forceFullFrames).
-     */
-    protected bool $forceFullFrames = true;
-
     public const array Tabs = ['commits', 'mentions'];
 
     /**

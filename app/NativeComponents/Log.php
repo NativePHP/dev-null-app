@@ -114,14 +114,6 @@ class Log extends NativeComponent
     use TalksToDevnull;
     use WatchesForCalls;
 
-    /**
-     * Every frame goes in full. EDGE's subtree reuse sometimes refers to rows
-     * the phone never got once a list has grown or reordered, and the phone
-     * drops them, which drew the log blank under a pull to refresh. EDGE's own
-     * answer for a screen whose lists change often is to send it in full.
-     */
-    protected bool $forceFullFrames = true;
-
     public const array Logs = ['following', 'latest', 'trending'];
 
     /**

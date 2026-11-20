@@ -63,11 +63,6 @@ class Search extends NativeComponent
      */
     public const int ShortestCommitTerm = 3;
 
-    /**
-     * Every frame goes in full, as on Starred, since a new term replaces every row.
-     */
-    protected bool $forceFullFrames = true;
-
     public string $query = '';
 
     /**
