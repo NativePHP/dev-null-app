@@ -1,8 +1,8 @@
 {{--
     The organization's header, which the pager draws above its tabs (see organization.blade.php), laid out like the
-    web's: the avatar as a rounded square ringed in its lane, Share and Follow, the name, the handle marked
-    Organization, what GitHub says about it, how many follow it and its admins. It scrolls up with the tab you're on
-    until the tabs pin under the nav bar.
+    web's: the avatar as a rounded square ringed in its lane, Follow, the name, the handle marked Organization, what
+    GitHub says about it, how many follow it and its admins. Share is in the nav bar. It scrolls up with the tab you're
+    on until the tabs pin under the nav bar.
 --}}
 @php($lane = \App\Devnull\Lane::token($user->lane()))
 <native:column class="w-full bg-theme-surface">
@@ -19,14 +19,11 @@
                 </native:stack>
             </native:stack>
 
-            <native:row class="gap-2 items-center">
-                <native:button ref="share" variant="secondary" size="sm" :ios-icon="\App\Icons\Lucide::Share->ios()" :android-icon="\App\Icons\Lucide::Share2->android()" @press="share" a11y-label="Share {{ $user->handle() }}" />
-                @if ($organization->isFollowing)
-                    <native:button ref="follow" variant="secondary" size="sm" @press="toggleFollow" a11y-hint="Unfollows {{ $user->handle() }}">Unfollow</native:button>
-                @else
-                    <native:button ref="follow" :variant="$myColour" size="sm" @press="toggleFollow">Follow</native:button>
-                @endif
-            </native:row>
+            @if ($organization->isFollowing)
+                @include('native.partials.glass-pill-button', ['ref' => 'follow', 'label' => 'Unfollow', 'press' => 'toggleFollow', 'hint' => 'Unfollows '.$user->handle()])
+            @else
+                @include('native.partials.glass-pill-button', ['ref' => 'follow', 'label' => 'Follow', 'press' => 'toggleFollow', 'filled' => true])
+            @endif
         </native:row>
 
         <native:column class="w-full gap-1">
@@ -41,7 +38,7 @@
         </native:column>
 
         @if ($user->bio)
-            @include('native.partials.github-text', ['text' => $user->bio, 'ref' => 'organization-bio', 'classes' => 'w-full text-[15px] leading-relaxed text-theme-ink', 'maxLines' => null])
+            @include('native.partials.bio-text', ['text' => $user->bio, 'ref' => 'organization-bio', 'classes' => 'w-full text-[15px] leading-relaxed text-theme-ink'])
         @endif
 
         {{-- What GitHub says about it, links in Commit Blue, each on its own line, as on a profile. --}}
