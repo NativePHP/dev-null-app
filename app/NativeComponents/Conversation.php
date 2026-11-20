@@ -176,12 +176,6 @@ class Conversation extends NativeComponent
     public const int PinnedLines = 3;
 
     /**
-     * Every frame goes in full: messages come in at the bottom and their
-     * reactions change in place, which EDGE's subtree reuse would otherwise miss.
-     */
-    protected bool $forceFullFrames = true;
-
-    /**
      * Who the thread is with, from the route: a username, or an org's id.
      */
     public string $username = '';
