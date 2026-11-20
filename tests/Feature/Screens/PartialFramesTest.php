@@ -248,3 +248,44 @@ it('keeps the commit page on the phone in step while you open the thread and typ
     // A letter typed sends the field and what it changes, not the thread above it.
     expect($sentInFull['another'])->toBeLessThan(40);
 });
+
+it('keeps Starred on the phone in step as rows leave from the middle', function () {
+    sendPartialFrames();
+    $starred = fn (int $n, bool $starred = true): array => commitJson(['id' => "s{$n}", 'body' => "Starred s{$n}", 'starred' => $starred, 'stars_count' => (int) $starred, 'replies_count' => $n === 6 ? 1 : 0, 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'lane' => 1])]);
+    $unstarred = [];
+    serveApi(function (Request $request) use ($starred, &$unstarred) {
+        $path = parse_url($request->url(), PHP_URL_PATH);
+
+        if ($request->method() === 'DELETE' && preg_match('#^/api/v1/commits/(s\d+)/star$#', $path, $m)) {
+            $unstarred[] = $m[1];
+
+            return Http::response(['data' => $starred((int) substr($m[1], 1), false)]);
+        }
+
+        return match ($path) {
+            '/api/v1/starred' => Http::response(pageJson(array_values(array_filter(array_map($starred, range(12, 1, -1)), fn (array $commit): bool => ! in_array($commit['id'], $unstarred, true))), null, 'http://devnull.test/api/v1/starred')),
+            '/api/v1/commits/s6/replies' => Http::response(pageJson([replyJson(['id' => 'r1', 'parent_id' => 's6', 'body' => 'A reply'])])),
+            default => Http::response(['message' => "No fake for {$path}."], 404),
+        };
+    });
+
+    $screen = finishRefreshes(Native::visit('/profile/starred'));
+    expectPhoneInStep($screen, 'opening');
+
+    $steps = [
+        'one unstarred from the middle' => fn () => finishRefreshes($screen->call('toggleStar', 's8')),
+        'a thread opened under it' => fn () => finishRefreshes($screen->call('toggleReplies', 's6')),
+        'another unstarred above the thread' => fn () => finishRefreshes($screen->call('toggleStar', 's7')),
+        'pull to refresh' => fn () => finishRefreshes($screen->call('load')),
+        'the top one unstarred' => fn () => finishRefreshes($screen->call('toggleStar', 's12')),
+    ];
+
+    $sentInFull = [];
+    foreach ($steps as $name => $step) {
+        $step();
+        $sentInFull[$name] = nodesSentInFull($screen);
+        expectPhoneInStep($screen, $name);
+    }
+
+    expect($sentInFull['one unstarred from the middle'])->toBeLessThan(40);
+});

@@ -46,11 +46,6 @@ class Starred extends NativeComponent
     }
     use TalksToDevnull;
 
-    /**
-     * Every frame goes in full, since rows leave the list from the middle.
-     */
-    protected bool $forceFullFrames = true;
-
     /** @var list<Commit> */
     public array $commits = [];
 
