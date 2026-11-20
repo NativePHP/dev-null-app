@@ -48,8 +48,10 @@ it('names only fonts the app has, since a phone draws any other in the system fo
         ARRAY_FILTER_USE_KEY,
     );
 
-    // Never bundled, so these two draw in the system font for now.
-    unset($unknown['medium'], $unknown['bold']);
-
     expect($unknown)->toBe([]);
+});
+
+it('draws medium and bold in Geist at the weights the web loads', function () {
+    expect(config('native-ui.fonts.medium'))->toBe('Geist-Medium')
+        ->and(config('native-ui.fonts.bold'))->toBe('Geist-Bold');
 });
