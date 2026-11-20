@@ -1,5 +1,6 @@
 <?php
 
+use App\NativeComponents\Organization;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
@@ -158,6 +159,45 @@ it('keeps a profile on the phone in step through stars, threads, its tabs and ba
         'swipe to Replies' => fn () => finishRefreshes(tapProfileTab($screen, 'replies')),
         'swipe back' => fn () => finishRefreshes(tapProfileTab($screen, 'commits')),
         'close the thread' => fn () => finishRefreshes($screen->call('toggleReplies', 'p3')),
+    ];
+
+    foreach ($steps as $name => $step) {
+        $step();
+        expectPhoneInStep($screen, $name);
+    }
+
+    expect(nodesSentInFull($screen))->toBeLessThan(40);
+});
+
+it('keeps an organization on the phone in step through stars, threads, its tabs and back to the top', function () {
+    sendPartialFrames();
+    holdRefreshes();
+
+    $laravel = ['type' => 'organization', 'id' => 'o-laravel', 'handle' => 'laravel', 'name' => 'Laravel', 'lane' => 0];
+    servePartialFramePage([
+        '/api/v1/organizations/laravel' => [
+            'data' => [
+                'handle' => 'laravel', 'name' => 'Laravel', 'avatar_url' => 'https://avatars.githubusercontent.com/u/958072', 'bio' => 'The PHP framework for web artisans.',
+                'location' => null, 'website' => 'https://laravel.com', 'github_url' => 'https://github.com/laravel', 'html_url' => 'http://devnull.test/@laravel',
+                'lane' => 0, 'followers_count' => 45, 'admins' => [userJson(['id' => 'u-taylor', 'handle' => 'taylorotwell', 'name' => 'Taylor Otwell'])],
+            ],
+            'is_following' => false, 'can_claim' => false, 'settings_url' => null,
+        ],
+        '/api/v1/organizations/laravel/commits' => pageJson(partialFramePageCommits('o', $laravel)),
+        '/api/v1/organizations/laravel/mentions' => pageJson(partialFramePageCommits('m', userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']))),
+    ], starred: 'o4');
+
+    $screen = finishRefreshes(Native::visit('/log/organizations/laravel'));
+    expectPhoneInStep($screen, 'opening');
+    $tab = fn (string $tab) => $screen->changeTab($screen->get('tab') === $tab ? 'backToTop' : 'showPage', (int) array_search($tab, Organization::Tabs, true));
+
+    $steps = [
+        'a star' => fn () => finishRefreshes($screen->call('toggleStar', 'o4')),
+        'open a thread' => fn () => finishRefreshes($screen->call('toggleReplies', 'o3')),
+        'the tab tapped again, back to the top in a new list' => fn () => $tab('commits'),
+        'swipe to Mentions' => fn () => finishRefreshes($tab('mentions')),
+        'swipe back' => fn () => finishRefreshes($tab('commits')),
+        'close the thread' => fn () => finishRefreshes($screen->call('toggleReplies', 'o3')),
     ];
 
     foreach ($steps as $name => $step) {
