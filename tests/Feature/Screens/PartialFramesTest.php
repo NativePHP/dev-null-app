@@ -401,3 +401,38 @@ it('keeps Remotes on the phone in step as a conversation with a new message move
     expect(array_slice(array_column($rows, 'ref'), 0, 3))->toBe(['remote-conv-9', 'remote-conv-6', 'remote-conv-10'])
         ->and($rows)->toHaveCount(10);
 });
+
+it('keeps Search on the phone in step as each term replaces every row', function () {
+    sendPartialFrames();
+    serveApi(function (Request $request) {
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+        $term = (string) ($query['q'] ?? '');
+        $found = fn (int $count, string $prefix): array => array_map(fn (int $n): array => commitJson(['id' => "{$prefix}{$n}", 'body' => "{$term} result {$n}"]), range(1, $count));
+
+        return match (parse_url($request->url(), PHP_URL_PATH)) {
+            '/api/v1/search/users' => Http::response(['data' => [userJson(['id' => 'id-ada', 'handle' => 'ada', 'name' => 'Ada', 'is_followed' => false, 'follows_you' => false])]]),
+            // The same commits come back for two terms, in a different order, as a search can find them.
+            '/api/v1/search/commits' => Http::response(['data' => str_starts_with($term, 'php') ? $found(8, 'c') : array_reverse($found(8, 'c'))]),
+            default => Http::response(pageJson([])),
+        };
+    });
+
+    $screen = Native::visit('/log/search');
+    expectPhoneInStep($screen, 'opening');
+
+    $steps = [
+        'a term picked' => fn () => finishRefreshes($screen->call('pick', 'php')),
+        'a letter more' => fn () => finishRefreshes($screen->set('query', 'phpx')),
+        'another term, the same commits in another order' => function () use ($screen) {
+            finishRefreshes($screen->set('query', 'laravel'));
+            expect(treeShows(phoneTree($screen), 'laravel result 8'))->toBeTrue();
+        },
+        'back to the first term' => fn () => finishRefreshes($screen->set('query', 'php')),
+        'the field cleared' => fn () => finishRefreshes($screen->set('query', '')),
+    ];
+
+    foreach ($steps as $name => $step) {
+        $step();
+        expectPhoneInStep($screen, $name);
+    }
+});
