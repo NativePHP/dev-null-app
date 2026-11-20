@@ -1,5 +1,7 @@
 <?php
 
+use App\Devnull\Account;
+use App\Devnull\Data\Remotes;
 use App\NativeComponents\Organization;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -349,4 +351,53 @@ it('keeps Notifications on the phone in step as new ones come in, groups open an
 
     expect(treeShows(phoneTree($screen), 'Person new1'))->toBeTrue()
         ->and($sentInFull['the group closed'])->toBeLessThan(40);
+});
+
+it('keeps Remotes on the phone in step as a conversation with a new message moves to the top', function () {
+    sendPartialFrames();
+    $this->travelTo('2026-10-19 15:30:00');
+    app(Account::class)->rememberRemotes(new Remotes(requests: true));
+
+    // Ten conversations, the newest message first. A new message puts its conversation on top.
+    $latest = array_combine(range(1, 10), array_map(fn (int $n): string => sprintf('2026-10-19T%02d:00:00.000000Z', 14 - $n % 10), range(1, 10)));
+    $conversation = fn (int $n): array => conversationJson([
+        'id' => "conv-{$n}",
+        'partner' => userJson(['id' => "u{$n}", 'handle' => "person{$n}", 'name' => "Person {$n}", 'lane' => $n % 7]),
+        'last_message' => remoteMessageJson(['id' => $n, 'body' => "Message for {$n} at {$latest[$n]}"]),
+        'last_message_at' => $latest[$n],
+    ]);
+    serveApi(function (Request $request) use (&$latest, $conversation) {
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+        $ids = array_keys($latest);
+        usort($ids, fn (int $a, int $b): int => strcmp($latest[$b], $latest[$a]));
+
+        return Http::response(remotesInboxJson(($query['tab'] ?? 'open') === 'open' ? array_map($conversation, $ids) : []));
+    });
+
+    $screen = finishRefreshes(Native::visit('/remotes'));
+    expectPhoneInStep($screen, 'opening');
+
+    $steps = [
+        'a message in the middle one, which moves to the top' => function () use ($screen, &$latest) {
+            $latest[6] = '2026-10-19T15:20:00.000000Z';
+            finishRefreshes($screen->call('pollInbox'));
+        },
+        'another, from further down' => function () use ($screen, &$latest) {
+            $latest[9] = '2026-10-19T15:25:00.000000Z';
+            finishRefreshes($screen->call('pollInbox'));
+        },
+        'the tab tapped again, back to the top in a new list' => fn () => $screen->call('backToTop', 0),
+        'swipe to Fetched' => fn () => finishRefreshes($screen->changeTab('showPage', 1)),
+        'swipe back' => fn () => finishRefreshes($screen->changeTab('showPage', 0)),
+        'a poll with nothing new' => fn () => finishRefreshes($screen->call('pollInbox')),
+    ];
+
+    foreach ($steps as $name => $step) {
+        $step();
+        expectPhoneInStep($screen, $name);
+    }
+
+    $rows = findNode(phoneTree($screen), fn (array $node): bool => ($node['ref'] ?? null) === 'remotes')['children'];
+    expect(array_slice(array_column($rows, 'ref'), 0, 3))->toBe(['remote-conv-9', 'remote-conv-6', 'remote-conv-10'])
+        ->and($rows)->toHaveCount(10);
 });
