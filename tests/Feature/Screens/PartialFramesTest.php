@@ -98,3 +98,72 @@ it('keeps the Log on the phone in step through refreshes, pages, threads, swipes
         expectPhoneInStep($screen, $name);
     }
 });
+
+/**
+ * Commits on a profile or an organization's page, by the author given, newest first.
+ *
+ * @param  array<string, mixed>  $author
+ * @return list<array<string, mixed>>
+ */
+function partialFramePageCommits(string $prefix, array $author): array
+{
+    return array_map(fn (int $n): array => commitJson([
+        'id' => "{$prefix}{$n}",
+        'body' => "Commit {$prefix}{$n}",
+        'author' => $author,
+        'replies_count' => $n === 3 ? 1 : 0,
+    ]), range(0, 19));
+}
+
+/**
+ * The API for a page of commits that can be starred and have a thread: $routes answers the rest by path.
+ *
+ * @param  array<string, mixed>  $routes
+ */
+function servePartialFramePage(array $routes, string $starred): void
+{
+    serveApi(function (Request $request) use ($routes, $starred) {
+        $path = parse_url($request->url(), PHP_URL_PATH);
+        $thread = str_replace('4', '3', $starred);
+
+        return match (true) {
+            $request->method() === 'POST' && $path === "/api/v1/commits/{$starred}/star" => Http::response(['data' => commitJson(['id' => $starred, 'body' => "Commit {$starred}", 'starred' => true, 'stars_count' => 1])]),
+            $path === "/api/v1/commits/{$thread}/replies" => Http::response(pageJson([replyJson(['id' => 'r1', 'parent_id' => $thread, 'body' => 'A reply'])])),
+            $path === '/api/v1/me' => Http::response(['data' => userWithCountsJson(), 'unread_notifications_count' => 0]),
+            default => is_callable($routes[$path] ?? null) ? $routes[$path]($request) : Http::response($routes[$path] ?? ['message' => "No fake for {$path}."], isset($routes[$path]) ? 200 : 404),
+        };
+    });
+}
+
+it('keeps a profile on the phone in step through stars, threads, its tabs and back to the top', function () {
+    sendPartialFrames();
+    holdRefreshes();
+
+    $ada = userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1]);
+    servePartialFramePage([
+        '/api/v1/users/ada' => [
+            'data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace', 'lane' => 1], commits: 20),
+            'is_following' => false, 'activity' => null, 'streaks' => ['longest' => 0, 'current' => 0], 'pinned_commit' => null,
+        ],
+        '/api/v1/users/ada/commits' => fn (Request $request) => Http::response(pageJson(partialFramePageCommits(str_contains($request->url(), 'replies') ? 'r' : 'p', $ada))),
+    ], starred: 'p4');
+
+    $screen = finishRefreshes(Native::visit('/log/users/ada'));
+    expectPhoneInStep($screen, 'opening');
+
+    $steps = [
+        'a star' => fn () => finishRefreshes($screen->call('toggleStar', 'p4')),
+        'open a thread' => fn () => finishRefreshes($screen->call('toggleReplies', 'p3')),
+        'the tab tapped again, back to the top in a new list' => fn () => tapProfileTab($screen, 'commits'),
+        'swipe to Replies' => fn () => finishRefreshes(tapProfileTab($screen, 'replies')),
+        'swipe back' => fn () => finishRefreshes(tapProfileTab($screen, 'commits')),
+        'close the thread' => fn () => finishRefreshes($screen->call('toggleReplies', 'p3')),
+    ];
+
+    foreach ($steps as $name => $step) {
+        $step();
+        expectPhoneInStep($screen, $name);
+    }
+
+    expect(nodesSentInFull($screen))->toBeLessThan(40);
+});
