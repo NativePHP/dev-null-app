@@ -436,3 +436,73 @@ it('keeps Search on the phone in step as each term replaces every row', function
         expectPhoneInStep($screen, $name);
     }
 });
+
+it('keeps a Remotes thread on the phone in step as messages come in at the bottom and reactions change in place', function () {
+    sendPartialFrames();
+    $this->travelTo('2026-10-19 15:30:00');
+    $viewer = '0199e5c4-0000-7000-8000-000000000001';
+
+    $message = fn (int $id, bool $mine = false): array => remoteMessageJson([
+        'id' => $id,
+        'user_id' => $mine ? $viewer : 'u2',
+        'client_id' => sprintf('9f0f6f3e-0000-4000-8000-%012d', $id),
+        'body' => "Message {$id}",
+        'created_at' => sprintf('2026-10-19T15:%02d:00Z', $id),
+    ]);
+    $state = ['messages' => array_map(fn (int $id): array => $message($id, $id % 3 === 0), range(11, 22)), 'changes' => []];
+    serveApi(function (Request $request) use (&$state, $message, $viewer) {
+        $path = parse_url($request->url(), PHP_URL_PATH);
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        return match (true) {
+            $request->method() === 'GET' && $path === '/api/v1/remotes/@ada/messages' && isset($query['before']) => Http::response(threadJson(array_map($message, range(1, 10)))),
+            $request->method() === 'GET' && $path === '/api/v1/remotes/@ada/messages' && isset($query['after']) => Http::response(threadJson(
+                array_values(array_filter($state['messages'], fn (array $m): bool => $m['id'] > (int) $query['after'])),
+                ['reactions_version' => count($state['changes']), 'reaction_changes' => $state['changes']],
+            )),
+            $request->method() === 'GET' && $path === '/api/v1/remotes/@ada/messages' => Http::response(threadJson($state['messages'], ['has_older' => true, 'read_through_id' => 22])),
+            $request->method() === 'POST' && $path === '/api/v1/remotes/@ada/messages' => Http::response(['data' => remoteMessageJson([
+                'id' => 99, 'user_id' => $viewer, 'client_id' => json_decode($request->body(), true)['client_id'], 'body' => json_decode($request->body(), true)['body'],
+            ])], 201),
+            str_ends_with($path, '/reactions') && $request->method() === 'POST' => Http::response(['reactions' => [['user_id' => $viewer, 'emoji' => json_decode($request->body(), true)['emoji']]]]),
+            $path === '/api/v1/me' => Http::response(currentUserJson()),
+            default => Http::response(['usage' => []], $request->method() === 'GET' ? 200 : 204),
+        };
+    });
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+    expectPhoneInStep($screen, 'opening');
+
+    $steps = [
+        'a message in at the bottom, and a reaction on one above' => function () use ($screen, &$state, $message) {
+            $state['messages'][] = $message(23);
+            $state['changes'] = [['id' => 15, 'reactions' => [['user_id' => 'u2', 'emoji' => '🚀']]]];
+            finishRefreshes($screen->call('poll'));
+        },
+        'a letter typed' => fn () => $screen->set('draft', 'o'),
+        'a few more' => function () use ($screen) {
+            $screen->set('draft', 'on my way');
+            expect(treeShows(phoneTree($screen), 'on my way'))->toBeTrue();
+        },
+        'a heart on one of theirs' => fn () => finishRefreshes($screen->call('heart', 20)),
+        'a reply begun' => fn () => $screen->call('reply', 21),
+        'sent' => fn () => finishRefreshes($screen->call('send')),
+        'older messages above' => fn () => finishRefreshes($screen->call('loadOlder')),
+        'another in, and the reaction taken off' => function () use ($screen, &$state, $message) {
+            $state['messages'][] = $message(24);
+            $state['changes'] = [...$state['changes'], ['id' => 15, 'reactions' => []]];
+            finishRefreshes($screen->call('poll'));
+        },
+    ];
+
+    $sentInFull = [];
+    foreach ($steps as $name => $step) {
+        $step();
+        $sentInFull[$name] = nodesSentInFull($screen);
+        expectPhoneInStep($screen, $name);
+    }
+
+    expect(treeShows(phoneTree($screen), 'Message 24'))->toBeTrue()
+        ->and(treeShows(phoneTree($screen), 'Message 1"'))->toBeTrue()
+        ->and($sentInFull['a few more'])->toBeLessThan(40);
+});

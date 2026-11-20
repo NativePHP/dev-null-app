@@ -5,6 +5,7 @@ use App\Devnull\FirstFrame;
 use App\Devnull\ResponseCache;
 use App\Devnull\Timeline;
 use App\NativeComponents\CommitDetail;
+use App\NativeComponents\Conversation;
 use App\NativeComponents\Log;
 use App\NativeComponents\Notifications;
 use App\NativeComponents\Organization;
@@ -363,7 +364,7 @@ it('sends only what changed on the timeline screens, not every frame in full', f
     Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
     $sendsInFull = fn (string $screen): bool => (fn (): bool => $this->forceFullFrames)->call(Native::test($screen)->instance());
 
-    foreach ([Log::class, Profile::class, Organization::class, CommitDetail::class, Starred::class, Notifications::class, Remotes::class, Search::class] as $screen) {
+    foreach ([Log::class, Profile::class, Organization::class, CommitDetail::class, Starred::class, Notifications::class, Remotes::class, Search::class, Conversation::class] as $screen) {
         expect($sendsInFull($screen))->toBeFalse();
     }
 });
