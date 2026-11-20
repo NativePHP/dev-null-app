@@ -41,7 +41,7 @@
             @foreach ($rows as $row)
                 @php($isFocused = $row->commit->id === $commit?->id)
                 @php($hasThread = $isFocused && $repliesShown && $replies !== [])
-                @include('native.partials.commit-row', [
+                @php($threadRow = [
                     'commit' => $row->commit,
                     'previousLane' => $row->previousLane,
                     'continuesRun' => $row->continuesRun,
@@ -53,6 +53,9 @@
                     'withTail' => ! $loop->last,
                     'hairline' => ! ($loop->last && $relatedBelow),
                 ])
+                {{-- Kept like the replies, so typing a reply only builds the reply bar. The commit a page is about also shows its replies' toggle and count, and its time in your timezone. --}}
+                @php($rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))
+                @php($replyRows->include('thread-'.$row->commit->id, [...\App\Devnull\RowInputs::for($row->commit, $rowScope), 'focused' => $isFocused ? [$repliesShown, $replyCount, app(\App\Devnull\Timezone::class)->yours()] : null], 'native.partials.commit-row', $threadRow, $rowScope))
                 @if ($isFocused && $repliesShown && $replies === [] && ! $repliesLoaded && $error === null)
                     <native:row ref="loading-replies" class="w-full pl-[64] pr-4 py-4 gap-2 items-center" a11y-label="Loading replies">
                         <native:activity-indicator size="small" />

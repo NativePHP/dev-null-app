@@ -2,7 +2,8 @@
     Other threads, in relevance order, on a fresh rail below this thread as on the web. They start closed under a
     header with their count, which opens them in place and closes them again, its chevron turning as they do (see
     CommitDetail::toggleRelated()). Each commit fades and slides into place a little after the one above it, and fades
-    out together as they close. The header is the whole row, so it's an easy target at the foot of the page.
+    out together as they close. The header is the whole row, so it's an easy target at the foot of the page. Their rows
+    are kept with the page's other rows (see CommitDetail::$replyRows), so a frame only builds the ones that changed.
 --}}
 @php($relatedOpen = $relatedShown && ! $relatedClosing)
 @php($relatedLabel = \App\Devnull\Display::count(count($relatedRows), 'related commit', 'related commits'))
@@ -18,7 +19,8 @@
     @if ($relatedShown)
         @foreach ($relatedRows as $relatedRow)
             <native:column native:key="related-{{ $relatedRow->commit->id }}" ref="related-{{ $relatedRow->commit->id }}" class="w-full {{ $relatedFaded ? 'opacity-0' : '' }}" :translate-y="$relatedFaded ? -8 : 0" :animate-duration="\App\NativeComponents\CommitDetail::RelatedFade" :animate-delay="$relatedClosing ? 0 : $loop->index * \App\NativeComponents\CommitDetail::RelatedStagger">
-                @include('native.partials.commit-row', [
+                @php($rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))
+                @php($replyRows->include('related-'.$relatedRow->commit->id, \App\Devnull\RowInputs::for($relatedRow->commit, $rowScope), 'native.partials.commit-row', [
                     'commit' => $relatedRow->commit,
                     'previousLane' => $relatedRow->previousLane,
                     'continuesRun' => $relatedRow->continuesRun,
@@ -28,7 +30,7 @@
                     'seriesExpanded' => false,
                     'threadBelow' => false,
                     'withTail' => ! $loop->last,
-                ])
+                ], $rowScope))
             </native:column>
         @endforeach
     @endif

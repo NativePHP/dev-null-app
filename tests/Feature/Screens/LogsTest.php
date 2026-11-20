@@ -2,6 +2,7 @@
 
 use App\Devnull\Client;
 use App\Devnull\FirstFrame;
+use App\Devnull\ResponseCache;
 use App\Devnull\Timeline;
 use App\NativeComponents\CommitDetail;
 use App\NativeComponents\Log;
@@ -275,6 +276,26 @@ it('shows the first few commits kept for a log you are not on, and has only the 
         expect($list['props'])->toHaveKey('on_refresh')
             ->and(array_key_exists('on_end_reached', $list['props']))->toBe($list['ref'] === 'log');
     }
+});
+
+it('keeps the commits shown for the log beside yours until what was kept for it changes', function () {
+    holdRefreshes();
+    keep('log/latest', pageJson([commitJson(['id' => 'l1', 'body' => 'Latest 1', 'author' => ada()])]));
+
+    $screen = Native::visit('/log');
+    $previews = fn (): array => Closure::bind(fn (): array => $this->previews, $screen->instance(), Log::class)();
+    $shown = $previews()['latest'][1]['commits'][0];
+
+    // Drawn again with nothing changed, the commit is the one made last frame, so its row is the one kept for it.
+    $screen->call('isRanked');
+    expect($previews()['latest'][1]['commits'][0])->toBe($shown);
+
+    // A star given on another screen changes what was kept for Latest, and its preview shows it.
+    app(ResponseCache::class)->starChanged('l1', true);
+    $screen->call('isRanked');
+
+    expect($previews()['latest'][1]['commits'][0])->not->toBe($shown)
+        ->and(nodeByRef($screen, 'star-l1')['props']['a11y_label'])->toStartWith('Unstar commit');
 });
 
 it('leaves the log two swipes away as skeleton rows until you are beside it', function () {

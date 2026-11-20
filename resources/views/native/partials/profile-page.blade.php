@@ -4,6 +4,8 @@
 
     The pager draws the header and the tabs at the top of this list, so they scroll with it. As on the Log, each tab has
     its own list, a new $page['listKey'] puts it back at the top, and only the tab you're on asks for its next page.
+    The pinned commit, the skeleton rows and the row at the end are kept in the tab's row cache with its commits, so
+    a frame only builds what changed.
 --}}
 <native:column native:key="page-{{ $page['tab'] }}" class="w-full h-full bg-theme-surface">
     <native:list
@@ -16,7 +18,9 @@
     >
         @if (! $page['loaded'] && $page['error'] === null)
             @foreach (range(1, 3) as $skeleton)
-                @include('native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits', 'pulse' => $page['showing']])
+                @php
+                    $page['rowCache']->include('loading-'.$skeleton, [], 'native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits', 'pulse' => $page['showing']], []);
+                @endphp
             @endforeach
         @endif
 
@@ -39,18 +43,27 @@
                     <native:text font="mono" class="text-xs text-theme-ink-muted">Pinned</native:text>
                 </native:row>
             </native:row>
-            @include('native.partials.commit-row', ['commit' => $page['pinnedCommit'], 'previousLane' => null, 'continuesRun' => false, 'rowKey' => 'pinned-'.$page['pinnedCommit']->id])
+            @php
+                $rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]);
+                $page['rowCache']->include('pinned-'.$page['pinnedCommit']->id, \App\Devnull\RowInputs::for($page['pinnedCommit'], $rowScope), 'native.partials.commit-row', ['commit' => $page['pinnedCommit'], 'previousLane' => null, 'continuesRun' => false, 'rowKey' => 'pinned-'.$page['pinnedCommit']->id], $rowScope);
+            @endphp
         @endif
 
         @include('native.partials.feed', ['rows' => $page['rows'], 'threads' => $page['threads'], 'rowCache' => $page['rowCache']])
 
         @if (! $page['isEmpty'] || $page['pinnedCommit'])
             @if ($page['nextCursor'] !== null)
-                @include('native.partials.rail-loading', ['pulse' => $page['showing']])
+                @php
+                    $page['rowCache']->include('loading-more', [], 'native.partials.rail-loading', ['pulse' => $page['showing']], []);
+                @endphp
             @elseif ($page['tab'] === 'replies')
-                @include('native.partials.rail-end', ['lane' => $user->lane(), 'message' => $isMe ? 'That was your first reply.' : "That's {$user->handle()}'s first reply."])
+                @php
+                    $page['rowCache']->include('root-commit', [], 'native.partials.rail-end', ['lane' => $user->lane(), 'message' => $isMe ? 'That was your first reply.' : "That's {$user->handle()}'s first reply."], []);
+                @endphp
             @else
-                @include('native.partials.rail-end', ['lane' => $user->lane(), 'message' => $isMe ? 'That was your first commit. Everyone starts somewhere.' : "That's {$user->handle()}'s root commit."])
+                @php
+                    $page['rowCache']->include('root-commit', [], 'native.partials.rail-end', ['lane' => $user->lane(), 'message' => $isMe ? 'That was your first commit. Everyone starts somewhere.' : "That's {$user->handle()}'s root commit."], []);
+                @endphp
             @endif
         @endif
     </native:list>
