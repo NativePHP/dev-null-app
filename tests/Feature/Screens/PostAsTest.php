@@ -3,6 +3,7 @@
 use App\Devnull\Account;
 use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\User;
+use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
@@ -116,6 +117,36 @@ it('shows no Post as to someone in no organization, as the web hides it', functi
     composeOnLogAs()
         ->assertSee('New commit')
         ->assertMissingElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-post-as');
+});
+
+it('draws each account in the Post as menu with its avatar, round for you, square for an organization, and ticks who posts now', function () {
+    memberOf([memberOrganizationJson(), memberOrganizationJson(['id' => 'o2', 'handle' => 'nativephp', 'name' => 'NativePHP', 'role' => 'member', 'avatar_url' => null])]);
+
+    $screen = composeOnLogAs();
+
+    $rows = fn (): array => array_map(fn (array $item): array => [
+        $item['ref'],
+        $item['props']['image'] ?? null,
+        $item['props']['image_shape'],
+        $item['props']['checked'],
+        $item['props']['icon'],
+    ], array_values(array_filter(nodeByRef($screen, 'sheet-post-as')['children'], fn (array $child): bool => $child['type'] === 'top_bar_action')));
+
+    $me = app(Account::class)->user();
+    $person = Lucide::UserRound->ios();
+    $building = Lucide::Building2->ios();
+
+    expect($me->avatarUrl)->not->toBeNull()
+        ->and($rows())->toBe([
+            ['post-as-local_dev', $me->avatarUrl, 'circle', true, $person],
+            ['post-as-dev-null-sh', 'https://avatars.githubusercontent.com/u/9?v=4', 'rounded', false, $building],
+            // No avatar: the building stands in.
+            ['post-as-nativephp', null, 'rounded', false, $building],
+        ]);
+
+    $screen->call('postAsInSheet', 'dev-null-sh');
+
+    expect(array_column($rows(), 3))->toBe([false, true, false]);
 });
 
 it('starts the composer as you, and lists you and your organizations under Post as', function () {
