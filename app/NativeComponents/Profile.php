@@ -83,9 +83,9 @@ class Profile extends NativeComponent
     use WatchesForCalls;
 
     /**
-     * Every frame goes in full, as on the Log (see Log::$forceFullFrames). A tab
-     * tapped again goes back to the top in a list with a new key and the same
-     * rows, which EDGE's subtree reuse would otherwise never send.
+     * Every frame goes in full. A tab tapped again goes back to the top in a
+     * list with a new key and the same rows, which EDGE's subtree reuse would
+     * otherwise never send.
      */
     protected bool $forceFullFrames = true;
 

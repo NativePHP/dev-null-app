@@ -355,13 +355,14 @@ it('keys each row by what it shows, so a commit put on top leaves the rows under
         ->and(nodeByRef($screen, 'commit-c1')['id'])->toBe($row);
 });
 
-it('sends the Log, Notifications, profiles and commit pages in full every frame, as EDGE advises for lists that change often', function () {
+it('sends only what changed on the Log, and Notifications, profiles and commit pages in full every frame', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
+    $sendsInFull = fn (string $screen): bool => (fn (): bool => $this->forceFullFrames)->call(Native::test($screen)->instance());
 
-    foreach ([Log::class, Notifications::class, Profile::class, CommitDetail::class] as $screen) {
-        $instance = Native::test($screen)->instance();
+    expect($sendsInFull(Log::class))->toBeFalse();
 
-        expect((fn (): bool => $this->forceFullFrames)->call($instance))->toBeTrue();
+    foreach ([Notifications::class, Profile::class, CommitDetail::class] as $screen) {
+        expect($sendsInFull($screen))->toBeTrue();
     }
 });
 

@@ -47,7 +47,7 @@ class Starred extends NativeComponent
     use TalksToDevnull;
 
     /**
-     * Every frame goes in full, as on the Log (see Log::$forceFullFrames), since rows leave the list from the middle.
+     * Every frame goes in full, since rows leave the list from the middle.
      */
     protected bool $forceFullFrames = true;
 

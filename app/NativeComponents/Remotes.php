@@ -89,7 +89,7 @@ class Remotes extends NativeComponent
     public const string LeaveAlert = 'remotes-leave';
 
     /**
-     * Every frame goes in full, as on the Log (see Log::$forceFullFrames), since a row moves to the top when it
+     * Every frame goes in full, since a row moves to the top when it
      * has a new message.
      */
     protected bool $forceFullFrames = true;
