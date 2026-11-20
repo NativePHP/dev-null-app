@@ -3,8 +3,8 @@
     top with nothing to wait for.
 
     It floats over the commits, hung just under the pager's tabs, in the pager's overlay. There it stays put while the
-    list scrolls under it, and under a profile's header it follows the tabs wherever the header has scrolled them. The
-    overlay lets taps on either side of it through to the commits beneath.
+    list scrolls under it. The overlay lets taps on either side of it through to the commits beneath. Only the Log has
+    it: profiles and organizations put new commits in without one (see SlotsInNewCommits).
 
     Its slot is always in the overlay, hidden until there's something to show ($shown), so the pager keeps its shape
     when new commits come in. A node added beside a scrolled list sometimes left the list blank on iOS: its rows still in

@@ -1,8 +1,10 @@
 <?php
 
+use App\Devnull\Data\Commit;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
+use Native\Mobile\Testing\TestableComponent;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -100,42 +102,94 @@ it('shows a spinner only the first time, when nothing is known of them', functio
     finishRefreshes($screen)->assertSee('Ada Lovelace')->assertSee("@ada hasn't committed anything yet.");
 });
 
-it('holds their new commits in the pill and puts them on top without a request', function () {
-    holdRefreshes();
-    keep('users/ada', adaProfile());
-    keep('users/ada/commits', pageJson([adaCommit(['id' => 'a1', 'body' => 'Older'])]));
-    serveAda([adaCommit(['id' => 'a2', 'body' => 'Brand new']), adaCommit(['id' => 'a1', 'body' => 'Older'])]);
+/**
+ * The ids of the commits on the profile's tab, top first.
+ *
+ * @return list<string>
+ */
+function profileCommitIds(TestableComponent $screen): array
+{
+    return array_map(fn (Commit $commit): string => $commit->id, $screen->instance()->commits);
+}
 
-    $screen = finishRefreshes(Native::visit('/log/users/ada'))
-        ->assertSee('1 new commit')
-        ->assertDontSee('Brand new');
+function showsNewCommitsPill(TestableComponent $screen): bool
+{
+    return findNode($screen->tree(), fn (array $node): bool => in_array($node['ref'] ?? null, ['new-commits', 'new-commits-slot'], true)) !== null;
+}
 
-    $requests = count(Http::recorded());
-
-    $screen->tap('new-commits')->assertSee('Brand new')->assertDontSee('1 new commit');
-
-    expect(count(Http::recorded()))->toBe($requests);
-});
-
-it('hangs the pill under the tabs in the pager, there before it shows', function () {
+it('never shows a new commits pill, and puts new commits on top when it opens', function () {
     holdRefreshes();
     keep('users/ada', adaProfile());
     keep('users/ada/commits', pageJson([adaCommit(['id' => 'a1', 'body' => 'Older'])]));
     serveAda([adaCommit(['id' => 'a2', 'body' => 'Brand new']), adaCommit(['id' => 'a1', 'body' => 'Older'])]);
 
     $screen = Native::visit('/log/users/ada');
-    $overlay = fn (): array => findNode(nodeByRef($screen, 'profile-pager'), fn (array $node): bool => ($node['type'] ?? null) === 'pager_overlay');
 
-    // Hidden and empty until there are new commits, but already in its place, outside the lists.
-    expect(findNode($overlay(), fn (array $node): bool => ($node['ref'] ?? null) === 'new-commits-slot'))->not->toBeNull()
-        ->and(nodeByRef($screen, 'new-commits-slot')['layout']['display'] ?? null)->toBe(1)
-        ->and(nodeByRef($screen, 'new-commits-slot')['children'] ?? [])->toBe([])
-        ->and(findNode(showingProfile($screen), fn (array $node): bool => ($node['ref'] ?? null) === 'new-commits-slot'))->toBeNull();
+    expect(showsNewCommitsPill($screen))->toBeFalse();
 
-    finishRefreshes($screen)->assertSee('1 new commit');
+    $listKey = $screen->get('listKey');
 
-    expect(nodeByRef($screen, 'new-commits-slot')['layout']['display'] ?? null)->toBeNull()
-        ->and(findNode($overlay(), fn (array $node): bool => ($node['ref'] ?? null) === 'new-commits'))->not->toBeNull();
+    finishRefreshes($screen)->assertSee('Brand new')->assertDontSee('1 new commit');
+
+    expect(profileCommitIds($screen))->toBe(['a2', 'a1'])
+        ->and(showsNewCommitsPill($screen))->toBeFalse()
+        // The same list, so rows already showing keep their place.
+        ->and($screen->get('listKey'))->toBe($listKey);
+});
+
+it('holds new commits out of sight when you come back to it, until you pull to refresh', function () {
+    holdRefreshes();
+    keep('users/ada', adaProfile());
+    serveAda([adaCommit(['id' => 'a1', 'body' => 'Older'])]);
+
+    $screen = finishRefreshes(Native::visit('/log/users/ada'));
+
+    // Back from a commit you may be anywhere in the list, and rows put above the ones you're reading would push them down.
+    serveAda([adaCommit(['id' => 'a2', 'body' => 'Brand new']), adaCommit(['id' => 'a1', 'body' => 'Older'])]);
+    finishRefreshes($screen->call('onResume'))->assertDontSee('Brand new')->assertDontSee('1 new commit');
+
+    expect(profileCommitIds($screen))->toBe(['a1'])
+        ->and(showsNewCommitsPill($screen))->toBeFalse();
+
+    $listKey = $screen->get('listKey');
+
+    finishRefreshes($screen->call('load'))->assertSee('Brand new');
+
+    expect(profileCommitIds($screen))->toBe(['a2', 'a1'])
+        ->and($screen->get('listKey'))->toBe($listKey);
+});
+
+it('holds new commits once the list has asked for its next page', function () {
+    holdRefreshes();
+    keep('users/ada', adaProfile());
+    serveAda([adaCommit(['id' => 'a1', 'body' => 'Older'])]);
+
+    $screen = finishRefreshes(Native::visit('/log/users/ada'))->call('loadMore');
+
+    serveAda([adaCommit(['id' => 'a2', 'body' => 'Brand new']), adaCommit(['id' => 'a1', 'body' => 'Older'])]);
+    finishRefreshes($screen->call('retry'))->assertDontSee('Brand new');
+
+    expect(profileCommitIds($screen))->toBe(['a1']);
+});
+
+it('puts held commits on top when you tap the tab you are on, which goes back to the top', function () {
+    holdRefreshes();
+    keep('users/ada', adaProfile());
+    serveAda([adaCommit(['id' => 'a1', 'body' => 'Older'])]);
+
+    $screen = finishRefreshes(Native::visit('/log/users/ada'));
+
+    serveAda([adaCommit(['id' => 'a2', 'body' => 'Brand new']), adaCommit(['id' => 'a1', 'body' => 'Older'])]);
+    finishRefreshes($screen->call('onResume'))->assertDontSee('Brand new');
+
+    $listKey = $screen->get('listKey');
+    $requests = count(Http::recorded());
+
+    tapProfileTab($screen, 'commits')->assertSee('Brand new');
+
+    expect(profileCommitIds($screen))->toBe(['a2', 'a1'])
+        ->and($screen->get('listKey'))->toBe($listKey + 1)
+        ->and(count(Http::recorded()))->toBe($requests);
 });
 
 it('keeps a follow, so their profile opens followed next time', function () {

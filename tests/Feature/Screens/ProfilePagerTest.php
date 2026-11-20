@@ -82,7 +82,7 @@ it('swipes between commits and replies both ways under the tabs the pager draws,
     $screen->changeTab('showPage', -1)->assertSet('tab', 'commits');
 });
 
-it('draws the header once, for the pager to put above its tabs, and hangs the pill under them', function () {
+it('draws the header once, for the pager to put above its tabs, with no new commits pill', function () {
     holdRefreshes();
     keepProfile('ada', [commitJson(['id' => 'c1'])], [commitJson(['id' => 'r1'])]);
 
@@ -90,11 +90,11 @@ it('draws the header once, for the pager to put above its tabs, and hangs the pi
     $pager = nodeByRef($screen, 'profile-pager');
     $hasRef = fn (string $ref): Closure => fn (array $node): bool => ($node['ref'] ?? null) === $ref;
 
-    expect(array_column($pager['children'], 'type'))->toBe(['pager_header', 'column', 'column', 'pager_overlay'])
+    expect(array_column($pager['children'], 'type'))->toBe(['pager_header', 'column', 'column'])
         ->and(findNode($pager['children'][0], $hasRef('profile-header')))->not->toBeNull()
         ->and(findNode(showingProfile($screen), $hasRef('profile-header')))->toBeNull()
         ->and(findNode(profileList($screen, 'replies'), $hasRef('profile-header')))->toBeNull()
-        ->and(findNode($pager['children'][3], $hasRef('new-commits-slot')))->not->toBeNull();
+        ->and(findNode($pager, $hasRef('new-commits-slot')))->toBeNull();
 });
 
 it('keeps the list a tab was drawn in when you swipe to it, and starts the tab you leave again in a fresh one', function () {
@@ -183,5 +183,5 @@ it("pages someone else's profile the same as your own", function () {
     $props = fn (array $pager): array => array_intersect_key($pager['props'], array_flip(['horizontal', 'count', 'tabs', 'report_on_settle', 'tab_font', 'tab_active_color']));
 
     expect($props($pager('/log/users/ada')))->toBe($props($pager('/profile')))
-        ->and(array_column($pager('/profile')['children'], 'type'))->toBe(['pager_header', 'column', 'column', 'pager_overlay']);
+        ->and(array_column($pager('/profile')['children'], 'type'))->toBe(['pager_header', 'column', 'column']);
 });
