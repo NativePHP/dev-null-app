@@ -19,7 +19,8 @@
     double tap at its whole self zooms to twice, aimed at the tapped point; a double tap on a zoomed image takes it
     back to its whole self. A zoomed image pans. All of it runs on the phone with no frame trip. Bounded by the
     picture's own shape, it can't be lost off screen. The phone decides who gets a drag: a zoomed image takes it while
-    it has room to move, and at its whole self the image leaves it to the pager and the drag to close.
+    it has room to move that way, and at its whole self the image leaves it to the pager and the drag to close. Dragged
+    on past its edge, a zoomed image pulls the pager along to the next one, and let go it glides on with the finger.
 
     At its whole self, a drag up or down takes the image with the finger and fades the black and the buttons with it.
     Let go short of halfway to ImageViewer::DismissDistance and it springs back; past that, or with a flick, it carries on

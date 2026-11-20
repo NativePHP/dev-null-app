@@ -2,8 +2,9 @@
     The image viewer's pages, one image each, moved up and down together by the drag to close (see image-viewer).
 
     Each image pinches, zooms on a double tap and pans on its own gesture area, with its pans bound all the time.
-    Bounded, the area only takes a one-finger drag while its zoomed image has room to move, so at its whole self a drag
-    goes to the pager or the drag to close, and zoomed in the same drag pans it. The pinch and the double tap aim with
+    Bounded, the area only takes a one-finger drag while its zoomed image has room to move that way, so at its whole self
+    a drag goes to the pager or the drag to close, and zoomed in the same drag pans it. At a zoomed image's edge a drag
+    that way goes to the pager, never the drag to close. The pinch and the double tap aim with
     those same pans: a pinch zooms around the fingers and a double tap aims at the tapped point. The phone does all of
     it, so PHP isn't told when a zoom ends. An image at no web address gets an empty page, never asked for (the pager
     can't skip a page, and the viewer never moves to it).
