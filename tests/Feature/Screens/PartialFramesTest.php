@@ -207,3 +207,44 @@ it('keeps an organization on the phone in step through stars, threads, its tabs 
 
     expect(nodesSentInFull($screen))->toBeLessThan(40);
 });
+
+it('keeps the commit page on the phone in step while you open the thread and type a reply', function () {
+    sendPartialFrames();
+    $grace = userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace']);
+    fakeApi([
+        'GET /api/v1/commits/c2' => [commitPageJson(
+            commitJson(['id' => 'c2', 'parent_id' => 'c1', 'body' => 'The focused commit', 'replies_count' => 3]),
+            [
+                commitJson(['id' => 'c0', 'body' => 'The root commit', 'author' => $grace]),
+                commitJson(['id' => 'c1', 'parent_id' => 'c0', 'body' => 'The parent commit', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])]),
+            ],
+        )],
+        'GET /api/v1/commits/c2/replies' => [pageJson(array_map(fn (int $n): array => replyJson(['id' => "r{$n}", 'parent_id' => 'c2', 'body' => "Reply {$n}", 'author' => $grace]), range(1, 3)))],
+        'GET /api/v1/commits/c2/related' => [['data' => []]],
+    ]);
+
+    $screen = Native::visit('/log/commits/c2');
+    expectPhoneInStep($screen, 'opening');
+
+    $steps = [
+        'the earlier commits shown' => fn () => $screen->call('showEarlier'),
+        'the replies opened' => fn () => $screen->call('toggleReplies'),
+        // The scroll view mounts again at the top, under a new key.
+        'a tap into the reply field' => fn () => $screen->call('replyTapped'),
+        'a letter typed' => fn () => $screen->set('reply', 'N'),
+        'another' => fn () => $screen->set('reply', 'Ni'),
+        'the replies hidden' => fn () => $screen->call('toggleReplies'),
+        'the reply field tapped again' => fn () => $screen->call('replyTapped'),
+        'the replies opened again' => fn () => $screen->call('toggleReplies'),
+    ];
+
+    $sentInFull = [];
+    foreach ($steps as $name => $step) {
+        $step();
+        $sentInFull[$name] = nodesSentInFull($screen);
+        expectPhoneInStep($screen, $name);
+    }
+
+    // A letter typed sends the field and what it changes, not the thread above it.
+    expect($sentInFull['another'])->toBeLessThan(40);
+});
