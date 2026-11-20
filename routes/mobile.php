@@ -8,6 +8,7 @@ use App\NativeComponents\Call;
 use App\NativeComponents\CommitDetail;
 use App\NativeComponents\Connections;
 use App\NativeComponents\Conversation;
+use App\NativeComponents\FeedWorkspace;
 use App\NativeComponents\Launch;
 use App\NativeComponents\Layouts\TabsLayout;
 use App\NativeComponents\Log;
@@ -26,6 +27,7 @@ use App\NativeComponents\Search;
 use App\NativeComponents\Starred;
 use App\NativeComponents\ThisDevice;
 use Illuminate\Support\Facades\Route;
+use Native\Mobile\Facades\System;
 
 Route::native('/', Launch::class);
 Route::native('/onboarding', Onboarding::class);
@@ -44,7 +46,7 @@ if (Game::available()) {
 }
 
 Route::nativeGroup(TabsLayout::class, function (): void {
-    Route::native('/log', Log::class);
+    Route::native('/log', System::isIos() ? FeedWorkspace::class : Log::class);
     Route::native('/notifications', Notifications::class);
     Route::native('/remotes', Remotes::class);
     Route::native('/remotes/new', NewRemote::class);

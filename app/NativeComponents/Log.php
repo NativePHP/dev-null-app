@@ -163,6 +163,13 @@ class Log extends NativeComponent
 
     public string $log = 'following';
 
+    public bool $embedded = false;
+
+    /**
+     * The commit of the conversation open from the log, whose row shows as selected.
+     */
+    public ?string $selectedCommit = null;
+
     /**
      * The list key of each log you're not on. The log you're on uses $listKey.
      *

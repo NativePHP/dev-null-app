@@ -18,7 +18,7 @@
                 </native:row>
                 <native:text class="w-full text-sm text-theme-ink-muted">Commits you starred, newest first.</native:text>
             </native:column>
-            <native:column class="w-full h-[1] bg-theme-hairline" />
+            <native:column class="w-full h-[1] border-b border-theme-hairline" />
         </native:column>
 
         @if (! $loaded && $error === null)

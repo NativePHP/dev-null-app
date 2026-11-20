@@ -12,6 +12,11 @@
     "license": "MIT",
     "repositories": [
         {
+            "name": "adaptive-layout",
+            "type": "path",
+            "url": "packages/adaptive-layout"
+        },
+        {
             "name": "calls",
             "type": "path",
             "url": "packages/calls"
@@ -33,6 +38,7 @@
     "require": {
         "php": "^8.3",
         "codingwithrk/nativephp-social-auth": "^1.0",
+        "devnull/adaptive-layout": "^1.0",
         "devnull/nativephp-calls": "^1.0",
         "laravel/boost": "^2.0",
         "laravel/framework": "^13.0",

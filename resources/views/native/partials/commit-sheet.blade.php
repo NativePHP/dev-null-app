@@ -63,7 +63,7 @@
                         @include('native.partials.sheet-bar-button', ['ref' => 'sheet-commit', 'icon' => \App\Icons\Lucide::Check, 'label' => match (true) { $schedulingThis => 'Schedule commit', $replying => 'Reply', default => 'Commit' }, 'main' => true, 'loading' => $sendingSchedule, 'press' => $sendingSchedule || ! $canCommit || ($schedulingThis && ! $hasScheduledTime) ? null : 'commitFromSheet'])
                     @endif
                 </native:row>
-                <native:column class="w-full h-[1] bg-theme-hairline" />
+                <native:column class="w-full h-[1] border-b border-theme-hairline" />
                 <native:scroll-view ref="sheet-composer" class="w-full flex-1">
                     <native:column class="w-full px-5 pt-4 pb-10 gap-4">
                         @if ($sheetError)
@@ -130,7 +130,7 @@
                     </native:column>
                 </native:scroll-view>
                 {{-- Pinned under the scroll view, so it rides just above the keyboard, and above the home indicator without it. --}}
-                <native:column class="w-full h-[1] bg-theme-hairline" />
+                <native:column class="w-full h-[1] border-b border-theme-hairline" />
                 <native:row ref="sheet-toolbar" class="w-full pl-3 pr-5 py-1 gap-3 items-center">
                     @unless ($issueCommand)
                         @include('native.partials.composer-tools')
@@ -151,9 +151,9 @@
                     </native:column>
 
                     <native:column class="w-full">
-                        <native:column class="w-full h-[1] bg-theme-hairline" />
+                        <native:column class="w-full h-[1] border-b border-theme-hairline" />
                         <native:text ref="report-body" class="w-full py-3 text-sm leading-relaxed text-theme-ink" :max-lines="3">{{ $sheetCommit->plainText() }}</native:text>
-                        <native:column class="w-full h-[1] bg-theme-hairline" />
+                        <native:column class="w-full h-[1] border-b border-theme-hairline" />
                     </native:column>
 
                     <native:radio-group ref="report-reason" label="Why are you reporting this commit?" native:model="reportReason">
