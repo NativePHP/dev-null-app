@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "6ab0dd57c2808cf01b6bd7ce754a6332",
+    "content-hash": "c04ed57c9f1aabaac5fe95860c71babf",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -340,55 +340,6 @@
                 }
             ],
             "time": "2026-10-29T09:13:34+00:00"
-        },
-        {
-            "name": "cweagans/composer-patches",
-            "version": "1.7.3",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/cweagans/composer-patches.git",
-                "reference": "e190d4466fe2b103a55467dfa83fc2fecfcaf2db"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/cweagans/composer-patches/zipball/e190d4466fe2b103a55467dfa83fc2fecfcaf2db",
-                "reference": "e190d4466fe2b103a55467dfa83fc2fecfcaf2db",
-                "shasum": ""
-            },
-            "require": {
-                "composer-plugin-api": "^1.0 || ^2.0",
-                "php": ">=5.3.0"
-            },
-            "require-dev": {
-                "composer/composer": "~1.0 || ~2.0",
-                "phpunit/phpunit": "~4.6"
-            },
-            "type": "composer-plugin",
-            "extra": {
-                "class": "cweagans\\Composer\\Patches"
-            },
-            "autoload": {
-                "psr-4": {
-                    "cweagans\\Composer\\": "src"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "BSD-3-Clause"
-            ],
-            "authors": [
-                {
-                    "name": "Cameron Eagans",
-                    "email": "me@cweagans.net"
-                }
-            ],
-            "description": "Provides a way to patch Composer packages.",
-            "support": {
-                "issues": "https://github.com/cweagans/composer-patches/issues",
-                "source": "https://github.com/cweagans/composer-patches/tree/1.7.3"
-            },
-            "time": "2022-12-20T22:53:13+00:00",
-            "published-time": "2022-12-21T19:08:26+00:00"
         },
         {
             "name": "dasprid/enum",
@@ -2845,12 +2796,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-air.git",
-                "reference": "c0da5d781df99416fb92f398a354ceac0b532922"
+                "reference": "db7d5db8a2870dc0badbf958377872cd4e3826fc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/c0da5d781df99416fb92f398a354ceac0b532922",
-                "reference": "c0da5d781df99416fb92f398a354ceac0b532922",
+                "url": "https://api.github.com/repos/NativePHP/mobile-air/zipball/db7d5db8a2870dc0badbf958377872cd4e3826fc",
+                "reference": "db7d5db8a2870dc0badbf958377872cd4e3826fc",
                 "shasum": ""
             },
             "require": {
@@ -2900,14 +2851,40 @@
                 }
             },
             "autoload": {
-                "files": [
-                    "src/helpers.php"
-                ],
                 "psr-4": {
                     "Native\\Mobile\\": "src/"
+                },
+                "files": [
+                    "src/helpers.php"
+                ]
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Tests\\": "tests/"
                 }
             },
-            "notification-url": "https://packagist.org/downloads/",
+            "scripts": {
+                "qa": [
+                    "@composer format",
+                    "@composer analyse",
+                    "@composer test"
+                ],
+                "post-autoload-dump": [
+                    "@php ./vendor/bin/testbench package:discover --ansi"
+                ],
+                "analyse": [
+                    "vendor/bin/phpstan analyse"
+                ],
+                "test": [
+                    "vendor/bin/pest"
+                ],
+                "test-coverage": [
+                    "vendor/bin/pest --coverage"
+                ],
+                "format": [
+                    "vendor/bin/pint"
+                ]
+            },
             "license": [
                 "MIT"
             ],
@@ -2932,10 +2909,10 @@
                 "nativephp"
             ],
             "support": {
-                "issues": "https://github.com/NativePHP/mobile-air/issues",
-                "source": "https://github.com/NativePHP/mobile-air/tree/main"
+                "source": "https://github.com/NativePHP/mobile-air/tree/main",
+                "issues": "https://github.com/NativePHP/mobile-air/issues"
             },
-            "time": "2026-11-05T15:42:02+00:00"
+            "time": "2026-11-20T17:55:04+00:00"
         },
         {
             "name": "nativephp/mobile-browser",
@@ -3446,16 +3423,16 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/NativePHP/mobile-ui.git",
-                "reference": "ce627333f74293a719e1b86891cec09772f74b4a"
+                "reference": "3a6096d7c7d1e7e81ab6c5ba1cd6c81bfedc3901"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/ce627333f74293a719e1b86891cec09772f74b4a",
-                "reference": "ce627333f74293a719e1b86891cec09772f74b4a",
+                "url": "https://api.github.com/repos/NativePHP/mobile-ui/zipball/3a6096d7c7d1e7e81ab6c5ba1cd6c81bfedc3901",
+                "reference": "3a6096d7c7d1e7e81ab6c5ba1cd6c81bfedc3901",
                 "shasum": ""
             },
             "require": {
-                "nativephp/mobile": "^4.7",
+                "nativephp/mobile": "^4.8",
                 "php": "^8.3"
             },
             "require-dev": {
@@ -3511,7 +3488,7 @@
                     "url": "https://nativephp.com/sponsor"
                 }
             ],
-            "time": "2026-11-05T16:47:04+00:00"
+            "time": "2026-11-19T22:21:34+00:00"
         },
         {
             "name": "nesbot/carbon",
