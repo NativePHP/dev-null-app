@@ -14,11 +14,6 @@ final class ImageViewer
     public const float DismissDistance = 240;
 
     /**
-     * The zoom past which an image counts as zoomed in, so a pinch that ends a hair over its whole self still pages.
-     */
-    public const float ZoomedPast = 1.01;
-
-    /**
      * The most an image zooms, as many times its whole self.
      */
     public const float MaxZoom = 4;

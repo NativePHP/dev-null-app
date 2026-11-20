@@ -25,8 +25,9 @@ use Throwable;
  *
  * Swiping sideways pages through the images, which the dashes under them follow. A pinch zooms one between its whole
  * self and four times, a double tap zooms to twice and back, and a zoomed one pans. Dragging one up or down at its
- * whole self takes the viewer with it, and letting go far enough, or flicking it, closes the viewer. The round buttons
- * over the top close it and save the image to the phone's photos.
+ * whole self takes the viewer with it, and letting go far enough, or flicking it, closes the viewer. Whether a drag
+ * pans, pages or closes is the phone's call, made from how far the image is zoomed, so PHP never hears about a zoom.
+ * The round buttons over the top close it and save the image to the phone's photos.
  */
 trait ShowsImageViewer
 {
@@ -76,12 +77,6 @@ trait ShowsImageViewer
     public array $viewerPansY = [];
 
     /**
-     * Whether the showing image is zoomed in, as its last pinch left it. Zoomed, a drag pans it; at its whole self a
-     * drag sideways pages and a drag up or down closes.
-     */
-    public bool $viewerZoomed = false;
-
-    /**
      * How far the image has been dragged up or down to close the viewer, on the phone.
      */
     public ?SharedValue $viewerDrag = null;
@@ -117,15 +112,14 @@ trait ShowsImageViewer
             $this->restViewerImage($place);
         }
 
-        $this->viewerZoomed = false;
         $this->viewerDrag = SharedValue::make();
         $this->savingViewedImage = false;
         $this->viewerOpen = true;
     }
 
     /**
-     * The pager settled on another image. The one left goes back to rest, as Photos puts it, and the one arrived at
-     * starts unzoomed. An image at no web address can't be paged to: the viewer stays where it was.
+     * The pager settled on another image. The one left goes back to rest, as Photos puts it, so it's whole again when
+     * the pager comes back to it. An image at no web address can't be paged to: the viewer stays where it was.
      */
     public function viewerPaged(int $index): void
     {
@@ -137,15 +131,6 @@ trait ShowsImageViewer
 
         $this->restViewerImage($this->viewerIndex);
         $this->viewerIndex = $index;
-        $this->viewerZoomed = false;
-    }
-
-    /**
-     * A pinch or a double tap on the showing image ended, at $scale.
-     */
-    public function viewerZoomEnded(float $scale): void
-    {
-        $this->viewerZoomed = $this->viewerOpen && $scale > ImageViewer::ZoomedPast;
     }
 
     /**
@@ -170,7 +155,6 @@ trait ShowsImageViewer
         $this->viewerIndex = 0;
         $this->viewerSources = [];
         $this->viewerZooms = $this->viewerPansX = $this->viewerPansY = [];
-        $this->viewerZoomed = false;
         $this->viewerDrag = null;
         $this->savingViewedImage = false;
     }

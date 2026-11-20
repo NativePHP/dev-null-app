@@ -1,17 +1,16 @@
 {{--
     The image viewer's pages, one image each, moved up and down together by the drag to close (see image-viewer).
 
-    Each image pinches, and zooms on a double tap, on its own gesture area. Only the showing image, once zoomed, binds a
-    pan: an area with a pan claims every touch, which would stop the pager paging and the drag to close. The zoom gets
-    the same pans as zoom-pan, which takes no drags, so a pinch zooms around the fingers and a double tap aims at the
-    tapped point from the first. Either one reports where it left the zoom through @pinchEnd, which binds the pans or
-    lets them go. An image at no web address gets an empty page, never asked for (the pager can't skip a page, and the
-    viewer never moves to it).
+    Each image pinches, zooms on a double tap and pans on its own gesture area, with its pans bound all the time.
+    Bounded, the area only takes a one-finger drag while its zoomed image has room to move, so at its whole self a drag
+    goes to the pager or the drag to close, and zoomed in the same drag pans it. The pinch and the double tap aim with
+    those same pans: a pinch zooms around the fingers and a double tap aims at the tapped point. The phone does all of
+    it, so PHP isn't told when a zoom ends. An image at no web address gets an empty page, never asked for (the pager
+    can't skip a page, and the viewer never moves to it).
 --}}
 <native:column class="w-full h-full" :translate-y="$viewerDrag">
     <native:pager ref="viewer-pager" horizontal :page="$viewerIndex" on-page-change="viewerPaged" class="w-full h-full" a11y-label="Images">
         @foreach ($viewerImages as $place => $image)
-            @php($pans = $place === $viewerIndex && $viewerZoomed)
             <native:column native:key="viewer-page-{{ $place }}" class="w-full h-full">
                 @if (\App\Devnull\SiteLink::isWebUrl($image->url))
                     <native:gesture-area
@@ -20,11 +19,8 @@
                         pinch-min="1"
                         :pinch-max="\App\Devnull\ImageViewer::MaxZoom"
                         @doubleTap.zoom="{{ \App\Devnull\ImageViewer::DoubleTapZoom }}"
-                        @pinchEnd="viewerZoomEnded"
-                        :pan-x="$pans ? $viewerPansX[$place] : null"
-                        :pan-y="$pans ? $viewerPansY[$place] : null"
-                        :zoom-pan-x="$viewerPansX[$place]"
-                        :zoom-pan-y="$viewerPansY[$place]"
+                        :pan-x="$viewerPansX[$place]"
+                        :pan-y="$viewerPansY[$place]"
                         bounded
                         :content-ratio="$image->naturalRatio()"
                         class="w-full h-full"

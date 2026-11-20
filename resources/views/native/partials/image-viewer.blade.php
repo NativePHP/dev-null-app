@@ -7,16 +7,19 @@
     fades out while the picture shrinks back into the image on the screen. Paged to another image, it shrinks into
     that one's. With no source, or one that has gone off screen, it only fades.
 
-    The fade, the morph, the double tap and the zoom's own pan need NativePHP/mobile-ui#221, mobile-ui#220 and
-    NativePHP/mobile-air#716. Without them the modal ignores transition and morph-*, and the gesture area ignores
-    @doubleTap.zoom and zoom-pan-*, so the viewer slides up as before and a double tap does nothing.
+    The fade and the morph need NativePHP/mobile-ui#221. Without it the modal ignores transition and morph-*, so the
+    viewer slides up as before.
+
+    Paging and the drag to close need NativePHP/mobile-ui#220 and NativePHP/mobile-air#716 to work at all. Each image's
+    gesture area keeps its pans bound all the time, and without those PRs a bound pan takes every drag, so the pager
+    never pages and a drag never closes the viewer. A double tap does nothing without them either.
 
     A swipe sideways pages through the images, one per page, and the dashes at the bottom say which is showing, the
     bright one sliding along as the page changes. A pinch zooms an image between its whole self and four times, and a
     double tap at its whole self zooms to twice, aimed at the tapped point; a double tap on a zoomed image takes it
     back to its whole self. A zoomed image pans. All of it runs on the phone with no frame trip. Bounded by the
-    picture's own shape, it can't be lost off screen. Zoomed, a drag pans rather than pages or closes, so the pager and
-    the drag to close only take over again once a pinch or a double tap brings it back to its whole self.
+    picture's own shape, it can't be lost off screen. The phone decides who gets a drag: a zoomed image takes it while
+    it has room to move, and at its whole self the image leaves it to the pager and the drag to close.
 
     At its whole self, a drag up or down takes the image with the finger and fades the black and the buttons with it.
     Let go short of halfway to ImageViewer::DismissDistance and it springs back; past that, or with a flick, it carries on
@@ -41,15 +44,9 @@
             <native:column class="w-full h-full" :opacity="$fadeUp">
                 <native:column ref="viewer-backdrop" class="w-full h-full bg-black" :opacity="$fadeDown" />
             </native:column>
-            @if ($viewerZoomed)
-                <native:gesture-area ref="viewer-dismiss" class="w-full h-full">
-                    @include('native.partials.image-viewer-pages')
-                </native:gesture-area>
-            @else
-                <native:gesture-area ref="viewer-dismiss" :pan-y="$viewerDrag" :snap-y="[-$far, 0, $far]" @dragEnd="viewerDragged" class="w-full h-full">
-                    @include('native.partials.image-viewer-pages')
-                </native:gesture-area>
-            @endif
+            <native:gesture-area ref="viewer-dismiss" :pan-y="$viewerDrag" :snap-y="[-$far, 0, $far]" @dragEnd="viewerDragged" class="w-full h-full">
+                @include('native.partials.image-viewer-pages')
+            </native:gesture-area>
             <native:column class="w-full h-full" :opacity="$fadeUp">
                 <native:column class="w-full h-full justify-between" :opacity="$fadeDown">
                     <native:row ref="viewer-bar" class="w-full px-4 pt-2 items-center {{ $viewerOwnRow ? 'justify-end' : 'justify-between' }}">

@@ -1,7 +1,6 @@
 <?php
 
 use App\Devnull\ImageCache;
-use App\Devnull\ImageViewer;
 use Devnull\Photos\Events\Saved;
 use Devnull\Photos\Events\SaveFailed;
 use Illuminate\Support\Facades\File;
@@ -73,11 +72,12 @@ it('opens a commit\'s image full-screen in the app, not the browser', function (
         // The image whole, not cropped as it is in the row, read out by the description its author gave it.
         ->and($image['props'])->toMatchArray(['src' => 'https://img.test/1', 'fit' => 1, 'alt' => 'A cat on a keyboard'])
         // Pinch bounded one to four, settled on the phone against the shared values this open made, kept on screen
-        // by the image's own shape. At its whole self it doesn't pan, so the pager and the drag to close get the drag.
+        // by the image's own shape. Its pans are bound from the start: bounded, the phone only lets it take a drag
+        // once it's zoomed in, so at its whole self the pager and the drag to close get the drag.
         ->and($gestures['props'])->toMatchArray(['pinch-min' => 1.0, 'pinch-max' => 4.0, 'bounded' => true, 'content-ratio' => 1.0])
         ->and($gestures['props']['pinch-id'])->toBe($viewing->viewerZooms[0]->id)
-        ->and($gestures['props'])->not->toHaveKey('pan-x-id')
-        ->and($gestures['props'])->not->toHaveKey('pan-y-id')
+        ->and($gestures['props']['pan-x-id'])->toBe($viewing->viewerPansX[0]->id)
+        ->and($gestures['props']['pan-y-id'])->toBe($viewing->viewerPansY[0]->id)
         ->and($image['props']['scale_sv'])->toBe((string) $viewing->viewerZooms[0])
         ->and($image['props']['translate-x_sv'])->toBe((string) $viewing->viewerPansX[0])
         ->and($image['props']['translate-y_sv'])->toBe((string) $viewing->viewerPansY[0])
@@ -151,64 +151,48 @@ it('pages through the commit\'s images from the one the row tapped, with dashes 
 it('puts an image back at rest once the pager leaves it, as Photos does', function () {
     $screen = logWithImages(3)->tap('image-i1');
 
-    $first = nodeByRef($screen, 'viewer-gestures-0')['props']['pinch-id'];
-    $second = nodeByRef($screen, 'viewer-gestures-1')['props']['pinch-id'];
-
-    $screen->pinch('viewer-gestures-0', 2.5);
-
-    expect($screen->instance()->viewerZoomed)->toBeTrue();
+    $left = nodeByRef($screen, 'viewer-gestures-0')['props'];
+    $arrived = nodeByRef($screen, 'viewer-gestures-1')['props'];
 
     $screen->changeTab('viewerPaged', 1);
 
-    expect($screen->instance()->viewerZoomed)->toBeFalse()
-        // Fresh zoom for the one left, so it's whole again when the pager comes back to it; the one arrived at keeps its own.
-        ->and(nodeByRef($screen, 'viewer-gestures-0')['props']['pinch-id'])->not->toBe($first)
-        ->and(nodeByRef($screen, 'viewer-gestures-1')['props']['pinch-id'])->toBe($second)
+    $viewing = $screen->instance();
+    $leftNow = nodeByRef($screen, 'viewer-gestures-0')['props'];
+
+    // Fresh zoom and pans for the one left, so it's whole again when the pager comes back to it, bound to its page as
+    // before; the one arrived at keeps its own.
+    expect($leftNow['pinch-id'])->not->toBe($left['pinch-id'])
+        ->and($leftNow['pan-x-id'])->not->toBe($left['pan-x-id'])
+        ->and($leftNow['pan-y-id'])->not->toBe($left['pan-y-id'])
+        ->and($leftNow['pan-x-id'])->toBe($viewing->viewerPansX[0]->id)
+        ->and($leftNow['pan-y-id'])->toBe($viewing->viewerPansY[0]->id)
+        ->and(nodeByRef($screen, 'viewer-gestures-1')['props'])->toMatchArray([
+            'pinch-id' => $arrived['pinch-id'],
+            'pan-x-id' => $arrived['pan-x-id'],
+            'pan-y-id' => $arrived['pan-y-id'],
+        ])
         ->and(nodeByRef($screen, 'viewed-image-0')['props']['scale'])->toBe(1.0);
 });
 
-it('pans a zoomed image instead of paging or closing, until a pinch brings it back to its whole self', function () {
+it('leaves it to the phone whether a drag pans, pages or closes, with every pan bound all the time', function () {
     $screen = logWithImages(2)->tap('image-i1');
-
-    expect(nodeByRef($screen, 'viewer-dismiss')['props'])->toHaveKey('pan-y-id')
-        ->toHaveKey('pan-y-snap');
-
-    $screen->pinch('viewer-gestures-0', 3.0);
 
     $viewing = $screen->instance();
-    $gestures = nodeByRef($screen, 'viewer-gestures-0')['props'];
 
-    expect($gestures['pan-x-id'])->toBe($viewing->viewerPansX[0]->id)
-        ->and($gestures['pan-y-id'])->toBe($viewing->viewerPansY[0]->id)
-        // The page that isn't showing doesn't pan, and the drag to close lets go of the drag.
-        ->and(nodeByRef($screen, 'viewer-gestures-1')['props'])->not->toHaveKey('pan-x-id')
-        ->and(nodeByRef($screen, 'viewer-dismiss')['props'])->not->toHaveKey('pan-y-id')
-        ->not->toHaveKey('on_drag_end');
+    // Every page binds its own pans, not only the showing one, and none waits to hear how a zoom ended.
+    foreach ([0, 1] as $place) {
+        $gestures = nodeByRef($screen, 'viewer-gestures-'.$place)['props'];
 
-    $screen->pinch('viewer-gestures-0', 1.0);
+        expect($gestures['bounded'])->toBeTrue()
+            ->and($gestures['pan-x-id'])->toBe($viewing->viewerPansX[$place]->id)
+            ->and($gestures['pan-y-id'])->toBe($viewing->viewerPansY[$place]->id)
+            ->and($gestures)->not->toHaveKey('on_pinch_end');
+    }
 
-    expect($screen->instance()->viewerZoomed)->toBeFalse()
-        ->and(nodeByRef($screen, 'viewer-gestures-0')['props'])->not->toHaveKey('pan-x-id')
-        ->and(nodeByRef($screen, 'viewer-dismiss')['props'])->toHaveKey('pan-y-id');
-});
-
-it('takes a double tap\'s zoom as it takes a pinch\'s, to twice and back to its whole self', function () {
-    $screen = logWithImages(2)->tap('image-i1');
-
-    // A double tap zooms to half the most an image zooms, and says so through the pinch's end.
-    expect(ImageViewer::DoubleTapZoom)->toBe(ImageViewer::MaxZoom / 2);
-
-    $screen->pinch('viewer-gestures-0', ImageViewer::DoubleTapZoom);
-
-    expect($screen->instance()->viewerZoomed)->toBeTrue()
-        ->and(nodeByRef($screen, 'viewer-gestures-0')['props']['pan-x-id'])->toBe($screen->instance()->viewerPansX[0]->id)
-        ->and(nodeByRef($screen, 'viewer-dismiss')['props'])->not->toHaveKey('pan-y-id');
-
-    $screen->pinch('viewer-gestures-0', 1.0);
-
-    expect($screen->instance()->viewerZoomed)->toBeFalse()
-        ->and(nodeByRef($screen, 'viewer-gestures-0')['props'])->not->toHaveKey('pan-x-id')
-        ->and(nodeByRef($screen, 'viewer-dismiss')['props'])->toHaveKey('pan-y-id');
+    // And the drag to close stays bound around them.
+    expect(nodeByRef($screen, 'viewer-dismiss')['props'])->toHaveKey('pan-y-snap')
+        ->toHaveKey('on_drag_end')
+        ->and(nodeByRef($screen, 'viewer-dismiss')['props']['pan-y-id'])->toBe($viewing->viewerDrag->id);
 });
 
 it('grows out of the image the row was tapped in, and shrinks back into whichever image it has paged to', function () {
