@@ -356,17 +356,15 @@ it('keys each row by what it shows, so a commit put on top leaves the rows under
         ->and(nodeByRef($screen, 'commit-c1')['id'])->toBe($row);
 });
 
-it('sends only what changed on the Log, profiles and organizations, and Notifications and commit pages in full every frame', function () {
+it('sends only what changed on the Log, profiles, organizations and commit pages, and Notifications in full every frame', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
     $sendsInFull = fn (string $screen): bool => (fn (): bool => $this->forceFullFrames)->call(Native::test($screen)->instance());
 
-    foreach ([Log::class, Profile::class, Organization::class] as $screen) {
+    foreach ([Log::class, Profile::class, Organization::class, CommitDetail::class] as $screen) {
         expect($sendsInFull($screen))->toBeFalse();
     }
 
-    foreach ([Notifications::class, CommitDetail::class] as $screen) {
-        expect($sendsInFull($screen))->toBeTrue();
-    }
+    expect($sendsInFull(Notifications::class))->toBeTrue();
 });
 
 it('asks Following and Latest what came in since the newest commit showing, and counts the pill by devnull', function () {

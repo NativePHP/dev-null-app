@@ -225,14 +225,6 @@ class CommitDetail extends NativeComponent
      */
     private ?RowCache $replyRows = null;
 
-    /**
-     * Every frame goes in full. A tap on the reply field mounts the thread's
-     * scroll view again under a new key, and EDGE's subtree reuse sent its
-     * unchanged rows as references to nodes the phone dropped with the old
-     * one, so the thread went blank as you started typing.
-     */
-    protected bool $forceFullFrames = true;
-
     public function mount(): void
     {
         $this->focusReply = $this->data('reply', false) === true;
