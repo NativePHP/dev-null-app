@@ -14,6 +14,8 @@ use Illuminate\Support\Sleep;
     {stage : before or after}
     {--screen= : A short name for the screen, like log or settings, when a PR shows more than one}
     {--platform=* : ios or android (default: whichever is running)}
+    {--ios= : The UDID of the iOS simulator to use (default: the first booted one)}
+    {--android= : The serial of the Android device to use (default: the first emulator)}
     {--branch= : The PR branch the screenshots are for (default: the current branch)}
     {--settle=2 : Seconds to wait after switching appearance before taking a screenshot}')]
 #[Description('Screenshot the running app on the iOS simulator and Android device, in light and dark mode')]
