@@ -1,9 +1,9 @@
 {{--
-    A link devnull can play, such as a YouTube video, as the web's link embed: the poster at the player's shape with a play
-    button over it, then a row naming the provider, and the video's title and channel once they're known (see VideoDetails),
-    which the web doesn't show. A playlist, which devnull sends without a poster, shows YouTube's thumbnail. Playing opens
-    the video in the in-app browser for now (see ShowsCommits::playEmbed). A vertical video is no taller than the tallest
-    image, and one with no poster at all plays from a black box.
+    A link devnull can play, such as a YouTube video, as the web's link embed: the poster at the player's shape with a
+    play button over it, then a row naming the provider, and the video's title and channel once they're known (see
+    VideoDetails), which the web doesn't show. A playlist, which devnull sends without a poster, shows its preview's
+    image or YouTube's thumbnail. Playing opens the video in the in-app browser for now (see ShowsCommits::playEmbed). A
+    vertical video is no taller than the tallest image, and one with no poster at all plays from a black box.
 --}}
 @php($embed = $preview->embed)
 @php($card = \App\Devnull\VideoDetails::card($preview))

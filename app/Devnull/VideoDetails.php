@@ -60,7 +60,8 @@ final class VideoDetails
 
     /**
      * How to draw a video's card: who plays it, its title and channel when
-     * they're known, and its poster, devnull's or else YouTube's thumbnail.
+     * they're known, and its poster: devnull's, else the preview's own image,
+     * else YouTube's thumbnail.
      * The page title devnull scraped is only used when there's more to it
      * than " - YouTube".
      *
@@ -75,7 +76,7 @@ final class VideoDetails
             'provider' => $embed?->provider ?? $preview->site(),
             'title' => $embed?->title ?? $kept['title'] ?? self::scrapedTitle($preview->title),
             'author' => $embed?->author ?? $kept['author'] ?? null,
-            'poster' => $embed?->poster ?? $kept['thumbnail'] ?? null,
+            'poster' => $embed?->poster ?? $preview->imageUrl ?? $kept['thumbnail'] ?? null,
         ];
     }
 

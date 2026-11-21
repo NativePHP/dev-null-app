@@ -140,6 +140,18 @@ it("uses YouTube's thumbnail when devnull has no poster, as for a playlist", fun
         ->and(VideoDetails::card(videoPreview(preview: $playlist))['poster'])->toBe('https://i.ytimg.com/vi/E9Zx6rx0bWk/hqdefault.jpg');
 });
 
+it("prefers the preview's own image to YouTube's thumbnail when devnull has no poster", function () {
+    Http::fake(['www.youtube.com/oembed*' => Http::response(['title' => 'Programming', 'author_name' => 'VIPUL WALIA', 'thumbnail_url' => 'https://i.ytimg.com/vi/jxptIpCYAJA/hqdefault.jpg'])]);
+    $playlist = ['url' => 'https://www.youtube.com/playlist?list=PL_FKmhByIzDYyl8nJGsrzzNczKfLjgmZy', 'image_url' => 'https://i.ytimg.com/vi/jxptIpCYAJA/hqdefault.jpg?sqp=card'];
+    $preview = videoPreview(['src' => 'https://www.youtube-nocookie.com/embed/videoseries?list=PL_FKmhByIzDYyl8nJGsrzzNczKfLjgmZy', 'poster' => null], $playlist);
+
+    expect(VideoDetails::card($preview)['poster'])->toBe('https://i.ytimg.com/vi/jxptIpCYAJA/hqdefault.jpg?sqp=card');
+
+    FetchVideoDetails::save([$playlist['url']]);
+
+    expect(VideoDetails::card($preview)['poster'])->toBe('https://i.ytimg.com/vi/jxptIpCYAJA/hqdefault.jpg?sqp=card');
+});
+
 it('ignores a thumbnail that isn\'t https', function () {
     Http::fake(['www.youtube.com/oembed*' => Http::response(['title' => 'T', 'thumbnail_url' => 'http://i.ytimg.com/vi/x/hqdefault.jpg'])]);
 
