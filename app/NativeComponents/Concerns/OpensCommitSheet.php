@@ -113,10 +113,10 @@ trait OpensCommitSheet
     public string $sheetBody = '';
 
     /**
-     * Where the sheet's field last said its caret is drawn, for the mention list to float under (see ComposerSheet).
-     * Null until it has said, and again once the sheet is gone.
+     * Where the sheet's field last said its caret is drawn at its full height, for the mention list to go under (see
+     * ComposerSheet). Null until it has said, and again once the sheet is gone.
      *
-     * @var array{bottom: float, field_height: float}|null
+     * @var array{bottom: float, line_height: float, field_height: float}|null
      */
     public ?array $sheetCaret = null;
 
@@ -322,7 +322,26 @@ trait OpensCommitSheet
      */
     public function sheetCaretMoved(Caret $caret): void
     {
-        $this->sheetCaret = ComposerSheet::caret($caret);
+        $this->sheetCaret = ComposerSheet::reported($caret, $this->sheetCaret, $this->sheetMentionLayout()['field'] ?? null);
+    }
+
+    /**
+     * Where the sheet's mention list goes and how tall its field is meanwhile (see ComposerSheet::mentionLayout()), or
+     * null while there's no list.
+     *
+     * @return array{field: int|null, top: int, height: int|null}|null
+     */
+    public function sheetMentionLayout(): ?array
+    {
+        if (($this->mention['field'] ?? null) !== 'sheetBody' || ($this->mentionPeople === [] && $this->mentionOrganizations === [])) {
+            return null;
+        }
+
+        return ComposerSheet::mentionLayout(
+            $this->sheetCaret,
+            count($this->mentionPeople) + count($this->mentionOrganizations),
+            ComposerSheet::mentionHeading($this->mention, $this->sheetView),
+        );
     }
 
     public function updatedSheetBody(): void

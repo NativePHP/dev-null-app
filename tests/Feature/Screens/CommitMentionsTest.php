@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 use Native\Mobile\UI\Caret;
+use Tests\Support\LayoutAnimation;
 use Tests\Support\TextFieldFill;
 
 beforeEach(function () {
@@ -185,7 +186,7 @@ it('forgets the suggestions when the sheet closes', function () {
         ->assertSet('mentionPeople', []);
 });
 
-it('floats the suggestions over the quoted commit on glass, from just under the caret line down to the toolbar', function () {
+it('floats the suggestions over the quoted commit on glass, just under the caret line and as tall as their rows', function () {
     TextFieldFill::skipUnlessSupported();
 
     $screen = mentionsComposer(quoting: true)
@@ -198,15 +199,54 @@ it('floats the suggestions over the quoted commit on glass, from just under the 
         ->and($overlay['layout']['position'])->toEqual([
             ComposerSheet::FieldTop + 44 + ComposerSheet::MentionGap,
             12,
-            ComposerSheet::MentionInset,
+            null,
             12,
         ])
+        ->and($overlay['layout']['height'] ?? null)->toEqual(ComposerSheet::mentionHeight(3))
+        // There's room for them under the caret, so the field still fills.
+        ->and(nodeByRef($screen, 'sheet-field-slot')['layout']['flex_grow'] ?? null)->toEqual(1)
         ->and($overlay['props']['glass'])->toBe(1)
         ->and(childRefs($screen, 'sheet-body-area'))->toBe(['sheet-field-slot', 'sheet-below', 'sheet-mentions'])
         ->and(findNode(nodeByRef($screen, 'sheet-below'), fn (array $node): bool => ($node['ref'] ?? null) === 'quote-card'))->not->toBeNull()
         // The list scrolls inside it when there are more than fit.
         ->and(findNode($overlay, fn (array $node): bool => $node['type'] === 'scroll_view' && ($node['ref'] ?? null) === 'sheet-mentions-scroll'))->not->toBeNull()
         ->and(childRefs($screen, 'mention-suggestions'))->toBe(['mention-ada', 'mention-adam', 'mention-adaptive']);
+});
+
+it('shortens the field to end on the caret line when the suggestions would not fit under it, and fills it again once they go', function () {
+    TextFieldFill::skipUnlessSupported();
+
+    $screen = mentionsComposer(quoting: true)->input('sheet-body', "see\n\n\n\n\n\n\n\n@a", 14);
+    $field = idsDownTo($screen->tree(), 'sheet-body');
+
+    // The caret's line ends 20pt above the field's bottom, where three people don't fit.
+    $screen->moveCaretTo('sheet-body', new Caret(x: 20, y: 196, width: 2, height: 24, line: 8, fieldWidth: 350, fieldHeight: 240));
+    $shortened = 240 - ComposerSheet::MentionGap - ComposerSheet::MentionInset - ComposerSheet::mentionHeight(3);
+    $overlay = nodeByRef($screen, 'sheet-mentions');
+
+    expect(nodeByRef($screen, 'sheet-field-slot')['layout']['height'] ?? null)->toEqual(ComposerSheet::FieldTop + $shortened)
+        ->and(nodeByRef($screen, 'sheet-field-slot')['layout']['flex_grow'] ?? 0)->toEqual(0)
+        // Under the shortened field, so off the caret's line, and down to the toolbar over the quoted commit.
+        ->and($overlay['layout']['position'])->toEqual([ComposerSheet::FieldTop + $shortened + ComposerSheet::MentionGap, 12, ComposerSheet::MentionInset, 12])
+        ->and(childRefs($screen, 'sheet-body-area'))->toBe(['sheet-field-slot', 'sheet-below', 'sheet-mentions'])
+        ->and(idsDownTo($screen->tree(), 'sheet-body'))->toBe($field);
+
+    // The shortened field reports its caret at its new height, which doesn't move anything.
+    $screen->moveCaretTo('sheet-body', new Caret(x: 20, y: $shortened - 24, width: 2, height: 24, line: 8, fieldWidth: 350, fieldHeight: $shortened))
+        ->assertSet('sheetCaret', ['bottom' => 220.0, 'line_height' => 24.0, 'field_height' => 240.0]);
+
+    // Picked, the list goes and the field fills again, the same view.
+    $screen->tap('mention-ada');
+    expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-mentions'))->toBeNull()
+        ->and(nodeByRef($screen, 'sheet-field-slot')['layout']['flex_grow'] ?? null)->toEqual(1)
+        ->and(nodeByRef($screen, 'sheet-field-slot')['layout'])->not->toHaveKey('height')
+        ->and(idsDownTo($screen->tree(), 'sheet-body'))->toBe($field);
+});
+
+it('animates the field and the suggestions moving in the sheet', function () {
+    LayoutAnimation::skipUnlessSupported();
+
+    expect(nodeByRef(mentionsComposer(), 'sheet-body-area')['props'])->toHaveKey('animate_layout', true);
 });
 
 it('draws the floating suggestions on a raised surface on Android', function () {

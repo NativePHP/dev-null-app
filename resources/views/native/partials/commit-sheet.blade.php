@@ -26,10 +26,13 @@
     A commit's page opens its reply here too, as "Reply to @handle", with the commit being answered as a static card
     over the field, for the photos and the preview its reply bar has no room for. Commit says Reply there.
 
-    While the caret is after an "@handle", the people to mention float over the field just under the caret's line,
-    which the field reports (@caretChange), as the web's composer lists them (see SuggestsMentions): for a bare "@" in a new commit, the people you follow, under
-    that heading. They cover a quoted commit too, and run down to the toolbar. The field keeps the keyboard up through
-    presses in the sheet (keep-focus), so picking someone leaves you typing after them.
+    While the caret is after an "@handle", the people to mention show as the web's composer lists them (see
+    SuggestsMentions): for a bare "@" in a new commit, the people you follow, under that heading. They float over the
+    field just under the caret's line, which the field reports (@caretChange), as tall as their rows, up to six. When
+    that doesn't fit above the field's bottom, the field gets shorter instead, ending on the caret's line, and the
+    list goes under it, down to the toolbar and over a quoted commit or poll (see ComposerSheet). The field fills
+    again once they're gone, and both moves are animated. The field keeps the keyboard up through presses in the sheet
+    (keep-focus), so picking someone leaves you typing after them.
 
     The sheet doesn't scroll. The field fills the space between the author row and the toolbar, less what's under it:
     the photos as a strip of 80pt squares, the poll editor, the commit being quoted, or "Submit at", each at its own
@@ -105,7 +108,14 @@
                         @include('native.partials.quoted-commit', ['quoted' => $sheetCommit, 'static' => true, 'label' => 'Replying to'])
                     @endif
                 </native:column>
-                <native:column native:key="sheet-body-area" ref="sheet-body-area" class="w-full flex-1">
+                @php($sheetMentionsShown = ! $previewing && ($mention['field'] ?? null) === 'sheetBody' && ($mentionPeople !== [] || $mentionOrganizations !== []))
+                @php($sheetMentions = $sheetMentionsShown ? $sheetLayout::mentionLayout($sheetCaret, count($mentionPeople) + count($mentionOrganizations), $sheetLayout::mentionHeading($mention, $sheetView)) : null)
+                {{--
+                    animate-layout: when the mention list comes or goes (or photos, the poll, the preview), the field
+                    slot's new height and the parts under it slide into place rather than jump. The parts keep their
+                    keys, so they're matched from one frame to the next.
+                --}}
+                <native:column native:key="sheet-body-area" ref="sheet-body-area" class="w-full flex-1" animate-layout>
                     @if ($previewing)
                         <native:scroll-view native:key="sheet-field-slot" ref="sheet-field-slot" class="w-full flex-1">
                             <native:column class="w-full px-5 pt-3 pb-4">
@@ -121,7 +131,8 @@
                             </native:column>
                         </native:scroll-view>
                     @else
-                        <native:column native:key="sheet-field-slot" ref="sheet-field-slot" class="w-full flex-1 px-5 pt-3">
+                        {{-- Shorter while the mention list needs the room under it (see ComposerSheet::mentionLayout()), the slot keeps its key and place, so the field stays the same view. --}}
+                        <native:column native:key="sheet-field-slot" ref="sheet-field-slot" class="w-full {{ ($sheetMentions['field'] ?? null) === null ? 'flex-1' : 'h-['.($sheetLayout::FieldTop + $sheetMentions['field']).']' }} px-5 pt-3">
                             <native:bare-text-input
                                 native:key="sheet-body"
                                 ref="sheet-body"
@@ -162,22 +173,22 @@
                         </native:column>
 
                         {{--
-                            The people to mention float over the field and whatever is under it, out of the layout, so
-                            nothing moves when they come and go. They start just under the line the caret is on, where
-                            the field says it is (see ComposerSheet::mentionTop()), and run down to the toolbar,
-                            scrolling inside when there are more than fit. On Liquid Glass on iOS, like the reply
-                            bar's, and on a raised surface on Android.
+                            The people to mention, out of the layout so nothing moves when they come and go unless the
+                            field has to make room for them: just under the caret's line, as tall as their rows, or
+                            under the shortened field down to the toolbar (see ComposerSheet::mentionLayout()). They
+                            scroll inside past six rows, or when even the shortened field leaves less room. On Liquid
+                            Glass on iOS, like the reply bar's, and on a raised surface on Android.
                         --}}
-                        @if (($mention['field'] ?? null) === 'sheetBody' && ($mentionPeople !== [] || $mentionOrganizations !== []))
+                        @if ($sheetMentions !== null)
                             <native:column
                                 native:key="sheet-mentions"
                                 ref="sheet-mentions"
-                                class="absolute left-[12] right-[12] top-[{{ $sheetLayout::mentionTop($sheetCaret) }}] bottom-[{{ $sheetLayout::MentionInset }}] ios:rounded-[18] ios:glass android:rounded-xl android:bg-theme-surface android:border android:border-theme-hairline android:shadow-md"
+                                class="absolute left-[12] right-[12] top-[{{ $sheetMentions['top'] }}] {{ $sheetMentions['height'] === null ? 'bottom-['.$sheetLayout::MentionInset.']' : 'h-['.$sheetMentions['height'].']' }} ios:rounded-[18] ios:glass android:rounded-xl android:bg-theme-surface android:border android:border-theme-hairline android:shadow-md"
                             >
                                 <native:scroll-view ref="sheet-mentions-scroll" class="w-full flex-1">
                                     @include('native.partials.mention-suggestions', [
                                         'field' => 'sheetBody',
-                                        'heading' => ($mention['query'] ?? null) === '' && $sheetView === 'compose' ? 'People you follow' : null,
+                                        'heading' => $sheetLayout::mentionHeading($mention, $sheetView) ? 'People you follow' : null,
                                         'label' => 'Mention a developer',
                                         'class' => 'w-full py-1',
                                     ])

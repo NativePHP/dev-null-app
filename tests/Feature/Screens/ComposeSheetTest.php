@@ -312,7 +312,7 @@ it('keeps where the field says its caret is until the sheet goes', function () {
 
     $screen = composeSheetOnLog()
         ->moveCaretTo('sheet-body', new Caret(y: 48, height: 24, line: 2, fieldWidth: 350, fieldHeight: 240))
-        ->assertSet('sheetCaret', ['bottom' => 72.0, 'field_height' => 240.0]);
+        ->assertSet('sheetCaret', ['bottom' => 72.0, 'line_height' => 24.0, 'field_height' => 240.0]);
 
     $screen->press('hideCommitSheet')->assertSet('sheetCaret', null);
 });
