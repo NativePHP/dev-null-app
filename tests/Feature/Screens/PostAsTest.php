@@ -10,6 +10,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
+use Tests\Support\MenuSubtitle;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -66,6 +67,18 @@ function composeOnLogAs(?array $answer = null, array $extra = []): TestableCompo
     ]);
 
     return Native::visit('/log', platform: 'ios')->press('composeInSheet');
+}
+
+/**
+ * The Post as menu a pressable opens, as each row's ref, label and subtitle.
+ *
+ * @return list<array{0: string|null, 1: string|null, 2: string|null}>
+ */
+function postAsRows(TestableComponent $screen, string $ref): array
+{
+    $rows = array_filter(nodeByRef($screen, $ref)['children'] ?? [], fn (array $child): bool => ($child['type'] ?? null) === 'top_bar_action');
+
+    return array_values(array_map(fn (array $row): array => [$row['ref'] ?? null, $row['props']['label'] ?? null, $row['props']['subtitle'] ?? null], $rows));
 }
 
 /**
@@ -157,11 +170,7 @@ it('starts the composer as you, and lists you and your organizations under Post 
     expect(nodeByRef($screen, 'sheet-post-as-name')['props']['text'])->toBe('Local Dev')
         ->and(nodeByRef($screen, 'sheet-post-as-handle')['props']['text'])->toBe('@local_dev')
         ->and(nodeByRef($screen, 'sheet-post-as')['props']['a11y_label'])->toBe('Posting as @local_dev. Choose who to post as')
-        ->and(array_map(fn (array $item): array => [$item[0], $item[1]], menuItems($screen, 'sheet-post-as')))->toBe([
-            ['post-as-local_dev', 'Local Dev (@local_dev)'],
-            ['post-as-dev-null-sh', '/dev/null (@dev-null-sh)'],
-            ['post-as-nativephp', 'NativePHP (@nativephp)'],
-        ]);
+        ->and(array_column(menuItems($screen, 'sheet-post-as'), 0))->toBe(['post-as-local_dev', 'post-as-dev-null-sh', 'post-as-nativephp']);
 
     $screen->call('postAsInSheet', 'nativephp');
 
@@ -176,6 +185,27 @@ it('starts the composer as you, and lists you and your organizations under Post 
     $screen->call('postAsInSheet', '');
 
     expect(sheetButtonCircle($screen, 'sheet-commit')['style']['bg_color'])->not->toBe($organizationFill);
+});
+
+it('names each account in the Post as menu, with its handle under the name', function () {
+    MenuSubtitle::skipUnlessSupported();
+    memberOf([memberOrganizationJson(), memberOrganizationJson(['id' => 'o2', 'handle' => 'nativephp', 'name' => 'NativePHP', 'role' => 'member'])]);
+
+    expect(postAsRows(composeOnLogAs(), 'sheet-post-as'))->toBe([
+        ['post-as-local_dev', 'Local Dev', '@local_dev'],
+        ['post-as-dev-null-sh', '/dev/null', '@dev-null-sh'],
+        ['post-as-nativephp', 'NativePHP', '@nativephp'],
+    ]);
+});
+
+it('puts the handle in the label when core has no menu row subtitles', function () {
+    MenuSubtitle::skipIfSupported();
+    memberOf([memberOrganizationJson()]);
+
+    expect(postAsRows(composeOnLogAs(), 'sheet-post-as'))->toBe([
+        ['post-as-local_dev', 'Local Dev (@local_dev)', null],
+        ['post-as-dev-null-sh', '/dev/null (@dev-null-sh)', null],
+    ]);
 });
 
 it('commits as the organization picked, and shows it staged as the organization', function () {
