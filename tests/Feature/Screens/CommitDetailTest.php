@@ -287,7 +287,7 @@ it("hangs the replies under the commit on the web's thread, the rail ending in a
         ->and(findNode($screen->tree(), fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'thread-end-')))->toBeNull();
 });
 
-it('shows the short hash under the focused commit, without the full date', function () {
+it('shows the short hash at the top right of the focused commit, without the full date', function () {
     fakeThread(['created_at' => '2026-10-14T20:13:05Z']);
 
     $screen = Native::visit('/log/commits/c2')
@@ -295,8 +295,13 @@ it('shows the short hash under the focused commit, without the full date', funct
         ->assertDontSee('+0000');
 
     $hash = nodeByRef($screen, 'focused-hash');
+    // The row with the name, the handle and the time, with a spacer pushing the hash to its end.
+    $nameRow = findNode(nodeByRef($screen, 'focused-commit'), fn (array $node): bool => ($node['type'] ?? null) === 'row' && in_array('focused-time', array_map(fn (array $child): ?string => $child['ref'] ?? null, $node['children'] ?? []), true));
+    $children = $nameRow['children'] ?? [];
 
-    expect($hash['text'] ?? $hash['props']['text'] ?? null)->toBe('c2');
+    expect($hash['text'] ?? $hash['props']['text'] ?? null)->toBe('c2')
+        ->and($children[array_key_last($children)]['ref'] ?? null)->toBe('focused-hash')
+        ->and($children[count($children) - 2]['type'] ?? null)->toBe('spacer');
 });
 
 it('says when the commit was made, in your timezone, when its time is tapped, as the web does on hover', function (?string $chosen, string $toast) {

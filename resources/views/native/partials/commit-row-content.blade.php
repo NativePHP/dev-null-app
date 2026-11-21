@@ -11,7 +11,7 @@
     row is fixed here, so they meet it on both platforms.
 
     On a commit page the commit it's about ($focused) is the main thing: a larger name and body in full ink, its time,
-    which tapped says when in your timezone, its hash, and its replies behind a toggle in its action row. The commits around it ($muted) step back:
+    which tapped says when in your timezone, its hash at the top right, and its replies behind a toggle in its action row. The commits around it ($muted) step back:
     smaller and in muted ink, with a smaller avatar and action row. They still open their own pages.
 
     A commit in a thread its author wrote as replies to themselves wears its place in it ($threadPosition, "2/5"), and
@@ -75,6 +75,11 @@
         @unless ($commit->isApproved())
             @include('native.partials.status-chip', ['status' => $commit->status])
         @endunless
+        @if ($focused)
+            {{-- Its short hash, at the top right of the row, as the web has it at the right of the page's header. --}}
+            <native:spacer />
+            <native:text ref="focused-hash" font="mono" class="{{ $metaSize }} text-theme-ink-muted flex-shrink-0">{{ $commit->shortHash }}</native:text>
+        @endif
     </native:row>
 
     @if ($commit->parent?->isDeleted())
@@ -101,10 +106,6 @@
 
     @if ($showsThread && ! $focused)
         @include('native.partials.show-thread')
-    @endif
-
-    @if ($focused)
-        <native:text ref="focused-hash" font="mono" class="mt-1 text-[13px] text-theme-ink-muted">{{ $commit->shortHash }}</native:text>
     @endif
 
     @if ($commit->isStaged())
