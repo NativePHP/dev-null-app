@@ -53,6 +53,7 @@ final class ResponseCache
         '#^remotes/orgs/[^/]+/messages$#',
         '#^scheduled-commits$#',
         '#^guilds$#',
+        '#^guilds/[^/]+$#',
     ];
 
     /**

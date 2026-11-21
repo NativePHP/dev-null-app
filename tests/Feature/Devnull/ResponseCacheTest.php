@@ -449,3 +449,8 @@ it('keeps the guild directory, but not a search of it, so typing a search never 
 
     expect($this->cache->get('guilds', ['q' => 'rust']))->toBeNull();
 });
+
+it('keeps a guild board, first page only', function () {
+    expect(ResponseCache::caches('guilds/rust'))->toBeTrue()
+        ->and(ResponseCache::caches('guilds/rust', ['page' => '2']))->toBeFalse();
+});

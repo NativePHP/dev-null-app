@@ -200,9 +200,10 @@ trait RefreshesInBackground
     /**
      * A screen that has its own way of saying devnull refused it, such as a
      * profile across a block, says so here and returns true. Anything else
-     * prints the error.
+     * prints the error. $path is what was asked for, as a screen may ask
+     * for more than its own page, such as an opened thread's replies.
      */
-    protected function refused(ApiException $exception): bool
+    protected function refused(ApiException $exception, string $path): bool
     {
         return false;
     }
@@ -269,7 +270,7 @@ trait RefreshesInBackground
         if (in_array($status, [403, 404, 410], true)) {
             app(ResponseCache::class)->forget($path, $query);
 
-            if (! $this->refused($exception)) {
+            if (! $this->refused($exception, $path)) {
                 $this->error = $exception->firstError();
             }
 

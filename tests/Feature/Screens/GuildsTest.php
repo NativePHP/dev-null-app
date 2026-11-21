@@ -1,8 +1,8 @@
 <?php
 
 use App\Devnull\Account;
+use App\NativeComponents\Guild;
 use App\NativeComponents\Guilds;
-use App\NativeComponents\Search;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
@@ -12,31 +12,6 @@ beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
     signIn();
 });
-
-/**
- * A guild as the directory lists it.
- *
- * @param  array<string, mixed>  $overrides
- * @return array<string, mixed>
- */
-function guildJson(array $overrides = []): array
-{
-    $handle = $overrides['handle'] ?? 'rust';
-
-    return [
-        'handle' => $handle,
-        'name' => ucfirst($handle),
-        'description' => "All about {$handle}.",
-        'emoji' => '💻',
-        'icon_url' => null,
-        'member_count' => 3,
-        'is_joined' => false,
-        'is_muted' => false,
-        'is_paused' => false,
-        'html_url' => "http://devnull.test/guilds/{$handle}",
-        ...$overrides,
-    ];
-}
 
 /**
  * A page of the directory, paged by number as the web pages it.
@@ -104,25 +79,24 @@ it('lists guilds biggest first with the web wording', function (string $platform
         ->and(nodeByRef($screen, 'guild-search-field')['props']['placeholder'])->toBe('Search guilds');
 })->with(['ios', 'android']);
 
-it('opens the hashtag search for a tapped guild', function () {
+it('opens a tapped guild in the tab it was tapped in', function () {
     serveGuilds(['' => guildsPage([guildJson(['handle' => 'rust'])])]);
 
-    $screen = finishRefreshes(Native::visit('/profile/guilds'));
-    $screen->press("openGuild('rust')")->assertNavigatedTo('/profile/search');
-
-    expect($screen->instance()->getNavigationIntent()->data)->toBe(['query' => '#rust']);
+    finishRefreshes(Native::visit('/log/guilds'))
+        ->tap('guild-rust')
+        ->assertNavigatedTo('/log/guilds/rust');
 });
 
-it('opens the hashtag search on the Guilds tab\'s own stack from the tab', function () {
+it('opens a guild on the Guilds tab\'s own stack from the tab', function () {
     serveGuilds(['' => guildsPage([guildJson(['handle' => 'rust'])])]);
 
     $screen = finishRefreshes(Native::visit('/guilds'));
-    $screen->press("openGuild('rust')")->assertNavigatedTo('/guilds/search');
+    $screen->press("openGuild('rust')")->assertNavigatedTo('/guilds/guilds/rust');
 
-    $search = $screen->follow();
+    $guild = $screen->follow();
 
-    expect($search->instance())->toBeInstanceOf(Search::class);
-    $search->assertTabActive('Guilds');
+    expect($guild->instance())->toBeInstanceOf(Guild::class);
+    $guild->assertTabActive('Guilds');
 });
 
 it('searches with the term and keeps it when loading more', function () {

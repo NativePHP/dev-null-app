@@ -317,6 +317,15 @@ it('opens a dev/null page linked in a commit here rather than in the browser', f
         ->assertNativeNotCalled('Browser.OpenInApp');
 });
 
+it('opens a guild directory linked in a commit on top of the tab it was tapped in', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson(['id' => 'c1', 'body' => 'All guilds: https://dev-null.sh/guilds'])]))]);
+
+    Native::visit('/log')
+        ->press("openLink('c1', 0)")
+        ->assertNavigatedTo('/log/guilds')
+        ->assertNativeNotCalled('Browser.OpenInApp');
+});
+
 it('shows a link preview as a compact row and opens it in the browser', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
         'id' => 'c1',
