@@ -144,6 +144,6 @@ it('asks for the replies of a deleted reply opened in place again', function () 
 
     $screen->call('load');
 
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/d1/replies?limit=5');
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/d1/replies?limit=10');
     $screen->assertSee('Under a deleted reply');
 });

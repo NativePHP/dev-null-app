@@ -58,7 +58,7 @@ it('shows who they are, their counts and their commits', function () {
         ->assertSee("That's @ada's root commit.");
 });
 
-it("shows Reply as just its icon beside a commit's replies, so the row still fits a phone", function () {
+it("labels Reply, with a commit's replies on their own line under the actions", function () {
     fakeApi([
         'GET /api/v1/users/ada' => [profileJson()],
         'GET /api/v1/users/ada/commits' => [pageJson([
@@ -71,8 +71,9 @@ it("shows Reply as just its icon beside a commit's replies, so the row still fit
     $labels = fn (string $ref): array => findNodes(nodeByRef($screen, $ref), fn (array $node): bool => ($node['type'] ?? null) === 'text');
 
     expect(nodeByRef($screen, 'reply-to-c1')['props']['a11y_label'])->toBe('Reply')
-        ->and($labels('reply-to-c1'))->toBe([])
-        ->and($labels('reply-to-c2'))->toHaveCount(1);
+        ->and($labels('reply-to-c1'))->toHaveCount(1)
+        ->and($labels('reply-to-c2'))->toHaveCount(1)
+        ->and(findNode(nodeByRef($screen, 'actions-c1'), fn (array $node): bool => ($node['ref'] ?? null) === 'replies-c1'))->toBeNull();
 });
 
 it('lists what GitHub says about them under the bio, as the web does', function () {

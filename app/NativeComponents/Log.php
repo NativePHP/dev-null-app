@@ -412,7 +412,7 @@ class Log extends NativeComponent
     private function openAfresh(): void
     {
         $this->commits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->latestCommits = [];
         $this->suggestions = [];
         $this->rankedSince = null;
@@ -983,7 +983,7 @@ class Log extends NativeComponent
         $this->commits = $page->items;
         $this->nextCursor = $page->nextCursor;
         $this->latestCommits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->rankedSince = is_string($json['newest_commit_id'] ?? null) ? $json['newest_commit_id'] : null;
         $this->forgetNewCommits();
         $this->keepStagedOnTop();

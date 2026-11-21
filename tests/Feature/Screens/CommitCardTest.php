@@ -134,10 +134,12 @@ it('gives every action under a commit a target big enough to tap, without growin
         expect($target($ref))->toMatchArray(['min_width' => 44.0, 'height' => 36.0]);
     }
 
+    // The row takes its full 36pt, with no negative margins above or below, which Android draws as an offset and keeps
+    // the space of. The padding under it takes back the 6pt its buttons reach past their icons.
     expect($target('reply-to-c1')['height'])->toBe(36.0)
         ->and($target('replies-c1')['height'])->toBe(36.0)
-        // 6pt more above and below than the 24pt the row used to be, so it's pulled in by that much.
-        ->and(array_slice(nodeByRef($screen, 'actions-c1')['layout']['margin'], 0, 3))->toBe([-6.0, 0.0, -6.0]);
+        ->and(nodeByRef($screen, 'actions-c1')['layout']['height'])->toBe(36.0)
+        ->and(array_slice(nodeByRef($screen, 'actions-c1')['layout']['margin'] ?? [0.0, 0.0, 0.0], 0, 3))->toBe([0.0, 0.0, 0.0]);
 });
 
 it('builds a row from as few views as it can, as a list builds and measures each of them while it scrolls', function () {
@@ -151,7 +153,8 @@ it('builds a row from as few views as it can, as a list builds and measures each
         ->and($content['layout']['margin'])->toBe([0.0, 0.0, 0.0, 64.0])
         ->and($content['props']['border_b'])->toBe(1.0)
         ->and(array_column(nodeByRef($screen, 'star-c1')['children'], 'type'))->toBe(['icon', 'text'])
-        ->and(count(findNodes($row, fn (): bool => true)))->toBeLessThanOrEqual(35);
+        // Quote's label, and the end of the rail drawn in the action row, came to two more.
+        ->and(count(findNodes($row, fn (): bool => true)))->toBeLessThanOrEqual(37);
 });
 
 it("draws a poll you haven't voted on as plain options, with nothing to tap, since the app can't vote yet", function () {
