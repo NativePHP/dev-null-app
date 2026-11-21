@@ -1,9 +1,13 @@
 <?php
 
+use App\Devnull\ComposerSheet;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
+use Native\Mobile\UI\Caret;
+use Tests\Support\LayoutAnimation;
+use Tests\Support\TextFieldFill;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -70,11 +74,11 @@ function mentionsCommitPage(?array $mentions = null): TestableComponent
  * The Log, with Ada's c1 in it and devnull's mention search answering, and the composer sheet open: for a new commit,
  * or for a quote of c1.
  */
-function mentionsComposer(bool $quoting = false): TestableComponent
+function mentionsComposer(bool $quoting = false, ?array $mentions = null): TestableComponent
 {
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'Required reading.', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace'])])])],
-        'GET /api/v1/search/mentions' => mentionsFound(),
+        'GET /api/v1/search/mentions' => $mentions ?? mentionsFound(),
     ]);
 
     $screen = Native::visit('/log', platform: 'ios');
@@ -180,4 +184,96 @@ it('forgets the suggestions when the sheet closes', function () {
         ->press('hideCommitSheet')
         ->assertSet('mention', null)
         ->assertSet('mentionPeople', []);
+});
+
+it('floats the suggestions over the quoted commit on glass, just under the caret line and as tall as their rows', function () {
+    TextFieldFill::skipUnlessSupported();
+
+    $screen = mentionsComposer(quoting: true)
+        ->input('sheet-body', "see\n@a", 6)
+        ->moveCaretTo('sheet-body', new Caret(x: 20, y: 22, width: 2, height: 22, line: 1, fieldWidth: 350, fieldHeight: 240));
+    $overlay = nodeByRef($screen, 'sheet-mentions');
+
+    // Out of the layout, over the field and the card under it, so neither moves.
+    expect($overlay['layout']['position_type'])->toBe(1)
+        ->and($overlay['layout']['position'])->toEqual([
+            ComposerSheet::FieldTop + 44 + ComposerSheet::MentionGap,
+            12,
+            null,
+            12,
+        ])
+        ->and($overlay['layout']['height'] ?? null)->toEqual(ComposerSheet::mentionHeight(3))
+        // There's room for them under the caret, so the field still fills.
+        ->and(nodeByRef($screen, 'sheet-field-slot')['layout']['flex_grow'] ?? null)->toEqual(1)
+        ->and($overlay['props']['glass'])->toBe(1)
+        ->and(childRefs($screen, 'sheet-body-area'))->toBe(['sheet-field-slot', 'sheet-below', 'sheet-mentions'])
+        ->and(findNode(nodeByRef($screen, 'sheet-below'), fn (array $node): bool => ($node['ref'] ?? null) === 'quote-card'))->not->toBeNull()
+        // The list scrolls inside it when there are more than fit.
+        ->and(findNode($overlay, fn (array $node): bool => $node['type'] === 'scroll_view' && ($node['ref'] ?? null) === 'sheet-mentions-scroll'))->not->toBeNull()
+        ->and(childRefs($screen, 'mention-suggestions'))->toBe(['mention-ada', 'mention-adam', 'mention-adaptive']);
+});
+
+it('scrolls a long list of suggestions in the sheet with one scroll view, its own', function () {
+    TextFieldFill::skipUnlessSupported();
+
+    $people = array_map(fn (int $n): array => userJson(['id' => "u{$n}", 'handle' => "ada{$n}", 'name' => "Ada {$n}"]), range(1, 9));
+    $screen = mentionsComposer(mentions: [['data' => $people]])
+        ->input('sheet-body', "see\n\n\n\n\n\n@a", 12)
+        ->moveCaretTo('sheet-body', new Caret(x: 20, y: 132, width: 2, height: 22, line: 6, fieldWidth: 350, fieldHeight: 240));
+    $overlay = nodeByRef($screen, 'sheet-mentions');
+
+    // Nine rows is past the six the mention list scrolls by itself, but the sheet scrolls it already, so there is no
+    // second scroll view inside (two scroll bars on a short phone).
+    expect(findNodes($overlay, fn (array $node): bool => $node['type'] === 'scroll_view'))->toHaveCount(1)
+        ->and(nodeByRef($screen, 'sheet-mentions-scroll')['type'])->toBe('scroll_view')
+        ->and(rendersRef($screen, 'mention-scroll'))->toBeFalse()
+        ->and(childRefs($screen, 'mention-suggestions'))->toBe(array_map(fn (int $n): string => "mention-ada{$n}", range(1, 9)));
+});
+
+it('shortens the field to end on the caret line when the suggestions would not fit under it, and fills it again once they go', function () {
+    TextFieldFill::skipUnlessSupported();
+
+    $screen = mentionsComposer(quoting: true)->input('sheet-body', "see\n\n\n\n\n\n\n\n@a", 14);
+    $field = idsDownTo($screen->tree(), 'sheet-body');
+
+    // The caret's line ends 20pt above the field's bottom, where three people don't fit.
+    $screen->moveCaretTo('sheet-body', new Caret(x: 20, y: 196, width: 2, height: 24, line: 8, fieldWidth: 350, fieldHeight: 240));
+    $shortened = 240 - ComposerSheet::MentionGap - ComposerSheet::MentionInset - ComposerSheet::mentionHeight(3);
+    $overlay = nodeByRef($screen, 'sheet-mentions');
+
+    expect(nodeByRef($screen, 'sheet-field-slot')['layout']['height'] ?? null)->toEqual(ComposerSheet::FieldTop + $shortened)
+        ->and(nodeByRef($screen, 'sheet-field-slot')['layout']['flex_grow'] ?? 0)->toEqual(0)
+        // Under the shortened field, so off the caret's line, and down to the toolbar over the quoted commit.
+        ->and($overlay['layout']['position'])->toEqual([ComposerSheet::FieldTop + $shortened + ComposerSheet::MentionGap, 12, ComposerSheet::MentionInset, 12])
+        ->and(childRefs($screen, 'sheet-body-area'))->toBe(['sheet-field-slot', 'sheet-below', 'sheet-mentions'])
+        ->and(idsDownTo($screen->tree(), 'sheet-body'))->toBe($field);
+
+    // The shortened field reports its caret at its new height, which doesn't move anything.
+    $screen->moveCaretTo('sheet-body', new Caret(x: 20, y: $shortened - 24, width: 2, height: 24, line: 8, fieldWidth: 350, fieldHeight: $shortened))
+        ->assertSet('sheetCaret', ['bottom' => 220.0, 'line_height' => 24.0, 'field_height' => 240.0]);
+
+    // Picked, the list goes and the field fills again, the same view.
+    $screen->tap('mention-ada');
+    expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-mentions'))->toBeNull()
+        ->and(nodeByRef($screen, 'sheet-field-slot')['layout']['flex_grow'] ?? null)->toEqual(1)
+        ->and(nodeByRef($screen, 'sheet-field-slot')['layout'])->not->toHaveKey('height')
+        ->and(idsDownTo($screen->tree(), 'sheet-body'))->toBe($field);
+});
+
+it('animates the field and the suggestions moving in the sheet', function () {
+    LayoutAnimation::skipUnlessSupported();
+
+    expect(nodeByRef(mentionsComposer(), 'sheet-body-area')['props'])->toHaveKey('animate_layout', true);
+});
+
+it('draws the floating suggestions on a raised surface on Android', function () {
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([])],
+        'GET /api/v1/search/mentions' => mentionsFound(),
+    ]);
+
+    $overlay = nodeByRef(Native::visit('/log', platform: 'android')->press('composeInSheet')->input('sheet-body', 'hi @a', 5), 'sheet-mentions');
+
+    expect($overlay['props'])->not->toHaveKey('glass')
+        ->and(strtolower($overlay['style']['bg_color']))->toBe(strtolower(config('native-ui.theme.light.surface')));
 });

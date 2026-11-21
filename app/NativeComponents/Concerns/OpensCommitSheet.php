@@ -3,6 +3,7 @@
 namespace App\NativeComponents\Concerns;
 
 use App\Devnull\Client;
+use App\Devnull\ComposerSheet;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Draft;
 use App\Devnull\Data\PollDraft;
@@ -20,6 +21,7 @@ use App\Models\PendingWrite;
 use Carbon\CarbonImmutable;
 use Closure;
 use Native\Mobile\Facades\System;
+use Native\Mobile\UI\Caret;
 
 /**
  * The sheet under a commit (see partials/commit-sheet). Report commit, in the
@@ -109,6 +111,14 @@ trait OpensCommitSheet
      * The commit you're writing in the sheet, quoting its commit or not.
      */
     public string $sheetBody = '';
+
+    /**
+     * Where the sheet's field last said its caret is drawn at its full height, for the mention list to go under (see
+     * ComposerSheet). Null until it has said, and again once the sheet is gone.
+     *
+     * @var array{bottom: float, line_height: float, field_height: float}|null
+     */
+    public ?array $sheetCaret = null;
 
     /**
      * The handle of the organization the sheet posts as, or null for you (see PostAs).
@@ -307,6 +317,33 @@ trait OpensCommitSheet
     /**
      * Stashes the draft as it changes (see stashSheetDraft()).
      */
+    /**
+     * The sheet's field drew its caret somewhere else: it moved, the text wrapped differently, or the field scrolled.
+     */
+    public function sheetCaretMoved(Caret $caret): void
+    {
+        $this->sheetCaret = ComposerSheet::reported($caret, $this->sheetCaret, $this->sheetMentionLayout()['field'] ?? null);
+    }
+
+    /**
+     * Where the sheet's mention list goes and how tall its field is meanwhile (see ComposerSheet::mentionLayout()), or
+     * null while there's no list.
+     *
+     * @return array{field: int|null, top: int, height: int|null}|null
+     */
+    public function sheetMentionLayout(): ?array
+    {
+        if (($this->mention['field'] ?? null) !== 'sheetBody' || ($this->mentionPeople === [] && $this->mentionOrganizations === [])) {
+            return null;
+        }
+
+        return ComposerSheet::mentionLayout(
+            $this->sheetCaret,
+            count($this->mentionPeople) + count($this->mentionOrganizations),
+            ComposerSheet::mentionHeading($this->mention, $this->sheetView),
+        );
+    }
+
     public function updatedSheetBody(): void
     {
         $this->typeIssueCommand();
@@ -493,6 +530,7 @@ trait OpensCommitSheet
     {
         $this->sheetClosing = $this->sheetClosing || ($this->sheetOpen && System::isIos());
         $this->sheetOpen = false;
+        $this->sheetCaret = null;
         $this->forgetMention('sheetBody');
     }
 
@@ -606,6 +644,7 @@ trait OpensCommitSheet
         $this->reportReason = '';
         $this->reportDetails = '';
         $this->sheetBody = '';
+        $this->sheetCaret = null;
         $this->sheetAuthor = null;
         $this->sheetRestored = false;
         $this->sheetError = null;
