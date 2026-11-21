@@ -16,6 +16,7 @@ use App\NativeComponents\NataNullers;
 use App\NativeComponents\NewOrg;
 use App\NativeComponents\NewRemote;
 use App\NativeComponents\Notifications;
+use App\NativeComponents\NotificationSettings;
 use App\NativeComponents\Onboarding;
 use App\NativeComponents\Organization;
 use App\NativeComponents\OrgMembers;
@@ -47,6 +48,7 @@ if (Game::available()) {
 Route::nativeGroup(TabsLayout::class, function (): void {
     Route::native('/log', Log::class);
     Route::native('/notifications', Notifications::class);
+    Route::native('/notifications/settings', NotificationSettings::class);
     Route::native('/remotes', Remotes::class);
     Route::native('/remotes/new', NewRemote::class);
     Route::native('/remotes/new-org', NewOrg::class);

@@ -39,12 +39,12 @@ it('opens the Log on the tab you last had open, after switching away from it at 
     Http::assertNotSent(fn (Request $request): bool => str_starts_with($request->url(), 'http://devnull.test/api/v1/log/following'));
 });
 
-it('opens Notifications on the filter you last had open', function () {
-    Http::fake(['devnull.test/*' => Http::response(['data' => [], 'next_cursor' => null, 'read_at' => null, 'filters' => ['type' => 'all']])]);
+it('opens Notifications on the kinds you chose last time', function () {
+    Http::fake(['devnull.test/*' => Http::response(['data' => [], 'next_cursor' => null, 'read_at' => null, 'filters' => ['type' => 'mentions']])]);
 
-    tapFilter(Native::visit('/notifications'), 'mentions')->assertSet('type', 'mentions');
+    Native::visit('/notifications/settings')->toggle('kind-replies-switch', false);
 
-    Native::visit('/notifications')->assertSet('type', 'mentions');
+    Native::visit('/notifications')->assertSet('kinds', ['quotes', 'stars', 'mentions', 'follows', 'moderation']);
 });
 
 it("opens your own profile on the tab you last had open, but someone else's on their commits", function () {
