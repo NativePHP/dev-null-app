@@ -20,6 +20,7 @@ use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsCommits;
+use App\NativeComponents\Concerns\SlotsInNewCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Closure;
 use Illuminate\View\View;
@@ -49,6 +50,7 @@ class Organization extends NativeComponent
     use OpensLiveStream;
     use RefreshesInBackground;
     use ShowsCommits;
+    use SlotsInNewCommits;
     use TalksToDevnull;
 
     /**
@@ -113,6 +115,7 @@ class Organization extends NativeComponent
      */
     public function onResume(): void
     {
+        $this->mayBeScrolled = true;
         $this->forgetRefreshes();
         $this->showKept();
         $this->revalidate();
@@ -128,6 +131,7 @@ class Organization extends NativeComponent
      */
     public function load(): void
     {
+        $this->mayBeScrolled = false;
         $this->refreshOrganization(showNewer: true);
     }
 
@@ -149,12 +153,15 @@ class Organization extends NativeComponent
     public function backToTop(int $index): void
     {
         if ((self::Tabs[$index] ?? null) === $this->tab) {
+            $this->backAtTheTop();
             $this->listKey++;
         }
     }
 
     public function loadMore(): void
     {
+        $this->mayBeScrolled = true;
+
         if ($this->nextCursor === null) {
             return;
         }
@@ -260,7 +267,6 @@ class Organization extends NativeComponent
         return view('native.organization', [
             'handle' => $this->handle(),
             'myColour' => $this->myColour(),
-            'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),
             'stashed' => app(Stash::class)->names($this->me()?->id),
             'pages' => $pages,
@@ -326,6 +332,7 @@ class Organization extends NativeComponent
         $this->commitsLoaded = false;
         $this->commitsFailed = false;
         $this->forgetNewCommits();
+        $this->mayBeScrolled = false;
 
         if (($kept = $this->cached($this->commitsPath())) !== null) {
             $this->takeCommits($tab, $kept);
@@ -397,7 +404,7 @@ class Organization extends NativeComponent
             return;
         }
 
-        $this->layFreshCommits($json, $showNewer || ! $this->commitsLoaded);
+        $this->layFreshCommits($json, $this->newCommitsGoIn($showNewer) || ! $this->commitsLoaded);
         $this->commitsLoaded = true;
         $this->commitsFailed = false;
     }

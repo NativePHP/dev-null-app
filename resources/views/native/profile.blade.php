@@ -19,8 +19,9 @@
             so it scrolls up with it until the tabs pin under the nav bar. It stays where it is while you swipe, and the
             pages keep level with it.
 
-            The pill hangs under the tabs wherever they are. Keyed so the banners above coming and going don't make it
-            a new pager, with new lists.
+            There's no new commits pill here: new commits go in on top while you're at the top, and otherwise wait for
+            a pull to refresh (see SlotsInNewCommits). Keyed so the banners above coming and going don't make it a new
+            pager, with new lists.
         --}}
         <native:pager
             native:key="profile-pager"
@@ -47,10 +48,6 @@
             @foreach ($pages as $page)
                 @include('native.partials.profile-page', ['page' => $page])
             @endforeach
-
-            <native:pager-overlay>
-                @include('native.partials.new-commits-pill', ['label' => $newCommitsLabel, 'press' => 'showNewCommits', 'shown' => $newCommits !== []])
-            </native:pager-overlay>
         </native:pager>
     @else
         <native:list native:key="profile-{{ $listKey }}" class="w-full flex-1 bg-theme-surface" on-refresh="load">

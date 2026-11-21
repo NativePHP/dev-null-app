@@ -396,3 +396,19 @@ it('floats the pill over the commits, hung under the tabs in the pager, there be
         ->and(findNode($overlay(), fn (array $node): bool => ($node['ref'] ?? null) === 'new-commits'))->not->toBeNull()
         ->and($firstInTheList())->toBe('commit-c1');
 });
+
+it('still holds new commits in the pill when you come back to it, unlike a profile', function () {
+    holdRefreshes();
+    fakeFreshLog([commitJson(['id' => 'c1', 'body' => 'Seen before'])]);
+
+    $screen = finishRefreshes(Native::visit('/log'));
+
+    fakeFreshLog([commitJson(['id' => 'c2', 'body' => 'Just in', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]), commitJson(['id' => 'c1', 'body' => 'Seen before'])]);
+
+    finishRefreshes($screen->call('onResume'))
+        ->assertSee('1 new commit')
+        ->assertDontSee('Just in')
+        ->assertElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'new-commits');
+
+    expect(shownCommitIds($screen))->toBe(['c1']);
+});

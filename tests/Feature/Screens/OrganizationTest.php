@@ -235,3 +235,29 @@ it('opens only the GitHub handles its bio mentions', function () {
     $screen->call('openGitHubMention', 'taylorotwell')
         ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://github.com/taylorotwell');
 });
+
+it('never shows a new commits pill: new commits go on top when it opens, and wait when you come back to it', function () {
+    holdRefreshes();
+    keep('organizations/laravel', organizationJson());
+    keep('organizations/laravel/commits', pageJson([organizationCommitJson(['id' => 'c1', 'body' => 'Older'])]));
+    $serve = fn (array $commits) => serveApi([
+        'GET /api/v1/organizations/laravel' => [organizationJson()],
+        'GET /api/v1/organizations/laravel/commits' => [pageJson($commits)],
+    ]);
+    $pill = fn (TestableComponent $screen): bool => findNode($screen->tree(), fn (array $node): bool => in_array($node['ref'] ?? null, ['new-commits', 'new-commits-slot'], true)) !== null;
+    $ids = fn (TestableComponent $screen): array => array_map(fn ($commit): string => $commit->id, $screen->instance()->commits);
+
+    $serve([organizationCommitJson(['id' => 'c2', 'body' => 'Laravel 13 is out']), organizationCommitJson(['id' => 'c1', 'body' => 'Older'])]);
+    $screen = finishRefreshes(Native::visit('/log/organizations/laravel'))->assertSee('Laravel 13 is out')->assertDontSee('1 new commit');
+
+    expect($ids($screen))->toBe(['c2', 'c1'])->and($pill($screen))->toBeFalse();
+
+    $serve([organizationCommitJson(['id' => 'c3', 'body' => 'Cloud is live']), organizationCommitJson(['id' => 'c2', 'body' => 'Laravel 13 is out']), organizationCommitJson(['id' => 'c1', 'body' => 'Older'])]);
+    finishRefreshes($screen->call('onResume'))->assertDontSee('Cloud is live')->assertDontSee('1 new commit');
+
+    expect($ids($screen))->toBe(['c2', 'c1'])->and($pill($screen))->toBeFalse();
+
+    finishRefreshes($screen->call('load'))->assertSee('Cloud is live');
+
+    expect($ids($screen))->toBe(['c3', 'c2', 'c1']);
+});
