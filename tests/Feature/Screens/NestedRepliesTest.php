@@ -3,6 +3,7 @@
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
+use Tests\Support\LayoutAnimation;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -128,4 +129,44 @@ it('opens at the top with no scroll asked for until the page moves', function ()
     $screen = Native::visit('/log/commits/c2', ['replies' => true]);
 
     expect(nodeByRef($screen, 'thread-scroll')['props'] ?? [])->not->toHaveKey('auto_scroll_to');
+});
+
+it('keeps the commit row and the scroll view the same nodes when the page moves', function () {
+    fakeDeepThread();
+
+    $screen = Native::visit('/log/commits/c2', ['replies' => true]);
+    $screen->tap('replies-r1');
+    $screen->tap('thread-reply-r2');
+    $scroller = nodeByRef($screen, 'thread-scroll')['id'];
+    $ancestor = nodeByRef($screen, 'commit-c2')['id'];
+
+    // The commit the page moves to keeps the node it had above the focus, so its row slides into place. The scroll
+    // view keeps its node too: a new one would make every row in it new.
+    $screen->tap('commit-c2')->assertSet('id', 'c2');
+
+    expect(nodeByRef($screen, 'focused-commit')['id'])->toBe($ancestor)
+        ->and(nodeByRef($screen, 'thread-scroll')['id'])->toBe($scroller);
+});
+
+it('animates the move and asks again for a row it went to before', function () {
+    LayoutAnimation::skipUnlessSupported();
+    fakeDeepThread();
+
+    $screen = Native::visit('/log/commits/c2', ['replies' => true]);
+    $props = fn (): array => nodeByRef($screen, 'thread-scroll')['props'];
+
+    expect($props())->toHaveKey('animate_layout', true)
+        ->and($props())->toHaveKey('auto_scroll_animated', true)
+        ->and($props())->toHaveKey('auto_scroll_token', '0');
+
+    $screen->tap('replies-r1');
+    $screen->tap('thread-reply-r1')->assertSet('scrollTarget', 1);
+    $screen->tap('commit-c2')->assertSet('scrollTarget', 0);
+    $first = $props()['auto_scroll_token'];
+    $screen->tap('thread-reply-r1');
+    $screen->tap('commit-c2')->assertSet('scrollTarget', 0);
+
+    // The same row as two moves ago, under a new token, so the scroll view goes back to it.
+    expect($props()['auto_scroll_to'])->toBe(0)
+        ->and($props()['auto_scroll_token'])->not->toBe($first);
 });

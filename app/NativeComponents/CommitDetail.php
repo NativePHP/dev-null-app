@@ -253,6 +253,12 @@ class CommitDetail extends NativeComponent
     public ?int $scrollTarget = null;
 
     /**
+     * Counts the moves refocus() made. The scroll view takes it as its auto-scroll-token, so asking for the same row
+     * as last time (going back to the top twice) scrolls again rather than doing nothing.
+     */
+    public int $scrollRequest = 0;
+
+    /**
      * The commit the page opened on, before tapping others in its tree moved it (see refocus()).
      */
     public string $openedId = '';
@@ -473,15 +479,10 @@ class CommitDetail extends NativeComponent
         $this->takeReplyDraft();
         $this->error = null;
 
-        // The commit's row is the one after its ancestors. A request the scroll view already went to does nothing,
-        // so going back to the top a second time mounts it again, at the top.
-        $target = count($this->ancestors);
-
-        if ($target === $this->scrollTarget) {
-            $this->scrollKey++;
-        }
-
-        $this->scrollTarget = $target;
+        // The commit's row is the one after its ancestors. A new token asks again even when that's the row the
+        // scroll view went to last time. The scroll view keeps its key, so its rows slide to their new places.
+        $this->scrollTarget = count($this->ancestors);
+        $this->scrollRequest++;
         $this->forgetRefreshes();
         $this->revalidate();
         $this->followThread();

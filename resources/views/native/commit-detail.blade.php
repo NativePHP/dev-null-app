@@ -9,10 +9,14 @@
     <native:stack ref="thread-stack" class="w-full flex-1">
     {{--
         Each row is a child of the scroll view itself, so it can bring one into view: the commit the page is on, after
-        tapping another commit in the tree moves the page to it (see CommitDetail::refocus() and $scrollTarget). The
-        first move jumps and later ones animate, as auto-scroll-to does on both platforms.
+        tapping another commit in the tree moves the page to it (see CommitDetail::refocus() and $scrollTarget). Every
+        move animates (auto-scroll-animated), and $scrollRequest as the token makes asking for the same row again scroll
+        again. With animate-layout the rows the page keeps slide to their new places, and the ones it adds or drops
+        fade. That needs the scroll view's key, and each row's, to stay the same across the move: the focused commit
+        is keyed commit-<id>, as the commits above it are. These need NativePHP/mobile-air#736 and
+        NativePHP/mobile-ui#225; without them the move jumps and a repeat of the same row doesn't scroll.
     --}}
-    <native:scroll-view native:key="thread-{{ $scrollKey }}" ref="thread-scroll" class="w-full h-full bg-theme-surface" :auto-scroll-to="$scrollTarget">
+    <native:scroll-view native:key="thread-{{ $scrollKey }}" ref="thread-scroll" class="w-full h-full bg-theme-surface" :auto-scroll-to="$scrollTarget" :auto-scroll-token="$scrollRequest" auto-scroll-animated animate-layout>
             @if (! $commit && $error === null)
                 <native:column ref="loading-commit" class="w-full items-center py-16" a11y-label="Loading commit">
                     <native:activity-indicator />
