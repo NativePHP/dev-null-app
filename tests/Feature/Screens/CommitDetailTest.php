@@ -7,7 +7,6 @@ use App\Devnull\Stash;
 use App\Models\PendingWrite;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
-use Native\Mobile\Edge\Elements\BottomBar;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
 
@@ -869,6 +868,10 @@ it('lets a drag that starts on an ancestor or a reply scroll the thread', functi
 it('puts the reply bar on glass on iOS and the surface on Android, with no line, and fades the page out above it', function (string $platform) {
     fakeThread();
 
+    if ($platform === 'ios') {
+        skipWithoutGlassOpacity();
+    }
+
     $screen = Native::visit('/log/commits/c2', platform: $platform);
     $bottomBar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
     $bar = $bottomBar['children'][0];
@@ -913,20 +916,15 @@ it('keeps the reply field closer to the fade than to the row of tools under it',
         ->and(nodeByRef($screen, 'reply-field-row')['layout']['padding'])->toEqual([4, 12, 8, 16]);
 })->with(['ios', 'android']);
 
-it('asks mobile-air for a lighter glass under the reply bar on iOS only', function (string $platform, ?float $opacity) {
+it('fades the glass under the reply bar to 80% on iOS only', function (string $platform) {
+    skipWithoutGlassOpacity();
     fakeThread();
 
     $screen = Native::visit('/log/commits/c2', platform: $platform);
     $bottomBar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
 
-    expect($bottomBar['props']['glass_opacity'] ?? null)->toBe($opacity);
-})->with([
-    'ios' => ['ios', Display::ReplyBarGlassOpacity],
-    'android' => ['android', null],
-])->skip(
-    ! method_exists(BottomBar::class, 'glassOpacity'),
-    'Needs a mobile-air with glass-opacity on native:bottom-bar (NativePHP/mobile-air#735)',
-);
+    expect($bottomBar['props']['glass_opacity'] ?? null)->toBe($platform === 'ios' ? Display::ComposerGlassOpacity / 100 : null);
+})->with(['ios', 'android']);
 
 it('ends the page above the reply bar, and further as the draft grows', function () {
     fakeThread(replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'The last reply'])]);

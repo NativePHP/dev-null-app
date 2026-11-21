@@ -15,6 +15,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\AsyncTask;
+use Native\Mobile\Edge\TailwindParser;
 use Native\Mobile\Events\Async\AsyncTaskFailed;
 use Native\Mobile\Events\Async\AsyncTaskFinished;
 use Native\Mobile\Events\Gallery\MediaSelected;
@@ -1122,5 +1123,16 @@ function skipWithoutSkia(): void
 {
     if (! class_exists(SkiaServiceProvider::class)) {
         test()->markTestSkipped('needs the Skia plugin installed');
+    }
+}
+
+/**
+ * Skips the test unless the installed mobile-air reads an opacity suffix on the glass class (glass/80, from
+ * NativePHP/mobile-air#735). Without it the composer bars' glass/N isn't parsed at all.
+ */
+function skipWithoutGlassOpacity(): void
+{
+    if (! array_key_exists('glassOpacity', TailwindParser::parse('glass/80'))) {
+        test()->markTestSkipped('Needs a mobile-air that reads glass/N (NativePHP/mobile-air#735)');
     }
 }

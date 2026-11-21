@@ -285,7 +285,22 @@ it('draws one box with the field over the + and a round Push, on both platforms'
         ->and(nodeByRef($screen, 'push')['props']['a11y_label'] ?? nodeByRef($screen, 'push')['a11y_label'] ?? null)->toBe('Push');
 })->with(['ios', 'android']);
 
+it('keeps the field closer to the fade than to the + and Push under it', function (string $platform) {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda($platform);
+
+    // [top, right, bottom, left]. As on a commit's reply bar: no top padding on the row, so the field starts 4pt
+    // under the fade, and 8pt between the field and the row under it.
+    expect(nodeByRef($screen, 'message-row')['layout']['padding'])->toEqual([0, 16, 8, 16])
+        ->and(nodeByRef($screen, 'message-field-row')['layout']['padding'])->toEqual([4, 12, 8, 16]);
+})->with(['ios', 'android']);
+
 it('puts the bar on glass on iOS and the surface on Android, with no box or line, and fades the thread out above it', function (string $platform) {
+    if ($platform === 'ios') {
+        skipWithoutGlassOpacity();
+    }
+
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
     $screen = threadWithAda($platform);
@@ -306,6 +321,7 @@ it('puts the bar on glass on iOS and the surface on Android, with no box or line
         // top, ending at the glass's tint, and its rows carry the tint, in either appearance. The bar itself has no
         // background, which iOS would paint behind the fade.
         expect($bottomBar['props']['glass'] ?? null)->toBe(1)
+            ->and($bottomBar['props']['glass_opacity'] ?? null)->toBe(Display::ComposerGlassOpacity / 100)
             ->and(childRefs($screen, 'composer-bar'))->toBe(['composer-fade', 'composer-rows'])
             ->and($bar['style']['bg_color'] ?? null)->toBeNull()
             ->and(nodeByRef($screen, 'composer-rows')['style']['bg_color'] ?? null)->toBe('#66'.$surface)
@@ -315,6 +331,7 @@ it('puts the bar on glass on iOS and the surface on Android, with no box or line
     } else {
         // No glass on Android. The thread stops at the bar, so the fade lies over its foot, and the bar is the surface.
         expect($bottomBar['props']['glass'] ?? null)->toBeNull()
+            ->and($bottomBar['props']['glass_opacity'] ?? null)->toBeNull()
             ->and(childRefs($screen, 'composer-bar'))->toBe(['composer-rows'])
             ->and($bar['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
             ->and(nodeByRef($screen, 'composer-rows')['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))

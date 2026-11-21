@@ -45,10 +45,10 @@ final class Display
     public const int ComposerGlassTint = 40;
 
     /**
-     * How opaque the glass under the reply bar gets on iOS once it has faded in, from 0 to 1 (see
-     * replyBarGlassOpacity()). mobile-air's own default is 1, which over a dark page reads as a heavy slab.
+     * How opaque, in percent, the glass under a composer bar gets on iOS once it has faded in (glass/N, see
+     * composerBarGlass()). Full glass over a dark screen reads as a heavy slab.
      */
-    public const float ReplyBarGlassOpacity = 0.8;
+    public const int ComposerGlassOpacity = 80;
 
     /**
      * About how many characters fit on a line of the box's field, which runs the width of the box.
@@ -306,21 +306,13 @@ final class Display
      * The classes for a composer's native:bottom-bar. On iOS that's Liquid Glass: what scrolls under the bar shows
      * through it, blurred. A patched mobile-air draws the glass behind the whole bar, under the home indicator too,
      * and fades it in over the bar's top ComposerFadeHeight points, so it has no hard top edge. EDGE's own glass on
-     * an element can't be faded, and stops short of the home indicator. Android has no glass, so the bar stays the
-     * surface there.
+     * an element can't be faded, and stops short of the home indicator. The glass stops at ComposerGlassOpacity
+     * percent (glass/N), so a little of the screen under the bar shows through. Android has no glass, so the bar
+     * stays the surface there.
      */
     public static function composerBarGlass(): string
     {
-        return self::fadesInBar() ? 'glass' : '';
-    }
-
-    /**
-     * The reply bar's glass-opacity: how opaque mobile-air's glass behind the bar gets on iOS once it has faded in,
-     * so a little more of the page shows through. Null on Android, which draws no glass behind a bottom bar.
-     */
-    public static function replyBarGlassOpacity(): ?float
-    {
-        return self::fadesInBar() ? self::ReplyBarGlassOpacity : null;
+        return self::fadesInBar() ? 'glass/'.self::ComposerGlassOpacity : '';
     }
 
     /**

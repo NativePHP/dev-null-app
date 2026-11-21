@@ -124,7 +124,7 @@
                         The box keeps its row, and the row its place among the bar's, so the field inside never moves.
                         A voice note takes the field's place, and the +'s, while it's recorded and waits to be pushed.
                     --}}
-                    <native:row native:key="message-row" ref="message-row" class="w-full px-4 py-2">
+                    <native:row native:key="message-row" ref="message-row" class="w-full px-4 pb-2">
                         @include('native.partials.composer-box', [
                             'ref' => 'message',
                             'field' => $recorder === null ? 'native.partials.message-field' : 'native.partials.voice-recorder',
