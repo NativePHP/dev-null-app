@@ -25,6 +25,10 @@
                 has its replies right under it, beside the rail running on, and the later parts follow. Everything
                 around the commit is muted, and still opens its own page. A deleted reply's own replies open in place,
                 one level in, five at a time too, since a deleted commit has no page.
+
+                A thread its author wrote as replies to themselves carries on below the commit, on the same rail, as
+                the web reads it (see SelfThread): each part wears its place ("2/5"), ten show at a time with "Show
+                more of this thread" under them, and the replies of the last part hang under it as the commit's do.
             --}}
             @if ($earlierCount > 0)
                 @include('native.partials.earlier-commits', ['count' => $earlierCount, 'lane' => $earlierLane])
@@ -35,23 +39,28 @@
                 above them leaves out its hairline, which runs from the text's edge, so the two don't stack up into a
                 line and a half. Replies end with no hairline on a commit page, and "No replies yet" keeps the commit's.
             --}}
-            @php($noReplies = $commit && $replyCount === 0 && $repliesLoaded && $series === [])
+            @php($noReplies = $commit && $replyCount === 0 && $repliesLoaded && $series === [] && $threadParts === [])
             @php($relatedBelow = $commit && $related !== [] && ! $noReplies)
 
             @foreach ($rows as $row)
                 @php($isFocused = $row->commit->id === $commit?->id)
+                @php($isLastPart = $lastPart !== null && $row->commit->id === $lastPart->id)
                 @php($hasThread = $isFocused && $repliesShown && $replies !== [])
+                @php($partThread = $isLastPart && $lastPartReplies !== [])
                 @include('native.partials.commit-row', [
                     'commit' => $row->commit,
                     'previousLane' => $row->previousLane,
                     'continuesRun' => $row->continuesRun,
                     'continuesNext' => $isFocused ? ! $loop->last : null,
-                    'threadBelow' => $hasThread,
+                    'threadBelow' => $hasThread || $partThread,
+                    'repliesBelow' => $partThread,
                     'focused' => $isFocused,
                     'muted' => ! $isFocused,
                     'seriesExpanded' => true,
-                    'withTail' => ! $loop->last,
-                    'hairline' => ! ($loop->last && $relatedBelow),
+                    'withTail' => ! $loop->last || $threadMore,
+                    'hairline' => ! ($loop->last && $relatedBelow && ! $threadMore),
+                    'threadPosition' => $threadPositions[$row->commit->id] ?? null,
+                    'showsThread' => false,
                 ])
                 @if ($isFocused && $repliesShown && $replies === [] && ! $repliesLoaded && $error === null)
                     <native:row ref="loading-replies" class="w-full pl-[64] pr-4 py-4 gap-2 items-center" a11y-label="Loading replies">
@@ -102,7 +111,28 @@
                         @endforeach
                     @endforeach
                 @endif
+                @if ($partThread)
+                    @foreach ($lastPartReplies as $index => $threadReply)
+                        @php($replyRow = [
+                            'reply' => $threadReply,
+                            'lane' => $lastPart->lane(),
+                            'previousLane' => $index === 0 ? null : $lastPartReplies[$index - 1]->lane(),
+                            'hasNext' => ! $loop->last || $lastPartMore,
+                            'railLane' => null,
+                            'muted' => true,
+                            'thread' => $lastPart,
+                            'more' => $loop->last && $lastPartMore ? "openReplies('{$lastPart->id}')" : null,
+                            'last' => $loop->last,
+                        ])
+                        @php($rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))
+                        @php($replyRows->include('reply-'.$threadReply->id, \App\Devnull\RowInputs::for($threadReply, $rowScope), 'native.partials.thread-reply', $replyRow, $rowScope))
+                    @endforeach
+                @endif
             @endforeach
+
+            @if ($threadMore && $threadParts !== [])
+                @include('native.partials.thread-continues', ['lane' => $rows[array_key_last($rows)]->commit->lane()])
+            @endif
 
             @if ($noReplies)
                 <native:column class="w-full pl-[64] pr-4 py-4">

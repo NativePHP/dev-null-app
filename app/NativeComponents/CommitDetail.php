@@ -17,6 +17,7 @@ use App\Devnull\Outbox;
 use App\Devnull\PostAs;
 use App\Devnull\ResponseCache;
 use App\Devnull\RowCache;
+use App\Devnull\SelfThread;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Devnull\Toasts;
@@ -75,6 +76,14 @@ use Native\Mobile\Edge\NativeComponent;
  *
  * A member of a GitHub organization can reply as it, from the avatar at the
  * start of the bar's row, as the web's reply composer does (see PostAs).
+ *
+ * A thread its author wrote as replies to themselves reads in order, as on
+ * the web (see SelfThread): the parts after the commit follow it on its rail,
+ * each with its place in the thread, ten at a time with "Show more of this
+ * thread", and the next part isn't among the commit's replies. The replies of
+ * the last part show under it. The earlier parts are the ancestors above it,
+ * and wear their places too. Each step needs the replies of the commit above
+ * it, which are asked for one after another ($partReplies).
  */
 class CommitDetail extends NativeComponent
 {
@@ -109,6 +118,26 @@ class CommitDetail extends NativeComponent
 
     /** @var list<Commit> */
     public array $replies = [];
+
+    /**
+     * The first page of replies of the commits around this one in its author's thread, by id, which say which
+     * reply carries it on (see SelfThread).
+     *
+     * @var array<string, list<Commit>>
+     */
+    public array $partReplies = [];
+
+    /**
+     * The commits in $partReplies with more replies than their first page.
+     *
+     * @var list<string>
+     */
+    public array $partsWithMore = [];
+
+    /**
+     * How many parts of the author's thread show after the commit.
+     */
+    public int $threadLimit = SelfThread::PerPage;
 
     public ?string $repliesCursor = null;
 
@@ -291,6 +320,10 @@ class CommitDetail extends NativeComponent
             app(ResponseCache::class)->forget($this->threadPath().'/related');
         });
 
+        foreach (array_keys($this->partReplies) as $id) {
+            $this->refreshPartReplies((string) $id);
+        }
+
         foreach (array_keys($this->tombstoneReplies) as $id) {
             $id = (string) $id;
 
@@ -336,6 +369,15 @@ class CommitDetail extends NativeComponent
     public function toggleReplies(): void
     {
         $this->repliesShown = ! $this->repliesShown;
+    }
+
+    /**
+     * "Show more of this thread": the next ten parts of the author's thread, as on the web.
+     */
+    public function showMoreThread(): void
+    {
+        $this->threadLimit += SelfThread::PerPage;
+        $this->followThread();
     }
 
     /**
@@ -451,6 +493,7 @@ class CommitDetail extends NativeComponent
             $this->replies = [...array_values(array_filter($this->replies, fn (Commit $reply): bool => ! isset($loaded[$reply->id]))), ...$page->items];
             $this->repliesCursor = $page->nextCursor;
             $this->keepStagedReplies();
+            $this->followThread();
         }
     }
 
@@ -564,6 +607,7 @@ class CommitDetail extends NativeComponent
         $staged = PendingWrite::stagedId($write->client_id);
 
         $this->replies = array_map(fn (Commit $reply): Commit => $reply->id === $staged ? $commit : $reply, $this->replies);
+        $this->followThread();
     }
 
     /**
@@ -694,6 +738,7 @@ class CommitDetail extends NativeComponent
         $this->ancestors = array_map($update, $this->ancestors);
         $this->series = array_map($update, $this->series);
         $this->replies = array_map($update, $this->replies);
+        $this->partReplies = array_map(fn (array $replies): array => array_map($update, $replies), $this->partReplies);
         $this->related = array_map($update, $this->related);
         $this->tombstoneReplies = array_map(fn (array $replies): array => array_map($update, $replies), $this->tombstoneReplies);
     }
@@ -703,7 +748,7 @@ class CommitDetail extends NativeComponent
      */
     protected function shownCommits(): iterable
     {
-        return [...($this->commit === null ? [] : [$this->commit]), ...$this->ancestors, ...$this->series, ...$this->replies, ...$this->related, ...array_merge([], ...array_values($this->tombstoneReplies))];
+        return [...($this->commit === null ? [] : [$this->commit]), ...$this->ancestors, ...$this->series, ...$this->replies, ...array_merge([], ...array_values($this->partReplies)), ...$this->related, ...array_merge([], ...array_values($this->tombstoneReplies))];
     }
 
     /**
@@ -766,6 +811,7 @@ class CommitDetail extends NativeComponent
 
         $this->takeRelated($this->cached($this->threadPath().'/related') ?? []);
         $this->keepStagedReplies();
+        $this->followThread();
     }
 
     /**
@@ -786,6 +832,7 @@ class CommitDetail extends NativeComponent
         $this->commit = $thread->commit;
         $this->ancestors = $thread->ancestors;
         $this->series = $thread->series;
+        $this->followThread();
     }
 
     /**
@@ -798,6 +845,74 @@ class CommitDetail extends NativeComponent
         [$this->replies, $this->repliesCursor] = self::withFirstPage($this->replies, $this->repliesCursor, Page::fromArray($json, Commit::fromArray(...)));
         $this->repliesLoaded = true;
         $this->keepStagedReplies();
+        $this->followThread();
+    }
+
+    /**
+     * Asks for the replies the author's thread needs next, above the commit and below it, each when the one
+     * before has come (see SelfThread). A page kept from before shows at once and refreshes behind.
+     */
+    private function followThread(): void
+    {
+        if ($this->commit === null) {
+            return;
+        }
+
+        $waiting = [
+            $this->selfThread()->waiting,
+            SelfThread::above($this->ancestors, $this->commit, $this->repliesOf())[1],
+        ];
+
+        foreach (array_unique(array_filter($waiting, fn (?string $id): bool => $id !== null && $id !== $this->id)) as $id) {
+            $kept = $this->cached('commits/'.rawurlencode($id).'/replies');
+            $this->refreshPartReplies($id);
+
+            if ($kept !== null) {
+                $this->takePartReplies($id, $kept);
+            }
+        }
+    }
+
+    private function refreshPartReplies(string $id): void
+    {
+        $this->refresh('commits/'.rawurlencode($id).'/replies', [], fn (array $json) => $this->takePartReplies($id, $json));
+    }
+
+    /**
+     * @param  array<string, mixed>  $json
+     */
+    private function takePartReplies(string $id, array $json): void
+    {
+        $page = Page::fromArray($json, Commit::fromArray(...));
+        $this->partReplies[$id] = $page->items;
+        $this->partsWithMore = array_values(array_diff($this->partsWithMore, [$id]));
+
+        if ($page->hasMore()) {
+            $this->partsWithMore[] = $id;
+        }
+
+        $this->followThread();
+    }
+
+    /**
+     * The first page of a commit's replies as far as the page has them, or null until they come. The commit's
+     * own are the ones showing, less any still on their way.
+     *
+     * @return Closure(Commit): (list<Commit>|null)
+     */
+    private function repliesOf(): Closure
+    {
+        return fn (Commit $commit): ?array => $commit->id === $this->id
+            ? ($this->repliesLoaded ? array_values(array_filter($this->replies, fn (Commit $reply): bool => ! $reply->isStaged())) : null)
+            : ($this->partReplies[$commit->id] ?? null);
+    }
+
+    /**
+     * The parts of the author's thread after the commit, as far as they've been read.
+     */
+    private function selfThread(): SelfThread
+    {
+        return $this->commit === null ? new SelfThread : SelfThread::below($this->commit, $this->repliesOf(), $this->threadLimit);
     }
 
     /**
@@ -859,6 +974,11 @@ class CommitDetail extends NativeComponent
         $viewer = $this->me();
         $this->replyRows ??= new RowCache;
         $this->replyRows->startFrame();
+        $thread = $this->selfThread();
+        $parts = $thread->parts;
+        $partsAbove = $this->commit === null ? 0 : SelfThread::above($this->ancestors, $this->commit, $this->repliesOf())[0];
+        $lastPart = $thread->hasEnded && $parts !== [] ? end($parts) : null;
+        $replies = $this->commit === null ? $this->replies : SelfThread::others($this->commit, $this->replies);
 
         return view('native.commit-detail', [
             'replyRows' => $this->replyRows,
@@ -868,13 +988,49 @@ class CommitDetail extends NativeComponent
             'stashed' => app(Stash::class)->names($viewer?->id),
             'pasteis' => app(Account::class)->pasteis(),
             'rows' => $this->commit === null ? [] : Timeline::thread(
-                [...$above, $this->commit, ...$this->series],
+                [...$above, $this->commit, ...$this->series, ...$parts],
                 laneAbove: $earlier === [] ? null : end($earlier)->lane(),
             ),
             'relatedRows' => Timeline::thread($this->related),
             'earlierCount' => $this->commit === null ? 0 : count($earlier),
             'earlierLane' => $earlier === [] ? null : end($earlier)->lane(),
-            'replyCount' => max($this->commit->repliesCount ?? 0, count($this->replies)),
+            'replyCount' => max($this->commit->repliesCount ?? 0, count($replies)),
+            'replies' => $replies,
+            'threadParts' => array_map(fn (Commit $part): string => $part->id, $parts),
+            'threadMore' => $thread->hasMore,
+            'threadPositions' => $this->threadPositions($thread, $partsAbove),
+            'lastPart' => $lastPart,
+            'lastPartReplies' => $lastPart === null ? [] : array_slice($this->partReplies[$lastPart->id] ?? [], 0, Client::RepliesPerPage),
+            'lastPartMore' => $lastPart !== null && (count($this->partReplies[$lastPart->id] ?? []) > Client::RepliesPerPage || in_array($lastPart->id, $this->partsWithMore, true)),
         ]);
+    }
+
+    /**
+     * Each commit's place in its author's thread, by id, as the web marks them: the earlier parts above the
+     * commit, the commit, and the parts after it. None when the commit isn't part of a thread.
+     *
+     * A part known to follow the last one read counts, and a thread not read to its end gets the web's "+".
+     *
+     * @return array<string, string>
+     */
+    private function threadPositions(SelfThread $below, int $partsAbove): array
+    {
+        if ($this->commit === null) {
+            return [];
+        }
+
+        $thread = [...array_slice($this->ancestors, count($this->ancestors) - $partsAbove, $partsAbove), $this->commit, ...$below->parts];
+        $size = count($thread) + ($below->hasMore ? 1 : 0);
+        $positions = [];
+
+        foreach ($thread as $index => $commit) {
+            $label = SelfThread::position($index + 1, $size, ! $below->hasEnded);
+
+            if ($label !== null) {
+                $positions[$commit->id] = $label;
+            }
+        }
+
+        return $positions;
     }
 }
