@@ -4,6 +4,7 @@ namespace App\NativeComponents\Concerns;
 
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Page;
+use App\Devnull\SelfThread;
 
 /**
  * "› N replies" under a commit in a feed opens its replies in place, the way
@@ -20,6 +21,11 @@ use App\Devnull\Data\Page;
  * and a thread longer than a page opens the commit's page instead.
  *
  * A thread opened before opens at once from the cache, and refreshes behind.
+ *
+ * The reply that carries on a thread its author wrote as replies to
+ * themselves isn't one of the replies, as on the web: it's the next part of
+ * that thread, which the commit's "Show thread" opens (see SelfThread).
+ * devnull's count of the replies already leaves it out.
  */
 trait ExpandsThreads
 {
@@ -43,6 +49,13 @@ trait ExpandsThreads
      * @var list<string>
      */
     public array $threadsWithMore = [];
+
+    /**
+     * Commits whose replies, opened, showed that their author carried them on as a thread, so they show "Show thread".
+     *
+     * @var list<string>
+     */
+    public array $threadsContinued = [];
 
     public function toggleReplies(string $id): void
     {
@@ -122,6 +135,8 @@ trait ExpandsThreads
      */
     private function openThread(string $id, Page $page): void
     {
+        $page = $this->withoutContinuation($id, $page);
+
         // A thread whose last reply went closes, so its commit gets its hairline back.
         if ($page->items === []) {
             $this->closeThread($id);
@@ -150,6 +165,28 @@ trait ExpandsThreads
         }
 
         $this->threads[$id] = array_reverse($page->items);
+    }
+
+    /**
+     * The page without the reply that carries the commit's thread on, which marks the commit as carried on instead.
+     *
+     * @param  Page<Commit>  $page
+     * @return Page<Commit>
+     */
+    private function withoutContinuation(string $id, Page $page): Page
+    {
+        $commit = $this->shownCommit($id);
+        $next = $commit === null ? null : SelfThread::next($commit, $page->items);
+
+        if ($next === null) {
+            return $page;
+        }
+
+        if (! in_array($id, $this->threadsContinued, true)) {
+            $this->threadsContinued[] = $id;
+        }
+
+        return new Page(SelfThread::others($commit, $page->items), $page->nextCursor);
     }
 
     private function closeThread(string $id): void

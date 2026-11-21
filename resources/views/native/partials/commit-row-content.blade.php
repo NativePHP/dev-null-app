@@ -11,6 +11,10 @@
     which tapped says when in your timezone, its hash, and its replies behind a toggle in its action row. The commits around it ($muted) step back:
     smaller and in muted ink, with a smaller avatar and action row. They still open their own pages.
 
+    A commit in a thread its author wrote as replies to themselves wears its place in it ($threadPosition, "2/5"), and
+    one its author carried on that way links to that thread ($showsThread), as the web's "Show thread" does (see
+    SelfThread). $repliesBelow says its replies show under the row, so its action row leaves out "› N replies".
+
     A commit you just made that devnull doesn't have yet is staged: dimmed, with the staged chip and no actions, until
     the real one takes its place (see SyncsOutbox).
 
@@ -25,6 +29,9 @@
 @php($withTail ??= ! $focused)
 @php($continuesNext ??= null)
 @php($threadBelow ??= false)
+@php($threadPosition ??= null)
+@php($showsThread ??= $commit->continuationId !== null)
+@php($repliesBelow ??= false)
 @php($inFeed = $continuesNext !== null)
 @php($endsWithDot = $inFeed && ! $continuesRun && ! $continuesNext)
 @php($laterParts = $seriesExpanded ? 0 : $commit->laterSeriesParts())
@@ -47,6 +54,9 @@
         @endif
         @if ($commit->isSeriesPart())
             @include('native.partials.series-position')
+        @endif
+        @if ($threadPosition !== null)
+            @include('native.partials.thread-position')
         @endif
         @unless ($commit->isApproved())
             @include('native.partials.status-chip', ['status' => $commit->status])
@@ -75,6 +85,10 @@
         </native:pressable>
     @endif
 
+    @if ($showsThread && ! $focused)
+        @include('native.partials.show-thread')
+    @endif
+
     @if ($focused)
         <native:text ref="focused-hash" font="mono" class="mt-1 text-[13px] text-theme-ink-muted">{{ $commit->shortHash }}</native:text>
     @endif
@@ -88,7 +102,7 @@
             'repliesCount' => $replyCount ?? $commit->repliesCount,
         ])
     @else
-        @include('native.partials.commit-actions', ['compact' => $muted])
+        @include('native.partials.commit-actions', ['compact' => $muted, 'withReplies' => ! $repliesBelow])
     @endif
 </native:column>
 

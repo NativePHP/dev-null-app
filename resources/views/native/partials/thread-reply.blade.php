@@ -16,6 +16,8 @@
 
     A commit page draws its replies $muted, smaller and in muted ink, so the commit they answer stays the main thing.
 
+    A reply its author carried on in replies to themselves links to that thread, as on the web (see show-thread).
+
     A reply you just sent that devnull doesn't have yet is staged: dimmed, with the staged chip and no actions.
 --}}
 @php($previousLane ??= null)
@@ -83,6 +85,9 @@
                         </native:row>
                         @include('native.partials.commit-body', ['size' => $muted ? 'text-sm' : 'text-[15px]'])
                         @include('native.partials.commit-media', ['withEmbeds' => false])
+                        @if ($reply->continuationId !== null)
+                            @include('native.partials.show-thread')
+                        @endif
                         @unless ($reply->isStaged())
                             @include('native.partials.commit-actions', ['expandable' => false, 'withQuote' => false, 'compact' => $muted])
                         @endunless

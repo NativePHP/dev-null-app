@@ -843,7 +843,7 @@ it('focuses the reply composer when opened from a Reply action', function () {
 it('stars the focused commit and its replies in place', function () {
     $grace = userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace']);
 
-    fakeThread(['author' => $grace], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'author' => $grace])], extra: [
+    fakeThread(['author' => $grace], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2'])], extra: [
         'POST /api/v1/commits/c2/star' => [['data' => commitJson(['id' => 'c2', 'stars_count' => 1, 'starred' => true])]],
         'POST /api/v1/commits/r1/star' => [['data' => commitJson(['id' => 'r1', 'starred' => true])]],
     ]);
