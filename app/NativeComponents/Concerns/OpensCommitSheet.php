@@ -3,6 +3,7 @@
 namespace App\NativeComponents\Concerns;
 
 use App\Devnull\Client;
+use App\Devnull\ComposerSheet;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Draft;
 use App\Devnull\Data\PollDraft;
@@ -20,6 +21,7 @@ use App\Models\PendingWrite;
 use Carbon\CarbonImmutable;
 use Closure;
 use Native\Mobile\Facades\System;
+use Native\Mobile\UI\Caret;
 
 /**
  * The sheet under a commit (see partials/commit-sheet). Report commit, in the
@@ -109,6 +111,14 @@ trait OpensCommitSheet
      * The commit you're writing in the sheet, quoting its commit or not.
      */
     public string $sheetBody = '';
+
+    /**
+     * Where the sheet's field last said its caret is drawn, for the mention list to float under (see ComposerSheet).
+     * Null until it has said, and again once the sheet is gone.
+     *
+     * @var array{bottom: float, field_height: float}|null
+     */
+    public ?array $sheetCaret = null;
 
     /**
      * The handle of the organization the sheet posts as, or null for you (see PostAs).
@@ -307,6 +317,14 @@ trait OpensCommitSheet
     /**
      * Stashes the draft as it changes (see stashSheetDraft()).
      */
+    /**
+     * The sheet's field drew its caret somewhere else: it moved, the text wrapped differently, or the field scrolled.
+     */
+    public function sheetCaretMoved(Caret $caret): void
+    {
+        $this->sheetCaret = ComposerSheet::caret($caret);
+    }
+
     public function updatedSheetBody(): void
     {
         $this->typeIssueCommand();
@@ -493,6 +511,7 @@ trait OpensCommitSheet
     {
         $this->sheetClosing = $this->sheetClosing || ($this->sheetOpen && System::isIos());
         $this->sheetOpen = false;
+        $this->sheetCaret = null;
         $this->forgetMention('sheetBody');
     }
 
@@ -606,6 +625,7 @@ trait OpensCommitSheet
         $this->reportReason = '';
         $this->reportDetails = '';
         $this->sheetBody = '';
+        $this->sheetCaret = null;
         $this->sheetAuthor = null;
         $this->sheetRestored = false;
         $this->sheetError = null;

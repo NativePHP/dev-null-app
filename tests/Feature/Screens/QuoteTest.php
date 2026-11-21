@@ -1,11 +1,11 @@
 <?php
 
-use App\Devnull\ComposerSheet;
 use App\Devnull\Data\Commit;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
+use Tests\Support\TextFieldFill;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -214,12 +214,11 @@ it('quotes from a commit page, where closing the sheet is all there is to do', f
 });
 
 it('puts the quoted commit right under the field, which gives up the room it takes', function () {
+    TextFieldFill::skipUnlessSupported();
+
     $screen = quoteSheetOnLog();
-    $field = nodeByRef($screen, 'sheet-body')['props'];
-    $card = ComposerSheet::cardHeight(Commit::fromArray(commitJson(['id' => 'c1', 'body' => 'Required reading.', 'author' => quoteAda()])));
 
     expect(childRefs($screen, 'sheet-below'))->toBe(['quote-card'])
-        ->and($field['max_lines'])->toBe(ComposerSheet::fieldLines([], [$card]))
-        ->and($field['max_lines'])->toBeLessThan(ComposerSheet::fieldLines([], []))
-        ->and($field['min_lines'])->toBe($field['max_lines']);
+        ->and(childRefs($screen, 'sheet-body-area'))->toBe(['sheet-field-slot', 'sheet-below'])
+        ->and(nodeByRef($screen, 'sheet-body')['props']['fills_height'] ?? null)->toBeTrue();
 });

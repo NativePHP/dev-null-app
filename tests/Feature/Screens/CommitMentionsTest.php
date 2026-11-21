@@ -5,6 +5,8 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
+use Native\Mobile\UI\Caret;
+use Tests\Support\TextFieldFill;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -184,13 +186,17 @@ it('forgets the suggestions when the sheet closes', function () {
 });
 
 it('floats the suggestions over the quoted commit on glass, from just under the caret line down to the toolbar', function () {
-    $screen = mentionsComposer(quoting: true)->input('sheet-body', "see\n@a", 6);
+    TextFieldFill::skipUnlessSupported();
+
+    $screen = mentionsComposer(quoting: true)
+        ->input('sheet-body', "see\n@a", 6)
+        ->moveCaretTo('sheet-body', new Caret(x: 20, y: 22, width: 2, height: 22, line: 1, fieldWidth: 350, fieldHeight: 240));
     $overlay = nodeByRef($screen, 'sheet-mentions');
 
     // Out of the layout, over the field and the card under it, so neither moves.
     expect($overlay['layout']['position_type'])->toBe(1)
         ->and($overlay['layout']['position'])->toEqual([
-            ComposerSheet::TopPadding + 2 * ComposerSheet::FieldLineHeight + ComposerSheet::MentionGap,
+            ComposerSheet::FieldTop + 44 + ComposerSheet::MentionGap,
             12,
             ComposerSheet::MentionInset,
             12,

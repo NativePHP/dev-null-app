@@ -7,6 +7,8 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
+use Native\Mobile\UI\Caret;
+use Tests\Support\TextFieldFill;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -283,25 +285,36 @@ it('keeps the field the same view while what is drawn above it changes, so the k
 });
 
 it('fills the sheet with the field, with nothing scrolling around it', function () {
+    TextFieldFill::skipUnlessSupported();
+
     $screen = composeSheetOnLog();
     $field = nodeByRef($screen, 'sheet-body')['props'];
 
     expect(findNodes(nodeByRef($screen, 'sheet'), fn (array $node): bool => $node['type'] === 'scroll_view'))->toBe([])
-        // As many lines as the sheet has room for, so the field reaches down to the toolbar.
-        ->and($field['min_lines'])->toBe($field['max_lines'])
-        ->and($field['max_lines'])->toBe(ComposerSheet::fieldLines([], []))
-        ->and($field['line_height_px'])->toEqual(ComposerSheet::FieldLineHeight);
+        // As tall as the space between the author row and the toolbar, scrolling its own text.
+        ->and($field['fills_height'] ?? null)->toBeTrue()
+        ->and($field['min_lines'])->toBe(ComposerSheet::MinFieldLines)
+        ->and($field)->not->toHaveKey('max_lines')
+        ->and(nodeByRef($screen, 'sheet-field-slot')['layout']['flex_grow'] ?? null)->toEqual(1)
+        // It says where its caret is drawn, for the mention list.
+        ->and($field['on_caret_change'] ?? null)->toBeInt();
 });
 
-it('gives the field fewer lines while a poll takes its room, and the poll sits under the field', function () {
-    $screen = composeSheetOnLog();
-    $lines = nodeByRef($screen, 'sheet-body')['props']['max_lines'];
+it('puts the poll under the field, which gives up the room it takes', function () {
+    $screen = composeSheetOnLog()->tap('sheet-poll');
 
-    $screen->tap('sheet-poll');
-
-    expect(nodeByRef($screen, 'sheet-body')['props']['max_lines'])->toBeLessThan($lines)
-        ->and(nodeByRef($screen, 'sheet-body')['props']['min_lines'])->toBe(nodeByRef($screen, 'sheet-body')['props']['max_lines'])
+    expect(childRefs($screen, 'sheet-body-area'))->toBe(['sheet-field-slot', 'sheet-below'])
         ->and(findNode(nodeByRef($screen, 'sheet-below'), fn (array $node): bool => ($node['ref'] ?? null) === 'poll-editor'))->not->toBeNull();
+});
+
+it('keeps where the field says its caret is until the sheet goes', function () {
+    TextFieldFill::skipUnlessSupported();
+
+    $screen = composeSheetOnLog()
+        ->moveCaretTo('sheet-body', new Caret(y: 48, height: 24, line: 2, fieldWidth: 350, fieldHeight: 240))
+        ->assertSet('sheetCaret', ['bottom' => 72.0, 'field_height' => 240.0]);
+
+    $screen->press('hideCommitSheet')->assertSet('sheetCaret', null);
 });
 
 it('keeps the field the same view while photos, a poll and mentions come and go around it', function () {
