@@ -505,6 +505,7 @@ it('opens the message menu on a long press on a voice note, without Copy text, a
         ->and(menuItems($screen, 'bubble-2'))->toBe([
             ['reply-menu-2', 'Reply', 'custom:reply'],
             ['react-menu-2', 'React', 'custom:smile-plus'],
+            ['report-menu-2', 'Report message', 'custom:flag'],
         ]);
 
     $screen->tap('reply-menu-2')->assertSee('Voice note');

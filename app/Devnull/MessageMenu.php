@@ -21,11 +21,12 @@ final class MessageMenu
     /**
      * $answerable is whether the message takes Reply and React, and $pinned whether it's pinned, or null when you
      * can't pin it. A message's photos open the same menu as its bubble, so only one of the two names its items
-     * ($named), and tests find them.
+     * ($named), and tests find them. $reportable is whether it's someone else's message devnull has, which ends the
+     * menu with Report message, in red.
      *
      * @return list<TopBarAction>
      */
-    public static function items(Message $message, bool $answerable, ?bool $pinned, bool $named = true): array
+    public static function items(Message $message, bool $answerable, ?bool $pinned, bool $named = true, bool $reportable = false): array
     {
         $key = $message->id > 0 ? $message->id : $message->clientId;
         $argument = $message->id > 0 ? (string) $message->id : "'{$message->clientId}'";
@@ -46,15 +47,20 @@ final class MessageMenu
                 : self::item('pin', 'Pin message', Lucide::Pin, "togglePin({$argument})", $key, $named);
         }
 
+        if ($reportable && $message->id > 0) {
+            $items[] = self::item('report', 'Report message', Lucide::Flag, "reportMessage({$message->id})", $key, $named, destructive: true);
+        }
+
         return $items;
     }
 
-    private static function item(string $action, string $label, Lucide $icon, string $press, int|string $key, bool $named): TopBarAction
+    private static function item(string $action, string $label, Lucide $icon, string $press, int|string $key, bool $named, bool $destructive = false): TopBarAction
     {
         $item = NavAction::make($action)
             ->label($label)
             ->icon(ios: $icon->ios(), android: $icon->android())
             ->press($press)
+            ->destructive($destructive)
             ->toElement();
 
         return $named ? $item->ref("{$action}-menu-{$key}") : $item;
