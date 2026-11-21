@@ -43,7 +43,7 @@ trait DrawsSkeletonFirst
         $this->skeletonFrame = true;
 
         FirstFrame::dispatch()
-            ->timeout(10)
+            ->timeout(FirstFrame::Within)
             ->finished(fn () => $this->fillIn($then))
             ->failed(fn () => $this->fillIn($then));
     }

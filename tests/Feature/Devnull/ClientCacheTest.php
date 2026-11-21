@@ -7,6 +7,7 @@ use App\Devnull\FetchInBackground;
 use App\Devnull\RequestSigner;
 use App\Devnull\ResponseCache;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -108,7 +109,17 @@ it('answers status 0 from the background when devnull cannot be reached', functi
 
     $request = $this->devnull->signedGet('me');
 
-    expect((new FetchInBackground)->handle($request->url, $request->headers))->toBe(['status' => 0, 'json' => null, 'retry_after' => '', 'from_devnull' => false]);
+    expect((new FetchInBackground)->handle($request->url, $request->headers))->toBe(['status' => 0, 'json' => null, 'retry_after' => '', 'from_devnull' => false, 'timed_out' => false]);
+});
+
+it('says when devnull took a request from the background and never answered it in time', function () {
+    serveApi(fn () => throw new ConnectionException('cURL error 28: Operation timed out after 20001 milliseconds with 0 bytes received'));
+
+    $request = $this->devnull->signedGet('me');
+    $result = (new FetchInBackground)->handle($request->url, $request->headers);
+
+    expect($result)->toBe(['status' => 0, 'json' => null, 'retry_after' => '', 'from_devnull' => false, 'timed_out' => true])
+        ->and(FetchInBackground::timedOut($result))->toBeTrue();
 });
 
 it("fails a GET that gets a 200 with something other than devnull's answer, and keeps nothing from it", function (string $body) {
