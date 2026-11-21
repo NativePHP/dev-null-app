@@ -298,6 +298,16 @@ trait ShowsCommits
     }
 
     /**
+     * Plays the video a commit links to, from its poster. The app's web view
+     * can't play YouTube's embed yet (YouTube wants a referrer it doesn't
+     * send), so it opens in the in-app browser for now.
+     */
+    public function playEmbed(string $id): void
+    {
+        $this->openInBrowser($this->shownCommit($id)?->linkPreview?->url);
+    }
+
+    /**
      * Opens Nata Nu//ers from a shared high score's card, to have a go at
      * beating it. A build without the Skia plugin has no game to open.
      */

@@ -12,6 +12,7 @@ use App\Devnull\FetchInBackground;
 use App\Devnull\ImageCache;
 use App\Devnull\ResponseCache;
 use App\Devnull\Timezone;
+use App\Devnull\VideoDetails;
 use App\NativeComponents\AcceptTerms;
 use Closure;
 use Throwable;
@@ -233,9 +234,10 @@ trait RefreshesInBackground
 
             app(ResponseCache::class)->put($path, $query, $json);
 
-            // Its images came with it. Any that didn't come in time load from their URLs.
+            // Its images and videos' titles came with it. Any images that didn't come in time load from their URLs.
             if (! $withImages) {
                 ImageCache::prefetch($json);
+                VideoDetails::prefetch($json);
             }
 
             if (! $quiet) {

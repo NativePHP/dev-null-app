@@ -140,7 +140,7 @@ final class ImageCache
 
     /**
      * Every image URL in an answer, wherever it's nested: people's avatars,
-     * guilds' icons, commits' images and link previews' images.
+     * guilds' icons, commits' images, link previews' images and their players' posters.
      *
      * @param  array<array-key, mixed>  $json
      * @return list<string>
@@ -150,7 +150,7 @@ final class ImageCache
         $urls = [];
 
         foreach ($json as $key => $value) {
-            if (in_array($key, ['avatar_url', 'image_url', 'icon_url'], true) && self::isRemote($value)) {
+            if (in_array($key, ['avatar_url', 'image_url', 'icon_url', 'poster'], true) && self::isRemote($value)) {
                 $urls[] = $value;
             } elseif ($key === 'images' && is_array($value)) {
                 foreach ($value as $image) {
