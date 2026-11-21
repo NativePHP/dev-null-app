@@ -131,7 +131,8 @@ it('lays the series out in order on a part\'s page, the part in focus', function
         ->and(railRunsOn($screen, 'focused-commit'))->toBeTrue()
         ->and(railRunsOn($screen, 'commit-p3'))->toBeFalse();
 
-    $screen->tap('commit-p3')->assertNavigatedTo('/log/commits/p3');
+    // A part in the tree moves the page to it rather than pushing another.
+    $screen->tap('commit-p3')->assertNoNavigation()->assertSet('id', 'p3');
 });
 
 it('puts a part\'s replies under it, above the later parts, as on the web', function () {

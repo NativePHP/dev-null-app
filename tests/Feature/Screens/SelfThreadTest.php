@@ -63,7 +63,7 @@ function serveSelfThread(array $commit, array $ancestors, array $replies): void
  */
 function selfThreadRows(TestableComponent $screen): array
 {
-    return array_values(array_filter(childRefs($screen, 'thread-page'), fn (?string $ref): bool => $ref !== 'reply-bar-clearance'));
+    return array_values(array_filter(childRefs($screen, 'thread-scroll'), fn (?string $ref): bool => $ref !== 'reply-bar-clearance'));
 }
 
 /**

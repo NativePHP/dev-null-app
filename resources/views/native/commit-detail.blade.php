@@ -7,8 +7,12 @@
 
     {{-- The stack around the page holds the fade over its foot, just above the reply bar (see partials/composer-fade). --}}
     <native:stack ref="thread-stack" class="w-full flex-1">
-    <native:scroll-view native:key="thread-{{ $scrollKey }}" ref="thread-scroll" class="w-full h-full bg-theme-surface">
-        <native:column ref="thread-page" class="w-full bg-theme-surface">
+    {{--
+        Each row is a child of the scroll view itself, so it can bring one into view: the commit the page is on, after
+        tapping another commit in the tree moves the page to it (see CommitDetail::refocus() and $scrollTarget). The
+        first move jumps and later ones animate, as auto-scroll-to does on both platforms.
+    --}}
+    <native:scroll-view native:key="thread-{{ $scrollKey }}" ref="thread-scroll" class="w-full h-full bg-theme-surface" :auto-scroll-to="$scrollTarget">
             @if (! $commit && $error === null)
                 <native:column ref="loading-commit" class="w-full items-center py-16" a11y-label="Loading commit">
                     <native:activity-indicator />
@@ -23,7 +27,8 @@
                 their avatar once. The replies hang under it on the thread's dashed lines, with the rail ending in a dot
                 above them, ten at a time with "Show more" under the last. A part of a series with more parts after it
                 has its replies right under it, beside the rail running on, and the later parts follow. Everything
-                around the commit is muted, and still opens its own page. Every reply's own replies open in place under
+                around the commit is muted. Tapping any commit in the tree moves the page to it rather than pushing
+                another (see CommitDetail::refocus()). Every reply's own replies open in place under
                 it, ten at a time too, as deep as they go, as on the web: they step in up to the web's depth and line up
                 under the deepest step past it, saying who they answer (see App\Devnull\ThreadRows).
 
@@ -103,7 +108,6 @@
             @if ($commit)
                 <native:column ref="reply-bar-clearance" class="w-full h-[{{ 24 + \App\Devnull\Display::replyBarClearance($reply, $replyImages !== [] && ! $replyPreviewing, $describing !== null) }}]" />
             @endif
-        </native:column>
     </native:scroll-view>
 
     @if ($commit && ! \App\Devnull\Display::fadesInBar())
