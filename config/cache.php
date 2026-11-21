@@ -64,6 +64,12 @@ return [
             'serialize' => false,
         ],
 
+        'videos' => [
+            'driver' => env('DEVNULL_VIDEO_CACHE_DRIVER', 'file'),
+            'path' => storage_path('app/devnull/videos'),
+            'serialize' => false,
+        ],
+
         'storage' => [
             'driver' => 'storage',
             'disk' => env('CACHE_STORAGE_DISK'),

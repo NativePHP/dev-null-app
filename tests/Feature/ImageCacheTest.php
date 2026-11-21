@@ -83,6 +83,12 @@ it('collects guild icons to download', function () {
     expect(ImageCache::urlsIn(['data' => [['guild' => ['icon_url' => $url]]]]))->toContain($url);
 });
 
+it('collects embed posters to download', function () {
+    $url = 'https://i.ytimg.com/vi/E9Zx6rx0bWk/hqdefault.jpg';
+
+    expect(ImageCache::urlsIn(pageJson([commitJson(['link_preview' => ['url' => 'https://youtu.be/E9Zx6rx0bWk', 'embed' => ['poster' => $url]]])])))->toContain($url);
+});
+
 it('knows whether a fresh downloaded copy exists', function () {
     $url = 'https://x/icon?expires=1';
 
