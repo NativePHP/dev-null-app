@@ -19,10 +19,12 @@ use App\Devnull\ResponseCache;
 use App\Devnull\RowCache;
 use App\Devnull\SelfThread;
 use App\Devnull\Stash;
+use App\Devnull\ThreadRows;
 use App\Devnull\Timeline;
 use App\Devnull\Toasts;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
+use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RedrawsOnAppearanceChange;
@@ -44,9 +46,18 @@ use Native\Mobile\Edge\NativeComponent;
  * The commit opens near the top, under the commit it replies to, with the
  * ones before that behind "↑ N earlier commits" and its replies behind
  * "› N replies", each opened in place. Opened from a "› N replies" button
- * ($data['replies']), its replies already show. They come five at a time
+ * ($data['replies']), its replies already show. They come ten at a time
  * (see Client::RepliesPerPage), and "Show more" under the last asks for the
- * next five, as it does under a deleted reply's replies opened in place.
+ * next ten.
+ *
+ * Each reply's own replies open in place under it, and theirs under them, as
+ * deep as they go, as the web's commit page does (see ExpandsThreads and
+ * App\Devnull\ThreadRows). So do the commits above the commit, less the one
+ * on the line down to it, which already shows (see ancestorThreads()).
+ *
+ * Tapping a commit in the tree, above the commit, below it or among the
+ * replies at any depth, moves this page to it rather than pushing another
+ * (see refocus()). Back still leaves the page.
  *
  * It opens on the commit as it was last time, or opened from a row, on what
  * the row knew of it, then asks devnull for the rest behind it and fills it in.
@@ -87,11 +98,18 @@ use Native\Mobile\Edge\NativeComponent;
  */
 class CommitDetail extends NativeComponent
 {
+    use ExpandsThreads {
+        toggleReplies as private toggleThread;
+        showMoreReplies as private showMoreThreadReplies;
+    }
     use OpensInTab;
     use OpensLiveStream;
     use RedrawsOnAppearanceChange;
     use RefreshesInBackground;
     use ShowsCommits {
+        openCommit as private openCommitPage;
+        openReplies as private openRepliesPage;
+        replyTo as private replyOnPage;
         reopenFailedCommit as private reopenFailedCommitInSheet;
         editFailedCommit as private editFailedCommitInSheet;
         mentionFields as private sheetMentionFields;
@@ -190,20 +208,6 @@ class CommitDetail extends NativeComponent
      */
     public bool $repliesLoaded = false;
 
-    /**
-     * The replies of deleted replies that were opened in place, by the deleted reply's id.
-     *
-     * @var array<string, list<Commit>>
-     */
-    public array $tombstoneReplies = [];
-
-    /**
-     * Where the next page of each deleted reply's replies starts, by the deleted reply's id, or null when they're all shown.
-     *
-     * @var array<string, string|null>
-     */
-    public array $tombstoneCursors = [];
-
     public string $reply = '';
 
     /**
@@ -245,6 +249,23 @@ class CommitDetail extends NativeComponent
     public int $scrollKey = 0;
 
     /**
+     * Which of the scroll view's rows it brings into view, the commit's, once tapping another commit in the tree
+     * moved the page to it (see refocus()). Null until then, so the page opens at the top as it always has.
+     */
+    public ?int $scrollTarget = null;
+
+    /**
+     * Counts the moves refocus() made. The scroll view takes it as its auto-scroll-token, so asking for the same row
+     * as last time (going back to the top twice) scrolls again rather than doing nothing.
+     */
+    public int $scrollRequest = 0;
+
+    /**
+     * The commit the page opened on, before tapping others in its tree moved it (see refocus()).
+     */
+    public string $openedId = '';
+
+    /**
      * The replies from the last frame, so a render only builds the replies that changed, as the Log does its rows.
      */
     private ?RowCache $replyRows = null;
@@ -260,6 +281,7 @@ class CommitDetail extends NativeComponent
 
     public function mount(): void
     {
+        $this->openedId = $this->id;
         $this->focusReply = $this->data('reply', false) === true;
         $this->repliesShown = $this->data('replies', false) === true;
         $draft = app(Stash::class)->get($this->me()?->id, $this->replyStashName());
@@ -313,7 +335,7 @@ class CommitDetail extends NativeComponent
 
     protected function revalidate(): void
     {
-        $this->refresh($this->threadPath(), [], fn (array $json) => $this->takeThread($json));
+        $this->refresh($this->threadPath(), [], fn (array $json) => $this->takeCommitThread($json));
         $this->refresh($this->threadPath().'/replies', [], fn (array $json) => $this->takeReplies($json));
         $this->refresh($this->threadPath().'/related', [], fn (array $json) => $this->takeRelated($json), quiet: true, failed: function (): void {
             $this->related = [];
@@ -324,19 +346,7 @@ class CommitDetail extends NativeComponent
             $this->refreshPartReplies((string) $id);
         }
 
-        foreach (array_keys($this->tombstoneReplies) as $id) {
-            $id = (string) $id;
-
-            $this->refresh('commits/'.rawurlencode($id).'/replies', [], function (array $json) use ($id): void {
-                if (array_key_exists($id, $this->tombstoneReplies)) {
-                    [$this->tombstoneReplies[$id], $this->tombstoneCursors[$id]] = self::withFirstPage(
-                        $this->tombstoneReplies[$id],
-                        $this->tombstoneCursors[$id] ?? null,
-                        Page::fromArray($json, Commit::fromArray(...)),
-                    );
-                }
-            });
-        }
+        $this->refreshThreads();
     }
 
     protected function showsContent(): bool
@@ -360,15 +370,317 @@ class CommitDetail extends NativeComponent
     public function replyTapped(): void
     {
         $this->earlierShown = false;
+        $this->scrollTarget = null;
         $this->scrollKey++;
     }
 
     /**
-     * "› N replies" under the commit opens them in place, and "Hide replies" folds them away.
+     * A commit in the tree this page shows moves the page to it, rather than
+     * pushing another commit page (see refocus()). Anything else opens its page.
      */
-    public function toggleReplies(): void
+    public function openCommit(string $id): void
     {
-        $this->repliesShown = ! $this->repliesShown;
+        if (! $this->refocus($id)) {
+            $this->openCommitPage($id);
+        }
+    }
+
+    /**
+     * "Show more" under the last part of a thread, or "› N replies" on a commit in the tree: the page moves to it with
+     * its replies showing.
+     */
+    public function openReplies(string $id): void
+    {
+        if (! $this->refocus($id)) {
+            $this->openRepliesPage($id);
+        }
+    }
+
+    /**
+     * Reply on a commit in the tree moves the page to it, with the reply bar answering it and its keyboard up.
+     */
+    public function replyTo(string $id): void
+    {
+        if ($id === $this->id) {
+            $this->focusReply = true;
+
+            return;
+        }
+
+        if ($this->refocus($id)) {
+            $this->focusReply = true;
+
+            return;
+        }
+
+        $this->replyOnPage($id);
+    }
+
+    /**
+     * Moves the page to a commit already in its tree: an ancestor, a part of
+     * the author's thread or series, or a reply at any depth. It becomes the
+     * commit the page is about, with what's above it as its ancestors and its
+     * replies showing below, all from what the page already has, so nothing
+     * goes blank, and devnull is asked for the rest behind it. The commits
+     * above it start with their replies folded, showing only "› N replies",
+     * as when the page opens on a reply. Moving up, the commit the page was on
+     * keeps its replies, and so do the commits between, so the commit you
+     * move to shows the way back down to where you came from opened under it.
+     *
+     * The page stays one screen: Back still leaves it, as Simon asked, rather
+     * than stepping back through the commits it moved to. The scroll view
+     * brings the commit into view, with every ancestor showing above it.
+     *
+     * False, changing nothing, for a commit that isn't in the tree, or one
+     * that's staged or deleted, which has no page of its own.
+     */
+    private function refocus(string $id): bool
+    {
+        if ($this->commit === null || $id === $this->id) {
+            return false;
+        }
+
+        $target = $this->treeCommit($id);
+        $ancestors = $target === null || $target->isStaged() || $target->isDeleted() ? null : $this->ancestorsInTree($target);
+
+        if ($ancestors === null) {
+            return false;
+        }
+
+        $line = [...$this->ancestors, $this->commit];
+        $below = array_slice($line, count($ancestors) + 1);
+
+        // What the page was on keeps its replies, opened in place, when it ends up below the commit the page moves to.
+        if ($this->repliesShown && $this->repliesLoaded && $this->replies !== []) {
+            $this->threads[$this->id] = array_values(array_filter($this->replies, fn (Commit $reply): bool => ! $reply->isStaged()));
+            $this->keepCursor($this->id, $this->repliesCursor);
+            unset($this->threadShown[$this->id]);
+        }
+
+        // Moving up, the commits between keep their replies open, so the one the page was on shows under them.
+        foreach ($below as $between) {
+            if ($between->id !== $this->id && ! array_key_exists($between->id, $this->threads) && ($kept = $this->cached('commits/'.rawurlencode($between->id).'/replies')) !== null) {
+                $this->takeThread($between->id, $kept);
+            }
+        }
+
+        $this->id = $id;
+        $this->commit = $target;
+        $this->ancestors = $ancestors;
+        $this->series = [];
+        $this->related = [];
+        $this->relatedShown = false;
+        $this->threadLimit = SelfThread::PerPage;
+        $this->takeOwnReplies($id);
+
+        // The commits above it fold their replies, the commit the page was on among them when the page moved down.
+        foreach ($this->ancestors as $ancestor) {
+            $this->closeThread($ancestor->id);
+        }
+
+        if (($thread = $this->cached($this->threadPath())) !== null) {
+            $this->takeCommitThread($thread);
+        }
+
+        $this->takeRelated($this->cached($this->threadPath().'/related') ?? []);
+        $this->repliesShown = true;
+        $this->earlierShown = true;
+        $this->takeReplyDraft();
+        $this->error = null;
+
+        // The commit's row is the one after its ancestors, whose replies are folded. A new token asks again even when
+        // that's the row the scroll view went to last time. The scroll view keeps its key, so its rows slide to their
+        // new places. Opening an ancestor's replies later leaves the target be, so it doesn't scroll.
+        $this->scrollTarget = count($this->ancestors);
+        $this->scrollRequest++;
+        $this->forgetRefreshes();
+        $this->revalidate();
+        $this->followThread();
+
+        return true;
+    }
+
+    /**
+     * The commit's own replies, as the page knows them: opened in place, read for its author's thread, or kept from
+     * before. Until one of those, they show as loading.
+     */
+    private function takeOwnReplies(string $id): void
+    {
+        $this->replies = [];
+        $this->repliesCursor = null;
+        $this->repliesLoaded = false;
+
+        if (array_key_exists($id, $this->threads)) {
+            $this->replies = $this->threads[$id];
+            $this->repliesCursor = $this->threadCursors[$id] ?? null;
+            $this->repliesLoaded = true;
+            unset($this->threads[$id], $this->threadCursors[$id], $this->threadShown[$id]);
+            $this->pagedThreads = array_values(array_diff($this->pagedThreads, [$id]));
+        } elseif (($kept = $this->cached($this->threadPath().'/replies')) !== null) {
+            $this->takeReplies($kept);
+
+            return;
+        } elseif (array_key_exists($id, $this->partReplies)) {
+            $this->replies = $this->partReplies[$id];
+            $this->repliesLoaded = true;
+        }
+
+        $this->keepStagedReplies();
+    }
+
+    /**
+     * The reply bar takes up the draft kept for the commit the page is on now.
+     */
+    private function takeReplyDraft(): void
+    {
+        $draft = app(Stash::class)->get($this->me()?->id, $this->replyStashName());
+        $this->reply = $draft->body;
+        $this->replyImages = $draft->images;
+        $this->replyRestored = ! $draft->isEmpty();
+        $this->replyAuthor = null;
+        $this->replyPreviewing = false;
+        $this->replyPreview = null;
+        $this->focusReply = false;
+    }
+
+    /**
+     * A commit the page draws in its tree, by id: around the commit, in its author's thread, or among the replies.
+     */
+    private function treeCommit(string $id): ?Commit
+    {
+        $lastPart = $this->commit === null ? null : $this->selfThread()->parts;
+        $tree = [
+            ...$this->ancestors,
+            ...$this->series,
+            ...($lastPart ?? []),
+            ...$this->replies,
+            ...$this->threadCommits(),
+            ...array_merge([], ...array_values($this->partReplies)),
+        ];
+
+        foreach ($tree as $commit) {
+            if ($commit->id === $id) {
+                return $commit;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * What's above $target in the tree, in order: the page's line of ancestors as far as the one it hangs from, then
+     * the replies, parts or series between. Null when it doesn't hang from that line.
+     *
+     * @return list<Commit>|null
+     */
+    private function ancestorsInTree(Commit $target): ?array
+    {
+        $line = [...$this->ancestors, ...($this->commit === null ? [] : [$this->commit])];
+        $lineIds = array_map(fn (Commit $commit): string => $commit->id, $line);
+        $at = array_search($target->id, $lineIds, true);
+
+        if ($at !== false) {
+            return array_slice($line, 0, $at);
+        }
+
+        $between = [];
+        $parentId = $target->parentId;
+
+        while ($parentId !== null && ! in_array($parentId, $lineIds, true)) {
+            $parent = $this->treeCommit($parentId);
+
+            if ($parent === null || in_array($parent, $between, true)) {
+                return null;
+            }
+
+            array_unshift($between, $parent);
+            $parentId = $parent->parentId;
+        }
+
+        if ($parentId === null) {
+            return null;
+        }
+
+        return [...array_slice($line, 0, array_search($parentId, $lineIds, true) + 1), ...$between];
+    }
+
+    /**
+     * The replies of each commit above the commit, as its "› N replies" opens them in place under it, the same as a
+     * reply's (see ExpandsThreads), and how many that button counts. The commit under it on the page, when that's
+     * one of its replies, is left out of both: it's already showing, on the line down to the commit. The web leaves
+     * out only the part of a self-thread that carries it on (see SelfThread), so there the rest of the line would
+     * show twice. devnull's count already leaves that part out.
+     *
+     * @param  list<Commit>  $above
+     * @return array<string, array{count: int, rows: list<array{key: string, partial: string, data: array<string, mixed>, reply: Commit|null}>}>
+     */
+    private function ancestorThreads(array $above): array
+    {
+        if ($this->commit === null) {
+            return [];
+        }
+
+        $line = [...$above, $this->commit];
+        $threads = [];
+
+        foreach ($above as $index => $ancestor) {
+            $next = $line[$index + 1];
+            $onLine = $next->parentId === $ancestor->id && $ancestor->continuationId !== $next->id;
+            $replies = array_values(array_filter($this->threads[$ancestor->id] ?? [], fn (Commit $reply): bool => $reply->id !== $next->id));
+
+            $threads[$ancestor->id] = [
+                'count' => max(0, $ancestor->repliesCount - ($onLine ? 1 : 0)),
+                'rows' => $ancestor->isDeleted() || $replies === [] ? [] : ThreadRows::under(
+                    $ancestor,
+                    [...$this->threads, $ancestor->id => $replies],
+                    $this->threadCursors,
+                    $this->threadShown,
+                    $ancestor->lane(),
+                    opensInPlace: PHP_INT_MAX,
+                    onPage: true,
+                ),
+            ];
+        }
+
+        return $threads;
+    }
+
+    /**
+     * The commits on the page's line, above the commit and the commit itself, draw rows of their own, so closing the
+     * replies they're among leaves their own replies open.
+     */
+    protected function drawsOnItsOwn(string $id): bool
+    {
+        return $id === $this->id || in_array($id, array_map(fn (Commit $ancestor): string => $ancestor->id, $this->ancestors), true);
+    }
+
+    /**
+     * "› N replies" under the commit opens them in place, and "Hide replies" folds them away. Under a reply, at any
+     * depth, or a commit above the commit, it opens that one's replies in place under it (see ExpandsThreads).
+     */
+    public function toggleReplies(string $id = ''): void
+    {
+        if ($id === '' || $id === $this->id) {
+            $this->repliesShown = ! $this->repliesShown;
+
+            return;
+        }
+
+        $this->toggleThread($id);
+    }
+
+    /**
+     * "Show more" under a reply's replies opened in place. The commit's own go on from loadMoreReplies().
+     */
+    public function showMoreReplies(string $id): void
+    {
+        if ($id === $this->id) {
+            $this->loadMoreReplies();
+
+            return;
+        }
+
+        $this->showMoreThreadReplies($id);
     }
 
     /**
@@ -443,39 +755,6 @@ class CommitDetail extends NativeComponent
         };
 
         Beat::dispatch(self::RelatedFade)->finished($closed)->failed($closed);
-    }
-
-    /**
-     * A deleted reply has no page of its own, so its replies open in place below it.
-     */
-    public function toggleTombstone(string $id): void
-    {
-        if (array_key_exists($id, $this->tombstoneReplies)) {
-            unset($this->tombstoneReplies[$id], $this->tombstoneCursors[$id]);
-
-            return;
-        }
-
-        $this->loadTombstoneReplies($id);
-    }
-
-    /**
-     * "Show more" under a deleted reply's replies: its next five, in place.
-     */
-    public function loadMoreTombstoneReplies(string $id): void
-    {
-        $cursor = $this->tombstoneCursors[$id] ?? null;
-
-        if ($cursor === null) {
-            return;
-        }
-
-        $page = $this->attempt(fn ($devnull) => $devnull->replies($id, $cursor));
-
-        if ($page !== null && array_key_exists($id, $this->tombstoneReplies)) {
-            $this->tombstoneReplies[$id] = [...$this->tombstoneReplies[$id], ...$page->items];
-            $this->tombstoneCursors[$id] = $page->nextCursor;
-        }
     }
 
     public function loadMoreReplies(): void
@@ -723,6 +1002,16 @@ class CommitDetail extends NativeComponent
      */
     protected function showDeleted(string $id): void
     {
+        // The page moved here from a commit above it, so it goes back there rather than leaving.
+        $parent = $this->ancestors === [] ? null : end($this->ancestors);
+
+        if ($id === $this->id && $id !== $this->openedId && $parent !== null && $this->refocus($parent->id)) {
+            $this->threads = array_map(fn (array $replies): array => array_values(array_filter($replies, fn (Commit $reply): bool => $reply->id !== $id)), $this->threads);
+            $this->replies = array_values(array_filter($this->replies, fn (Commit $reply): bool => $reply->id !== $id));
+
+            return;
+        }
+
         if ($id === $this->id) {
             $this->back();
 
@@ -740,7 +1029,7 @@ class CommitDetail extends NativeComponent
         $this->replies = array_map($update, $this->replies);
         $this->partReplies = array_map(fn (array $replies): array => array_map($update, $replies), $this->partReplies);
         $this->related = array_map($update, $this->related);
-        $this->tombstoneReplies = array_map(fn (array $replies): array => array_map($update, $replies), $this->tombstoneReplies);
+        $this->threads = array_map(fn (array $replies): array => array_map($update, $replies), $this->threads);
     }
 
     /**
@@ -748,7 +1037,7 @@ class CommitDetail extends NativeComponent
      */
     protected function shownCommits(): iterable
     {
-        return [...($this->commit === null ? [] : [$this->commit]), ...$this->ancestors, ...$this->series, ...$this->replies, ...array_merge([], ...array_values($this->partReplies)), ...$this->related, ...array_merge([], ...array_values($this->tombstoneReplies))];
+        return [...($this->commit === null ? [] : [$this->commit]), ...$this->ancestors, ...$this->series, ...$this->replies, ...array_merge([], ...array_values($this->partReplies)), ...$this->related, ...$this->threadCommits()];
     }
 
     /**
@@ -799,7 +1088,7 @@ class CommitDetail extends NativeComponent
     private function showKept(): void
     {
         if (($thread = $this->cached($this->threadPath())) !== null) {
-            $this->takeThread($thread);
+            $this->takeCommitThread($thread);
         } elseif ($this->commit === null && ($commit = $this->data('commit')) instanceof Commit && $commit->id === $this->id) {
             $this->commit = $commit;
             $this->ancestors = $commit->parent === null ? [] : [$commit->parent];
@@ -825,7 +1114,7 @@ class CommitDetail extends NativeComponent
     /**
      * @param  array<string, mixed>  $json
      */
-    private function takeThread(array $json): void
+    private function takeCommitThread(array $json): void
     {
         $thread = CommitThread::fromArray($json);
 
@@ -949,16 +1238,6 @@ class CommitDetail extends NativeComponent
         return 'commits/'.rawurlencode($this->id);
     }
 
-    private function loadTombstoneReplies(string $id): void
-    {
-        $page = $this->attempt(fn ($devnull) => $devnull->replies($id));
-
-        if ($page !== null) {
-            $this->tombstoneReplies[$id] = $page->items;
-            $this->tombstoneCursors[$id] = $page->nextCursor;
-        }
-    }
-
     /**
      * Whether the commit is yours, or an organization's you're in, which puts Delete in the nav bar (see Ownership).
      */
@@ -992,6 +1271,7 @@ class CommitDetail extends NativeComponent
                 laneAbove: $earlier === [] ? null : end($earlier)->lane(),
             ),
             'relatedRows' => Timeline::thread($this->related),
+            'ancestorThreads' => $this->ancestorThreads($above),
             'earlierCount' => $this->commit === null ? 0 : count($earlier),
             'earlierLane' => $earlier === [] ? null : end($earlier)->lane(),
             'replyCount' => max($this->commit->repliesCount ?? 0, count($replies)),

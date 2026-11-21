@@ -28,6 +28,7 @@
                     'seriesExpanded' => false,
                     'threadBelow' => false,
                     'withTail' => ! $loop->last,
+                    'expandable' => false,
                 ])
             </native:column>
         @endforeach

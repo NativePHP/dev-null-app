@@ -48,6 +48,7 @@ trait ShowsCommits
     use OpensCommitSheet;
     use OpensHashtags;
     use OpensStargazers;
+    use PopsReactions;
     use VotesOnPolls;
     use WritesInBackground;
 
@@ -226,6 +227,11 @@ trait ShowsCommits
 
         $this->showStar($id, ! $commit->starred);
         $this->queueStar($id, ! $commit->starred);
+
+        // The web only pops a star going on.
+        if (! $commit->starred) {
+            $this->pop('star-'.$id);
+        }
     }
 
     /**
@@ -254,6 +260,7 @@ trait ShowsCommits
 
         app(Account::class)->rememberPasteis($pasteis->afterGiving());
         $this->changeShownCommit($id, fn (Commit $shown): Commit => $shown->withMorePasteis(1));
+        $this->pop('pastel-'.$id);
 
         $this->writeInBackground('POST', Client::pastelPath($id), null, fn (array $json) => $this->pastelGiven($id, $json), function (string $message, ?ApiException $exception = null) use ($id): void {
             $this->pastelTurnedDown($id, $exception);

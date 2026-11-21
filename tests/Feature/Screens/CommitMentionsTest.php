@@ -95,6 +95,31 @@ it("suggests devnull's people for a reply as you type @ in the reply bar, then o
         ->assertMissingElement('column', fn (array $node): bool => ($node['ref'] ?? null) === 'mention-suggestions');
 });
 
+it('holds the reply bar\'s suggestions to six rows and scrolls the rest inside the list', function () {
+    $people = array_map(fn (int $n): array => userJson(['id' => "u{$n}", 'handle' => "ada{$n}", 'name' => "Ada {$n}"]), range(1, 7));
+    $screen = mentionsCommitPage([['data' => $people, 'organizations' => [['handle' => 'adaptive', 'name' => 'Adaptive', 'avatar_url' => null]]]])
+        ->input('reply-input', '@ada', 4);
+
+    // Eight rows, so they sit in a list six rows tall, which scrolls. The slot and the field's row around it stay put.
+    $list = nodeByRef($screen, 'mention-scroll');
+
+    expect(childRefs($screen, 'mention-suggestions'))->toBe(['mention-scroll'])
+        ->and($list['type'])->toBe('scroll_view')
+        ->and($list['layout']['height'] ?? null)->toEqual(6 * 44)
+        ->and(childRefs($screen, 'mention-scroll'))->toBe([...array_map(fn (int $n): string => "mention-ada{$n}", range(1, 7)), 'mention-adaptive'])
+        ->and(childRefs($screen, 'reply-rows'))->toBe(['reply-mention-slot', 'reply-photos-slot', 'reply-row']);
+
+    $screen->tap('mention-ada7')->assertSet('reply', '@ada7 ');
+});
+
+it('leaves six suggestions or fewer as tall as their rows, with no list to scroll', function () {
+    $people = array_map(fn (int $n): array => userJson(['id' => "u{$n}", 'handle' => "ada{$n}", 'name' => "Ada {$n}"]), range(1, 6));
+    $screen = mentionsCommitPage([['data' => $people]])->input('reply-input', '@ada', 4);
+
+    expect(childRefs($screen, 'mention-suggestions'))->toBe(array_map(fn (int $n): string => "mention-ada{$n}", range(1, 6)))
+        ->and(rendersRef($screen, 'mention-scroll'))->toBeFalse();
+});
+
 it('puts the person picked in the reply where the @ was, with the caret after them', function () {
     $screen = mentionsCommitPage()
         ->input('reply-input', 'cc @adfor review', 6)
