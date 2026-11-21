@@ -8,7 +8,9 @@
     At most six rows show (Display::MentionRowsShown). Past that the rows scroll inside a list that tall, so the list
     never pushes the field and the bar's buttons down under the keyboard. Fewer, and it's only as tall as its rows.
     Each row is then exactly a row's height (Display::MentionRowHeight), so six fill the list. The rows sit inside the
-    list's own column, so the slot around it, and the field's row beside that, stay where they are.
+    list's own column, so the slot around it, and the field's row beside that, stay where they are. A caller that
+    scrolls the list itself (the composer sheet sizes and scrolls its own) passes 'scrolls' => false, and every row is
+    drawn as tall as it is, with no scroll view inside.
 --}}
 @if (($mention['field'] ?? null) === $field && ($mentionPeople !== [] || $mentionOrganizations !== []))
     <native:column ref="mention-suggestions" class="{{ $class ?? 'flex-1 py-1 ios:rounded-[18] ios:glass' }}" a11y-label="{{ $label ?? 'Mention a member' }}">
@@ -16,7 +18,7 @@
             <native:text ref="mention-heading" class="px-4 pt-1 pb-1 text-xs text-theme-ink-muted">{{ $heading }}</native:text>
         @endif
         @php($mentionRows = [...array_map(fn ($user) => [$user, true], $mentionPeople), ...array_map(fn ($user) => [$user, false], $mentionOrganizations)])
-        @php($mentionScrolls = count($mentionRows) > \App\Devnull\Display::MentionRowsShown)
+        @php($mentionScrolls = ($scrolls ?? true) && count($mentionRows) > \App\Devnull\Display::MentionRowsShown)
         @if ($mentionScrolls)
             <native:scroll-view native:key="mention-scroll" ref="mention-scroll" class="w-full h-[{{ \App\Devnull\Display::MentionRowsShown * \App\Devnull\Display::MentionRowHeight }}]">
         @endif
