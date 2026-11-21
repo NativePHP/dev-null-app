@@ -271,12 +271,10 @@ it('says which guild a commit was posted in, as the web does', function () {
         ->and(nodeByRef($screen, 'guild-pill-g1')['props']['a11y_label'])->toBe('Rust, #rust');
 });
 
-it('searches for the guild hashtag from the guild a commit was posted in', function () {
-    $screen = logOf([['id' => 'g1', 'guild_handle' => 'rust', 'guild' => ['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀', 'icon_url' => null]]]);
-
-    $screen->press("openHashtag('#rust')")->assertNavigatedTo('/log/search');
-
-    expect($screen->instance()->getNavigationIntent()->data)->toBe(['query' => '#rust']);
+it('opens the guild a commit was posted in', function () {
+    logOf([['id' => 'g1', 'guild_handle' => 'rust', 'guild' => ['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀', 'icon_url' => null]]])
+        ->tap('guild-pill-g1')
+        ->assertNavigatedTo('/log/guilds/rust');
 });
 
 it('says nothing about guilds on a commit that was not posted in one', function () {

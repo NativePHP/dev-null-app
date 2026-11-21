@@ -8,6 +8,7 @@ use App\Devnull\Data\Connection;
 use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\DraftImage;
 use App\Devnull\Data\Guild;
+use App\Devnull\Data\GuildBoard;
 use App\Devnull\Data\IncomingCall;
 use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\Notification;
@@ -469,6 +470,16 @@ final readonly class Client
         $guilds = Page::fromArray($this->get('guilds', ['q' => $term === '' ? null : $term, 'page' => $page]), Guild::fromArray(...));
 
         return new Page(array_values(array_filter($guilds->items)), $guilds->nextCursor);
+    }
+
+    /**
+     * A guild's bulletin board: its latest commits and the one pinned to the top. Null when the answer carries
+     * no guild. A handle devnull has no guild by is a 404, which throws, as does guilds being switched off for
+     * you. Page 1 is asked for with no page number, so it's kept.
+     */
+    public function guild(string $handle, ?string $page = null): ?GuildBoard
+    {
+        return GuildBoard::fromArray($this->get('guilds/'.rawurlencode($handle), ['page' => $page]));
     }
 
     /**

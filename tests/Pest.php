@@ -471,6 +471,48 @@ function currentUserTermsJson(bool $accepted, ?string $acceptedAt = '2026-10-05T
 }
 
 /**
+ * A guild as devnull sends it: a row of the directory, or the `guild` of a board.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function guildJson(array $overrides = []): array
+{
+    $handle = $overrides['handle'] ?? 'rust';
+
+    return [
+        'handle' => $handle,
+        'name' => ucfirst($handle),
+        'description' => "All about {$handle}.",
+        'emoji' => '💻',
+        'icon_url' => null,
+        'member_count' => 3,
+        'is_joined' => false,
+        'is_muted' => false,
+        'is_paused' => false,
+        'html_url' => "http://devnull.test/guilds/{$handle}",
+        ...$overrides,
+    ];
+}
+
+/**
+ * A guild board answer, as `GET /guilds/{handle}` sends it.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function boardJson(array $overrides = []): array
+{
+    return [
+        'guild' => guildJson(),
+        'data' => [commitJson(['id' => 'c1']), commitJson(['id' => 'c2'])],
+        'pinned_commit' => commitJson(['id' => 'c2']),
+        'links' => ['next' => 'https://dev-null.sh/api/v1/guilds/rust?page=2'],
+        ...$overrides,
+    ];
+}
+
+/**
  * A commit as the API sends it to a signed request. The short hash and the link
  * follow the id and the author, and the body's segments follow the body, unless
  * a test sends its own, as the server always works them out from what it stores.

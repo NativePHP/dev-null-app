@@ -6,7 +6,7 @@ use App\Devnull\Account;
 use App\Devnull\Data\Guild;
 use App\Devnull\Data\Page;
 use App\Devnull\Exceptions\ApiException;
-use App\NativeComponents\Concerns\OpensHashtags;
+use App\NativeComponents\Concerns\OpensGuilds;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -20,13 +20,11 @@ use Native\Mobile\Edge\NativeComponent;
  * The web pages through them with Previous and Next; but in the native app
  * we instead are using infinite scrolling to load more guilds.
  *
- * Due to pending APIs not being merged yet, we can't support a dedicated guild
- * page yet. Instead, tapping a guild hashtag will open search for commits that
- * contain that hashtag (see OpensHashtags).
+ * Tapping a guild opens its own screen, its board (see Guild and OpensGuilds).
  */
 class Guilds extends NativeComponent
 {
-    use OpensHashtags;
+    use OpensGuilds;
     use OpensInTab;
     use RefreshesInBackground;
     use TalksToDevnull;
@@ -102,11 +100,6 @@ class Guilds extends NativeComponent
         $this->ask(again: true);
     }
 
-    public function openGuild(string $handle): void
-    {
-        $this->openHashtag('#'.$handle);
-    }
-
     public function loadMore(): void
     {
         if ($this->nextPage === null) {
@@ -136,7 +129,7 @@ class Guilds extends NativeComponent
      * A 404 for the directory means guilds are switched off for the
      * current user (unlikely to happen now that it's available to public).
      */
-    protected function refused(ApiException $exception): bool
+    protected function refused(ApiException $exception, string $path): bool
     {
         if ($exception->status !== 404) {
             return false;

@@ -1,8 +1,7 @@
 {{--
     A guild in the directory, as the web's card shows it: its uploaded icon, or its emoji (see guild-mark).
 
-    Tapped, it searches for the hashtag. Once we are able to add support for actual guild
-    pages, tapping it will instead open that guild page.
+    Tapped, it opens the guild's screen (see OpensGuilds).
 --}}
 @php($members = \App\Devnull\Display::count($guild->memberCount, 'member', 'members'))
 <native:pressable native:key="guild-{{ $guild->handle }}" ref="guild-{{ $guild->handle }}" @press="openGuild('{{ $guild->handle }}')" class="w-full flex-row px-4 py-3 gap-3 items-start border-b border-theme-hairline bg-theme-surface" a11y-label="{{ $guild->name }}, {{ $guild->hashtag() }}, {{ $members }}">
