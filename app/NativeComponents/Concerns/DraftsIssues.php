@@ -192,11 +192,11 @@ trait DraftsIssues
     }
 
     /**
-     * Only a new commit can become an issue, as on the web.
+     * Only a new commit for your log can become an issue, as on the web, whose guild composer has no commands.
      */
     protected function canDraftIssue(): bool
     {
-        return $this->sheetOpen && $this->sheetView === 'compose' && ! $this->scheduling;
+        return $this->sheetOpen && $this->sheetView === 'compose' && $this->sheetGuild === null && ! $this->scheduling;
     }
 
     /**

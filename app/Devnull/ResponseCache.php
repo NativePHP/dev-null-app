@@ -2,6 +2,7 @@
 
 namespace App\Devnull;
 
+use App\Devnull\Data\Guild;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Contracts\Cache\Repository;
@@ -399,7 +400,10 @@ final class ResponseCache
 
     /**
      * You committed. A commit goes on top of your logs and your profile; a reply
-     * goes under its parent and counts there, and on top of your replies.
+     * goes under its parent and counts there, and on top of your replies. A
+     * post to a guild's board goes on top of that board alone, as it isn't in
+     * the logs or your profile's list, though devnull counts it among your
+     * commits.
      *
      * @param  array<string, mixed>  $commit
      */
@@ -413,9 +417,13 @@ final class ResponseCache
 
         $parentId = is_string($commit['parent_id'] ?? null) ? $commit['parent_id'] : null;
 
+        $guild = Guild::fromArray(is_array($commit['guild'] ?? null) ? $commit['guild'] : ['handle' => $commit['guild_handle'] ?? null]);
+
         if ($parentId === null) {
             // Trending is ranked, so a new commit has no place at the top of it.
-            foreach (['log/following', 'log/latest', "users/{$me}/commits"] as $path) {
+            $paths = $guild === null ? ['log/following', 'log/latest', "users/{$me}/commits"] : ['guilds/'.rawurlencode($guild->handle)];
+
+            foreach ($paths as $path) {
                 $this->patch($path, [], fn (array $json): array => self::prepend($json, $commit));
             }
 
