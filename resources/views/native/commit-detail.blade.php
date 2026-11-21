@@ -31,7 +31,8 @@
                 their avatar once. The replies hang under it on the thread's dashed lines, with the rail ending in a dot
                 above them, ten at a time with "Show more" under the last. A part of a series with more parts after it
                 has its replies right under it, beside the rail running on, and the later parts follow. Everything
-                around the commit is muted. Tapping any commit in the tree moves the page to it rather than pushing
+                around the commit is muted, and the commits above it open their other replies in place under them, as the
+                commit does. Tapping any commit in the tree moves the page to it rather than pushing
                 another (see CommitDetail::refocus()). Every reply's own replies open in place under
                 it, ten at a time too, as deep as they go, as on the web: they step in up to the web's depth and line up
                 under the deepest step past it, saying who they answer (see App\Devnull\ThreadRows).
@@ -57,12 +58,14 @@
                 @php($isLastPart = $lastPart !== null && $row->commit->id === $lastPart->id)
                 @php($hasThread = $isFocused && $repliesShown && $replies !== [])
                 @php($partThread = $isLastPart && $lastPartReplies !== [])
+                @php($aboveThread = $ancestorThreads[$row->commit->id] ?? null)
+                @php($aboveOpen = ($aboveThread['rows'] ?? []) !== [])
                 @include('native.partials.commit-row', [
                     'commit' => $row->commit,
                     'previousLane' => $row->previousLane,
                     'continuesRun' => $row->continuesRun,
-                    'continuesNext' => $isFocused ? ! $loop->last : null,
-                    'threadBelow' => $hasThread || $partThread,
+                    'continuesNext' => $isFocused || $aboveOpen ? ! $loop->last : null,
+                    'threadBelow' => $hasThread || $partThread || $aboveOpen,
                     'repliesBelow' => $partThread,
                     'focused' => $isFocused,
                     'muted' => ! $isFocused,
@@ -71,15 +74,20 @@
                     'hairline' => ! ($loop->last && $relatedBelow && ! $threadMore),
                     'threadPosition' => $threadPositions[$row->commit->id] ?? null,
                     'showsThread' => false,
-                    'expandable' => false,
+                    'expandable' => $aboveThread !== null,
+                    'repliesCount' => $aboveThread['count'] ?? null,
                 ])
                 @if ($isFocused && $repliesShown && $replies === [] && ! $repliesLoaded && $error === null)
                     <native:row ref="loading-replies" class="w-full pl-[64] pr-4 py-4 gap-2 items-center" a11y-label="Loading replies">
                         <native:activity-indicator size="small" />
                     </native:row>
                 @endif
-                {{-- The replies, and theirs opened in place under them as deep as they go (see App\Devnull\ThreadRows). --}}
-                @php($pageThread = match (true) { $hasThread => \App\Devnull\ThreadRows::under($commit, [...$threads, $commit->id => $replies], array_filter([...$threadCursors, $commit->id => $repliesCursor]), $threadShown, $loop->last ? null : $commit->lane(), opensInPlace: PHP_INT_MAX, onPage: true, morePress: 'loadMoreReplies'), $partThread => \App\Devnull\ThreadRows::under($lastPart, [...$threads, $lastPart->id => $lastPartReplies], array_filter([...$threadCursors, $lastPart->id => $lastPartMore ? 'more' : null]), $threadShown, opensInPlace: PHP_INT_MAX, onPage: true, morePress: "openReplies('{$lastPart->id}')"), default => [] })
+                {{--
+                    The replies, and theirs opened in place under them as deep as they go (see App\Devnull\ThreadRows).
+                    A commit above the commit opens its replies in place under it too, all but the one on the line down
+                    to the commit, which already shows (see CommitDetail::ancestorThreads()).
+                --}}
+                @php($pageThread = match (true) { $aboveThread !== null => $aboveThread['rows'], $hasThread => \App\Devnull\ThreadRows::under($commit, [...$threads, $commit->id => $replies], array_filter([...$threadCursors, $commit->id => $repliesCursor]), $threadShown, $loop->last ? null : $commit->lane(), opensInPlace: PHP_INT_MAX, onPage: true, morePress: 'loadMoreReplies'), $partThread => \App\Devnull\ThreadRows::under($lastPart, [...$threads, $lastPart->id => $lastPartReplies], array_filter([...$threadCursors, $lastPart->id => $lastPartMore ? 'more' : null]), $threadShown, opensInPlace: PHP_INT_MAX, onPage: true, morePress: "openReplies('{$lastPart->id}')"), default => [] })
                 @foreach ($pageThread as $threadRow)
                     @if ($threadRow['reply'] === null)
                         @include($threadRow['partial'], $threadRow['data'])

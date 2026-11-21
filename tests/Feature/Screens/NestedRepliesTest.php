@@ -170,3 +170,88 @@ it('animates the move and asks again for a row it went to before', function () {
     expect($props()['auto_scroll_to'])->toBe(0)
         ->and($props()['auto_scroll_token'])->not->toBe($first);
 });
+
+/**
+ * A commit page for c2, which answers c1. c1 has another reply, x1, and x1 has one of its own, x2. c2 has one reply, r1.
+ */
+function fakeAncestorThread(): void
+{
+    $person = fn (string $handle, int $lane): array => userJson(['handle' => $handle, 'name' => ucfirst($handle), 'lane' => $lane]);
+    $c1 = commitJson(['id' => 'c1', 'body' => 'The commit above', 'replies_count' => 2, 'author' => $person('ada', 1)]);
+    $c2 = commitJson(['id' => 'c2', 'parent_id' => 'c1', 'body' => 'The focused commit', 'replies_count' => 1, 'author' => $person('grace', 2)]);
+    $x1 = replyJson(['id' => 'x1', 'parent_id' => 'c1', 'body' => 'Another reply above', 'replies_count' => 1, 'author' => $person('linus', 4)]);
+    $x2 = replyJson(['id' => 'x2', 'parent_id' => 'x1', 'body' => 'A reply to the other reply', 'author' => $person('alan', 5)]);
+    $r1 = replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'A reply below', 'author' => $person('ken', 6)]);
+
+    Http::fake(function (Request $request) use ($c1, $c2, $x1, $x2, $r1) {
+        $path = parse_url($request->url(), PHP_URL_PATH);
+
+        return match ($path) {
+            '/api/v1/commits/c2' => Http::response(commitPageJson($c2, [$c1])),
+            '/api/v1/commits/c1' => Http::response(commitPageJson($c1)),
+            '/api/v1/commits/r1' => Http::response(commitPageJson($r1, [$c1, $c2])),
+            '/api/v1/commits/c1/related', '/api/v1/commits/c2/related', '/api/v1/commits/r1/related' => Http::response(['data' => []]),
+            '/api/v1/commits/c1/replies' => Http::response(pageJson([$c2, $x1])),
+            '/api/v1/commits/c2/replies' => Http::response(pageJson([$r1])),
+            '/api/v1/commits/x1/replies' => Http::response(pageJson([$x2])),
+            '/api/v1/commits/r1/replies', '/api/v1/commits/x2/replies' => Http::response(pageJson([])),
+            default => Http::response(['message' => 'No fake.'], 404),
+        };
+    });
+}
+
+it('opens the replies of a commit above the commit in place, leaving out the one on the way down', function () {
+    fakeAncestorThread();
+
+    $screen = Native::visit('/log/commits/c2', ['replies' => true]);
+
+    // c1 has two replies, and one of them is the commit the page is on, so its button counts the other.
+    expect(nodeByRef($screen, 'replies-c1')['props']['a11y_label'] ?? null)->toBe('1 reply');
+
+    $screen->tap('replies-c1')->assertNoNavigation()->assertSee('Another reply above');
+
+    // The other reply opens under c1, and the commit the page is on shows once, as the commit.
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['commit-c1', 'thread-reply-x1', 'focused-commit', 'thread-reply-r1', 'reply-bar-clearance']);
+
+    // Its replies open in place too, at any depth.
+    $screen->tap('replies-x1')->assertNoNavigation()->assertSee('A reply to the other reply');
+
+    $screen->tap('replies-c1');
+    finishRefreshes($screen)->assertDontSee('Another reply above')->assertDontSee('A reply to the other reply');
+
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['commit-c1', 'focused-commit', 'thread-reply-r1', 'reply-bar-clearance']);
+});
+
+it('counts the replies opened above the commit in the row it scrolls to after a move', function () {
+    fakeAncestorThread();
+
+    $screen = Native::visit('/log/commits/c2', ['replies' => true]);
+    $screen->tap('replies-c1');
+    $screen->tap('thread-reply-r1')->assertSet('id', 'r1')->assertSet('scrollTarget', 3);
+
+    // r1 has no replies, so "No replies yet" follows it.
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['commit-c1', 'thread-reply-x1', 'commit-c2', 'focused-commit', null, 'reply-bar-clearance'])
+        ->and(rendersRef($screen, 'replies-c2'))->toBeFalse();
+
+    // Closing the replies of a commit above it later doesn't scroll the page again.
+    $screen->tap('replies-c1')->assertSet('scrollTarget', 3);
+});
+
+it('keeps the replies of the commits on the line open when the replies of one above them close', function () {
+    fakeDeepThread();
+
+    $screen = Native::visit('/log/commits/c2', ['replies' => true]);
+    $screen->tap('replies-r1');
+    $screen->tap('replies-r2');
+    $screen->tap('thread-reply-r3')->assertSet('id', 'r3');
+
+    // Each commit above r3 has one reply, the one on the way down, so none of them has a replies button.
+    expect(rendersRef($screen, 'replies-c2'))->toBeFalse()
+        ->and(rendersRef($screen, 'replies-r1'))->toBeFalse();
+
+    // Closing c2's replies, which the page kept open from when it was on c2, leaves r1's and r2's be.
+    $screen->call('toggleReplies', 'c2');
+    finishRefreshes($screen);
+
+    expect($screen->get('threads'))->toHaveKeys(['r1', 'r2']);
+});

@@ -267,7 +267,9 @@ trait ExpandsThreads
     private function closeThread(string $id): void
     {
         foreach ($this->threads[$id] ?? [] as $reply) {
-            $this->closeThread($reply->id);
+            if (! $this->drawsOnItsOwn($reply->id)) {
+                $this->closeThread($reply->id);
+            }
         }
 
         unset($this->threads[$id], $this->threadCursors[$id], $this->threadShown[$id]);
@@ -360,12 +362,21 @@ trait ExpandsThreads
         $rows = $this->rowsOf($id, $this->shownReplies($id));
 
         foreach ($this->shownReplies($id) as $reply) {
-            if (array_key_exists($reply->id, $this->threads)) {
+            if (array_key_exists($reply->id, $this->threads) && ! $this->drawsOnItsOwn($reply->id)) {
                 $rows = [...$rows, ...$this->rowsInside($reply->id)];
             }
         }
 
         return $rows;
+    }
+
+    /**
+     * Whether the screen draws a reply in a row of its own rather than in the thread it's in, so its own replies
+     * stay open when that thread closes. A commit page draws the commits on its line that way (see CommitDetail).
+     */
+    protected function drawsOnItsOwn(string $id): bool
+    {
+        return false;
     }
 
     /**

@@ -19,6 +19,7 @@ use App\Devnull\ResponseCache;
 use App\Devnull\RowCache;
 use App\Devnull\SelfThread;
 use App\Devnull\Stash;
+use App\Devnull\ThreadRows;
 use App\Devnull\Timeline;
 use App\Devnull\Toasts;
 use App\Icons\Lucide;
@@ -51,7 +52,8 @@ use Native\Mobile\Edge\NativeComponent;
  *
  * Each reply's own replies open in place under it, and theirs under them, as
  * deep as they go, as the web's commit page does (see ExpandsThreads and
- * App\Devnull\ThreadRows).
+ * App\Devnull\ThreadRows). So do the commits above the commit, less the one
+ * on the line down to it, which already shows (see ancestorThreads()).
  *
  * Tapping a commit in the tree, above the commit, below it or among the
  * replies at any depth, moves this page to it rather than pushing another
@@ -479,9 +481,10 @@ class CommitDetail extends NativeComponent
         $this->takeReplyDraft();
         $this->error = null;
 
-        // The commit's row is the one after its ancestors. A new token asks again even when that's the row the
-        // scroll view went to last time. The scroll view keeps its key, so its rows slide to their new places.
-        $this->scrollTarget = count($this->ancestors);
+        // The commit's row is the one after its ancestors and the replies opened under them. A new token asks again
+        // even when that's the row the scroll view went to last time. The scroll view keeps its key, so its rows
+        // slide to their new places. Opening an ancestor's replies later leaves the target be, so it doesn't scroll.
+        $this->scrollTarget = count($this->ancestors) + array_sum(array_map(fn (array $thread): int => count($thread['rows']), $this->ancestorThreads($this->ancestors)));
         $this->scrollRequest++;
         $this->forgetRefreshes();
         $this->revalidate();
@@ -595,8 +598,58 @@ class CommitDetail extends NativeComponent
     }
 
     /**
+     * The replies of each commit above the commit, as its "› N replies" opens them in place under it, the same as a
+     * reply's (see ExpandsThreads), and how many that button counts. The commit under it on the page, when that's
+     * one of its replies, is left out of both: it's already showing, on the line down to the commit. The web leaves
+     * out only the part of a self-thread that carries it on (see SelfThread), so there the rest of the line would
+     * show twice. devnull's count already leaves that part out.
+     *
+     * @param  list<Commit>  $above
+     * @return array<string, array{count: int, rows: list<array{key: string, partial: string, data: array<string, mixed>, reply: Commit|null}>}>
+     */
+    private function ancestorThreads(array $above): array
+    {
+        if ($this->commit === null) {
+            return [];
+        }
+
+        $line = [...$above, $this->commit];
+        $threads = [];
+
+        foreach ($above as $index => $ancestor) {
+            $next = $line[$index + 1];
+            $onLine = $next->parentId === $ancestor->id && $ancestor->continuationId !== $next->id;
+            $replies = array_values(array_filter($this->threads[$ancestor->id] ?? [], fn (Commit $reply): bool => $reply->id !== $next->id));
+
+            $threads[$ancestor->id] = [
+                'count' => max(0, $ancestor->repliesCount - ($onLine ? 1 : 0)),
+                'rows' => $ancestor->isDeleted() || $replies === [] ? [] : ThreadRows::under(
+                    $ancestor,
+                    [...$this->threads, $ancestor->id => $replies],
+                    $this->threadCursors,
+                    $this->threadShown,
+                    $ancestor->lane(),
+                    opensInPlace: PHP_INT_MAX,
+                    onPage: true,
+                ),
+            ];
+        }
+
+        return $threads;
+    }
+
+    /**
+     * The commits on the page's line, above the commit and the commit itself, draw rows of their own, so closing the
+     * replies they're among leaves their own replies open.
+     */
+    protected function drawsOnItsOwn(string $id): bool
+    {
+        return $id === $this->id || in_array($id, array_map(fn (Commit $ancestor): string => $ancestor->id, $this->ancestors), true);
+    }
+
+    /**
      * "› N replies" under the commit opens them in place, and "Hide replies" folds them away. Under a reply, at any
-     * depth, it opens that reply's replies in place under it (see ExpandsThreads).
+     * depth, or a commit above the commit, it opens that one's replies in place under it (see ExpandsThreads).
      */
     public function toggleReplies(string $id = ''): void
     {
@@ -1211,6 +1264,7 @@ class CommitDetail extends NativeComponent
                 laneAbove: $earlier === [] ? null : end($earlier)->lane(),
             ),
             'relatedRows' => Timeline::thread($this->related),
+            'ancestorThreads' => $this->ancestorThreads($above),
             'earlierCount' => $this->commit === null ? 0 : count($earlier),
             'earlierLane' => $earlier === [] ? null : end($earlier)->lane(),
             'replyCount' => max($this->commit->repliesCount ?? 0, count($replies)),
