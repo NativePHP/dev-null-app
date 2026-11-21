@@ -1,5 +1,6 @@
 <?php
 
+use App\Devnull\ComposerSheet;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
@@ -180,4 +181,36 @@ it('forgets the suggestions when the sheet closes', function () {
         ->press('hideCommitSheet')
         ->assertSet('mention', null)
         ->assertSet('mentionPeople', []);
+});
+
+it('floats the suggestions over the quoted commit on glass, from just under the caret line down to the toolbar', function () {
+    $screen = mentionsComposer(quoting: true)->input('sheet-body', "see\n@a", 6);
+    $overlay = nodeByRef($screen, 'sheet-mentions');
+
+    // Out of the layout, over the field and the card under it, so neither moves.
+    expect($overlay['layout']['position_type'])->toBe(1)
+        ->and($overlay['layout']['position'])->toEqual([
+            ComposerSheet::TopPadding + 2 * ComposerSheet::FieldLineHeight + ComposerSheet::MentionGap,
+            12,
+            ComposerSheet::MentionInset,
+            12,
+        ])
+        ->and($overlay['props']['glass'])->toBe(1)
+        ->and(childRefs($screen, 'sheet-body-area'))->toBe(['sheet-field-slot', 'sheet-below', 'sheet-mentions'])
+        ->and(findNode(nodeByRef($screen, 'sheet-below'), fn (array $node): bool => ($node['ref'] ?? null) === 'quote-card'))->not->toBeNull()
+        // The list scrolls inside it when there are more than fit.
+        ->and(findNode($overlay, fn (array $node): bool => $node['type'] === 'scroll_view' && ($node['ref'] ?? null) === 'sheet-mentions-scroll'))->not->toBeNull()
+        ->and(childRefs($screen, 'mention-suggestions'))->toBe(['mention-ada', 'mention-adam', 'mention-adaptive']);
+});
+
+it('draws the floating suggestions on a raised surface on Android', function () {
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([])],
+        'GET /api/v1/search/mentions' => mentionsFound(),
+    ]);
+
+    $overlay = nodeByRef(Native::visit('/log', platform: 'android')->press('composeInSheet')->input('sheet-body', 'hi @a', 5), 'sheet-mentions');
+
+    expect($overlay['props'])->not->toHaveKey('glass')
+        ->and(strtolower($overlay['style']['bg_color']))->toBe(strtolower(config('native-ui.theme.light.surface')));
 });

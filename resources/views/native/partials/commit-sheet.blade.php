@@ -26,11 +26,14 @@
     A commit's page opens its reply here too, as "Reply to @handle", with the commit being answered as a static card
     over the field, for the photos and the preview its reply bar has no room for. Commit says Reply there.
 
-    While the caret is after an "@handle", the people to mention show right under the field, as the web's composer lists
-    them (see SuggestsMentions): for a bare "@" in a new commit, the people you follow, under that heading. The field
-    keeps the keyboard up through presses in the sheet (keep-focus), so picking someone leaves you typing after them.
+    While the caret is after an "@handle", the people to mention float over the field just under the caret's line, as
+    the web's composer lists them (see SuggestsMentions): for a bare "@" in a new commit, the people you follow, under
+    that heading. They cover a quoted commit too, and run down to the toolbar. The field keeps the keyboard up through
+    presses in the sheet (keep-focus), so picking someone leaves you typing after them.
 
-    Under what's being written come its photos and the poll editor. A toolbar is pinned to the bottom of the sheet, so
+    The sheet doesn't scroll. The field fills the space between the author row and the toolbar, less what's under it:
+    the photos as a strip of 80pt squares, the poll editor, the commit being quoted, or "Submit at", each at its own
+    height (see ComposerSheet). Only the field scrolls its text. A toolbar is pinned to the bottom of the sheet, so
     it stays just above the keyboard: the tools on the left, photos, the camera, a poll (not on a reply) and the
     preview, which shows the draft as the commit it would become in place of the field (see AttachesToCommits), and
     stash@{0} and the counter on the right. An issue draft has no tools, as on the web. With photos, Commit spins while
@@ -70,37 +73,74 @@
                     @endif
                 </native:row>
                 <native:column class="w-full h-[1] bg-theme-hairline" />
-                <native:scroll-view ref="sheet-composer" class="w-full flex-1">
-                    <native:column class="w-full px-5 pt-4 pb-10 gap-4">
-                        @if ($postsAs)
-                            <native:row native:key="sheet-post-as-row" class="w-full">
-                                @include('native.partials.post-as', ['ref' => 'sheet-post-as', 'me' => $postingMe, 'picked' => $sheetAuthor, 'method' => 'postAsInSheet', 'size' => 36, 'withName' => true])
-                            </native:row>
-                        @endif
+                {{--
+                    Nothing here scrolls but the field (or the preview in its place). What's over the field and under
+                    it take their own height, and the field takes the lines left between them and the toolbar (see
+                    ComposerSheet). Each part has a keyed slot that's always drawn, empty or not, so the field never
+                    moves among its siblings: Android rebuilds a node that does, and the keyboard goes down with it.
+                --}}
+                @php($sheetLayout = \App\Devnull\ComposerSheet::class)
+                @php($linkTooLong = ! $issueCommand && \App\Devnull\Data\CommitBody::hasOversizedUrl($sheetBody))
+                @php($pollShown = $sheetPoll !== null && ! $replying)
+                @php($offersIssues = ! $quoting && ! $scheduling && ! $replying && ! $issueCommand)
+                @php($issueCommands = $offersIssues && $sheetTyped ? \App\Devnull\IssueCommand::suggested($sheetBody) : [])
+                @php($issueHint = $offersIssues && ! $issueHintsDismissed ? \App\Devnull\IssueCommand::hinted($sheetBody) : null)
+                @php($above = [
+                    $postsAs ? $sheetLayout::PostAsHeight : 0,
+                    $sheetError ? $sheetLayout::noteHeight($sheetError) : 0,
+                    $issueCommand ? $sheetLayout::IssueBadgeHeight : 0,
+                    $replying ? $sheetLayout::cardHeight($sheetCommit) : 0,
+                ])
+                @php($below = $previewing ? [] : [
+                    $linkTooLong ? $sheetLayout::NoteLineHeight * 2 : 0,
+                    $sheetImages === [] ? 0 : $sheetLayout::PhotosHeight + ($describing !== null ? $sheetLayout::PhotoDescriptionHeight : 0),
+                    $pollShown ? $sheetLayout::pollEditorHeight($sheetPoll) : 0,
+                    match (true) {
+                        $quoting => $sheetLayout::cardHeight($sheetCommit),
+                        $scheduling => $sheetLayout::ScheduleHeight,
+                        $issueCommands !== [] => count($issueCommands) * $sheetLayout::IssueCommandRowHeight + 8,
+                        $issueHint !== null => $sheetLayout::IssueHintHeight,
+                        default => 0,
+                    },
+                ])
+                @php($fieldLines = $sheetLayout::fieldLines($above, $below))
+                @php($hasAbove = array_filter($above) !== [])
+                <native:column native:key="sheet-above" ref="sheet-above" class="w-full {{ $hasAbove ? 'px-5 pt-3 gap-3' : '' }}">
+                    @if ($postsAs)
+                        <native:row native:key="sheet-post-as-row" class="w-full">
+                            @include('native.partials.post-as', ['ref' => 'sheet-post-as', 'me' => $postingMe, 'picked' => $sheetAuthor, 'method' => 'postAsInSheet', 'size' => 36, 'withName' => true])
+                        </native:row>
+                    @endif
 
-                        @if ($sheetError)
-                            <native:text ref="sheet-error" class="w-full text-sm text-theme-destructive">{{ $sheetError }}</native:text>
-                        @endif
+                    @if ($sheetError)
+                        <native:text ref="sheet-error" class="w-full text-sm text-theme-destructive">{{ $sheetError }}</native:text>
+                    @endif
 
-                        @if ($issueCommand)
-                            @include('native.partials.issue-badge', ['command' => $issueCommand])
-                        @endif
+                    @if ($issueCommand)
+                        @include('native.partials.issue-badge', ['command' => $issueCommand])
+                    @endif
 
-                        @if ($replying)
-                            @include('native.partials.quoted-commit', ['quoted' => $sheetCommit, 'static' => true, 'label' => 'Replying to'])
-                        @endif
-
-                        @if ($previewing)
-                            @include('native.partials.composer-preview', [
-                                'ref' => 'sheet-draft',
-                                'body' => $sheetBody,
-                                'preview' => $sheetPreview,
-                                'images' => $sheetImages,
-                                'poll' => $replying ? null : $sheetPoll,
-                                'pollLength' => $sheetPollLength,
-                                'quoted' => $quoting ? $sheetCommit : null,
-                            ])
-                        @else
+                    @if ($replying)
+                        @include('native.partials.quoted-commit', ['quoted' => $sheetCommit, 'static' => true, 'label' => 'Replying to'])
+                    @endif
+                </native:column>
+                <native:column native:key="sheet-body-area" ref="sheet-body-area" class="w-full flex-1">
+                    @if ($previewing)
+                        <native:scroll-view native:key="sheet-field-slot" ref="sheet-field-slot" class="w-full flex-1">
+                            <native:column class="w-full px-5 pt-3 pb-4">
+                                @include('native.partials.composer-preview', [
+                                    'ref' => 'sheet-draft',
+                                    'body' => $sheetBody,
+                                    'preview' => $sheetPreview,
+                                    'images' => $sheetImages,
+                                    'poll' => $replying ? null : $sheetPoll,
+                                    'pollLength' => $sheetPollLength,
+                                    'quoted' => $quoting ? $sheetCommit : null,
+                                ])
+                            </native:column>
+                        </native:scroll-view>
+                    @else
+                        <native:column native:key="sheet-field-slot" ref="sheet-field-slot" class="w-full px-5 pt-3">
                             <native:bare-text-input
                                 native:key="sheet-body"
                                 ref="sheet-body"
@@ -111,27 +151,24 @@
                                 @selectionChange="caretMoved('sheetBody')"
                                 autofocus
                                 multiline
-                                :max-lines="8"
+                                :min-lines="$fieldLines"
+                                :max-lines="$fieldLines"
+                                :line-height-px="$sheetLayout::FieldLineHeight"
                                 :max-length="$issueCommand ? \App\Devnull\Data\Commit::MaxLength : \App\Devnull\Data\Commit::MaxRawLength"
                                 size="lg"
                                 keep-focus
                                 a11y-label="Your commit"
                             />
-
-                            @include('native.partials.mention-suggestions', [
-                                'field' => 'sheetBody',
-                                'heading' => ($mention['query'] ?? null) === '' && $sheetView === 'compose' ? 'People you follow' : null,
-                                'label' => 'Mention a developer',
-                                'class' => 'w-full py-1 rounded-md border border-theme-hairline bg-theme-surface',
-                            ])
-
-                            @if (! $issueCommand && \App\Devnull\Data\CommitBody::hasOversizedUrl($sheetBody))
+                        </native:column>
+                        @php($hasBelow = array_filter($below) !== [])
+                        <native:column native:key="sheet-below" ref="sheet-below" class="w-full {{ $hasBelow ? 'px-5 pt-3 gap-3' : '' }}">
+                            @if ($linkTooLong)
                                 <native:text ref="sheet-link-error" class="w-full text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
                             @endif
 
                             @include('native.partials.composer-photos')
 
-                            @if ($sheetPoll !== null && ! $replying)
+                            @if ($pollShown)
                                 @include('native.partials.poll-editor')
                             @endif
 
@@ -139,17 +176,38 @@
                                 @include('native.partials.quoted-commit', ['quoted' => $sheetCommit, 'static' => true])
                             @elseif ($scheduling)
                                 @include('native.partials.schedule-picker')
-                            @elseif (! $replying && ! $issueCommand)
-                                @include('native.partials.issue-suggestions', [
-                                    'suggestions' => $sheetTyped ? \App\Devnull\IssueCommand::suggested($sheetBody) : [],
-                                    'hint' => $issueHintsDismissed ? null : \App\Devnull\IssueCommand::hinted($sheetBody),
-                                ])
+                            @elseif ($offersIssues)
+                                @include('native.partials.issue-suggestions', ['suggestions' => $issueCommands, 'hint' => $issueHint])
                             @endif
-                        @endif
+                        </native:column>
 
-                    </native:column>
-                </native:scroll-view>
-                {{-- Pinned under the scroll view, so it rides just above the keyboard, and above the home indicator without it. --}}
+                        {{--
+                            The people to mention float over the field and whatever is under it, out of the layout, so
+                            nothing moves when they come and go. They start just under the line the caret is on, as
+                            near as the app can tell (see ComposerSheet::caretLine()), and run down to the toolbar,
+                            scrolling inside when there are more than fit. On Liquid Glass on iOS, like the reply
+                            bar's, and on a raised surface on Android.
+                        --}}
+                        @if (($mention['field'] ?? null) === 'sheetBody' && ($mentionPeople !== [] || $mentionOrganizations !== []))
+                            @php($caretLine = $sheetLayout::caretLine($mention['text'], $mention['start'] + mb_strlen($mention['query']) + 1, $fieldLines, \Native\Mobile\Platform::isIos()))
+                            <native:column
+                                native:key="sheet-mentions"
+                                ref="sheet-mentions"
+                                class="absolute left-[12] right-[12] top-[{{ $sheetLayout::mentionTop($caretLine, $sheetLayout::bodyHeight($above)) }}] bottom-[{{ $sheetLayout::MentionInset }}] ios:rounded-[18] ios:glass android:rounded-xl android:bg-theme-surface android:border android:border-theme-hairline android:shadow-md"
+                            >
+                                <native:scroll-view ref="sheet-mentions-scroll" class="w-full flex-1">
+                                    @include('native.partials.mention-suggestions', [
+                                        'field' => 'sheetBody',
+                                        'heading' => ($mention['query'] ?? null) === '' && $sheetView === 'compose' ? 'People you follow' : null,
+                                        'label' => 'Mention a developer',
+                                        'class' => 'w-full py-1',
+                                    ])
+                                </native:scroll-view>
+                            </native:column>
+                        @endif
+                    @endif
+                </native:column>
+                {{-- Pinned under the field and what's around it, so it rides just above the keyboard, and above the home indicator without it. --}}
                 <native:column class="w-full h-[1] bg-theme-hairline" />
                 <native:row ref="sheet-toolbar" class="w-full pl-3 pr-5 py-1 gap-3 items-center">
                     @unless ($issueCommand)

@@ -1,5 +1,6 @@
 <?php
 
+use App\Devnull\ComposerSheet;
 use App\Devnull\Data\Commit;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -210,4 +211,15 @@ it('quotes from a commit page, where closing the sheet is all there is to do', f
 
     expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeFalse()
         ->and($screen->instance()->commit->id)->toBe('c2');
+});
+
+it('puts the quoted commit right under the field, which gives up the room it takes', function () {
+    $screen = quoteSheetOnLog();
+    $field = nodeByRef($screen, 'sheet-body')['props'];
+    $card = ComposerSheet::cardHeight(Commit::fromArray(commitJson(['id' => 'c1', 'body' => 'Required reading.', 'author' => quoteAda()])));
+
+    expect(childRefs($screen, 'sheet-below'))->toBe(['quote-card'])
+        ->and($field['max_lines'])->toBe(ComposerSheet::fieldLines([], [$card]))
+        ->and($field['max_lines'])->toBeLessThan(ComposerSheet::fieldLines([], []))
+        ->and($field['min_lines'])->toBe($field['max_lines']);
 });

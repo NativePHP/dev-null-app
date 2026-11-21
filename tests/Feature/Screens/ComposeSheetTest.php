@@ -1,5 +1,6 @@
 <?php
 
+use App\Devnull\ComposerSheet;
 use App\Devnull\Data\Commit;
 use App\Models\PendingWrite;
 use Illuminate\Http\Client\Request;
@@ -278,6 +279,45 @@ it('keeps the field the same view while what is drawn above it changes, so the k
     // A refresh failing behind the sheet, which puts its banner above it.
     $screen->set('refreshFailed', true);
     expect(nodeByRef($screen, 'refresh-failed'))->not->toBeEmpty()
+        ->and(idsDownTo($screen->tree(), 'sheet-body'))->toBe($field);
+});
+
+it('fills the sheet with the field, with nothing scrolling around it', function () {
+    $screen = composeSheetOnLog();
+    $field = nodeByRef($screen, 'sheet-body')['props'];
+
+    expect(findNodes(nodeByRef($screen, 'sheet'), fn (array $node): bool => $node['type'] === 'scroll_view'))->toBe([])
+        // As many lines as the sheet has room for, so the field reaches down to the toolbar.
+        ->and($field['min_lines'])->toBe($field['max_lines'])
+        ->and($field['max_lines'])->toBe(ComposerSheet::fieldLines([], []))
+        ->and($field['line_height_px'])->toEqual(ComposerSheet::FieldLineHeight);
+});
+
+it('gives the field fewer lines while a poll takes its room, and the poll sits under the field', function () {
+    $screen = composeSheetOnLog();
+    $lines = nodeByRef($screen, 'sheet-body')['props']['max_lines'];
+
+    $screen->tap('sheet-poll');
+
+    expect(nodeByRef($screen, 'sheet-body')['props']['max_lines'])->toBeLessThan($lines)
+        ->and(nodeByRef($screen, 'sheet-body')['props']['min_lines'])->toBe(nodeByRef($screen, 'sheet-body')['props']['max_lines'])
+        ->and(findNode(nodeByRef($screen, 'sheet-below'), fn (array $node): bool => ($node['ref'] ?? null) === 'poll-editor'))->not->toBeNull();
+});
+
+it('keeps the field the same view while photos, a poll and mentions come and go around it', function () {
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([])],
+        'GET /api/v1/search/mentions' => [['data' => [userJson(['id' => 'u9', 'handle' => 'ada'])], 'organizations' => []]],
+    ]);
+    $screen = Native::visit('/log', platform: 'ios')->press('composeInSheet');
+    $field = idsDownTo($screen->tree(), 'sheet-body');
+
+    $screen->input('sheet-body', 'hi @a', 5);
+    expect(nodeByRef($screen, 'sheet-mentions'))->not->toBeEmpty()
+        ->and(idsDownTo($screen->tree(), 'sheet-body'))->toBe($field);
+
+    $screen->input('sheet-body', 'hi', 2)->tap('sheet-poll');
+    expect(nodeByRef($screen, 'poll-editor'))->not->toBeEmpty()
         ->and(idsDownTo($screen->tree(), 'sheet-body'))->toBe($field);
 });
 
