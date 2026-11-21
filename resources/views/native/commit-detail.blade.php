@@ -21,10 +21,10 @@
                 behind "↑ N earlier commits", since EDGE can't open the page scrolled down to the commit. Opened, the
                 ancestors, the commit and the rest of its series share one rail, so someone replying to themselves shows
                 their avatar once. The replies hang under it on the thread's dashed lines, with the rail ending in a dot
-                above them, five at a time with "Show more" under the last. A part of a series with more parts after it
+                above them, ten at a time with "Show more" under the last. A part of a series with more parts after it
                 has its replies right under it, beside the rail running on, and the later parts follow. Everything
                 around the commit is muted, and still opens its own page. A deleted reply's own replies open in place,
-                one level in, five at a time too, since a deleted commit has no page.
+                one level in, ten at a time too, since a deleted commit has no page.
 
                 A thread its author wrote as replies to themselves carries on below the commit, on the same rail, as
                 the web reads it (see SelfThread): each part wears its place ("2/5"), ten show at a time with "Show

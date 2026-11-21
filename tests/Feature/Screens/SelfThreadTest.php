@@ -172,6 +172,31 @@ it("leaves the author's next part out of a thread opened on the Log, and links t
     $screen->tap('show-thread-c1')->assertNavigatedTo('/log/commits/c1');
 });
 
+it("leaves a reply's next part out of its replies opened in place on the Log, and links that reply to its thread", function () {
+    $grace = userJson(['handle' => 'grace', 'name' => 'Grace', 'lane' => 4]);
+
+    Http::fake(fn (Request $request) => match (parse_url($request->url(), PHP_URL_PATH)) {
+        '/api/v1/log/following' => Http::response(pageJson([adaJson('c1', overrides: ['replies_count' => 1])])),
+        '/api/v1/commits/c1/replies' => Http::response(pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c1', 'body' => 'Grace answers', 'author' => $grace, 'replies_count' => 2])])),
+        '/api/v1/commits/r1/replies' => Http::response(pageJson([
+            replyJson(['id' => 'g2', 'parent_id' => 'r1', 'body' => 'Grace carries on', 'author' => $grace, 'created_at' => now()->subMinutes(4)->toIso8601ZuluString()]),
+            replyJson(['id' => 'n1', 'parent_id' => 'r1', 'body' => 'Someone else answers Grace']),
+        ])),
+        default => Http::response(['message' => 'No fake.'], 404),
+    });
+
+    $screen = Native::visit('/log')->tap('replies-c1')->assertSee('Grace answers')->assertDontSee('Show thread')
+        ->tap('replies-r1')
+        ->assertSee('Someone else answers Grace')
+        ->assertDontSee('Grace carries on')
+        ->assertSee('Show thread');
+
+    expect(array_map(fn ($reply): string => $reply->id, $screen->instance()->threads['r1']))->toBe(['n1'])
+        ->and($screen->instance()->threadsContinued)->toBe(['r1']);
+
+    $screen->tap('show-thread-r1')->assertNavigatedTo('/log/commits/r1');
+});
+
 it('links to the thread when devnull says which reply carries it on', function () {
     Http::fake(['devnull.test/api/v1/log/following*' => Http::response(pageJson([adaJson('c1', overrides: ['continuation_id' => 'p2'])]))]);
 

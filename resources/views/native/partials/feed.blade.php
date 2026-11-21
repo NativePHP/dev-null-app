@@ -1,9 +1,10 @@
 {{--
     A feed's rows from App\Devnull\Timeline: day markers, the last-visit marker, who to follow ($whoToFollow, see
-    partials/who-to-follow) and commits on the rail. Under a commit hangs its thread, inside its row's hairline, as on
-    the web: the newest reply devnull previews, with "Show more" when there are others, or the replies opened in place,
-    with "Show more" to the commit's page when there are more than they show. The commit's rail runs on past them when
-    its author's run goes on below. A commit its author carried on in replies to themselves shows "Show thread".
+    partials/who-to-follow) and commits on the rail. A commit's replies stay hidden until its replies button opens them
+    in place (see Concerns\ExpandsThreads). Then its thread hangs under it, inside its row's hairline, a page at a time
+    with "Show more" under the last, and a reply's own replies opened under it one step in (see App\Devnull\ThreadRows).
+    The commit's rail runs on past them when its author's run goes on below. A commit its author carried on in replies to
+    themselves shows "Show thread".
 
     Given a $rowCache (see App\Devnull\RowCache), commits and replies that haven't changed since the last frame are
     drawn from it rather than built again. Given a $rowWindow (see App\Devnull\RowWindow), rows far from the screen
@@ -42,20 +43,14 @@
     @else
         @php
             $feedCommit = $row->commit;
-            $opened = $threads[$feedCommit->id] ?? null;
-            $threadReplies = $opened ?? ($feedCommit->isDeleted() ? [] : $feedCommit->replyPreview?->replies ?? []);
-            $feedDraws = $rowWindow?->place($feedIndex, 1 + count($threadReplies)) ?? true;
-            $hasMoreReplies = $opened === null
-                ? ! $feedCommit->isDeleted() && ($feedCommit->replyPreview?->hasMore ?? false)
-                : in_array($feedCommit->id, $threadsWithMore ?? [], true);
-            $morePress = $opened === null ? "showMoreReplies('{$feedCommit->id}')" : "openReplies('{$feedCommit->id}')";
-            $railLane = $row->continuesNext ? $feedCommit->lane() : null;
+            $threadRows = $feedCommit->isDeleted() ? [] : \App\Devnull\ThreadRows::under($feedCommit, $threads ?? [], $threadCursors ?? [], $threadShown ?? [], $row->continuesNext ? $feedCommit->lane() : null);
+            $feedDraws = $rowWindow?->place($feedIndex, 1 + count($threadRows)) ?? true;
             $commitRow = [
                 'commit' => $feedCommit,
                 'previousLane' => $row->previousLane,
                 'continuesRun' => $row->continuesRun,
                 'continuesNext' => $row->continuesNext,
-                'threadBelow' => $threadReplies !== [],
+                'threadBelow' => $threadRows !== [],
                 'showsThread' => $feedCommit->continuationId !== null || in_array($feedCommit->id, $threadsContinued ?? [], true),
             ];
         @endphp
@@ -71,29 +66,17 @@
                 $rowCache->include('commit-'.$feedCommit->id, \App\Devnull\RowInputs::for($feedCommit, $rowScope), 'native.partials.commit-row', $commitRow, $rowScope);
             @endphp
         @endif
-        @foreach ($threadReplies as $index => $threadReply)
-            @php
-                $replyRow = [
-                    'reply' => $threadReply,
-                    'lane' => $feedCommit->lane(),
-                    'previousLane' => $index === 0 ? null : $threadReplies[$index - 1]->lane(),
-                    'hasNext' => ! $loop->last || $hasMoreReplies,
-                    'railLane' => $railLane,
-                    'thread' => $feedCommit,
-                    'more' => $loop->last && $hasMoreReplies ? $morePress : null,
-                    'last' => $loop->last,
-                ];
-            @endphp
+        @foreach ($threadRows as $threadRow)
             @if (! $feedDraws)
                 @php
-                    $rowWindow->placeholder('thread-reply-'.$threadReply->id);
+                    $rowWindow->placeholder($threadRow['key']);
                 @endphp
-            @elseif ($rowCache === null)
-                @include('native.partials.thread-reply', $replyRow)
+            @elseif ($rowCache === null || $threadRow['reply'] === null)
+                @include($threadRow['partial'], $threadRow['data'])
             @else
                 @php
                     $rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]);
-                    $rowCache->include('reply-'.$threadReply->id, \App\Devnull\RowInputs::for($threadReply, $rowScope), 'native.partials.thread-reply', $replyRow, $rowScope);
+                    $rowCache->include('reply-'.$threadRow['reply']->id, \App\Devnull\RowInputs::for($threadRow['reply'], $rowScope), $threadRow['partial'], $threadRow['data'], $rowScope);
                 @endphp
             @endif
         @endforeach
