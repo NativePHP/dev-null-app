@@ -28,6 +28,14 @@ final class Display
     public const int ReplyBarDescriptionHeight = 100;
 
     /**
+     * The people to mention above a field (see partials/mention-suggestions): a row's height, and how many rows show
+     * before the rest scroll inside the list.
+     */
+    public const int MentionRowHeight = 44;
+
+    public const int MentionRowsShown = 6;
+
+    /**
      * A bar holding partials/composer-box with one line of draft, as drawn on an iPhone: the bar's padding, then the
      * field over the row of tools and the send button.
      */
