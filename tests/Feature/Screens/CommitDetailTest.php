@@ -7,6 +7,7 @@ use App\Devnull\Stash;
 use App\Models\PendingWrite;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Edge\Elements\BottomBar;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
 
@@ -900,6 +901,32 @@ it('puts the reply bar on glass on iOS and the surface on Android, with no line,
             ->and(childRefs($screen, 'thread-stack'))->toBe(['thread-scroll', 'reply-fade']);
     }
 })->with(['ios', 'android']);
+
+it('keeps the reply field closer to the fade than to the row of tools under it', function (string $platform) {
+    fakeThread();
+
+    $screen = Native::visit('/log/commits/c2', platform: $platform);
+
+    // [top, right, bottom, left]. The row has no top padding, so the field starts 4pt under the fade, and the field
+    // row leaves 8pt between the field and the tools.
+    expect(nodeByRef($screen, 'reply-row')['layout']['padding'])->toEqual([0, 16, 8, 16])
+        ->and(nodeByRef($screen, 'reply-field-row')['layout']['padding'])->toEqual([4, 12, 8, 16]);
+})->with(['ios', 'android']);
+
+it('asks mobile-air for a lighter glass under the reply bar on iOS only', function (string $platform, ?float $opacity) {
+    fakeThread();
+
+    $screen = Native::visit('/log/commits/c2', platform: $platform);
+    $bottomBar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
+
+    expect($bottomBar['props']['glass_opacity'] ?? null)->toBe($opacity);
+})->with([
+    'ios' => ['ios', Display::ReplyBarGlassOpacity],
+    'android' => ['android', null],
+])->skip(
+    ! method_exists(BottomBar::class, 'glassOpacity'),
+    'Needs a mobile-air with glass-opacity on native:bottom-bar (NativePHP/mobile-air#735)',
+);
 
 it('ends the page above the reply bar, and further as the draft grows', function () {
     fakeThread(replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'The last reply'])]);

@@ -45,6 +45,12 @@ final class Display
     public const int ComposerGlassTint = 40;
 
     /**
+     * How opaque the glass under the reply bar gets on iOS once it has faded in, from 0 to 1 (see
+     * replyBarGlassOpacity()). mobile-air's own default is 1, which over a dark page reads as a heavy slab.
+     */
+    public const float ReplyBarGlassOpacity = 0.8;
+
+    /**
      * About how many characters fit on a line of the box's field, which runs the width of the box.
      */
     public const int ComposerBoxCharactersPerLine = 46;
@@ -306,6 +312,15 @@ final class Display
     public static function composerBarGlass(): string
     {
         return self::fadesInBar() ? 'glass' : '';
+    }
+
+    /**
+     * The reply bar's glass-opacity: how opaque mobile-air's glass behind the bar gets on iOS once it has faded in,
+     * so a little more of the page shows through. Null on Android, which draws no glass behind a bottom bar.
+     */
+    public static function replyBarGlassOpacity(): ?float
+    {
+        return self::fadesInBar() ? self::ReplyBarGlassOpacity : null;
     }
 
     /**

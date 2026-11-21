@@ -151,7 +151,7 @@
         --}}
         @php($replyPostingMe = app(\App\Devnull\Account::class)->user())
         @php($replyPostsAs = $replyPostingMe !== null && \App\Devnull\PostAs::offered($replyAuthor))
-        <native:bottom-bar class="{{ \App\Devnull\Display::composerBarGlass() }}">
+        <native:bottom-bar class="{{ \App\Devnull\Display::composerBarGlass() }}" :glass-opacity="\App\Devnull\Display::replyBarGlassOpacity()">
             <native:column ref="reply-bar" class="w-full {{ \App\Devnull\Display::composerBar() }}">
                 @if (\App\Devnull\Display::fadesInBar())
                     @include('native.partials.composer-fade', ['ref' => 'reply-fade', 'inBar' => true])
@@ -173,12 +173,13 @@
                         @include('native.partials.composer-photos', ['photos' => $replyImages, 'photoRef' => 'reply-photo'])
                     @endif
                 </native:column>
-                <native:row native:key="reply-row" ref="reply-row" class="w-full px-4 py-2">
+                <native:row native:key="reply-row" ref="reply-row" class="w-full px-4 pb-2">
                     @php($hasDraft = trim($reply) !== '' || $replyImages !== [])
                     @php($photosFull = count($replyImages) >= \App\Devnull\DraftImages::MaxImages)
                     @include('native.partials.composer-box', [
                         'ref' => 'reply',
                         'field' => $replyPreviewing ? 'native.partials.reply-preview' : 'native.partials.reply-field',
+                        'fieldPadding' => 'pt-1 pb-2',
                         'lead' => $replyPostsAs ? [['native.partials.post-as', ['ref' => 'reply-post-as', 'me' => $replyPostingMe, 'picked' => $replyAuthor, 'method' => 'postAsInReply', 'size' => 28, 'inset' => 'pl-3']]] : [],
                         'tools' => [
                             ['ref' => 'reply-add-photos', 'icon' => \App\Icons\Lucide::ImagePlus, 'label' => $photosFull ? 'A reply can have up to 3 photos' : 'Add photos', 'menu' => $photosFull ? null : \App\Devnull\ComposerMenu::photoItems(), 'disabled' => $photosFull],
