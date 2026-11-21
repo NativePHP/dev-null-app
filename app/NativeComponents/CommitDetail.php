@@ -421,9 +421,11 @@ class CommitDetail extends NativeComponent
      * the author's thread or series, or a reply at any depth. It becomes the
      * commit the page is about, with what's above it as its ancestors and its
      * replies showing below, all from what the page already has, so nothing
-     * goes blank, and devnull is asked for the rest behind it. Replies opened
-     * in place stay open, and the commit the page was on keeps its replies, so
-     * moving up shows where you came from opened under its parent.
+     * goes blank, and devnull is asked for the rest behind it. The commits
+     * above it start with their replies folded, showing only "› N replies",
+     * as when the page opens on a reply. Moving up, the commit the page was on
+     * keeps its replies, and so do the commits between, so the commit you
+     * move to shows the way back down to where you came from opened under it.
      *
      * The page stays one screen: Back still leaves it, as Simon asked, rather
      * than stepping back through the commits it moved to. The scroll view
@@ -448,7 +450,7 @@ class CommitDetail extends NativeComponent
         $line = [...$this->ancestors, $this->commit];
         $below = array_slice($line, count($ancestors) + 1);
 
-        // What the page was on keeps its replies, opened in place, for when it's back in the tree.
+        // What the page was on keeps its replies, opened in place, when it ends up below the commit the page moves to.
         if ($this->repliesShown && $this->repliesLoaded && $this->replies !== []) {
             $this->threads[$this->id] = array_values(array_filter($this->replies, fn (Commit $reply): bool => ! $reply->isStaged()));
             $this->keepCursor($this->id, $this->repliesCursor);
@@ -471,6 +473,11 @@ class CommitDetail extends NativeComponent
         $this->threadLimit = SelfThread::PerPage;
         $this->takeOwnReplies($id);
 
+        // The commits above it fold their replies, the commit the page was on among them when the page moved down.
+        foreach ($this->ancestors as $ancestor) {
+            $this->closeThread($ancestor->id);
+        }
+
         if (($thread = $this->cached($this->threadPath())) !== null) {
             $this->takeCommitThread($thread);
         }
@@ -481,10 +488,10 @@ class CommitDetail extends NativeComponent
         $this->takeReplyDraft();
         $this->error = null;
 
-        // The commit's row is the one after its ancestors and the replies opened under them. A new token asks again
-        // even when that's the row the scroll view went to last time. The scroll view keeps its key, so its rows
-        // slide to their new places. Opening an ancestor's replies later leaves the target be, so it doesn't scroll.
-        $this->scrollTarget = count($this->ancestors) + array_sum(array_map(fn (array $thread): int => count($thread['rows']), $this->ancestorThreads($this->ancestors)));
+        // The commit's row is the one after its ancestors, whose replies are folded. A new token asks again even when
+        // that's the row the scroll view went to last time. The scroll view keeps its key, so its rows slide to their
+        // new places. Opening an ancestor's replies later leaves the target be, so it doesn't scroll.
+        $this->scrollTarget = count($this->ancestors);
         $this->scrollRequest++;
         $this->forgetRefreshes();
         $this->revalidate();

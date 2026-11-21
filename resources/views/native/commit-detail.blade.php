@@ -32,7 +32,7 @@
                 above them, ten at a time with "Show more" under the last. A part of a series with more parts after it
                 has its replies right under it, beside the rail running on, and the later parts follow. Everything
                 around the commit is muted, and the commits above it open their other replies in place under them, as the
-                commit does. Tapping any commit in the tree moves the page to it rather than pushing
+                commit does, from their "N replies", which starts folded, even after the page moves. Tapping any commit in the tree moves the page to it rather than pushing
                 another (see CommitDetail::refocus()). Every reply's own replies open in place under
                 it, ten at a time too, as deep as they go, as on the web: they step in up to the web's depth and line up
                 under the deepest step past it, saying who they answer (see App\Devnull\ThreadRows).

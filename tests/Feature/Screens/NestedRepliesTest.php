@@ -222,19 +222,43 @@ it('opens the replies of a commit above the commit in place, leaving out the one
     expect(childRefs($screen, 'thread-scroll'))->toBe(['commit-c1', 'focused-commit', 'thread-reply-r1', 'reply-bar-clearance']);
 });
 
-it('counts the replies opened above the commit in the row it scrolls to after a move', function () {
+it('folds the replies of the commits above when the page moves down to a reply', function () {
     fakeAncestorThread();
 
     $screen = Native::visit('/log/commits/c2', ['replies' => true]);
-    $screen->tap('replies-c1');
-    $screen->tap('thread-reply-r1')->assertSet('id', 'r1')->assertSet('scrollTarget', 3);
+    $screen->tap('replies-c1')->assertSee('Another reply above');
+    $screen->tap('thread-reply-r1')->assertSet('id', 'r1')->assertSet('scrollTarget', 2)->assertDontSee('Another reply above');
 
-    // r1 has no replies, so "No replies yet" follows it.
-    expect(childRefs($screen, 'thread-scroll'))->toBe(['commit-c1', 'thread-reply-x1', 'commit-c2', 'focused-commit', null, 'reply-bar-clearance'])
+    // c1 is back to its button, still leaving out c2 on the way down. r1 has no replies, so "No replies yet" follows it.
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['commit-c1', 'commit-c2', 'focused-commit', null, 'reply-bar-clearance'])
+        ->and(nodeByRef($screen, 'replies-c1')['props']['a11y_label'] ?? null)->toBe('1 reply')
         ->and(rendersRef($screen, 'replies-c2'))->toBeFalse();
 
-    // Closing the replies of a commit above it later doesn't scroll the page again.
-    $screen->tap('replies-c1')->assertSet('scrollTarget', 3);
+    // Opening them again later doesn't scroll the page.
+    $screen->tap('replies-c1')->assertSee('Another reply above')->assertSet('scrollTarget', 2);
+});
+
+it('folds the replies of the commit the page was on when it moves down to one of them, and opens them again moving back up', function () {
+    fakeAncestorThread();
+
+    $screen = Native::visit('/log/commits/c1', ['replies' => true])->assertSee('Another reply above');
+    $screen->tap('thread-reply-c2')->assertNoNavigation()->assertSet('id', 'c2')->assertDontSee('Another reply above');
+
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['commit-c1', 'focused-commit', 'thread-reply-r1', 'reply-bar-clearance'])
+        ->and(nodeByRef($screen, 'replies-c1')['props']['a11y_label'] ?? null)->toBe('1 reply');
+
+    // Back up on c1, its replies show as the commit's do, with c2's still open under it.
+    $screen->tap('commit-c1')->assertSet('id', 'c1')->assertSee('Another reply above')->assertSee('A reply below');
+});
+
+it('opens on a reply with the replies of the commits above it folded', function () {
+    fakeAncestorThread();
+
+    $screen = Native::visit('/log/commits/r1')->call('showEarlier')->assertDontSee('Another reply above');
+
+    expect(nodeByRef($screen, 'replies-c1')['props']['a11y_label'] ?? null)->toBe('1 reply')
+        ->and(rendersRef($screen, 'replies-c2'))->toBeFalse()
+        ->and($screen->get('threads'))->toBe([]);
 });
 
 it('keeps the replies of the commits on the line open when the replies of one above them close', function () {
@@ -245,13 +269,18 @@ it('keeps the replies of the commits on the line open when the replies of one ab
     $screen->tap('replies-r2');
     $screen->tap('thread-reply-r3')->assertSet('id', 'r3');
 
-    // Each commit above r3 has one reply, the one on the way down, so none of them has a replies button.
-    expect(rendersRef($screen, 'replies-c2'))->toBeFalse()
+    // The commits above r3 fold their replies. Each has one, the one on the way down, so none of them has a button.
+    expect($screen->get('threads'))->toBe([])
+        ->and(rendersRef($screen, 'replies-c2'))->toBeFalse()
         ->and(rendersRef($screen, 'replies-r1'))->toBeFalse();
 
-    // Closing c2's replies, which the page kept open from when it was on c2, leaves r1's and r2's be.
+    // Opened again, closing c2's replies leaves r1's be, since r1 draws a row of its own.
+    $screen->call('toggleReplies', 'c2');
+    $screen->call('toggleReplies', 'r1');
+    expect($screen->get('threads'))->toHaveKeys(['c2', 'r1']);
+
     $screen->call('toggleReplies', 'c2');
     finishRefreshes($screen);
 
-    expect($screen->get('threads'))->toHaveKeys(['r1', 'r2']);
+    expect($screen->get('threads'))->toHaveKey('r1')->not->toHaveKey('c2');
 });
