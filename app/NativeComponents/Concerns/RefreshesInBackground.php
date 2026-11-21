@@ -83,13 +83,15 @@ trait RefreshesInBackground
      * Asks devnull for a GET in the background and hands $apply the JSON when it
      * lands. A refresh of the same thing already on its way isn't sent twice,
      * unless $again says it must be. A $quiet one never says it failed on the
-     * screen. It only tells $failed, for a caller that has something else to
-     * do then. One $withImages brings the answer's images down before it
-     * lands, rather than after in a task of their own (see FetchInBackground).
+     * screen. It only tells $failed, with devnull's status (0 when devnull didn't
+     * answer), for a caller that has something else to do then, such as
+     * telling a 404 from a dropped connection. One $withImages brings the
+     * answer's images down before it lands, rather than after in a task of
+     * their own (see FetchInBackground).
      *
      * @param  array<string, string|null>  $query
      * @param  Closure(array<string, mixed>): void  $apply
-     * @param  (Closure(): void)|null  $failed
+     * @param  (Closure(int): void)|null  $failed
      */
     protected function refresh(string $path, array $query, Closure $apply, bool $again = false, bool $quiet = false, ?Closure $failed = null, bool $withImages = false, bool $retried = false): void
     {
@@ -103,7 +105,7 @@ trait RefreshesInBackground
             $request = app(Client::class)->signedGet($path, $query);
         } catch (KeychainUnavailable $exception) {
             if ($quiet) {
-                $failed?->__invoke();
+                $failed?->__invoke(0);
             } else {
                 $this->couldNotRefresh($exception->getMessage());
             }
@@ -132,7 +134,7 @@ trait RefreshesInBackground
                 unset($this->refreshing[$key]);
 
                 if ($quiet) {
-                    $failed?->__invoke();
+                    $failed?->__invoke(0);
                 } else {
                     $this->couldNotRefresh('fatal: '.$exception->getMessage());
                 }
@@ -218,7 +220,7 @@ trait RefreshesInBackground
      * @param  array{status?: int, json?: mixed, retry_after?: string, from_devnull?: bool}  $result
      * @param  array<string, string|null>  $query
      * @param  Closure(array<string, mixed>): void  $apply
-     * @param  (Closure(): void)|null  $failed
+     * @param  (Closure(int): void)|null  $failed
      */
     private function settleRefresh(array $result, string $path, array $query, Closure $apply, bool $quiet, ?Closure $failed = null, bool $withImages = false): void
     {
@@ -246,7 +248,7 @@ trait RefreshesInBackground
         }
 
         if ($quiet) {
-            $failed?->__invoke();
+            $failed?->__invoke(($result['from_devnull'] ?? false) === true ? $status : 0);
 
             return;
         }

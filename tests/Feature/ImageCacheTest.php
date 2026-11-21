@@ -2,6 +2,7 @@
 
 use App\Devnull\Account;
 use App\Devnull\Client;
+use App\Devnull\Data\Guild;
 use App\Devnull\DownloadImages;
 use App\Devnull\FetchInBackground;
 use App\Devnull\ImageCache;
@@ -74,6 +75,38 @@ it('finds the avatars, commit images and link preview images in an answer, howev
         'https://example.com/card.png',
         'https://avatars.githubusercontent.com/u/3?v=4',
     )->not->toContain('https://example.com');
+});
+
+it('collects guild icons to download', function () {
+    $url = 'https://x/icon?expires=1';
+
+    expect(ImageCache::urlsIn(['data' => [['guild' => ['icon_url' => $url]]]]))->toContain($url);
+});
+
+it('knows whether a fresh downloaded copy exists', function () {
+    $url = 'https://x/icon?expires=1';
+
+    expect(ImageCache::has($url))->toBeFalse()
+        ->and(ImageCache::has('/on/the/device.png'))->toBeFalse();
+
+    cachedImage($url, hoursAgo: 1);
+
+    expect(ImageCache::has($url))->toBeTrue();
+});
+
+it('shows a guild\'s icon until its link expires, then its emoji', function () {
+    $icon = fn (string $query): Guild => Guild::fromArray(['handle' => 'rust', 'icon_url' => 'https://devnull.test/api/v1/guilds/rust/icon'.$query]);
+    $live = '?expires='.(time() + 3600).'&signature=x';
+    $expired = '?expires='.(time() - 60).'&signature=x';
+
+    expect($icon($live)->iconSrc())->toBe($icon($live)->iconUrl)
+        ->and($icon('?v=1')->iconSrc())->toBe($icon('?v=1')->iconUrl)
+        ->and(Guild::fromArray(['handle' => 'go'])->iconSrc())->toBeNull()
+        ->and($icon($expired)->iconSrc())->toBeNull();
+
+    $path = cachedImage($icon($expired)->iconUrl, hoursAgo: 1);
+
+    expect($icon($expired)->iconSrc())->toBe($path);
 });
 
 it('draws an image from the device while it is younger than a day, and from its URL otherwise', function () {
