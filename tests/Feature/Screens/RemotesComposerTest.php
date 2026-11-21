@@ -10,6 +10,7 @@ use Native\Mobile\Events\System\AppearanceChanged;
 use Native\Mobile\Facades\System;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
+use Tests\Support\GlassOpacity;
 
 const ComposerViewerId = '0199e5c4-0000-7000-8000-000000000001';
 
@@ -298,7 +299,7 @@ it('keeps the field closer to the fade than to the + and Push under it', functio
 
 it('puts the bar on glass on iOS and the surface on Android, with no box or line, and fades the thread out above it', function (string $platform) {
     if ($platform === 'ios') {
-        skipWithoutGlassOpacity();
+        GlassOpacity::skipUnlessSupported();
     }
 
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);

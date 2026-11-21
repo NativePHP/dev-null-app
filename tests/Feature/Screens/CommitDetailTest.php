@@ -9,6 +9,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
+use Tests\Support\GlassOpacity;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -869,7 +870,7 @@ it('puts the reply bar on glass on iOS and the surface on Android, with no line,
     fakeThread();
 
     if ($platform === 'ios') {
-        skipWithoutGlassOpacity();
+        GlassOpacity::skipUnlessSupported();
     }
 
     $screen = Native::visit('/log/commits/c2', platform: $platform);
@@ -917,7 +918,7 @@ it('keeps the reply field closer to the fade than to the row of tools under it',
 })->with(['ios', 'android']);
 
 it('fades the glass under the reply bar to 80% on iOS only', function (string $platform) {
-    skipWithoutGlassOpacity();
+    GlassOpacity::skipUnlessSupported();
     fakeThread();
 
     $screen = Native::visit('/log/commits/c2', platform: $platform);
