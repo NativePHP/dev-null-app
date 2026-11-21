@@ -9,10 +9,12 @@ use App\Devnull\Data\Guild as GuildData;
 use App\Devnull\Data\GuildBoard;
 use App\Devnull\Data\TimelineRow;
 use App\Devnull\Exceptions\ApiException;
+use App\Devnull\Outbox;
 use App\Devnull\RowCache;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
 use App\Icons\Lucide;
+use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
@@ -41,6 +43,12 @@ use Native\Mobile\Facades\Share;
  * board is paged by number, and new commits push the older ones down a page,
  * so a page loaded later can repeat a commit already showing: those go once,
  * as does the pinned commit, which devnull also sends in its place.
+ *
+ * The bar's New commit posts to the board, as the web's guild page does,
+ * from the compose sheet (see OpensCommitSheet::composeInGuildSheet()), while
+ * the guild isn't paused. The commit shows on top of the board, staged, until
+ * devnull has it, as a new commit does on the Log. If devnull turns it down,
+ * it leaves the board and goes back into this page's sheet.
  *
  * A guild devnull no longer has says so. When devnull has no guilds for you
  * at all, it says so as the directory does (see Guilds::refused).
@@ -92,6 +100,7 @@ class Guild extends NativeComponent
     public function mount(): void
     {
         $this->fillInAfterFirstFrame('revalidate');
+        $this->editFromData();
     }
 
     /**
@@ -109,14 +118,38 @@ class Guild extends NativeComponent
         return $this->guild->name ?? '#'.$this->handle();
     }
 
+    /**
+     * Share, then New commit while the guild takes posts, as the Log has it.
+     */
     public function navigationOptions(): ?NavBarOptions
     {
-        return NavBarOptions::make()->action(
+        $options = NavBarOptions::make()->action(
             NavAction::make('share')
                 ->icon(ios: Lucide::Share->ios(), android: Lucide::Share2->android())
                 ->a11yLabel('Share guild')
                 ->press('share'),
         );
+
+        if ($this->takesPosts()) {
+            $options->action(
+                NavAction::make('compose')
+                    ->icon(ios: Lucide::SquarePen->ios(), android: Lucide::SquarePen->android())
+                    ->a11yLabel('New commit')
+                    ->press('composeForGuild'),
+            );
+        }
+
+        return $options;
+    }
+
+    /**
+     * The bar's New commit: the sheet, for a commit on this guild's board.
+     */
+    public function composeForGuild(): void
+    {
+        if ($this->takesPosts()) {
+            $this->composeInGuildSheet($this->handle());
+        }
     }
 
     /**
@@ -194,6 +227,54 @@ class Guild extends NativeComponent
     protected function waitingCommits(): array
     {
         return array_values(array_filter($this->newCommits, fn (Commit $commit): bool => $commit->id !== $this->pinnedId));
+    }
+
+    /**
+     * Puts a commit you just posted to the board on top of it, staged until devnull has it (see SyncsOutbox).
+     */
+    protected function showCommitted(Commit $commit): void
+    {
+        $this->keepStagedOnTop();
+    }
+
+    /**
+     * devnull has the commit: the real one takes the staged one's place.
+     */
+    protected function showCommitWent(PendingWrite $write, Commit $commit): void
+    {
+        $staged = PendingWrite::stagedId($write->client_id);
+
+        if (! in_array($staged, array_map(fn (Commit $shown): string => $shown->id, $this->commits), true)) {
+            return;
+        }
+
+        $this->madeHere[] = $commit->id;
+        $this->commits = array_map(fn (Commit $shown): Commit => $shown->id === $staged ? $commit : $shown, $this->commits);
+    }
+
+    /**
+     * devnull turned the commit down: the staged one leaves the board.
+     */
+    protected function showCommitTurnedDown(PendingWrite $write): void
+    {
+        $this->keepStagedOnTop();
+    }
+
+    /**
+     * The bar's New commit is this page's, so a post to this board devnull turned down opens here again.
+     */
+    protected function opensComposer(): bool
+    {
+        return true;
+    }
+
+    /**
+     * This page's composer posts to its board, even once the guild is paused, so a post devnull turned down for that
+     * still comes back here with why.
+     */
+    protected function composerGuild(): ?string
+    {
+        return $this->handle();
     }
 
     protected function showsContent(): bool
@@ -290,11 +371,50 @@ class Guild extends NativeComponent
         }
 
         $this->layFreshCommits($json, $showNewer || $this->guild === null);
+        $this->keepStagedOnTop();
         $this->guild = $board->guild;
         $this->pinned = $board->pinned;
         $this->pinnedId = $board->pinned?->id;
         $this->missing = false;
         $this->unavailable = false;
+    }
+
+    /**
+     * Your posts to this board still on their way stay on top of it, newest
+     * first, through every fresh page. Ones that went or were turned down
+     * while the page wasn't showing leave it, and one that went comes in with
+     * the board's next answer.
+     */
+    private function keepStagedOnTop(): void
+    {
+        $staged = $this->stagedCommits(null, $this->handle());
+
+        foreach ($staged as $commit) {
+            $this->madeHere[] = $commit->id;
+        }
+
+        $this->commits = [...$staged, ...array_values(array_filter($this->commits, fn (Commit $commit): bool => ! $commit->isStaged()))];
+    }
+
+    /**
+     * Opened by Edit on the toast of a post to this board devnull turned down: its composer, with what it had.
+     */
+    private function editFromData(): void
+    {
+        $id = $this->data('edit');
+        $write = is_numeric($id) ? app(Outbox::class)->find((int) $id) : null;
+
+        if ($write !== null && $write->isCommit() && $write->isFailed()) {
+            $this->editFailedCommit($write);
+        }
+    }
+
+    /**
+     * Whether the guild is loaded and takes posts: a paused one doesn't, as on the web.
+     */
+    private function takesPosts(): bool
+    {
+        return $this->guild !== null && ! $this->guild->isPaused;
     }
 
     /**

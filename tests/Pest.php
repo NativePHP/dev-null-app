@@ -513,6 +513,23 @@ function boardJson(array $overrides = []): array
 }
 
 /**
+ * A board page of commits by id, newest first, with no pin unless one is given.
+ *
+ * @param  list<string>  $ids
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function boardOf(array $ids, ?int $nextPage = null, array $overrides = []): array
+{
+    return boardJson([
+        'data' => array_map(fn (string $id): array => commitJson(['id' => $id]), $ids),
+        'pinned_commit' => null,
+        'links' => ['next' => $nextPage === null ? null : 'http://devnull.test/api/v1/guilds/rust?page='.$nextPage],
+        ...$overrides,
+    ]);
+}
+
+/**
  * A commit as the API sends it to a signed request. The short hash and the link
  * follow the id and the author, and the body's segments follow the body, unless
  * a test sends its own, as the server always works them out from what it stores.
