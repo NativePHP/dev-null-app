@@ -48,6 +48,11 @@ final readonly class Embed
         );
     }
 
+    /**
+     * Only YouTube's get the poster card for now. The rest keep the compact
+     * row: audio and code have no picture worth drawing large, and the row's
+     * description says more.
+     */
     public function isYouTube(): bool
     {
         return strcasecmp($this->provider, 'YouTube') === 0;

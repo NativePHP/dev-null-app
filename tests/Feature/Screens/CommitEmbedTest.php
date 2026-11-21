@@ -120,6 +120,31 @@ it("draws a black box with the play button when there's no poster", function () 
     expect(imagesIn(nodeByRef($screen, 'embed-play-c1')))->toBe([]);
 });
 
+it('keeps the compact row for players other than YouTube', function (string $provider, string $kind) {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
+        'id' => 'c1',
+        'link_preview' => [
+            'url' => 'https://example.com/thing',
+            'title' => 'Chill video game focus soundtracks',
+            'description' => 'Playlist · Pauline Vos · 819 items · 5 saves',
+            'image_url' => 'https://example.com/art.jpg',
+            'site_name' => $provider,
+            'embed' => ['provider' => $provider, 'kind' => $kind, 'src' => 'https://example.com/embed/thing'],
+        ],
+    ])]))]);
+
+    $screen = Native::visit('/log')
+        ->assertSee('Chill video game focus soundtracks')
+        ->assertSee('Playlist · Pauline Vos · 819 items · 5 saves');
+
+    expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'embed-play-c1'))->toBeNull()
+        ->and(nodeByRef($screen, 'link-preview-c1'))->not->toBeEmpty();
+})->with([
+    'Spotify' => ['Spotify', 'audio'],
+    'Vimeo' => ['Vimeo', 'video'],
+    'CodePen' => ['CodePen', 'code'],
+]);
+
 it('keeps the compact row for links without a player', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
         'id' => 'c1',
