@@ -6,6 +6,7 @@ use App\Devnull\Data\User;
 use App\Icons\Lucide;
 use Native\Mobile\Edge\Elements\TopBarAction;
 use Native\Mobile\Edge\Layouts\Builders\NavAction;
+use Native\Mobile\UI\MenuItem;
 
 /**
  * Who a composer posts as, as the web's Post as menu chooses: you, or one of
@@ -60,6 +61,9 @@ final class PostAs
      * an organization, as elsewhere in the app, and the one posting now ticked. Until an avatar loads, or if it
      * can't, a person or building icon stands in. $method is called with the handle picked, or '' for you.
      *
+     * Each row is the name with the handle under it, smaller, which screen readers read after the name. A mobile-ui
+     * without menu subtitles (before NativePHP/mobile-ui#228) gets one label, "Simon (@simon-hamp)", instead.
+     *
      * @return list<TopBarAction>
      */
     public static function menu(User $me, ?User $author, string $method): array
@@ -67,8 +71,11 @@ final class PostAs
         return array_map(function (User $identity) use ($author, $method): TopBarAction {
             $icon = $identity->isOrganization ? Lucide::Building2 : Lucide::UserRound;
 
-            return NavAction::make('post-as-'.$identity->username)
-                ->label($identity->name.' (@'.$identity->username.')')
+            $handle = '@'.$identity->username;
+            $subtitled = self::subtitles();
+
+            $row = NavAction::make('post-as-'.$identity->username)
+                ->label($subtitled ? $identity->name : $identity->name.' ('.$handle.')')
                 ->icon(ios: $icon->ios(), android: $icon->android())
                 ->image(ImageCache::src($identity->avatarUrl))
                 ->press($method."('".($identity->isOrganization ? $identity->username : '')."')")
@@ -76,7 +83,17 @@ final class PostAs
                 ->setProp('image_shape', $identity->isOrganization ? 'rounded' : 'circle')
                 ->setProp('checked', self::posting($identity, $author))
                 ->ref('post-as-'.$identity->username);
+
+            return $subtitled ? MenuItem::subtitle($row, $handle) : $row;
         }, [$me, ...self::organizations()]);
+    }
+
+    /**
+     * Whether the installed mobile-ui draws a subtitle under a menu row's label.
+     */
+    private static function subtitles(): bool
+    {
+        return class_exists(MenuItem::class);
     }
 
     /**
