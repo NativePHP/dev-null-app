@@ -23,6 +23,7 @@ use App\Devnull\Timeline;
 use App\Devnull\Toasts;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
+use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\OpensLiveStream;
 use App\NativeComponents\Concerns\RedrawsOnAppearanceChange;
@@ -46,7 +47,11 @@ use Native\Mobile\Edge\NativeComponent;
  * "› N replies", each opened in place. Opened from a "› N replies" button
  * ($data['replies']), its replies already show. They come ten at a time
  * (see Client::RepliesPerPage), and "Show more" under the last asks for the
- * next ten, as it does under a deleted reply's replies opened in place.
+ * next ten.
+ *
+ * Each reply's own replies open in place under it, and theirs under them, as
+ * deep as they go, as the web's commit page does (see ExpandsThreads and
+ * App\Devnull\ThreadRows). Tapping a reply still opens its page.
  *
  * It opens on the commit as it was last time, or opened from a row, on what
  * the row knew of it, then asks devnull for the rest behind it and fills it in.
@@ -87,6 +92,10 @@ use Native\Mobile\Edge\NativeComponent;
  */
 class CommitDetail extends NativeComponent
 {
+    use ExpandsThreads {
+        toggleReplies as private toggleThread;
+        showMoreReplies as private showMoreThreadReplies;
+    }
     use OpensInTab;
     use OpensLiveStream;
     use RedrawsOnAppearanceChange;
@@ -189,20 +198,6 @@ class CommitDetail extends NativeComponent
      * Whether the replies have been kept or fetched. Until then they show as loading.
      */
     public bool $repliesLoaded = false;
-
-    /**
-     * The replies of deleted replies that were opened in place, by the deleted reply's id.
-     *
-     * @var array<string, list<Commit>>
-     */
-    public array $tombstoneReplies = [];
-
-    /**
-     * Where the next page of each deleted reply's replies starts, by the deleted reply's id, or null when they're all shown.
-     *
-     * @var array<string, string|null>
-     */
-    public array $tombstoneCursors = [];
 
     public string $reply = '';
 
@@ -313,7 +308,7 @@ class CommitDetail extends NativeComponent
 
     protected function revalidate(): void
     {
-        $this->refresh($this->threadPath(), [], fn (array $json) => $this->takeThread($json));
+        $this->refresh($this->threadPath(), [], fn (array $json) => $this->takeCommitThread($json));
         $this->refresh($this->threadPath().'/replies', [], fn (array $json) => $this->takeReplies($json));
         $this->refresh($this->threadPath().'/related', [], fn (array $json) => $this->takeRelated($json), quiet: true, failed: function (): void {
             $this->related = [];
@@ -324,19 +319,7 @@ class CommitDetail extends NativeComponent
             $this->refreshPartReplies((string) $id);
         }
 
-        foreach (array_keys($this->tombstoneReplies) as $id) {
-            $id = (string) $id;
-
-            $this->refresh('commits/'.rawurlencode($id).'/replies', [], function (array $json) use ($id): void {
-                if (array_key_exists($id, $this->tombstoneReplies)) {
-                    [$this->tombstoneReplies[$id], $this->tombstoneCursors[$id]] = self::withFirstPage(
-                        $this->tombstoneReplies[$id],
-                        $this->tombstoneCursors[$id] ?? null,
-                        Page::fromArray($json, Commit::fromArray(...)),
-                    );
-                }
-            });
-        }
+        $this->refreshThreads();
     }
 
     protected function showsContent(): bool
@@ -364,11 +347,32 @@ class CommitDetail extends NativeComponent
     }
 
     /**
-     * "› N replies" under the commit opens them in place, and "Hide replies" folds them away.
+     * "› N replies" under the commit opens them in place, and "Hide replies" folds them away. Under a reply, at any
+     * depth, it opens that reply's replies in place under it (see ExpandsThreads).
      */
-    public function toggleReplies(): void
+    public function toggleReplies(string $id = ''): void
     {
-        $this->repliesShown = ! $this->repliesShown;
+        if ($id === '' || $id === $this->id) {
+            $this->repliesShown = ! $this->repliesShown;
+
+            return;
+        }
+
+        $this->toggleThread($id);
+    }
+
+    /**
+     * "Show more" under a reply's replies opened in place. The commit's own go on from loadMoreReplies().
+     */
+    public function showMoreReplies(string $id): void
+    {
+        if ($id === $this->id) {
+            $this->loadMoreReplies();
+
+            return;
+        }
+
+        $this->showMoreThreadReplies($id);
     }
 
     /**
@@ -443,39 +447,6 @@ class CommitDetail extends NativeComponent
         };
 
         Beat::dispatch(self::RelatedFade)->finished($closed)->failed($closed);
-    }
-
-    /**
-     * A deleted reply has no page of its own, so its replies open in place below it.
-     */
-    public function toggleTombstone(string $id): void
-    {
-        if (array_key_exists($id, $this->tombstoneReplies)) {
-            unset($this->tombstoneReplies[$id], $this->tombstoneCursors[$id]);
-
-            return;
-        }
-
-        $this->loadTombstoneReplies($id);
-    }
-
-    /**
-     * "Show more" under a deleted reply's replies: its next five, in place.
-     */
-    public function loadMoreTombstoneReplies(string $id): void
-    {
-        $cursor = $this->tombstoneCursors[$id] ?? null;
-
-        if ($cursor === null) {
-            return;
-        }
-
-        $page = $this->attempt(fn ($devnull) => $devnull->replies($id, $cursor));
-
-        if ($page !== null && array_key_exists($id, $this->tombstoneReplies)) {
-            $this->tombstoneReplies[$id] = [...$this->tombstoneReplies[$id], ...$page->items];
-            $this->tombstoneCursors[$id] = $page->nextCursor;
-        }
     }
 
     public function loadMoreReplies(): void
@@ -740,7 +711,7 @@ class CommitDetail extends NativeComponent
         $this->replies = array_map($update, $this->replies);
         $this->partReplies = array_map(fn (array $replies): array => array_map($update, $replies), $this->partReplies);
         $this->related = array_map($update, $this->related);
-        $this->tombstoneReplies = array_map(fn (array $replies): array => array_map($update, $replies), $this->tombstoneReplies);
+        $this->threads = array_map(fn (array $replies): array => array_map($update, $replies), $this->threads);
     }
 
     /**
@@ -748,7 +719,7 @@ class CommitDetail extends NativeComponent
      */
     protected function shownCommits(): iterable
     {
-        return [...($this->commit === null ? [] : [$this->commit]), ...$this->ancestors, ...$this->series, ...$this->replies, ...array_merge([], ...array_values($this->partReplies)), ...$this->related, ...array_merge([], ...array_values($this->tombstoneReplies))];
+        return [...($this->commit === null ? [] : [$this->commit]), ...$this->ancestors, ...$this->series, ...$this->replies, ...array_merge([], ...array_values($this->partReplies)), ...$this->related, ...$this->threadCommits()];
     }
 
     /**
@@ -799,7 +770,7 @@ class CommitDetail extends NativeComponent
     private function showKept(): void
     {
         if (($thread = $this->cached($this->threadPath())) !== null) {
-            $this->takeThread($thread);
+            $this->takeCommitThread($thread);
         } elseif ($this->commit === null && ($commit = $this->data('commit')) instanceof Commit && $commit->id === $this->id) {
             $this->commit = $commit;
             $this->ancestors = $commit->parent === null ? [] : [$commit->parent];
@@ -825,7 +796,7 @@ class CommitDetail extends NativeComponent
     /**
      * @param  array<string, mixed>  $json
      */
-    private function takeThread(array $json): void
+    private function takeCommitThread(array $json): void
     {
         $thread = CommitThread::fromArray($json);
 
@@ -947,16 +918,6 @@ class CommitDetail extends NativeComponent
     private function threadPath(): string
     {
         return 'commits/'.rawurlencode($this->id);
-    }
-
-    private function loadTombstoneReplies(string $id): void
-    {
-        $page = $this->attempt(fn ($devnull) => $devnull->replies($id));
-
-        if ($page !== null) {
-            $this->tombstoneReplies[$id] = $page->items;
-            $this->tombstoneCursors[$id] = $page->nextCursor;
-        }
     }
 
     /**

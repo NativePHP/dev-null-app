@@ -140,7 +140,7 @@ it('asks for the replies of a deleted reply opened in place again', function () 
         'GET /api/v1/commits/d1/replies' => [pageJson([replyJson(['id' => 'r9', 'parent_id' => 'd1', 'body' => 'Under a deleted reply'])])],
     ]);
 
-    $screen = Native::visit('/log/commits/c1')->tap('replies-c1')->call('toggleTombstone', 'd1')->assertSee('Under a deleted reply');
+    $screen = Native::visit('/log/commits/c1')->tap('replies-c1')->call('toggleReplies', 'd1')->assertSee('Under a deleted reply');
 
     $screen->call('load');
 

@@ -19,9 +19,11 @@ use App\Devnull\ThreadRows;
  * asked for once they're all showing.
  *
  * A reply opened in place has the same button under its own actions, which
- * opens its replies in place too, one step in. A reply that deep opens its
- * replies on its page. Every thread is kept by the id of the commit or reply
- * it answers, so a reply's replies sit in $threads beside its commit's.
+ * opens its replies in place too, one step in. In a feed a reply that deep
+ * opens its replies on its page. On a commit page every reply opens its
+ * replies in place, as deep as they go (see CommitDetail and
+ * App\Devnull\ThreadRows). Every thread is kept by the id of the commit or
+ * reply it answers, so a reply's replies sit in $threads beside its commit's.
  *
  * EDGE can't animate a row coming into a list or going out of it, so replies
  * fade: a page that opens is drawn see-through ($fadedRows) and drawn again

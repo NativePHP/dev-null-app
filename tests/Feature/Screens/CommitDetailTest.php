@@ -526,29 +526,28 @@ it("turns the replies button's chevron down while the replies show, as the Log d
     $screen->tap('replies-c2')->assertDontSee('First reply')->assertSee('1 reply');
     expect($chevron('replies-c2')['props'])->toMatchArray(['name' => 'custom:chevron-right', 'rotate' => 0.0, 'animate-duration' => 220.0]);
 
-    // A reply's button opens its page rather than its replies in place, so its chevron stays put.
+    // A reply's button opens its replies in place too, so its chevron turns the same way.
     $screen->tap('replies-c2');
-    expect($chevron('replies-r1')['props'])->not->toHaveKey('rotate');
+    expect($chevron('replies-r1')['props'])->toMatchArray(['rotate' => 0.0, 'animate-duration' => 220.0]);
 })->with(['ios', 'android']);
 
 it('opens with its replies showing from a replies button', function () {
     fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'replies_count' => 1])], extra: [
         'GET /api/v1/commits/r1' => [commitPageJson(replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'replies_count' => 1]))],
-        'GET /api/v1/commits/r1/replies' => [pageJson([replyJson(['id' => 'r2', 'parent_id' => 'r1', 'body' => 'Answering the reply'])])],
+        // Someone other than r1's author, whose reply to themselves would carry r1 on as a thread instead.
+        'GET /api/v1/commits/r1/replies' => [pageJson([replyJson(['id' => 'r2', 'parent_id' => 'r1', 'body' => 'Answering the reply', 'author' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace'])])])],
     ]);
 
     Native::visit('/log/commits/c2', ['replies' => true])
         ->assertSee('First reply')
         ->assertSee('Hide replies');
 
-    // A reply's replies don't open in place on a commit page, so its button opens its page with them showing.
+    // A reply's replies open in place under it, as on the web, rather than on its page.
     Native::visit('/log/commits/c2')
         ->tap('replies-c2')
         ->tap('replies-r1')
-        ->assertNavigatedTo('/log/commits/r1')
-        ->follow()
-        ->assertSee('Answering the reply')
-        ->assertSee('Hide replies');
+        ->assertNoNavigation()
+        ->assertSee('Answering the reply');
 });
 
 it('asks for the replies a page at a time, and the next page from Show more', function () {

@@ -23,8 +23,9 @@
                 their avatar once. The replies hang under it on the thread's dashed lines, with the rail ending in a dot
                 above them, ten at a time with "Show more" under the last. A part of a series with more parts after it
                 has its replies right under it, beside the rail running on, and the later parts follow. Everything
-                around the commit is muted, and still opens its own page. A deleted reply's own replies open in place,
-                one level in, ten at a time too, since a deleted commit has no page.
+                around the commit is muted, and still opens its own page. Every reply's own replies open in place under
+                it, ten at a time too, as deep as they go, as on the web: they step in up to the web's depth and line up
+                under the deepest step past it, saying who they answer (see App\Devnull\ThreadRows).
 
                 A thread its author wrote as replies to themselves carries on below the commit, on the same rail, as
                 the web reads it (see SelfThread): each part wears its place ("2/5"), ten show at a time with "Show
@@ -61,73 +62,23 @@
                     'hairline' => ! ($loop->last && $relatedBelow && ! $threadMore),
                     'threadPosition' => $threadPositions[$row->commit->id] ?? null,
                     'showsThread' => false,
+                    'expandable' => false,
                 ])
                 @if ($isFocused && $repliesShown && $replies === [] && ! $repliesLoaded && $error === null)
                     <native:row ref="loading-replies" class="w-full pl-[64] pr-4 py-4 gap-2 items-center" a11y-label="Loading replies">
                         <native:activity-indicator size="small" />
                     </native:row>
                 @endif
-                @if ($hasThread)
-                    @php($railLane = $loop->last ? null : $commit->lane())
-                    @foreach ($replies as $index => $threadReply)
-                        @php($nested = $tombstoneReplies[$threadReply->id] ?? [])
-                        @php($nestedMore = ($tombstoneCursors[$threadReply->id] ?? null) !== null)
-                        @php($hasNext = ! $loop->last || $repliesCursor !== null)
-                        @php($replyRow = [
-                            'reply' => $threadReply,
-                            'lane' => $commit->lane(),
-                            'previousLane' => $index === 0 ? null : $replies[$index - 1]->lane(),
-                            'hasNext' => $hasNext,
-                            'railLane' => $railLane,
-                            'tombstones' => true,
-                            'muted' => true,
-                            'thread' => $commit,
-                            'more' => $loop->last && $nested === [] && $repliesCursor !== null ? 'loadMoreReplies' : null,
-                            'last' => $loop->last && $nested === [],
-                        ])
+                {{-- The replies, and theirs opened in place under them as deep as they go (see App\Devnull\ThreadRows). --}}
+                @php($pageThread = match (true) { $hasThread => \App\Devnull\ThreadRows::under($commit, [...$threads, $commit->id => $replies], array_filter([...$threadCursors, $commit->id => $repliesCursor]), $threadShown, $loop->last ? null : $commit->lane(), opensInPlace: PHP_INT_MAX, onPage: true, morePress: 'loadMoreReplies'), $partThread => \App\Devnull\ThreadRows::under($lastPart, [...$threads, $lastPart->id => $lastPartReplies], array_filter([...$threadCursors, $lastPart->id => $lastPartMore ? 'more' : null]), $threadShown, opensInPlace: PHP_INT_MAX, onPage: true, morePress: "openReplies('{$lastPart->id}')"), default => [] })
+                @foreach ($pageThread as $threadRow)
+                    @if ($threadRow['reply'] === null)
+                        @include($threadRow['partial'], $threadRow['data'])
+                    @else
                         @php($rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))
-                        @php($replyRows->include('reply-'.$threadReply->id, \App\Devnull\RowInputs::for($threadReply, $rowScope), 'native.partials.thread-reply', $replyRow, $rowScope))
-                        @foreach ($nested as $nestedIndex => $nestedReply)
-                            @php($nestedRow = [
-                                'reply' => $nestedReply,
-                                'lane' => \App\Devnull\Lane::Rail,
-                                'previousLane' => $nestedIndex === 0 ? null : $nested[$nestedIndex - 1]->lane(),
-                                'hasNext' => ! $loop->last || $nestedMore,
-                                'railLane' => $railLane,
-                                'indent' => 32,
-                                'spine' => $hasNext ? $threadReply->lane() : null,
-                                'muted' => true,
-                                'thread' => $nestedMore ? $threadReply : $commit,
-                                'more' => match (true) {
-                                    ! $loop->last => null,
-                                    $nestedMore => "loadMoreTombstoneReplies('{$threadReply->id}')",
-                                    $loop->parent->last && $repliesCursor !== null => 'loadMoreReplies',
-                                    default => null,
-                                },
-                                'last' => $loop->last && $loop->parent->last,
-                            ])
-                            @php($rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))
-                            @php($replyRows->include('reply-'.$nestedReply->id, \App\Devnull\RowInputs::for($nestedReply, $rowScope), 'native.partials.thread-reply', $nestedRow, $rowScope))
-                        @endforeach
-                    @endforeach
-                @endif
-                @if ($partThread)
-                    @foreach ($lastPartReplies as $index => $threadReply)
-                        @php($replyRow = [
-                            'reply' => $threadReply,
-                            'lane' => $lastPart->lane(),
-                            'previousLane' => $index === 0 ? null : $lastPartReplies[$index - 1]->lane(),
-                            'hasNext' => ! $loop->last || $lastPartMore,
-                            'railLane' => null,
-                            'muted' => true,
-                            'thread' => $lastPart,
-                            'more' => $loop->last && $lastPartMore ? "openReplies('{$lastPart->id}')" : null,
-                            'last' => $loop->last,
-                        ])
-                        @php($rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))
-                        @php($replyRows->include('reply-'.$threadReply->id, \App\Devnull\RowInputs::for($threadReply, $rowScope), 'native.partials.thread-reply', $replyRow, $rowScope))
-                    @endforeach
-                @endif
+                        @php($replyRows->include('reply-'.$threadRow['reply']->id, \App\Devnull\RowInputs::for($threadRow['reply'], $rowScope), $threadRow['partial'], $threadRow['data'], $rowScope))
+                    @endif
+                @endforeach
             @endforeach
 
             @if ($threadMore && $threadParts !== [])
