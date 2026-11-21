@@ -74,11 +74,11 @@ function mentionsCommitPage(?array $mentions = null): TestableComponent
  * The Log, with Ada's c1 in it and devnull's mention search answering, and the composer sheet open: for a new commit,
  * or for a quote of c1.
  */
-function mentionsComposer(bool $quoting = false): TestableComponent
+function mentionsComposer(bool $quoting = false, ?array $mentions = null): TestableComponent
 {
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'Required reading.', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada Lovelace'])])])],
-        'GET /api/v1/search/mentions' => mentionsFound(),
+        'GET /api/v1/search/mentions' => $mentions ?? mentionsFound(),
     ]);
 
     $screen = Native::visit('/log', platform: 'ios');
@@ -211,6 +211,23 @@ it('floats the suggestions over the quoted commit on glass, just under the caret
         // The list scrolls inside it when there are more than fit.
         ->and(findNode($overlay, fn (array $node): bool => $node['type'] === 'scroll_view' && ($node['ref'] ?? null) === 'sheet-mentions-scroll'))->not->toBeNull()
         ->and(childRefs($screen, 'mention-suggestions'))->toBe(['mention-ada', 'mention-adam', 'mention-adaptive']);
+});
+
+it('scrolls a long list of suggestions in the sheet with one scroll view, its own', function () {
+    TextFieldFill::skipUnlessSupported();
+
+    $people = array_map(fn (int $n): array => userJson(['id' => "u{$n}", 'handle' => "ada{$n}", 'name' => "Ada {$n}"]), range(1, 9));
+    $screen = mentionsComposer(mentions: [['data' => $people]])
+        ->input('sheet-body', "see\n\n\n\n\n\n@a", 12)
+        ->moveCaretTo('sheet-body', new Caret(x: 20, y: 132, width: 2, height: 22, line: 6, fieldWidth: 350, fieldHeight: 240));
+    $overlay = nodeByRef($screen, 'sheet-mentions');
+
+    // Nine rows is past the six the mention list scrolls by itself, but the sheet scrolls it already, so there is no
+    // second scroll view inside (two scroll bars on a short phone).
+    expect(findNodes($overlay, fn (array $node): bool => $node['type'] === 'scroll_view'))->toHaveCount(1)
+        ->and(nodeByRef($screen, 'sheet-mentions-scroll')['type'])->toBe('scroll_view')
+        ->and(rendersRef($screen, 'mention-scroll'))->toBeFalse()
+        ->and(childRefs($screen, 'mention-suggestions'))->toBe(array_map(fn (int $n): string => "mention-ada{$n}", range(1, 9)));
 });
 
 it('shortens the field to end on the caret line when the suggestions would not fit under it, and fills it again once they go', function () {
