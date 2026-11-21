@@ -198,7 +198,7 @@ it('names each account in the Post as menu, with its handle under the name', fun
     ]);
 });
 
-it('puts the handle in the label when mobile-ui has no menu subtitles', function () {
+it('puts the handle in the label when core has no menu row subtitles', function () {
     MenuSubtitle::skipIfSupported();
     memberOf([memberOrganizationJson()]);
 
