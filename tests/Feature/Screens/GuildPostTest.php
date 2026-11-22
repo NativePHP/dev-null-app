@@ -93,6 +93,9 @@ it('opens a composer for the guild, saying where it posts, with its own draft', 
 
     expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
         ->and(nodeByRef($screen, 'sheet-body')['props']['placeholder'])->toBe('What do you want to share with the guild?')
+        // At the top, under the sheet's bar, with the field the same gap below it.
+        ->and(array_slice(childRefs($screen, 'sheet-fields'), 0, 2))->toBe(['sheet-guild-hint', 'sheet-body'])
+        ->and(nodeByRef($screen, 'sheet-fields')['layout']['padding'][0])->toEqual(nodeByRef($screen, 'sheet-fields')['layout']['gap'] ?? null)
         ->and(app(Stash::class)->get($this->userId, 'guild:rust')->body)->toBe('Crabs ahoy.')
         ->and(app(Stash::class)->get($this->userId, 'commit')->body)->toBe('');
 

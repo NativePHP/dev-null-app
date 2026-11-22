@@ -67,7 +67,11 @@
                 </native:row>
                 <native:column class="w-full h-[1] bg-theme-hairline" />
                 <native:scroll-view ref="sheet-composer" class="w-full flex-1">
-                    <native:column class="w-full px-5 pt-4 pb-10 gap-4">
+                    <native:column ref="sheet-fields" class="w-full px-5 pt-4 pb-10 gap-4">
+                        @if ($sheetGuild !== null && $sheetView === 'compose')
+                            <native:text ref="sheet-guild-hint" class="w-full text-xs text-theme-ink-muted">Posted to this guild, not your profile log.</native:text>
+                        @endif
+
                         @if ($sheetError)
                             <native:text ref="sheet-error" class="w-full text-sm text-theme-destructive">{{ $sheetError }}</native:text>
                         @endif
@@ -106,10 +110,6 @@
                                 'label' => 'Mention a developer',
                                 'class' => 'w-full py-1 rounded-md border border-theme-hairline bg-theme-surface',
                             ])
-
-                            @if ($sheetGuild !== null && $sheetView === 'compose')
-                                <native:text ref="sheet-guild-hint" class="w-full text-xs text-theme-ink-muted">Posted to this guild, not your profile log.</native:text>
-                            @endif
 
                             @if (! $issueCommand && \App\Devnull\Data\CommitBody::hasOversizedUrl($sheetBody))
                                 <native:text ref="sheet-link-error" class="w-full text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
