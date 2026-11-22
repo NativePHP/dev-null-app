@@ -81,14 +81,15 @@
             The composer: the field over a row holding the + and the round send button (see partials/composer-box),
             with the thread fading out above it (see partials/composer-fade) rather than meeting a line. On iOS the bar
             is Liquid Glass, faded in at the top, so the thread shows through it blurred (see
-            Display::composerBarGlass()). On Android it's the surface. Either fills the strip under the home indicator.
+            Display::composerBarGlass()). From iOS 26 the system's scroll edge effect blurs the thread under the bar
+            instead, with no fade or glass (see Display::hasScrollEdge()). On Android it's the surface. Either fills the strip under the home indicator.
             The web's tools, photos, the microphone and Ping, open from the one +. Above the field sit the people to
             mention, what you're replying to and the photos on the draft. While the thread can't take a message, why
             goes in the field's place.
         --}}
         <native:bottom-bar class="{{ \App\Devnull\Display::composerBarGlass() }}">
             <native:column native:key="composer-bar" ref="composer-bar" class="w-full {{ \App\Devnull\Display::composerBar() }}">
-                @if (\App\Devnull\Display::fadesInBar())
+                @if (\App\Devnull\Display::fadeRowInBar())
                     @include('native.partials.composer-fade', ['ref' => 'composer-fade', 'inBar' => true])
                 @endif
                 <native:column native:key="composer-rows" ref="composer-rows" class="w-full {{ \App\Devnull\Display::composerSurface() }}">

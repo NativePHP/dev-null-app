@@ -1839,7 +1839,7 @@ class Conversation extends NativeComponent
      */
     private static function composerClearance(string $draft, bool $replying, bool $hasPhotos, bool $describing): int
     {
-        return Display::ComposerFadeHeight + self::ComposerBarHeight + Display::composerBoxGrowth($draft)
+        return Display::composerFadeHeight() + self::ComposerBarHeight + Display::composerBoxGrowth($draft)
             + ($replying ? self::ReplyingBarHeight : 0)
             + ($hasPhotos ? self::PhotosHeight : 0)
             + ($hasPhotos && $describing ? self::DescriptionHeight : 0)

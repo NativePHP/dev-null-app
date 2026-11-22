@@ -5,6 +5,7 @@ namespace App\Devnull;
 use App\Devnull\Data\CommitBody;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Native\Mobile\Facades\System;
 use Native\Mobile\Platform;
 
 /**
@@ -49,6 +50,11 @@ final class Display
      * composerBarGlass()). Full glass over a dark screen reads as a heavy slab.
      */
     public const int ComposerGlassOpacity = 80;
+
+    /**
+     * The first iOS whose scroll views draw a scroll edge effect under a bar (see hasScrollEdge()).
+     */
+    public const int ScrollEdgeIosVersion = 26;
 
     /**
      * About how many characters fit on a line of the box's field, which runs the width of the box.
@@ -253,7 +259,7 @@ final class Display
      */
     public static function replyBarClearance(string $draft, bool $hasPhotos = false, bool $describing = false): int
     {
-        return self::ComposerFadeHeight
+        return self::composerFadeHeight()
             + self::ComposerBoxBarHeight
             + self::composerBoxGrowth($draft)
             + ($hasPhotos ? self::ReplyBarPhotosHeight : 0)
@@ -303,16 +309,54 @@ final class Display
     }
 
     /**
+     * Whether the composer bars stand on iOS's own scroll edge effect: iOS 26 and later blur what scrolls under the
+     * bar progressively, as under its own toolbars, from the bar's scroll-edge-soft class (see composerBarGlass()).
+     * That stands in for the fade and the tinted glass, so a bar there draws neither and lets the effect show. Older
+     * iOS keeps the fade over glass, and Android its fade over the surface.
+     *
+     * It needs a mobile-air that draws the effect for a bottom bar and says which iOS the phone runs
+     * (System::osVersion()). Without one this is false and every iOS keeps the fade.
+     */
+    public static function hasScrollEdge(): bool
+    {
+        if (! Platform::isIos() || ! method_exists(\Native\Mobile\System::class, 'osVersion')) {
+            return false;
+        }
+
+        return (int) System::osVersion() >= self::ScrollEdgeIosVersion;
+    }
+
+    /**
+     * Whether a composer bar draws partials/composer-fade as its first row: on iOS, before the scroll edge effect.
+     */
+    public static function fadeRowInBar(): bool
+    {
+        return self::fadesInBar() && ! self::hasScrollEdge();
+    }
+
+    /**
+     * How tall the composer fade is where it's drawn: none where the scroll edge effect replaces it.
+     */
+    public static function composerFadeHeight(): int
+    {
+        return self::hasScrollEdge() ? 0 : self::ComposerFadeHeight;
+    }
+
+    /**
      * The classes for a composer's native:bottom-bar. On iOS that's Liquid Glass: what scrolls under the bar shows
      * through it, blurred. A patched mobile-air draws the glass behind the whole bar, under the home indicator too,
      * and fades it in over the bar's top ComposerFadeHeight points, so it has no hard top edge. EDGE's own glass on
      * an element can't be faded, and stops short of the home indicator. The glass stops at ComposerGlassOpacity
      * percent (glass/N), so a little of the screen under the bar shows through. Android has no glass, so the bar
      * stays the surface there.
+     *
+     * scroll-edge-soft asks iOS 26 and later for its scroll edge effect under the bar instead, a progressive blur
+     * like the one under its own toolbars, and a patched mobile-air leaves the glass out there (see hasScrollEdge()).
+     * Older iOS ignores it and keeps the glass.
      */
     public static function composerBarGlass(): string
     {
-        return self::fadesInBar() ? 'glass/'.self::ComposerGlassOpacity : '';
+        return self::fadesInBar() ? 'glass/'.self::ComposerGlassOpacity.' scroll-edge-soft' : '';
     }
 
     /**
@@ -333,6 +377,10 @@ final class Display
      */
     public static function composerSurface(): string
     {
+        if (self::hasScrollEdge()) {
+            return '';
+        }
+
         return self::fadesInBar() ? 'bg-theme-surface/'.self::ComposerGlassTint : 'bg-theme-surface';
     }
 
