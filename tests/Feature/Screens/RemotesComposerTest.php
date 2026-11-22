@@ -486,3 +486,11 @@ it('pings everyone in an org, and shows who pinged it', function () {
 
     expect(sentTo('POST', 'remotes/orgs/org-1/ping'))->toBe(['']);
 });
+
+it('leaves a gap between what you are replying to and the message box under it on iOS', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda()->trigger('swipe-1')->assertSee('Replying to Ada Lovelace');
+
+    expect(nodeByRef($screen, 'replying-slot')['layout']['padding'][2])->toBe(8.0);
+});

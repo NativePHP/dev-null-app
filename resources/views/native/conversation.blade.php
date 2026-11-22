@@ -106,7 +106,7 @@
                     <native:row native:key="mention-slot" ref="mention-slot" class="w-full {{ $mentioning ? 'pt-1 ios:pb-2 ios:px-4' : 'h-[0.1]' }}">
                         @include('native.partials.mention-suggestions', ['field' => 'draft', 'heading' => ($mention['query'] ?? null) === '' ? 'Members' : null])
                     </native:row>
-                    <native:row native:key="replying-slot" ref="replying-slot" class="w-full {{ $replyTo ? 'ios:px-4' : 'h-[0.1]' }}">
+                    <native:row native:key="replying-slot" ref="replying-slot" class="w-full {{ $replyTo ? 'ios:px-4 ios:pb-2' : 'h-[0.1]' }}">
                         @if ($replyTo)
                             <native:row ref="replying" class="flex-1 h-[44] px-4 gap-3 items-center ios:rounded-[18] ios:glass">
                                 <native:column class="w-[2] h-[28] rounded-full bg-theme-{{ $myColour }}" />
