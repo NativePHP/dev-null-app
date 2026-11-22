@@ -199,3 +199,34 @@ it("leaves a link preview's picture out under the commit's own images", function
 
     expect(imagesIn(nodeByRef($screen, 'link-preview-c1')))->toBe([]);
 });
+
+it("names the video and its channel in the compact row under the commit's own images", function () {
+    VideoDetails::remember('https://youtu.be/bod7JDMeF-0', 'Side Projects Got Me Hired', 'Shruti Balasa');
+
+    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
+        'id' => 'c1',
+        'body' => 'Watch https://youtu.be/bod7JDMeF-0',
+        'images' => [['id' => 7, 'width' => 400, 'height' => 300, 'description' => null, 'url' => 'https://img.test/7']],
+        'link_preview' => [
+            'url' => 'https://youtu.be/bod7JDMeF-0',
+            'title' => '- YouTube',
+            'description' => 'Enjoy the videos and music you love, upload original content.',
+            'image_url' => null,
+            'site_name' => 'YouTube',
+            'embed' => [
+                'provider' => 'YouTube',
+                'kind' => 'video',
+                'src' => 'https://www.youtube-nocookie.com/embed/bod7JDMeF-0?autoplay=1',
+                'aspect_ratio' => '16 / 9',
+                'height' => null,
+                'poster' => null,
+            ],
+        ],
+    ])]))]);
+
+    Native::visit('/log')
+        ->assertSee('Side Projects Got Me Hired')
+        ->assertSee('Shruti Balasa')
+        ->assertDontSee('- YouTube')
+        ->assertDontSee('Enjoy the videos and music you love');
+});
