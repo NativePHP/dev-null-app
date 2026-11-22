@@ -128,6 +128,13 @@ class CommitDetail extends NativeComponent
     public array $ancestors = [];
 
     /**
+     * The commits above whose own page was asked for their count since the page last asked devnull again.
+     *
+     * @var list<string>
+     */
+    protected array $countedAncestors = [];
+
+    /**
      * The parts of its series after the commit, in order.
      *
      * @var list<Commit>
@@ -278,13 +285,6 @@ class CommitDetail extends NativeComponent
      * you started typing.
      */
     protected bool $forceFullFrames = true;
-
-    /**
-     * The commits above whose own page was asked for their count since the page last asked devnull again.
-     *
-     * @var list<string>
-     */
-    protected array $countedAncestors = [];
 
     public function mount(): void
     {
