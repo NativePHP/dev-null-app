@@ -31,7 +31,6 @@ trait SuggestsMentions
      */
     public const string MentionBeforeCaret = '/(?:^|[^\p{L}\p{N}_.\/@-])@([A-Za-z0-9][A-Za-z0-9-]{0,38}|)$/u';
 
-
     /**
      * The "@handle" the caret is after: the field it's in, where its "@" is, in code points, what follows it, and the
      * field's text when the caret was there. Null while there's none.
