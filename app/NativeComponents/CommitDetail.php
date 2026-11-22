@@ -80,7 +80,8 @@ use Native\Mobile\Edge\NativeComponent;
  *
  * A reply goes at once: the bar empties and the reply shows staged under the
  * commit while it goes to devnull from the outbox (see SyncsOutbox), then the
- * real one takes its place. If devnull turns it down, it leaves, and what you
+ * real one takes its place. The page scrolls to it as it shows, and stays
+ * there when the real one comes (see scrollToRow()). If devnull turns it down, it leaves, and what you
  * wrote is back in the bar, or in the sheet with its photos. Edit, on the
  * toast of a reply or a quote turned down after you'd left, opens its commit
  * here with it ($data['edit']).
@@ -256,16 +257,23 @@ class CommitDetail extends NativeComponent
     public int $scrollKey = 0;
 
     /**
-     * Which of the scroll view's rows it brings into view, the commit's, once tapping another commit in the tree
-     * moved the page to it (see refocus()). Null until then, so the page opens at the top as it always has.
+     * Which of the scroll view's rows it brings into view: the commit's, once tapping another commit in the tree
+     * moved the page to it (see refocus()), or the reply you just sent (see scrollToRow()). Null until one of those,
+     * so the page opens at the top as it always has.
      */
     public ?int $scrollTarget = null;
 
     /**
-     * Counts the moves refocus() made. The scroll view takes it as its auto-scroll-token, so asking for the same row
+     * Counts the moves refocus() and scrollToRow() made. The scroll view takes it as its auto-scroll-token, so asking for the same row
      * as last time (going back to the top twice) scrolls again rather than doing nothing.
      */
     public int $scrollRequest = 0;
+
+    /**
+     * The key of the row scrollToRow() brought into view last, so a reply you sent can be followed when devnull's
+     * takes its place (see showCommitWent()).
+     */
+    private ?string $scrolledToRow = null;
 
     /**
      * The commit the page opened on, before tapping others in its tree moved it (see refocus()).
@@ -821,6 +829,7 @@ class CommitDetail extends NativeComponent
         $this->updatedReply();
         $this->repliesShown = true;
         $this->keepStagedReplies();
+        $this->scrollToRow('thread-reply-'.PendingWrite::stagedId($write->client_id));
         $this->sendFromOutbox($write);
     }
 
@@ -886,6 +895,7 @@ class CommitDetail extends NativeComponent
         $this->replyRestored = false;
         $this->repliesShown = true;
         $this->keepStagedReplies();
+        $this->scrollToRow('thread-reply-'.$commit->id);
     }
 
     /**
@@ -897,6 +907,31 @@ class CommitDetail extends NativeComponent
 
         $this->replies = array_map(fn (Commit $reply): Commit => $reply->id === $staged ? $commit : $reply, $this->replies);
         $this->followThread();
+        $this->followSentReply('thread-reply-'.$staged, $commit);
+    }
+
+    /**
+     * The page scrolled to a reply you sent, staged, and devnull's reply has taken its place. That's the same row,
+     * so the scroll view is left be. Only when the reply has moved, as the next part of your thread below the
+     * commit's replies, does the page follow it there.
+     */
+    private function followSentReply(string $stagedKey, Commit $commit): void
+    {
+        if ($this->scrolledToRow !== $stagedKey) {
+            return;
+        }
+
+        $keys = array_column($this->pageRows($this->viewData()), 'key');
+        $at = array_search('thread-reply-'.$commit->id, $keys, true);
+        $at = $at === false ? array_search('commit-'.$commit->id, $keys, true) : $at;
+
+        if ($at === false || $at === $this->scrollTarget) {
+            $this->scrolledToRow = null;
+
+            return;
+        }
+
+        $this->scrollToRow($keys[$at]);
     }
 
     /**
@@ -1310,19 +1345,30 @@ class CommitDetail extends NativeComponent
 
     public function render(): View
     {
+        $this->replyRows ??= new RowCache;
+        $this->replyRows->startFrame();
+        $data = $this->viewData();
+
+        return view('native.commit-detail', [...$data, 'replyRows' => $this->replyRows, 'pageRows' => $this->pageRows($data)]);
+    }
+
+    /**
+     * What the page's view draws from, besides the component's own properties.
+     *
+     * @return array<string, mixed>
+     */
+    private function viewData(): array
+    {
         $earlier = $this->earlierShown ? [] : array_slice($this->ancestors, 0, -1);
         $above = $this->shownAncestors();
         $viewer = $this->me();
-        $this->replyRows ??= new RowCache;
-        $this->replyRows->startFrame();
         $thread = $this->selfThread();
         $parts = $thread->parts;
         $partsAbove = $this->commit === null ? 0 : SelfThread::above($this->ancestors, $this->commit, $this->repliesOf())[0];
         $lastPart = $thread->hasEnded && $parts !== [] ? end($parts) : null;
         $replies = $this->commit === null ? $this->replies : SelfThread::others($this->commit, $this->replies);
 
-        return view('native.commit-detail', [
-            'replyRows' => $this->replyRows,
+        return [
             'myColour' => $this->myColour(),
             'viewer' => $viewer,
             'ownership' => $this->ownership(),
@@ -1344,7 +1390,93 @@ class CommitDetail extends NativeComponent
             'lastPart' => $lastPart,
             'lastPartReplies' => $lastPart === null ? [] : array_slice($this->partReplies[$lastPart->id] ?? [], 0, Client::RepliesPerPage),
             'lastPartMore' => $lastPart !== null && (count($this->partReplies[$lastPart->id] ?? []) > Client::RepliesPerPage || in_array($lastPart->id, $this->partsWithMore, true)),
-        ]);
+        ];
+    }
+
+    /**
+     * The scroll view's rows from the top down to the end of the thread, in the order the view draws them, each one
+     * child of the scroll view: "↑ N earlier commits", then each commit with what hangs under it, its replies opened
+     * in place and theirs (see App\Devnull\ThreadRows). The view draws exactly these, so a row's place here is its
+     * place among the scroll view's children, which auto-scroll-to counts in (see scrollToRow()). What comes after
+     * the thread, the related commits and the room for the reply bar, the view draws on its own.
+     *
+     * @param  array<string, mixed>  $data  What viewData() gave.
+     * @return list<array{key: string, partial: string|null, data: array<string, mixed>, reply: Commit|null}>
+     */
+    private function pageRows(array $data): array
+    {
+        $commit = $this->commit;
+        $rows = $data['rows'];
+        $replies = $data['replies'];
+        $lastPart = $data['lastPart'];
+        $noReplies = $commit !== null && $data['replyCount'] === 0 && $this->repliesLoaded && $this->series === [] && $data['threadParts'] === [];
+        $relatedBelow = $commit !== null && $this->related !== [] && ! $noReplies;
+        $pageRows = [];
+
+        if ($data['earlierCount'] > 0) {
+            $pageRows[] = ['key' => 'earlier-commits', 'partial' => 'native.partials.earlier-commits', 'data' => ['count' => $data['earlierCount'], 'lane' => $data['earlierLane']], 'reply' => null];
+        }
+
+        foreach ($rows as $index => $row) {
+            $last = $index === array_key_last($rows);
+            $isFocused = $row->commit->id === $commit?->id;
+            $isLastPart = $lastPart !== null && $row->commit->id === $lastPart->id;
+            $hasThread = $isFocused && $this->repliesShown && $replies !== [];
+            $partThread = $isLastPart && $data['lastPartReplies'] !== [];
+            $aboveThread = $data['ancestorThreads'][$row->commit->id] ?? null;
+            $aboveOpen = ($aboveThread['rows'] ?? []) !== [];
+
+            $pageRows[] = ['key' => 'commit-'.$row->commit->id, 'partial' => 'native.partials.commit-row', 'reply' => null, 'data' => [
+                'commit' => $row->commit,
+                'previousLane' => $row->previousLane,
+                'continuesRun' => $row->continuesRun,
+                'continuesNext' => $isFocused || $aboveOpen ? ! $last : null,
+                'threadBelow' => $hasThread || $partThread || $aboveOpen,
+                'repliesBelow' => $partThread,
+                'focused' => $isFocused,
+                'muted' => ! $isFocused,
+                'seriesExpanded' => true,
+                'withTail' => ! $last || $data['threadMore'],
+                'hairline' => ! ($last && $relatedBelow && ! $data['threadMore']),
+                'threadPosition' => $data['threadPositions'][$row->commit->id] ?? null,
+                'showsThread' => false,
+                'expandable' => $aboveThread !== null,
+                'repliesCount' => $aboveThread['count'] ?? null,
+            ]];
+
+            if ($isFocused && $this->repliesShown && $replies === [] && ! $this->repliesLoaded && $this->error === null) {
+                $pageRows[] = ['key' => 'loading-replies', 'partial' => null, 'data' => [], 'reply' => null];
+            }
+
+            // The replies, and theirs opened in place under them as deep as they go. A commit above the commit opens
+            // its replies in place under it too, all but the one on the line down to the commit, which already shows
+            // (see ancestorThreads()).
+            array_push($pageRows, ...match (true) {
+                $aboveThread !== null => $aboveThread['rows'],
+                $hasThread => ThreadRows::under($commit, [...$this->threads, $commit->id => $replies], array_filter([...$this->threadCursors, $commit->id => $this->repliesCursor]), $this->threadShown, $last ? null : $commit->lane(), opensInPlace: PHP_INT_MAX, onPage: true, morePress: 'loadMoreReplies'),
+                $partThread => ThreadRows::under($lastPart, [...$this->threads, $lastPart->id => $data['lastPartReplies']], array_filter([...$this->threadCursors, $lastPart->id => $data['lastPartMore'] ? 'more' : null]), $this->threadShown, opensInPlace: PHP_INT_MAX, onPage: true, morePress: "openReplies('{$lastPart->id}')"),
+                default => [],
+            });
+        }
+
+        return $pageRows;
+    }
+
+    /**
+     * Brings the row keyed $key into view, animated, under a new token so it goes even when that's the row it went to
+     * last time. Nothing happens for a row the page doesn't draw.
+     */
+    private function scrollToRow(string $key): void
+    {
+        $at = array_search($key, array_column($this->pageRows($this->viewData()), 'key'), true);
+
+        if ($at === false) {
+            return;
+        }
+
+        $this->scrollTarget = $at;
+        $this->scrollRequest++;
+        $this->scrolledToRow = $key;
     }
 
     /**
