@@ -211,10 +211,17 @@ it('opens the replies of a commit above the commit in place, leaving out the one
     $screen->tap('replies-c1')->assertNoNavigation()->assertSee('Another reply above');
 
     // The other reply opens under c1, and the commit the page is on shows once, as the commit.
-    expect(childRefs($screen, 'thread-scroll'))->toBe(['commit-c1', 'thread-reply-x1', 'focused-commit', 'thread-reply-r1', 'reply-bar-clearance']);
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['commit-c1', 'thread-reply-x1', 'focused-commit', 'thread-reply-r1', 'reply-bar-clearance'])
+        // c1 gives up its hairline to its replies, and the last of them ends on it above the commit. The commit's own
+        // replies end the page, so they end on none.
+        ->and(rendersRef($screen, 'thread-end-x1'))->toBeTrue()
+        ->and(rendersRef($screen, 'thread-end-r1'))->toBeFalse();
 
-    // Its replies open in place too, at any depth.
+    // Its replies open in place too, at any depth, and the hairline moves down under the last of them.
     $screen->tap('replies-x1')->assertNoNavigation()->assertSee('A reply to the other reply');
+
+    expect(rendersRef($screen, 'thread-end-x2'))->toBeTrue()
+        ->and(rendersRef($screen, 'thread-end-x1'))->toBeFalse();
 
     $screen->tap('replies-c1');
     finishRefreshes($screen)->assertDontSee('Another reply above')->assertDontSee('A reply to the other reply');

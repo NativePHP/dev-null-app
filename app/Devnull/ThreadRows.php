@@ -14,7 +14,8 @@ use Closure;
  * Under the commit come its replies, each followed by its own replies when
  * they're open, and theirs, as deep as they go, with "Show more" after the
  * replies of a thread with more. Every row is a row of its own, and in a feed
- * the last one closes the commit's row with its hairline.
+ * the last one closes the commit's row with its hairline. On a commit page it
+ * does only when another commit's row follows the thread.
  *
  * The thread hangs off the rail in dashes, as on the web: the first reply on
  * an elbow from the commit's rail, each later one on a short link from the
@@ -66,8 +67,10 @@ final class ThreadRows
      * @param  array<string, int>  $shown  How many of each open thread's replies show.
      * @param  int|string|null  $railLane  The commit's rail running on past its thread, when its author's run carries on below.
      * @param  int  $opensInPlace  How deep a reply's replies button opens its replies in place rather than its page.
-     * @param  bool  $onPage  On a commit page: replies muted, deleted ones open theirs in place, and no hairline under them.
+     * @param  bool  $onPage  On a commit page: replies muted, deleted ones open theirs in place, and no hairline under them by default.
      * @param  string|null  $morePress  What the commit's own "Show more" presses, when it isn't showMoreReplies.
+     * @param  bool|null  $hairline  Whether the last row closes the thread with a hairline: in a feed it does, and on a
+     *                               commit page only when another commit's row comes next.
      * @return list<array{key: string, partial: string, data: array<string, mixed>, reply: Commit|null}>
      */
     public static function under(
@@ -79,6 +82,7 @@ final class ThreadRows
         int $opensInPlace = 1,
         bool $onPage = false,
         ?string $morePress = null,
+        ?bool $hairline = null,
     ): array {
         $thread = fn (string $id): array => array_slice($threads[$id] ?? [], 0, $shown[$id] ?? null);
         $hasMore = fn (string $id): bool => isset($cursors[$id]) || count($thread($id)) < count($threads[$id] ?? []);
@@ -89,6 +93,7 @@ final class ThreadRows
             'opensInPlace' => $opensInPlace,
             'onPage' => $onPage,
             'morePress' => $morePress,
+            'hairline' => $hairline ?? ! $onPage,
         ]);
 
         if ($rows === []) {
@@ -124,7 +129,7 @@ final class ThreadRows
      * @param  list<array{left: float, lane: int|string, top?: int}>  $spines  Lines from further up running on past these rows.
      * @param  Closure(string): list<Commit>  $thread
      * @param  Closure(string): bool  $hasMore
-     * @param  array{railLane: int|string|null, opensInPlace: int, onPage: bool, morePress: string|null}  $options
+     * @param  array{railLane: int|string|null, opensInPlace: int, onPage: bool, morePress: string|null, hairline: bool}  $options
      */
     private static function branch(array &$rows, Commit $parent, int $depth, array $spines, Closure $thread, Closure $hasMore, array $options): void
     {
@@ -160,6 +165,7 @@ final class ThreadRows
                 'repliesInPlace' => $depth <= $options['opensInPlace'],
                 'muted' => $onPage,
                 'tombstones' => $onPage,
+                'hairline' => $options['hairline'],
             ]);
 
             // The line that has to run on past this reply's own replies, to the next reply at this depth.
@@ -182,7 +188,7 @@ final class ThreadRows
                 'indent' => $indent,
                 'spines' => $spines,
                 'to' => $flattened && ! $parent->isDeleted() ? $parent->author->handle() : null,
-                'hairline' => ! $onPage,
+                'hairline' => $options['hairline'],
                 ...($depth === 1 && $options['morePress'] !== null ? ['press' => $options['morePress']] : []),
             ]);
         }

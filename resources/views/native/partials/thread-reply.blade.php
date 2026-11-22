@@ -6,8 +6,9 @@
     ($previousLane), and a line on down from its avatar when another reply, its own replies, or "Show more", follows
     ($hasNext). $spines carry lines from further up on past it, and $railLane runs the commit's own rail on past,
     solid, when its author's run goes on below the thread (see thread-links). A deleted reply keeps its place with a
-    dashed ring. In a feed the $last closes the commit's row with its hairline. On a commit page nothing follows the
-    thread, so there's no hairline.
+    dashed ring. In a feed the $last closes the commit's row with its hairline. On a commit page it has one only when
+    another commit's row comes next ($hairline): under the replies of a commit above the commit, say, but not at the
+    foot of the page.
 
     Past the web's depth a reply is flattened: it lines up under the reply it answers, with no lines of its own
     ($links), and says who it answers on a line under its name ($replyingTo), as the web does.
@@ -32,6 +33,7 @@
 --}}
 @php($previousLane ??= null)
 @php($muted ??= false)
+@php($hairline ??= ! $muted)
 @php($railLane ??= null)
 @php($indent ??= 0)
 @php($spines ??= [])
@@ -66,7 +68,7 @@
                     @endif
                 </native:column>
             </native:row>
-            @if ($last && ! $muted)
+            @if ($last && $hairline)
                 <native:column ref="thread-end-{{ $reply->id }}" class="w-full h-[1] bg-theme-hairline" />
             @endif
         </native:column>
@@ -107,7 +109,7 @@
                         @endunless
                     </native:column>
                 </native:row>
-                @if ($last && ! $muted)
+                @if ($last && $hairline)
                     <native:column ref="thread-end-{{ $reply->id }}" class="w-full h-[1] bg-theme-hairline" />
                 @endif
             </native:column>

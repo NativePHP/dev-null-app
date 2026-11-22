@@ -656,6 +656,8 @@ class CommitDetail extends NativeComponent
                     $ancestor->lane(),
                     opensInPlace: PHP_INT_MAX,
                     onPage: true,
+                    // The next commit on the line follows them, so they end on the hairline the ancestor's row gave up.
+                    hairline: true,
                 ),
             ];
         }
@@ -1450,10 +1452,11 @@ class CommitDetail extends NativeComponent
 
             // The replies, and theirs opened in place under them as deep as they go. A commit above the commit opens
             // its replies in place under it too, all but the one on the line down to the commit, which already shows
-            // (see ancestorThreads()).
+            // (see ancestorThreads()). Replies with another commit's row after them end on the hairline the row above
+            // them gave up; at the foot of the page they end on none.
             array_push($pageRows, ...match (true) {
                 $aboveThread !== null => $aboveThread['rows'],
-                $hasThread => ThreadRows::under($commit, [...$this->threads, $commit->id => $replies], array_filter([...$this->threadCursors, $commit->id => $this->repliesCursor]), $this->threadShown, $last ? null : $commit->lane(), opensInPlace: PHP_INT_MAX, onPage: true, morePress: 'loadMoreReplies'),
+                $hasThread => ThreadRows::under($commit, [...$this->threads, $commit->id => $replies], array_filter([...$this->threadCursors, $commit->id => $this->repliesCursor]), $this->threadShown, $last ? null : $commit->lane(), opensInPlace: PHP_INT_MAX, onPage: true, morePress: 'loadMoreReplies', hairline: ! $last),
                 $partThread => ThreadRows::under($lastPart, [...$this->threads, $lastPart->id => $data['lastPartReplies']], array_filter([...$this->threadCursors, $lastPart->id => $data['lastPartMore'] ? 'more' : null]), $this->threadShown, opensInPlace: PHP_INT_MAX, onPage: true, morePress: "openReplies('{$lastPart->id}')"),
                 default => [],
             });
