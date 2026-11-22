@@ -166,7 +166,7 @@
                     otherwise take 10pt of the bar, and EDGE drops a height of 0.
                 --}}
                 @php($mentioning = ($mention['field'] ?? null) === 'reply' && ($mentionPeople !== [] || $mentionOrganizations !== []))
-                <native:row native:key="reply-mention-slot" ref="reply-mention-slot" class="w-full {{ $mentioning ? 'pt-1 ios:px-4' : 'h-[0.1]' }}">
+                <native:row native:key="reply-mention-slot" ref="reply-mention-slot" class="w-full {{ $mentioning ? 'pt-1 ios:pb-2 ios:px-4' : 'h-[0.1]' }}">
                     @include('native.partials.mention-suggestions', ['field' => 'reply', 'label' => 'Mention a developer'])
                 </native:row>
                 @php($showsPhotos = $replyImages !== [] && ! $replyPreviewing)
