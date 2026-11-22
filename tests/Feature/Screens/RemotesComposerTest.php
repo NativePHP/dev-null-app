@@ -349,12 +349,13 @@ it('stands the message bar on the scroll edge effect from iOS 26, with no fade o
         $screen = threadWithAda();
         $bottomBar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
 
-        expect($bottomBar['props']['scroll_edge'] ?? null)->toBe(1)
+        expect($bottomBar['props']['edge_blur'] ?? null)->toBe(Display::ComposerEdgeBlur)
+            ->and(nodeByRef($screen, 'message-box')['props']['glass'] ?? null)->toBe(Display::ComposerInGlassBox ? 1 : null)
             ->and(childRefs($screen, 'composer-bar'))->toBe(['composer-rows'])
             ->and(nodeByRef($screen, 'composer-bar')['style']['bg_color'] ?? null)->toBeNull()
             ->and(nodeByRef($screen, 'composer-rows')['style']['bg_color'] ?? null)->toBeNull()
             ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'composer-fade'))->toBeNull()
-            ->and(nodeByRef($screen, 'composer-clearance')['layout']['height'] ?? null)->toEqual(Conversation::ComposerBarHeight + 8);
+            ->and(nodeByRef($screen, 'composer-clearance')['layout']['height'] ?? null)->toEqual(Display::composerBoxBarHeight() + 8);
     });
 });
 

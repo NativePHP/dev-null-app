@@ -12,7 +12,10 @@ it('stands the composer bars on the scroll edge effect from iOS 26, and keeps th
             expect(Display::hasScrollEdge())->toBe($edge)
                 ->and(Display::fadeRowInBar())->toBe($platform === 'ios' && ! $edge)
                 ->and(Display::composerFadeHeight())->toBe($edge ? 0 : Display::ComposerFadeHeight)
-                ->and(Display::composerSurface() === '')->toBe($edge);
+                ->and(Display::composerSurface() === '')->toBe($edge)
+                ->and(Display::composerInGlassBox())->toBe($edge && Display::ComposerInGlassBox)
+                ->and(Display::composerBoxBarHeight())->toBe($edge && Display::ComposerInGlassBox ? Display::ComposerGlassBoxBarHeight : Display::ComposerBoxBarHeight)
+                ->and(Display::composerBox() === '')->toBe(! ($edge && Display::ComposerInGlassBox));
         } finally {
             System::rememberPlatform(null);
         }
@@ -26,11 +29,12 @@ it('stands the composer bars on the scroll edge effect from iOS 26, and keeps th
     'Android 26' => ['android', '26', false],
 ]);
 
-it('asks iOS for the soft scroll edge effect under the composer bars, over glass for older iOS', function () {
+it('asks iOS for the composer edge blur on the bar, over glass for older iOS, and Android for neither', function () {
     System::rememberPlatform('ios');
 
     try {
-        expect(Display::composerBarGlass())->toBe('glass/'.Display::ComposerGlassOpacity.' scroll-edge-soft');
+        expect(Display::composerBarGlass())->toBe('glass/'.Display::ComposerGlassOpacity)
+            ->and(Display::composerEdgeBlur())->toBe(Display::ComposerEdgeBlur);
     } finally {
         System::rememberPlatform(null);
     }
@@ -38,8 +42,18 @@ it('asks iOS for the soft scroll edge effect under the composer bars, over glass
     System::rememberPlatform('android');
 
     try {
-        expect(Display::composerBarGlass())->toBe('');
+        expect(Display::composerBarGlass())->toBe('')
+            ->and(Display::composerEdgeBlur())->toBe('');
     } finally {
         System::rememberPlatform(null);
     }
+});
+
+it('asks for an edge blur mobile-air takes', function () {
+    expect(Display::ComposerEdgeBlur)->toBeIn(['soft', 'hard']);
+});
+
+it('keeps the glass box as tall as the bar it replaces, plus its own padding', function () {
+    // The field's padding over it grows from 4 to 8, and the box adds 2 under the row of tools.
+    expect(Display::ComposerGlassBoxBarHeight)->toBe(Display::ComposerBoxBarHeight + 4 + 2);
 });

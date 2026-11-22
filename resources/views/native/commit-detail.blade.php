@@ -136,8 +136,9 @@
             tools on the left and the round send button on the right (see partials/composer-box), with the page fading
             out above it (see partials/composer-fade). On iOS the bar is Liquid Glass, faded in at the top, so the page
             shows through it blurred (see Display::composerBarGlass()). From iOS 26 the system's scroll edge effect
-            blurs the page under the bar instead, with no fade or glass (see Display::hasScrollEdge()). On Android
-            it's the surface, painted from this column. Either fills the strip under the home indicator.
+            blurs the page under the bar instead, with no fade or glass (see Display::composerEdgeBlur()), and the
+            field and tools sit in a rounded glass box on it (Display::composerInGlassBox()). On Android it's the
+            surface, painted from this column. Either fills the strip under the home indicator.
 
             The bar does everything the composer sheet did for a reply, so a reply never needs the sheet, whose
             presenting takes the keyboard down and back up on both platforms. The photo button adds photos from the
@@ -152,7 +153,7 @@
         --}}
         @php($replyPostingMe = app(\App\Devnull\Account::class)->user())
         @php($replyPostsAs = $replyPostingMe !== null && \App\Devnull\PostAs::offered($replyAuthor))
-        <native:bottom-bar class="{{ \App\Devnull\Display::composerBarGlass() }}">
+        <native:bottom-bar class="{{ \App\Devnull\Display::composerBarGlass() }}" edge-blur="{{ \App\Devnull\Display::composerEdgeBlur() }}">
             <native:column ref="reply-bar" class="w-full {{ \App\Devnull\Display::composerBar() }}">
                 @if (\App\Devnull\Display::fadeRowInBar())
                     @include('native.partials.composer-fade', ['ref' => 'reply-fade', 'inBar' => true])
