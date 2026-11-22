@@ -156,3 +156,46 @@ it('keeps the compact row for links without a player', function () {
     expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'embed-play-c1'))->toBeNull()
         ->and(nodeByRef($screen, 'link-preview-c1'))->not->toBeEmpty();
 });
+
+it("shows a video as a compact link row with no picture under the commit's own images", function () {
+    Http::fake(['www.youtube.com/oembed*' => Http::response(null, 404), 'devnull.test/*' => Http::response(pageJson([commitJson([
+        'id' => 'c1',
+        'body' => 'Watch https://www.youtube.com/watch?v=E9Zx6rx0bWk',
+        'images' => [['id' => 7, 'width' => 400, 'height' => 300, 'description' => null, 'url' => 'https://img.test/7']],
+        'link_preview' => [
+            'url' => 'https://youtu.be/E9Zx6rx0bWk',
+            'title' => 'The episode',
+            'description' => null,
+            'image_url' => 'https://i.ytimg.com/vi/E9Zx6rx0bWk/hqdefault.jpg',
+            'site_name' => 'YouTube',
+            'embed' => [
+                'provider' => 'YouTube',
+                'kind' => 'video',
+                'src' => 'https://www.youtube-nocookie.com/embed/E9Zx6rx0bWk?autoplay=1',
+                'aspect_ratio' => '16 / 9',
+                'height' => null,
+                'poster' => 'https://i.ytimg.com/vi/E9Zx6rx0bWk/hqdefault.jpg',
+            ],
+        ],
+    ])]))]);
+
+    $screen = Native::visit('/log')->assertSee('The episode');
+
+    $screen->assertMissingElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'embed-play-c1');
+
+    expect(imagesIn(nodeByRef($screen, 'link-preview-c1')))->toBe([])
+        ->and(array_column(array_column(imagesIn(nodeByRef($screen, 'image-7')), 'props'), 'src'))->toHaveCount(1);
+});
+
+it("leaves a link preview's picture out under the commit's own images", function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
+        'id' => 'c1',
+        'body' => 'Read https://example.com/post',
+        'images' => [['id' => 7, 'width' => 400, 'height' => 300, 'description' => null, 'url' => 'https://img.test/7']],
+        'link_preview' => ['url' => 'https://example.com/post', 'title' => 'The post', 'description' => null, 'image_url' => 'https://example.com/og.png', 'site_name' => null],
+    ])]))]);
+
+    $screen = Native::visit('/log')->assertSee('The post');
+
+    expect(imagesIn(nodeByRef($screen, 'link-preview-c1')))->toBe([]);
+});

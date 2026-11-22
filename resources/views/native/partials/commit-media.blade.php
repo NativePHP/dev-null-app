@@ -1,6 +1,7 @@
 {{--
     What hangs under a commit's body on the web: its images, its poll, the commit it quotes, then the link preview, or
-    for a YouTube link the player devnull offers (see partials/commit-embed). Other players keep the preview for now.
+    for a YouTube link the player devnull offers (see partials/commit-embed). Other players keep the preview for now, and
+    so does a video under the commit's own images, as a compact row with no picture of its own.
     A Nata Nu//ers high score has its card first, which the web doesn't draw (see partials/score-card).
     A reply in a thread shows only its images and link preview ($withEmbeds false), as the web's thread does.
     Images hold their space at their aspect ratio on a wash, so one that fails to load leaves the row as it was. Each is
@@ -42,14 +43,15 @@
     @include('native.partials.quoted-commit')
 @endif
 
-@if ($commit->linkPreview?->embed?->isYouTube())
+@if ($images === [] && $commit->linkPreview?->embed?->isYouTube())
     @include('native.partials.commit-embed', ['preview' => $commit->linkPreview])
 @elseif ($commit->linkPreview?->isReady())
     @php($preview = $commit->linkPreview)
-    {{-- A compact row, not a card: a small image, the mono site, then the title and description. --}}
+    {{-- A compact row, not a card: a small image, the mono site, then the title and description. Under the commit's own
+         images it has no image of its own, and a video is this row rather than its player. --}}
     <native:pressable ref="link-preview-{{ $commit->id }}" @press="openLinkPreview('{{ $commit->id }}')" class="w-full mt-2" a11y-label="{{ $preview->title }}, {{ $preview->site() }}">
         <native:row class="w-full gap-3 p-2 items-center rounded-lg border border-theme-hairline">
-            @if ($preview->imageUrl)
+            @if ($preview->imageUrl && $images === [])
                 <native:column :width="56" :height="56" class="rounded-md bg-theme-wash">
                     <native:image :src="\App\Devnull\ImageCache::src($preview->imageUrl)" :width="56" :height="56" :fit="2" class="rounded-md" />
                 </native:column>
