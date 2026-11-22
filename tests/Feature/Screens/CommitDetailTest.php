@@ -67,22 +67,13 @@ it('opens on the commit under its parent, with the older ancestors and the repli
         ->assertSee('1 reply');
 });
 
-it('brings the commit back up under its parent when you tap into the reply bar', function () {
+it('leaves the page where it is when you tap into the reply bar', function () {
     fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'author' => userJson(['handle' => 'grace', 'name' => 'Grace'])])]);
 
     $screen = Native::visit('/log/commits/c2')->tap('earlier-commits')->assertSee('The root commit');
-    $before = nodeByRef($screen, 'thread-scroll')['id'];
 
-    // EDGE can't scroll from PHP, so the older ancestors fold away and the scroll view mounts again at the top.
-    $screen->pressUp('reply-field')
-        ->assertSet('earlierShown', false)
-        ->assertSet('scrollKey', 1)
-        ->assertSee('1 earlier commit')
-        ->assertSee('The parent commit')
-        ->assertDontSee('The root commit');
-
-    expect(childRefs($screen, 'thread-page'))->toBe(['earlier-commits', 'commit-c1', 'focused-commit', 'reply-bar-clearance'])
-        ->and(nodeByRef($screen, 'thread-scroll')['id'])->not->toBe($before);
+    // The field has nothing to do on a press: the earlier commits stay open and the scroll view isn't mounted again.
+    expect(nodeByRef($screen, 'reply-field')['props']['on_press_up'] ?? null)->toBeNull();
 });
 
 it('keeps the reply field the same view while the thread above it changes, so the keyboard stays up', function () {
@@ -91,8 +82,8 @@ it('keeps the reply field the same view while the thread above it changes, so th
     $screen = Native::visit('/log/commits/c2')->tap('earlier-commits')->input('reply-input', 'Nice');
     $field = idsDownTo($screen->tree(), 'reply-input');
 
-    // Tapping into the bar, which folds the earlier commits away above it.
-    $screen->pressUp('reply-field')->assertDontSee('The root commit');
+    // The earlier commits folding away above it.
+    $screen->set('earlierShown', false)->assertDontSee('The root commit');
     expect(idsDownTo($screen->tree(), 'reply-input'))->toBe($field);
 
     // More of the thread drawn above it.
