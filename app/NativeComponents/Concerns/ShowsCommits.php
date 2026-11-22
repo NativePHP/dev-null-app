@@ -229,7 +229,8 @@ trait ShowsCommits
     /**
      * Gives the commit a pastel, as the web's pastel button does in pastéis
      * mode: one per tap, from the ten you get each day, on someone else's
-     * published commit. Its count goes up and your allowance down at once,
+     * published commit, never an organization's (they can't receive them).
+     * The pastel's count goes up and your allowance down at once,
      * and the pastel goes from the background, so you can keep tapping. When
      * devnull turns one down, it comes back, and a toast says why in the web's
      * words. With none left, the toast says so without asking devnull.
@@ -239,7 +240,7 @@ trait ShowsCommits
         $commit = $this->shownCommit($id);
         $pasteis = app(Account::class)->pasteis();
 
-        if ($commit === null || $pasteis === null || ! $this->canReactTo($commit)) {
+        if ($commit === null || $pasteis === null || $commit->author->isOrganization || ! $this->canReactTo($commit)) {
             return;
         }
 
