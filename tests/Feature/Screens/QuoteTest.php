@@ -220,5 +220,7 @@ it('puts the quoted commit right under the field, which gives up the room it tak
 
     expect(childRefs($screen, 'sheet-below'))->toBe(['quote-card'])
         ->and(childRefs($screen, 'sheet-body-area'))->toBe(['sheet-field-slot', 'sheet-below'])
-        ->and(nodeByRef($screen, 'sheet-body')['props']['fills_height'] ?? null)->toBeTrue();
+        ->and(nodeByRef($screen, 'sheet-body')['props']['fills_height'] ?? null)->toBeTrue()
+        // [top, right, bottom, left]: the card keeps clear of the toolbar, as the field does of "Replying to".
+        ->and(nodeByRef($screen, 'sheet-below')['layout']['padding'])->toEqual([12, 20, 12, 20]);
 });

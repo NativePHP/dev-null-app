@@ -36,7 +36,7 @@
 
     The sheet doesn't scroll. The field fills the space between the author row and the toolbar, less what's under it:
     the photos as a strip of 80pt squares, the poll editor, the commit being quoted, or "Submit at", each at its own
-    height. Only the field scrolls its text. A toolbar is pinned to the bottom of the sheet, so
+    height, with 12pt clear of the toolbar, as the field leaves under "Replying to". Only the field scrolls its text. A toolbar is pinned to the bottom of the sheet, so
     it stays just above the keyboard: the tools on the left, photos, the camera, a poll (not on a reply) and the
     preview, which shows the draft as the commit it would become in place of the field (see AttachesToCommits), and
     stash@{0} and the counter on the right. An issue draft has no tools, as on the web. With photos, Commit spins while
@@ -152,7 +152,7 @@
                             />
                         </native:column>
                         @php($hasBelow = $linkTooLong || $sheetImages !== [] || $pollShown || $quoting || $scheduling || $issueCommands !== [] || $issueHint !== null)
-                        <native:column native:key="sheet-below" ref="sheet-below" class="w-full {{ $hasBelow ? 'px-5 pt-3 gap-3' : '' }}">
+                        <native:column native:key="sheet-below" ref="sheet-below" class="w-full {{ $hasBelow ? 'px-5 pt-3 pb-3 gap-3' : '' }}">
                             @if ($linkTooLong)
                                 <native:text ref="sheet-link-error" class="w-full text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
                             @endif
