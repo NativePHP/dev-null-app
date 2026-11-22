@@ -284,3 +284,52 @@ it('keeps the replies of the commits on the line open when the replies of one ab
 
     expect($screen->get('threads'))->toHaveKey('r1')->not->toHaveKey('c2');
 });
+
+/**
+ * c3 answers c2, which answers c1, shaped like devnull's API: the ancestors on c3's page come without their counts,
+ * since CommitAncestorsQuery doesn't load them. Only a commit's own page says how many replies it has. c2 has two
+ * besides c3, and c1 has one besides c2. Neither page was opened before.
+ */
+function fakeUncountedAncestors(): void
+{
+    $person = fn (string $handle, int $lane): array => userJson(['handle' => $handle, 'name' => ucfirst($handle), 'lane' => $lane]);
+    $uncounted = fn (array $commit): array => array_diff_key($commit, array_flip(['replies_count', 'stars_count']));
+    $c1 = commitJson(['id' => 'c1', 'body' => 'The first commit', 'replies_count' => 2, 'author' => $person('ada', 1)]);
+    $c2 = commitJson(['id' => 'c2', 'parent_id' => 'c1', 'body' => 'The commit above', 'replies_count' => 3, 'author' => $person('grace', 2)]);
+    $c3 = commitJson(['id' => 'c3', 'parent_id' => 'c2', 'body' => 'The focused commit', 'author' => $person('ken', 3)]);
+    $y1 = replyJson(['id' => 'y1', 'parent_id' => 'c1', 'body' => 'Another reply to the first', 'author' => $person('linus', 4)]);
+    $x1 = replyJson(['id' => 'x1', 'parent_id' => 'c2', 'body' => 'Another reply above', 'author' => $person('alan', 5)]);
+    $x2 = replyJson(['id' => 'x2', 'parent_id' => 'c2', 'body' => 'One more reply above', 'author' => $person('edsger', 6)]);
+
+    Http::fake(function (Request $request) use ($uncounted, $c1, $c2, $c3, $x1, $x2, $y1) {
+        return match (parse_url($request->url(), PHP_URL_PATH)) {
+            '/api/v1/commits/c3' => Http::response(commitPageJson($c3, [$uncounted($c1), $uncounted($c2)])),
+            '/api/v1/commits/c2' => Http::response(commitPageJson($c2, [$uncounted($c1)])),
+            '/api/v1/commits/c1' => Http::response(commitPageJson($c1)),
+            '/api/v1/commits/c1/related', '/api/v1/commits/c2/related', '/api/v1/commits/c3/related' => Http::response(['data' => []]),
+            '/api/v1/commits/c1/replies' => Http::response(pageJson([$c2, $y1])),
+            '/api/v1/commits/c2/replies' => Http::response(pageJson([$c3, $x1, $x2])),
+            '/api/v1/commits/c3/replies', '/api/v1/commits/x1/replies', '/api/v1/commits/x2/replies', '/api/v1/commits/y1/replies' => Http::response(pageJson([])),
+            default => Http::response(['message' => 'No fake.'], 404),
+        };
+    });
+}
+
+it('shows the folded replies of a commit above that was never opened, from that commit\'s own page', function () {
+    fakeUncountedAncestors();
+
+    $screen = finishRefreshes(Native::visit('/log/commits/c3'));
+
+    // c2's page says it has three replies, and c3 is one of them, on the way down.
+    expect(nodeByRef($screen, 'replies-c2')['props']['a11y_label'] ?? null)->toBe('2 replies')
+        ->and($screen->get('threads'))->toBe([]);
+
+    $screen->tap('replies-c2')->assertNoNavigation()->assertSee('Another reply above')->assertSee('One more reply above');
+
+    // The earlier commits get theirs once they show.
+    expect(rendersRef($screen, 'replies-c1'))->toBeFalse();
+
+    finishRefreshes($screen->call('showEarlier'));
+
+    expect(nodeByRef($screen, 'replies-c1')['props']['a11y_label'] ?? null)->toBe('1 reply');
+});

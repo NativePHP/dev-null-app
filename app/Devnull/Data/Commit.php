@@ -169,6 +169,14 @@ final readonly class Commit
         return new self(...[...get_object_vars($this), 'pasteisCount' => max(0, $this->pasteisCount + $change)]);
     }
 
+    /**
+     * This commit with the count of replies its own page gives, for a copy that came without one.
+     */
+    public function withRepliesCount(int $repliesCount): self
+    {
+        return new self(...[...get_object_vars($this), 'repliesCount' => max(0, $repliesCount)]);
+    }
+
     public function withPinned(bool $isPinned): self
     {
         return new self(...[...get_object_vars($this), 'isPinned' => $isPinned]);

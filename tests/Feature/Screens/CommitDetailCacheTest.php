@@ -48,7 +48,8 @@ it('opens on the commit and replies kept last time, with no request and no spinn
 
     finishRefreshes($screen)->assertSee('A compiler');
 
-    expect(count(Http::recorded()))->toBe(3);
+    // The commit, its replies, what's related, and c0's own page for how many replies it has.
+    expect(count(Http::recorded()))->toBe(4);
 });
 
 it('opens from a row on what the row knew, then fills in the replies and what it replies to', function () {

@@ -279,6 +279,13 @@ class CommitDetail extends NativeComponent
      */
     protected bool $forceFullFrames = true;
 
+    /**
+     * The commits above whose own page was asked for their count since the page last asked devnull again.
+     *
+     * @var list<string>
+     */
+    protected array $countedAncestors = [];
+
     public function mount(): void
     {
         $this->openedId = $this->id;
@@ -335,6 +342,7 @@ class CommitDetail extends NativeComponent
 
     protected function revalidate(): void
     {
+        $this->countedAncestors = [];
         $this->refresh($this->threadPath(), [], fn (array $json) => $this->takeCommitThread($json));
         $this->refresh($this->threadPath().'/replies', [], fn (array $json) => $this->takeReplies($json));
         $this->refresh($this->threadPath().'/related', [], fn (array $json) => $this->takeRelated($json), quiet: true, failed: function (): void {
@@ -347,6 +355,7 @@ class CommitDetail extends NativeComponent
         }
 
         $this->refreshThreads();
+        $this->countAncestorReplies();
     }
 
     protected function showsContent(): bool
@@ -360,6 +369,7 @@ class CommitDetail extends NativeComponent
     public function showEarlier(): void
     {
         $this->earlierShown = true;
+        $this->countAncestorReplies();
     }
 
     /**
@@ -1121,7 +1131,59 @@ class CommitDetail extends NativeComponent
         $this->commit = $thread->commit;
         $this->ancestors = $thread->ancestors;
         $this->series = $thread->series;
+        $this->countAncestorReplies();
         $this->followThread();
+    }
+
+    /**
+     * The commits above the commit that show: its parent, or every one once "↑ N earlier commits" opened them.
+     *
+     * @return list<Commit>
+     */
+    private function shownAncestors(): array
+    {
+        return $this->earlierShown ? $this->ancestors : array_slice($this->ancestors, -1);
+    }
+
+    /**
+     * devnull sends the commits above the commit without their counts, so on their own a commit above never shows
+     * its "› N replies". Each one showing takes its count from its own page instead: kept from before at once, and
+     * asked for behind. That also keeps its page, so tapping it moves there with nothing blank.
+     */
+    private function countAncestorReplies(): void
+    {
+        foreach ($this->shownAncestors() as $ancestor) {
+            if ($ancestor->isStaged() || $ancestor->isDeleted()) {
+                continue;
+            }
+
+            $id = $ancestor->id;
+            $path = 'commits/'.rawurlencode($id);
+
+            if (($kept = $this->cached($path)) !== null) {
+                $this->takeAncestorCount($id, $kept);
+            }
+
+            // The commit's page landing draws its ancestors again, and they were asked for once already.
+            if (! in_array($id, $this->countedAncestors, true)) {
+                $this->countedAncestors[] = $id;
+                $this->refresh($path, [], fn (array $json) => $this->takeAncestorCount($id, $json), quiet: true);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $json
+     */
+    private function takeAncestorCount(string $id, array $json): void
+    {
+        $page = CommitThread::fromArray($json)->commit;
+
+        if ($page->id !== $id) {
+            return;
+        }
+
+        $this->ancestors = array_map(fn (Commit $ancestor): Commit => $ancestor->id === $id ? $ancestor->withRepliesCount($page->repliesCount) : $ancestor, $this->ancestors);
     }
 
     /**
@@ -1249,7 +1311,7 @@ class CommitDetail extends NativeComponent
     public function render(): View
     {
         $earlier = $this->earlierShown ? [] : array_slice($this->ancestors, 0, -1);
-        $above = $this->earlierShown ? $this->ancestors : array_slice($this->ancestors, -1);
+        $above = $this->shownAncestors();
         $viewer = $this->me();
         $this->replyRows ??= new RowCache;
         $this->replyRows->startFrame();
