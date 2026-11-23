@@ -166,7 +166,7 @@ it("leaves the pastel off an organization's commits, since organizations can't b
 
     $screen = Native::visit('/log', platform: 'ios')->call('givePastel', 'c1');
 
-    expect(array_values(array_filter(childRefs($screen, 'actions-c1'))))->toBe(['star-c1', 'quote-c1', 'reply-to-c1', 'more-c1'])
+    expect(array_values(array_filter(childRefs($screen, 'actions-c1'))))->toBe(['star-c1', 'quote-c1', 'reply-to-c1', 'more-c1', 'end-dot'])
         ->and(nodeByRef($screen, 'pastel-c2'))->not->toBeNull()
         ->and(pasteisSent())->toBe([])
         ->and($screen->instance()->commits[1]->pasteisCount)->toBe(2);
