@@ -333,7 +333,7 @@ class Log extends NativeComponent
     }
 
     /**
-     * Search, as the web's phone header has it, then a new commit.
+     * Search, as the web's phone header has it, then a new commit. Guilds have their own tab.
      */
     public function navigationOptions(): ?NavBarOptions
     {
@@ -516,6 +516,30 @@ class Log extends NativeComponent
             : $this->takeFresh($log, $json));
         $this->refreshThreads();
         $this->refreshUnreadNotifications();
+        $this->refreshGuildsAvailability();
+    }
+
+    /**
+     * Asks devnull whether guilds are on for you until it has said they are,
+     * for the tabs of the next launch (see Account::guildsTabShown()). This
+     * launch's tabs are settled before asking, so the answer can't move them.
+     * Only a 404 says guilds are off: no connection, or devnull failing,
+     * leaves what was known, so a phone offline at launch still shows the tab.
+     */
+    private function refreshGuildsAvailability(): void
+    {
+        $account = app(Account::class);
+        $account->guildsTabShown();
+
+        if ($account->guildsAvailable() === true) {
+            return;
+        }
+
+        $this->refresh('guilds', [], fn () => $account->rememberGuildsAvailable(true), quiet: true, failed: function (int $status) use ($account): void {
+            if ($status === 404) {
+                $account->rememberGuildsAvailable(false);
+            }
+        });
     }
 
     /**

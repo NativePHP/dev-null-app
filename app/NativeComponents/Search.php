@@ -292,6 +292,7 @@ class Search extends NativeComponent
             'stashed' => app(Stash::class)->names($viewer?->id),
             'myColour' => $this->myColour(),
             'rows' => Timeline::ranked([], $this->commits),
+            'hidesGuildBadge' => true,
         ]);
     }
 }

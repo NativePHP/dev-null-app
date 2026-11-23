@@ -8,7 +8,9 @@
     Cancel closes it as a swipe does, keeping the draft. Commit closes it at once, and the commit goes from the outbox
     (see SyncsOutbox). If devnull says no, a toast says why and the draft comes back in the sheet. The
     Log's compose button opens the same composer for a new commit, without the card. A draft stashed last time comes
-    back in it, with the web's stash@{0} and drop beside the counter, in the toolbar at the bottom.
+    back in it, with the web's stash@{0} and drop beside the counter, in the toolbar at the bottom. A guild's page opens
+    it for a post to its board, which asks what you want to share with the guild and says under the field that it isn't
+    going to your profile log, as the web's guild composer does, with no issue commands.
 
     Report commit, in someone else's published commit's More menu, opens it as the web's Report dialog: the private,
     not-hidden line, the commit's body clamped to three lines, the four reasons, optional details, and Send report,
@@ -85,7 +87,7 @@
                                 native:key="sheet-body"
                                 ref="sheet-body"
                                 class="w-full text-theme-ink"
-                                :placeholder="$issueCommand?->placeholder() ?? match (true) { $quoting => 'Add your take', $replying => 'Reply to '.$sheetCommit->author->handle(), default => 'What did you ship?' }"
+                                :placeholder="$issueCommand?->placeholder() ?? match (true) { $quoting => 'Add your take', $replying => 'Reply to '.$sheetCommit->author->handle(), $sheetGuild !== null => 'What do you want to share with the guild?', default => 'What did you ship?' }"
                                 native:model.debounce.150ms="sheetBody"
                                 :selection="$mentionCarets['sheetBody'] ?? null"
                                 @selectionChange="caretMoved('sheetBody')"
@@ -105,6 +107,10 @@
                                 'class' => 'w-full py-1 rounded-md border border-theme-hairline bg-theme-surface',
                             ])
 
+                            @if ($sheetGuild !== null && $sheetView === 'compose')
+                                <native:text ref="sheet-guild-hint" class="w-full text-xs text-theme-ink-muted">Posted to this guild, not your profile log.</native:text>
+                            @endif
+
                             @if (! $issueCommand && \App\Devnull\Data\CommitBody::hasOversizedUrl($sheetBody))
                                 <native:text ref="sheet-link-error" class="w-full text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
                             @endif
@@ -119,7 +125,7 @@
                                 @include('native.partials.quoted-commit', ['quoted' => $sheetCommit, 'static' => true])
                             @elseif ($scheduling)
                                 @include('native.partials.schedule-picker')
-                            @elseif (! $replying && ! $issueCommand)
+                            @elseif (! $replying && ! $issueCommand && $sheetGuild === null)
                                 @include('native.partials.issue-suggestions', [
                                     'suggestions' => $sheetTyped ? \App\Devnull\IssueCommand::suggested($sheetBody) : [],
                                     'hint' => $issueHintsDismissed ? null : \App\Devnull\IssueCommand::hinted($sheetBody),

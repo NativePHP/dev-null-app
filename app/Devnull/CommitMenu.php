@@ -11,7 +11,8 @@ use Native\Mobile\Edge\Layouts\Builders\NavAction;
 /**
  * What More holds, on the right of a commit's action row (see
  * partials/commit-actions): Share link on every commit; Pin to profile or
- * Unpin from profile on your own published commit, not a reply; then, after a
+ * Unpin from profile on your own published commit, not a reply nor one posted
+ * in a guild, which devnull won't pin to a profile; then, after a
  * divider, Report commit on someone else's published commit, or Delete commit
  * on your own. Each item names the commit, so a tap never rebuilds anything
  * from an attribute (see ShowsCommits).
@@ -28,7 +29,7 @@ final class CommitMenu
 
         $items[] = self::item($commit, 'share', 'Share link', Lucide::Link, 'shareCommit');
 
-        if ($isOwn && $commit->isApproved() && $commit->parentId === null) {
+        if ($isOwn && $commit->isApproved() && $commit->parentId === null && $commit->guild === null) {
             $items[] = self::item($commit, 'pin', $commit->isPinned ? 'Unpin from profile' : 'Pin to profile', Lucide::Pin, 'togglePin');
         }
 

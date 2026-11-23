@@ -81,3 +81,11 @@ it('says no commits yet for an empty week but counts an empty year', function ()
     expect(Activity::fromArray(activityJson('week', CarbonImmutable::parse('2026-10-09'), 'days', array_fill(0, 7, 0)))->isEmpty())->toBeTrue()
         ->and(Activity::fromArray(activityJson('year', CarbonImmutable::parse('2025-10-12'), 'days', array_fill(0, 7, 0)))->isEmpty())->toBeFalse();
 });
+
+it('draws a scale it does not know as a year rather than dropping the commits', function () {
+    $activity = Activity::fromArray(activityJson('quarter', CarbonImmutable::parse('2026-08-23'), 'days', [1, ...array_fill(0, 89, 0), 2]));
+
+    expect($activity->scale)->toBe('year')
+        ->and($activity->cells())->toHaveCount(13)
+        ->and($activity->total())->toBe(3);
+});

@@ -138,13 +138,14 @@ final class Outbox
     }
 
     /**
-     * Commits on their way that reply to $parentId, or with null, new commits and quotes.
+     * Commits on their way that reply to $parentId, or with null, new commits and quotes: those for your log, or with
+     * $guildHandle, those for that guild's board.
      *
      * @return Collection<int, PendingWrite>
      */
-    public function commitsUnder(?string $parentId): Collection
+    public function commitsUnder(?string $parentId, ?string $guildHandle = null): Collection
     {
-        return $this->pending(PendingWrite::Commit)->filter(fn (PendingWrite $write): bool => $write->parentId() === $parentId)->values();
+        return $this->pending(PendingWrite::Commit)->filter(fn (PendingWrite $write): bool => $write->parentId() === $parentId && $write->guildHandle() === $guildHandle)->values();
     }
 
     /**

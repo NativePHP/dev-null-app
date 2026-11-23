@@ -260,3 +260,41 @@ it('shows a long commit whole on its own page', function () {
 
     Native::visit('/log/commits/c1')->assertSee('The very end.')->assertDontSee('Show more');
 });
+
+it('says which guild a commit was posted in, as the web does', function () {
+    $screen = logOf([['id' => 'g1', 'guild_handle' => 'rust', 'guild' => ['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀', 'icon_url' => null]]])
+        ->assertSee('posted in')
+        ->assertSee('Rust')
+        ->assertSee('· not shown in general logs');
+
+    expect(rendersRef($screen, 'guild-badge-g1'))->toBeTrue()
+        ->and(nodeByRef($screen, 'guild-pill-g1')['props']['a11y_label'])->toBe('Rust, #rust');
+});
+
+it('opens the guild a commit was posted in', function () {
+    logOf([['id' => 'g1', 'guild_handle' => 'rust', 'guild' => ['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀', 'icon_url' => null]]])
+        ->tap('guild-pill-g1')
+        ->assertNavigatedTo('/log/guilds/rust');
+});
+
+it('says nothing about guilds on a commit that was not posted in one', function () {
+    $screen = logOf([['id' => 'c1']]);
+
+    expect(rendersRef($screen, 'guild-badge-c1'))->toBeFalse();
+    $screen->assertDontSee('posted in');
+});
+
+it('shows the uploaded icon of the guild a commit was posted in', function () {
+    $url = 'https://dev-null.sh/api/v1/guilds/php/icon?expires='.(time() + 3600).'&signature=x';
+    $screen = logOf([['id' => 'g1', 'guild_handle' => 'php', 'guild' => ['handle' => 'php', 'name' => 'PHP', 'emoji' => '💻', 'icon_url' => $url]]]);
+
+    expect(nodeByRef($screen, 'guild-pill-mark-g1')['type'])->toBe('image')
+        ->and(nodeByRef($screen, 'guild-pill-mark-g1')['props']['src'])->toBe($url);
+    $screen->assertDontSee('💻');
+});
+
+it('shows the emoji of the guild a commit was posted in when it has no uploaded icon', function () {
+    $screen = logOf([['id' => 'g1', 'guild_handle' => 'rust', 'guild' => ['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀', 'icon_url' => null]]]);
+
+    expect(nodeByRef($screen, 'guild-pill-mark-g1')['props']['text'] ?? null)->toBe('🦀');
+});

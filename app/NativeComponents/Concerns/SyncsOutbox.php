@@ -195,11 +195,12 @@ trait SyncsOutbox
 
     /**
      * The commits on their way that this screen would show, as they stand in for themselves (see
-     * PendingWrite::stagedCommit()): replies to $parentId, or with null, new commits and quotes. Newest first.
+     * PendingWrite::stagedCommit()): replies to $parentId, or with null, new commits and quotes, for your log or, with
+     * $guildHandle, for that guild's board. Newest first.
      *
      * @return list<Commit>
      */
-    protected function stagedCommits(?string $parentId): array
+    protected function stagedCommits(?string $parentId, ?string $guildHandle = null): array
     {
         $me = $this->me();
 
@@ -207,7 +208,7 @@ trait SyncsOutbox
             return [];
         }
 
-        return app(Outbox::class)->commitsUnder($parentId)
+        return app(Outbox::class)->commitsUnder($parentId, $guildHandle)
             ->reverse()
             ->map(fn (PendingWrite $write): Commit => $write->stagedCommit($me))
             ->values()
@@ -265,6 +266,8 @@ trait SyncsOutbox
         app(VoiceNotes::class)->discard($write->voice());
 
         if ($write->isCommit()) {
+            // A post to a guild's board is known by its guild, even when devnull's answer leaves it out.
+            $data = $write->guildHandle() === null ? $data : ['guild_handle' => $write->guildHandle(), ...$data];
             app(ResponseCache::class)->commitAdded($data);
             $this->broadcastOutboxChange('commit-sent', $write, $data);
 
@@ -410,8 +413,8 @@ trait SyncsOutbox
             PendingWrite::Unstar => $devnull->signedWrite('DELETE', $commit),
             PendingWrite::Message => $devnull->signedMessage((string) $write->target, $write->body(), $write->client_id, $write->replyToId(), $write->images(), $write->voice()),
             default => $write->images() === []
-                ? $devnull->signedCommit($write->body(), $write->parentId(), $write->quotedCommitId(), $write->poll())
-                : $devnull->signedCommitWithImages($write->body(), $write->images(), $write->parentId(), $write->quotedCommitId()),
+                ? $devnull->signedCommit($write->body(), $write->parentId(), $write->quotedCommitId(), $write->poll(), $write->guildHandle())
+                : $devnull->signedCommitWithImages($write->body(), $write->images(), $write->parentId(), $write->quotedCommitId(), $write->guildHandle()),
         };
     }
 

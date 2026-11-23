@@ -48,6 +48,12 @@ use Native\Mobile\Facades\System;
  * A new commit's draft can become a `/feature` or `/bug` issue, as on the web
  * (see DraftsIssues).
  *
+ * A guild's page opens it for a new commit on the guild's board, as the web's
+ * guild page has its own composer (see composeInGuildSheet()): its own draft,
+ * `guild:{handle}`, and no issue commands, as on the web. The commit goes to
+ * the board, not to your log, and if devnull turns it down it goes back only
+ * to that guild's page (see composerGuild()).
+ *
  * A commit's page can open its reply in the same composer, for the photos and
  * the preview the reply bar has no room for (see replyInSheet()). The draft
  * is the reply bar's, and goes back to it when the sheet closes.
@@ -92,6 +98,11 @@ trait OpensCommitSheet
      * with no commit of its own).
      */
     public string $sheetView = 'report';
+
+    /**
+     * The guild whose board the new commit in the sheet goes to, or null for one that goes to your log.
+     */
+    public ?string $sheetGuild = null;
 
     /**
      * The reason picked on the report form, or '' until one is.
@@ -251,6 +262,18 @@ trait OpensCommitSheet
     }
 
     /**
+     * A new commit in the sheet for the board of the guild $handle, under its own draft.
+     */
+    protected function composeInGuildSheet(string $handle): void
+    {
+        $this->forgetCommitSheet();
+        $this->sheetView = 'compose';
+        $this->sheetGuild = $handle;
+        $this->sheetOpen = true;
+        $this->restoreSheetDraft();
+    }
+
+    /**
      * The web's clock button, in a new commit's composer: it opens "Submit at" under the field, with no time picked,
      * or closes it, and the commit goes now again. Its photos or its poll go with it either way, as on the web.
      */
@@ -336,6 +359,7 @@ trait OpensCommitSheet
             'images' => PendingWrite::imagePayload($this->sheetImages),
             'stash' => $stashName,
             'composer' => $this->sheetView,
+            ...($this->sheetGuild === null ? [] : ['guild_handle' => $this->sheetGuild]),
         ]);
 
         if ($write === null) {
@@ -437,7 +461,7 @@ trait OpensCommitSheet
      */
     protected function reopenFailedCommit(PendingWrite $write): bool
     {
-        if ($this->sheetOpen || ($write->composer() === 'compose' && ! $this->opensComposer())) {
+        if ($this->sheetOpen || ($write->composer() === 'compose' && (! $this->opensComposer() || $write->guildHandle() !== $this->composerGuild()))) {
             return false;
         }
 
@@ -453,11 +477,25 @@ trait OpensCommitSheet
     /**
      * Edit, on the toast of a commit devnull turned down: its sheet, here if
      * the commit it quotes or replies to is showing, or the commit's own page.
-     * A new commit's sheet opens anywhere it can.
+     * A new commit's sheet opens anywhere it can but a guild's page, which
+     * sends it to the Log. One for a guild's board opens only on that guild's
+     * page, which opens it.
      */
     protected function editFailedCommit(PendingWrite $write): void
     {
         if ($this->openFailedCommit($write)) {
+            return;
+        }
+
+        if ($write->guildHandle() !== null) {
+            $this->openInTab('/guilds/'.rawurlencode($write->guildHandle()), ['edit' => $write->id]);
+
+            return;
+        }
+
+        if ($write->composer() === 'compose') {
+            $this->composeInSheet();
+
             return;
         }
 
@@ -508,14 +546,29 @@ trait OpensCommitSheet
     }
 
     /**
+     * The guild whose board this screen's composer posts to, or null when it posts to your log. A new commit devnull
+     * turned down goes back only to a composer for the same place.
+     */
+    protected function composerGuild(): ?string
+    {
+        return null;
+    }
+
+    /**
      * Opens the sheet a commit devnull turned down was written in, with everything it had (see restoreSheetDraft()).
      */
     private function openFailedCommit(PendingWrite $write): bool
     {
         $for = $write->parentId() ?? $write->quotedCommitId();
 
+        $guild = $write->guildHandle();
+
         match ($write->composer()) {
-            'compose' => $this->composeInSheet(),
+            'compose' => match (true) {
+                $guild === null => $this->composerGuild() === null ? $this->composeInSheet() : null,
+                $guild === $this->composerGuild() => $this->composeInGuildSheet($guild),
+                default => null,
+            },
             'quote' => $for === null ? null : $this->quoteCommit($for),
             'reply' => $for === null ? null : $this->replyInSheet($for),
             default => null,
@@ -554,10 +607,11 @@ trait OpensCommitSheet
 
         $images = $this->sheetImages;
         $poll = $this->sheetPollPayload();
+        $guild = $this->sheetGuild;
         $this->sendingSchedule = true;
         $this->sheetError = null;
 
-        $this->sendInBackground(fn (Client $devnull): SignedRequest => $devnull->signedScheduledCommit($body, $at, $images, $poll), function () use ($me, $stashName, $images): void {
+        $this->sendInBackground(fn (Client $devnull): SignedRequest => $devnull->signedScheduledCommit($body, $at, $images, $poll, $guild), function () use ($me, $stashName, $images): void {
             $this->sendingSchedule = false;
             app(ResponseCache::class)->forget(Client::ScheduledCommitsPath);
             app(Stash::class)->put($me->id, $stashName, new StashedDraft);
@@ -576,6 +630,7 @@ trait OpensCommitSheet
         $this->sheetOpen = false;
         $this->sheetCommit = null;
         $this->sheetView = 'report';
+        $this->sheetGuild = null;
         $this->reportReason = '';
         $this->reportDetails = '';
         $this->sheetBody = '';
@@ -597,7 +652,7 @@ trait OpensCommitSheet
     private function sheetStashName(): ?string
     {
         return match (true) {
-            $this->sheetView === 'compose' => 'commit',
+            $this->sheetView === 'compose' => $this->sheetGuild === null ? 'commit' : 'guild:'.$this->sheetGuild,
             $this->sheetView === 'quote' && $this->sheetCommit !== null => 'quote-'.$this->sheetCommit->id,
             $this->sheetView === 'reply' && $this->sheetCommit !== null => 'reply-'.$this->sheetCommit->id,
             default => null,
