@@ -9,6 +9,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
+use Tests\Support\GlassOpacity;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -868,6 +869,10 @@ it('lets a drag that starts on an ancestor or a reply scroll the thread', functi
 it('puts the reply bar on glass on iOS and the surface on Android, with no line, and fades the page out above it', function (string $platform) {
     fakeThread();
 
+    if ($platform === 'ios') {
+        GlassOpacity::skipUnlessSupported();
+    }
+
     $screen = Native::visit('/log/commits/c2', platform: $platform);
     $bottomBar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
     $bar = $bottomBar['children'][0];
@@ -899,6 +904,27 @@ it('puts the reply bar on glass on iOS and the surface on Android, with no line,
             ->and(childRefs($screen, 'reply-bar'))->toBe(['reply-rows'])
             ->and(childRefs($screen, 'thread-stack'))->toBe(['thread-scroll', 'reply-fade']);
     }
+})->with(['ios', 'android']);
+
+it('keeps the reply field closer to the fade than to the row of tools under it', function (string $platform) {
+    fakeThread();
+
+    $screen = Native::visit('/log/commits/c2', platform: $platform);
+
+    // [top, right, bottom, left]. The row has no top padding, so the field starts 4pt under the fade, and the field
+    // row leaves 8pt between the field and the tools.
+    expect(nodeByRef($screen, 'reply-row')['layout']['padding'])->toEqual([0, 16, 8, 16])
+        ->and(nodeByRef($screen, 'reply-field-row')['layout']['padding'])->toEqual([4, 12, 8, 16]);
+})->with(['ios', 'android']);
+
+it('fades the glass under the reply bar to 80% on iOS only', function (string $platform) {
+    GlassOpacity::skipUnlessSupported();
+    fakeThread();
+
+    $screen = Native::visit('/log/commits/c2', platform: $platform);
+    $bottomBar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
+
+    expect($bottomBar['props']['glass_opacity'] ?? null)->toBe($platform === 'ios' ? Display::ComposerGlassOpacity / 100 : null);
 })->with(['ios', 'android']);
 
 it('ends the page above the reply bar, and further as the draft grows', function () {

@@ -45,6 +45,12 @@ final class Display
     public const int ComposerGlassTint = 40;
 
     /**
+     * How opaque, in percent, the glass under a composer bar gets on iOS once it has faded in (glass/N, see
+     * composerBarGlass()). Full glass over a dark screen reads as a heavy slab.
+     */
+    public const int ComposerGlassOpacity = 80;
+
+    /**
      * About how many characters fit on a line of the box's field, which runs the width of the box.
      */
     public const int ComposerBoxCharactersPerLine = 46;
@@ -300,12 +306,13 @@ final class Display
      * The classes for a composer's native:bottom-bar. On iOS that's Liquid Glass: what scrolls under the bar shows
      * through it, blurred. A patched mobile-air draws the glass behind the whole bar, under the home indicator too,
      * and fades it in over the bar's top ComposerFadeHeight points, so it has no hard top edge. EDGE's own glass on
-     * an element can't be faded, and stops short of the home indicator. Android has no glass, so the bar stays the
-     * surface there.
+     * an element can't be faded, and stops short of the home indicator. The glass stops at ComposerGlassOpacity
+     * percent (glass/N), so a little of the screen under the bar shows through. Android has no glass, so the bar
+     * stays the surface there.
      */
     public static function composerBarGlass(): string
     {
-        return self::fadesInBar() ? 'glass' : '';
+        return self::fadesInBar() ? 'glass/'.self::ComposerGlassOpacity : '';
     }
 
     /**

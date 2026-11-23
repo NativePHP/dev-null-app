@@ -173,7 +173,7 @@
                         @include('native.partials.composer-photos', ['photos' => $replyImages, 'photoRef' => 'reply-photo'])
                     @endif
                 </native:column>
-                <native:row native:key="reply-row" ref="reply-row" class="w-full px-4 py-2">
+                <native:row native:key="reply-row" ref="reply-row" class="w-full px-4 pb-2">
                     @php($hasDraft = trim($reply) !== '' || $replyImages !== [])
                     @php($photosFull = count($replyImages) >= \App\Devnull\DraftImages::MaxImages)
                     @include('native.partials.composer-box', [
