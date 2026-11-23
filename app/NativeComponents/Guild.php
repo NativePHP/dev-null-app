@@ -32,10 +32,10 @@ use Native\Mobile\Facades\Share;
 
 /**
  * A guild's page, as the web shows it at "/guilds/{handle}": its icon or
- * emoji, its name, "#handle · Public guild · N members", what it's about and
- * how to post there, then its bulletin board, the commits posted in it or
- * tagged with its hashtag, newest first, with the one its moderator pinned on
- * top.
+ * emoji beside Commit and Join or Leave, its name, "#handle · Public guild ·
+ * N members" (the count opens its members), what it's about and how to post
+ * there, then its bulletin board, the commits posted in it or tagged with its
+ * hashtag, newest first, with the one its moderator pinned on top.
  *
  * It opens from the directory, or a commit's "posted in" pill, beneath the tab
  * it was tapped in (see OpensGuilds), on the board as it was kept last time,
@@ -44,7 +44,7 @@ use Native\Mobile\Facades\Share;
  * so a page loaded later can repeat a commit already showing: those go once,
  * as does the pinned commit, which devnull also sends in its place.
  *
- * The bar's New commit posts to the board, as the web's guild page does,
+ * The header's Commit posts to the board, as the web's guild page does,
  * from the compose sheet (see OpensCommitSheet::composeInGuildSheet()), while
  * the guild isn't paused. The commit shows on top of the board, staged, until
  * devnull has it, as a new commit does on the Log. If devnull turns it down,
@@ -119,36 +119,60 @@ class Guild extends NativeComponent
     }
 
     /**
-     * Share, then New commit while the guild takes posts, as the Log has it.
+     * Share. Commit and Join are in the header, as Remote and Follow are on a profile.
      */
     public function navigationOptions(): ?NavBarOptions
     {
-        $options = NavBarOptions::make()->action(
+        return NavBarOptions::make()->action(
             NavAction::make('share')
                 ->icon(ios: Lucide::Share->ios(), android: Lucide::Share2->android())
                 ->a11yLabel('Share guild')
                 ->press('share'),
         );
-
-        if ($this->takesPosts()) {
-            $options->action(
-                NavAction::make('compose')
-                    ->icon(ios: Lucide::SquarePen->ios(), android: Lucide::SquarePen->android())
-                    ->a11yLabel('New commit')
-                    ->press('composeForGuild'),
-            );
-        }
-
-        return $options;
     }
 
     /**
-     * The bar's New commit: the sheet, for a commit on this guild's board.
+     * The header's Commit: the sheet, for a commit on this guild's board.
      */
     public function composeForGuild(): void
     {
         if ($this->takesPosts()) {
             $this->composeInGuildSheet($this->handle());
+        }
+    }
+
+    /**
+     * The header's Join or Leave. It changes at once, with the member count, and goes back if devnull refuses.
+     */
+    public function toggleJoined(): void
+    {
+        if ($this->guild === null) {
+            return;
+        }
+
+        $before = $this->guild;
+        $this->guild = $before->withJoined(! $before->isJoined);
+
+        $done = $this->attempt(function (Client $devnull) use ($before): bool {
+            $before->isJoined
+                ? $devnull->leaveGuild($before->handle)
+                : $devnull->joinGuild($before->handle);
+
+            return true;
+        });
+
+        if ($done !== true) {
+            $this->guild = $before;
+        }
+    }
+
+    /**
+     * The member count: who's in the guild, titled with its name.
+     */
+    public function openMembers(): void
+    {
+        if ($this->guild !== null) {
+            $this->openInTab('/guilds/'.rawurlencode($this->guild->handle).'/members', ['guildName' => $this->guild->name]);
         }
     }
 
@@ -261,7 +285,7 @@ class Guild extends NativeComponent
     }
 
     /**
-     * The bar's New commit is this page's, so a post to this board devnull turned down opens here again.
+     * The header's Commit is this page's, so a post to this board devnull turned down opens here again.
      */
     protected function opensComposer(): bool
     {

@@ -538,6 +538,28 @@ function boardJson(array $overrides = []): array
 }
 
 /**
+ * A guild members answer, as `GET /guilds/{handle}/members` sends it. People are [username => overrides], each with
+ * the id "id-{username}".
+ *
+ * @param  array<string, array<string, mixed>>  $people
+ * @return array<string, mixed>
+ */
+function guildMembersJson(array $people, ?string $moderatorId = null, ?int $nextPage = null, string $handle = 'rust'): array
+{
+    $rows = [];
+
+    foreach ($people as $username => $overrides) {
+        $rows[] = userJson(['id' => "id-{$username}", 'handle' => $username, 'name' => ucfirst($username), 'bio' => null, 'lane' => 2, 'is_followed' => false, 'follows_you' => false, ...$overrides]);
+    }
+
+    return [
+        'data' => $rows,
+        'moderator_id' => $moderatorId,
+        'links' => ['next' => $nextPage === null ? null : "http://devnull.test/api/v1/guilds/{$handle}/members?page={$nextPage}"],
+    ];
+}
+
+/**
  * A board page of commits by id, newest first, with no pin unless one is given.
  *
  * @param  list<string>  $ids
