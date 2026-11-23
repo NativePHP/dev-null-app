@@ -1,6 +1,9 @@
 <?php
 
+use App\Devnull\Account;
+use App\Devnull\Data\StashedDraft;
 use App\Devnull\DraftImages;
+use App\Devnull\Stash;
 use App\NativeComponents\Conversation;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\File;
@@ -360,4 +363,99 @@ it('pings everyone in an org, and shows who pinged it', function () {
     finishRefreshes($screen->tap('ping'))->assertSee('* you sent a ping');
 
     expect(sentTo('POST', 'remotes/orgs/org-1/ping'))->toBe(['']);
+});
+
+// ── The stashed draft ──────────────────────────
+
+function stashedMessage(string $name): StashedDraft
+{
+    return app(Stash::class)->get(app(Account::class)->user()?->id, $name);
+}
+
+it('stashes the draft as you write it, and has it back with its photos when you open the thread again', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = photosPicked(threadWithAda(), [testPhoto()])->input('message-input', 'half a thought');
+    $photo = $screen->instance()->photos[0]->path;
+
+    expect(stashedMessage('remote:ada')->body)->toBe('half a thought')
+        ->and(array_map(fn ($image): string => $image->path, stashedMessage('remote:ada')->images))->toBe([$photo]);
+
+    $screen->call('back');
+
+    threadWithAda()
+        ->assertSet('draft', 'half a thought')
+        ->assertSee('half a thought');
+
+    expect(nodeByRef(threadWithAda(), 'message-input')['props']['value'])->toBe('half a thought')
+        ->and(array_map(fn ($image): string => $image->path, threadWithAda()->instance()->photos))->toBe([$photo])
+        ->and(file_exists($photo))->toBeTrue();
+});
+
+it('forgets the draft once it is pushed', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda()->input('message-input', 'on it');
+
+    expect(stashedMessage('remote:ada')->body)->toBe('on it');
+
+    finishRefreshes($screen->tap('push'))->assertSee('pushed');
+
+    expect(stashedMessage('remote:ada')->isEmpty())->toBeTrue()
+        ->and(app(Stash::class)->names(app(Account::class)->user()?->id))->toBe([]);
+
+    threadWithAda()->assertSet('draft', '')->assertSet('photos', []);
+});
+
+it('forgets the draft once a push is turned down, which stays in the thread to retry', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1], pushStatus: 403);
+
+    finishRefreshes(threadWithAda()->input('message-input', 'hello')->tap('push'))->assertSee('rejected ·');
+
+    expect(stashedMessage('remote:ada')->isEmpty())->toBeTrue();
+
+    threadWithAda()->assertSet('draft', '')->assertSee('hello')->assertSee('retry');
+});
+
+it('forgets the draft once it is emptied, and once its last photo comes off', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda()->input('message-input', 'never mind')->input('message-input', '');
+
+    expect(app(Stash::class)->names(app(Account::class)->user()?->id))->toBe([]);
+
+    photosPicked($screen, [testPhoto()]);
+
+    expect(stashedMessage('remote:ada')->images)->toHaveCount(1);
+
+    $screen->tap('photo-0-remove');
+
+    expect(app(Stash::class)->names(app(Account::class)->user()?->id))->toBe([]);
+
+    threadWithAda()->assertSet('draft', '')->assertSet('photos', []);
+});
+
+it("keeps each thread's draft to itself, an org's by its id", function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+    app(Stash::class)->put(app(Account::class)->user()?->id, 'remote:org:org-1', new StashedDraft('for the org'));
+    app(Stash::class)->put(app(Account::class)->user()?->id, 'remote:grace', new StashedDraft('for Grace'));
+
+    threadWithAda()->assertSet('draft', '');
+
+    threadWithAda()->input('message-input', 'for Ada');
+
+    expect(Native::visit('/remotes/orgs/org-1')->instance()->draft)->toBe('for the org')
+        ->and(stashedMessage('remote:ada')->body)->toBe('for Ada')
+        ->and(stashedMessage('remote:grace')->body)->toBe('for Grace');
+});
+
+it('forgets the drafts when you sign out', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    threadWithAda()->input('message-input', 'see you');
+    $userId = app(Account::class)->user()?->id;
+
+    app(Account::class)->forget();
+
+    expect(app(Stash::class)->get($userId, 'remote:ada')->isEmpty())->toBeTrue();
 });
