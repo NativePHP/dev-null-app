@@ -692,7 +692,7 @@ class Profile extends NativeComponent
      * you blocked with it, for the page's name and avatar. A handle no user has may be an organization's, which shares
      * its link on the web, so until devnull has sent anything for it, the organization's screen takes this one's place.
      */
-    protected function refused(ApiException $exception): bool
+    protected function refused(ApiException $exception, string $path): bool
     {
         if ($exception->status === 404 && ! $this->commitsLoaded && ($this->profile === null || $this->sketched)) {
             $this->replace($this->tabRoot().'/organizations/'.rawurlencode($this->username));

@@ -15,7 +15,8 @@ use Native\Mobile\AsyncTask;
  * response cache.
  *
  * Asked $withImages, it downloads the answer's images that aren't on the
- * device yet before it comes back, so they land with it. Every task that
+ * device yet, and looks up its YouTube videos' titles, before it comes back,
+ * so they land with it. Every task that
  * lands makes the screen render again, so a log page and its images landing
  * apart cost two renders where one will do, and rows drawn before their
  * images came would load them from their URLs. The Log's next page asks for
@@ -87,7 +88,9 @@ final class FetchInBackground extends AsyncTask
         ];
 
         if ($withImages && $result['from_devnull'] && $response->successful() && is_array($result['json'])) {
-            DownloadImages::save(ImageCache::missingIn($result['json']), until: microtime(true) + self::ImagesWithin);
+            $until = microtime(true) + self::ImagesWithin;
+            DownloadImages::save(ImageCache::missingIn($result['json']), until: $until);
+            FetchVideoDetails::save(VideoDetails::missingIn($result['json']), until: $until);
         }
 
         return $result;

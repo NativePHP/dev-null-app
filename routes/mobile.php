@@ -8,6 +8,8 @@ use App\NativeComponents\Call;
 use App\NativeComponents\CommitDetail;
 use App\NativeComponents\Connections;
 use App\NativeComponents\Conversation;
+use App\NativeComponents\Guild;
+use App\NativeComponents\Guilds;
 use App\NativeComponents\Launch;
 use App\NativeComponents\Layouts\TabsLayout;
 use App\NativeComponents\Log;
@@ -49,13 +51,14 @@ Route::nativeGroup(TabsLayout::class, function (): void {
     Route::native('/remotes', Remotes::class);
     Route::native('/remotes/new', NewRemote::class);
     Route::native('/remotes/new-org', NewOrg::class);
+    Route::native('/guilds', Guilds::class);
     Route::native('/profile', Profile::class);
     Route::native('/profile/device', ThisDevice::class);
     Route::native('/profile/starred', Starred::class);
 
-    // Commits, profiles, their followers, the people you mute and block, and
-    // Remotes threads and your scheduled commits open beneath the tab they were
-    // tapped in, so that tab's own navigation stack pushes them (see
+    // Commits, profiles, their followers, the people you mute and block,
+    // Remotes threads, your scheduled commits and guilds open beneath the tab
+    // they were tapped in, so that tab's own navigation stack pushes them (see
     // Concerns\OpensInTab).
     foreach (TabsLayout::Tabs as $tab) {
         Route::native("{$tab}/commits/{id}", CommitDetail::class);
@@ -69,5 +72,7 @@ Route::nativeGroup(TabsLayout::class, function (): void {
         Route::native("{$tab}/orgs/{org}/members/add", AddOrgMembers::class);
         Route::native("{$tab}/scheduled", ScheduledCommits::class);
         Route::native("{$tab}/search", Search::class);
+        Route::native("{$tab}/guilds", Guilds::class);
+        Route::native("{$tab}/guilds/{handle}", Guild::class);
     }
 });

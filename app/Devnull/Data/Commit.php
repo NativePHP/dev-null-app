@@ -20,6 +20,9 @@ use Throwable;
  *
  * A Nata Nu//ers high score carries its signed run in a fenced block, which
  * shows as a card ($scoreCard) instead of as code.
+ *
+ * A commit posted straight to a guild's board knows that guild ($guild), which
+ * keeps it out of general logs.
  */
 final readonly class Commit
 {
@@ -82,6 +85,7 @@ final readonly class Commit
         public ?ReplyPreview $replyPreview = null,
         public int $pasteisCount = 0,
         public ?ScoreCard $scoreCard = null,
+        public ?Guild $guild = null,
     ) {}
 
     /**
@@ -149,6 +153,7 @@ final readonly class Commit
             replyPreview: is_array($data['reply_preview'] ?? null) ? ReplyPreview::fromArray($data['reply_preview']) : null,
             pasteisCount: max(0, (int) ($data['pasteis_count'] ?? 0)),
             scoreCard: $scoreCard,
+            guild: self::guild($data),
         );
     }
 
@@ -380,6 +385,18 @@ final readonly class Commit
         } catch (Throwable) {
             return null;
         }
+    }
+
+    /**
+     * The guild this commit was posted in. It might be known
+     * because devnull sent the guild with the commit, or it
+     * might be known only by its handle.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function guild(array $data): ?Guild
+    {
+        return Guild::fromArray(is_array($data['guild'] ?? null) ? $data['guild'] : ['handle' => $data['guild_handle'] ?? null]);
     }
 
     private static function positiveInt(mixed $value): ?int

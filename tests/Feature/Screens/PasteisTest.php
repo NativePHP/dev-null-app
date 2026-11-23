@@ -157,6 +157,21 @@ it('only counts the pastéis on your own commits, and on ones that are not publi
         ->and($screen->instance()->commits[0]->pasteisCount)->toBe(5);
 });
 
+it("leaves the pastel off an organization's commits, since organizations can't be given pastéis", function () {
+    pasteisOn();
+    fakeApi(['GET /api/v1/log/following' => [pageJson([
+        commitJson(['id' => 'c2', 'author' => pastelAuthor()]),
+        commitJson(['id' => 'c1', 'pasteis_count' => 2, 'author' => userJson(['id' => 'o1', 'handle' => 'NativePHP', 'type' => 'organization'])]),
+    ])]]);
+
+    $screen = Native::visit('/log', platform: 'ios')->call('givePastel', 'c1');
+
+    expect(array_values(array_filter(childRefs($screen, 'actions-c1'))))->toBe(['star-c1', 'quote-c1', 'reply-to-c1', 'more-c1'])
+        ->and(nodeByRef($screen, 'pastel-c2'))->not->toBeNull()
+        ->and(pasteisSent())->toBe([])
+        ->and($screen->instance()->commits[1]->pasteisCount)->toBe(2);
+});
+
 it('gives a pastel at once, then takes the count devnull sends back and keeps it everywhere', function () {
     pasteisOn(3);
     holdRefreshes();

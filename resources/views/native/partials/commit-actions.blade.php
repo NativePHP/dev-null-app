@@ -16,7 +16,8 @@
 
     The pastel is the web's: the pastel de nata and how many the commit was given, always, even 0. On someone else's
     published commit it gives one more per tap; on your own, or one that isn't published, it's just the count. It
-    only shows in pastéis mode ($pasteis). A star you give and a pastel pop as they do on the web (see PopsReactions).
+    only shows in pastéis mode ($pasteis), and never on an organization's commit, since organizations can't be given
+    pastéis.
 
     A commit with a quote or a reply you started and didn't send marks that button, as the web does with stash@{0}
     beside its label. That doesn't fit the row, so here it's a dot after the label, inside the button.
@@ -61,7 +62,8 @@
 @php($starPop = \App\Devnull\Pop::transform($popping['star-'.$commit->id] ?? null, 'star'))
 @php($pastelPop = \App\Devnull\Pop::transform($popping['pastel-'.$commit->id] ?? null, 'pastel'))
 @php($pasteis ??= app(\App\Devnull\Account::class)->pasteis())
-@php($canGivePastel = $pasteis !== null && $viewer !== null && ! $isOwn && $commit->isApproved())
+@php($showsPastel = $pasteis !== null && ! $commit->author->isOrganization)
+@php($canGivePastel = $showsPastel && $viewer !== null && ! $isOwn && $commit->isApproved())
 @php($pastelLabel = \App\Devnull\Display::count($commit->pasteisCount, 'pastel', 'pastéis'))
 @php($pastelSize = $compact ? 18 : 20)
 @php($starLabel = ($commit->starred ? 'Unstar commit' : 'Star commit').($commit->starsCount > 0 ? ', '.\App\Devnull\Display::count($commit->starsCount, 'star', 'stars') : ''))
@@ -89,7 +91,7 @@
             <native:image :src="\App\Devnull\Data\Pasteis::Image" :width="$pastelSize" :height="$pastelSize" :fit="1" :scale="$pastelPop['scale']" :animate-duration="$pastelPop['duration']" :animate-easing="$pastelPop['easing']" />
             <native:text font="mono" class="{{ $labelSize }} text-theme-ink-muted">{{ \App\Devnull\Display::compactCount($commit->pasteisCount) }}</native:text>
         </native:pressable>
-    @elseif ($pasteis !== null)
+    @elseif ($showsPastel)
         <native:row ref="pastel-count-{{ $commit->id }}" class="min-w-[44] h-[36] px-2 gap-1 items-center" a11y-label="{{ $pastelLabel }}">
             <native:image :src="\App\Devnull\Data\Pasteis::Image" :width="$pastelSize" :height="$pastelSize" :fit="1" />
             <native:text font="mono" class="{{ $labelSize }} text-theme-ink-muted">{{ \App\Devnull\Display::compactCount($commit->pasteisCount) }}</native:text>

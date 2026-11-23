@@ -14,6 +14,8 @@
     which tapped says when in your timezone, its hash, and its replies behind a toggle in its action row. The commits around it ($muted) step back:
     smaller and in muted ink, with a smaller avatar and action row. They still open their own pages.
 
+    A commit posted straight to a guild's board says so under its header (see guild-badge), except in search.
+
     A commit you just made that devnull doesn't have yet is staged: dimmed, with the staged chip and no actions, until
     the real one takes its place (see SyncsOutbox).
 
@@ -66,6 +68,10 @@
             @include('native.partials.status-chip', ['status' => $commit->status])
         @endunless
     </native:row>
+
+    @if ($commit->guild !== null && ! ($hidesGuildBadge ?? false))
+        @include('native.partials.guild-badge')
+    @endif
 
     @if ($commit->parent?->isDeleted())
         <native:row ref="replying-to-{{ $commit->id }}" class="gap-1 items-center">

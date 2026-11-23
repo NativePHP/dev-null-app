@@ -120,8 +120,8 @@ it('holds new commits in a pill with the right count, and puts them on top witho
 
     expect(shownCommitIds($screen))->toBe(['c3', 'c2', 'c1'])
         ->and(count(Http::recorded()))->toBe($requests)
-        // The log, you for the unread badge, who to follow, and your settings for your timezone.
-        ->and(refreshesSent($screen))->toBe(4)
+        // The log, you for the unread badge, whether guilds are on, who to follow, and your settings for your timezone.
+        ->and(refreshesSent($screen))->toBe(5)
         // A new list key is how the log gets back to the top.
         ->and($screen->get('listKey'))->toBe($listKey + 1);
 });
