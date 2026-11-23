@@ -168,4 +168,7 @@
 
     {{-- More reactions, from the bubble or anywhere else: the emoji keyboard on iOS, Jetpack's emoji picker on Android. --}}
     <native:emoji-picker ref="emoji-picker" :visible="$emojiPickerFor !== null" @change="emojiPicked" @dismiss="emojiPickerClosed" />
+
+    {{-- A message's images full-screen, over everything else. --}}
+    @include('native.partials.image-viewer')
 </native:column>
