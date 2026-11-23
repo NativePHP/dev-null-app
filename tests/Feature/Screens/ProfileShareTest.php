@@ -44,7 +44,7 @@ it("starts someone else's ⋯ with Share profile, under share on iOS and share-2
     $screen = Native::visit('/log/users/ada', platform: $platform);
     $share = findNode($screen->tree(), fn (array $node): bool => ($node['props']['id'] ?? null) === 'share');
 
-    expect(shareMenuIds($screen))->toBe(['share', 'mute', 'block'])
+    expect(shareMenuIds($screen))->toBe(['share', 'mute', 'block', 'report'])
         ->and($share['props'])->toMatchArray(['label' => 'Share profile', 'icon' => $icon]);
 })->with([
     'iOS' => ['ios', 'custom:share'],

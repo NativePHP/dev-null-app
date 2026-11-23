@@ -7,6 +7,7 @@
 <native:column class="w-full h-full bg-theme-background">
     @include('native.partials.error')
     @include('native.partials.refresh-failed')
+    @include('native.partials.report-sheet')
 
     {{--
         Each row is a child of the scroll view itself, not of one column inside it: SwiftUI keeps a reader's place by

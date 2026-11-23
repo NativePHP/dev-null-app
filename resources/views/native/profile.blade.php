@@ -2,6 +2,7 @@
     @include('native.partials.error')
     @include('native.partials.refresh-failed')
     @include('native.partials.commit-sheet')
+    @include('native.partials.report-sheet')
     @include('native.partials.achievements-sheet')
     @include('native.partials.live-stream-sheet')
     @include('native.partials.stargazers-sheet')
