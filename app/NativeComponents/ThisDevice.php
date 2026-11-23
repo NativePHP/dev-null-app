@@ -985,10 +985,8 @@ class ThisDevice extends NativeComponent
             return;
         }
 
-        app(Account::class)->remember($current->user);
+        app(Account::class)->rememberCurrentUser($current);
         app(Account::class)->rememberUnreadNotifications($current->unreadNotificationsCount);
-        app(Account::class)->rememberPasteis($current->pasteis());
-        app(Account::class)->rememberRemotes($current->remotes);
         app(ResponseCache::class)->meChanged($json);
         $this->takeTerms($current);
     }

@@ -24,19 +24,19 @@ final class CommitMenu
      */
     public static function items(Commit $commit, ?User $viewer): array
     {
-        $isOwn = $viewer !== null && $commit->author->id === $viewer->id;
+        $isAuthor = $viewer !== null && $commit->author->id === $viewer->id;
         $items = [];
 
         $items[] = self::item($commit, 'share', 'Share link', Lucide::Link, 'shareCommit');
 
-        if ($isOwn && $commit->isApproved() && $commit->parentId === null && $commit->guild === null) {
+        if ($isAuthor && $commit->isApproved() && $commit->parentId === null && $commit->guild === null) {
             $items[] = self::item($commit, 'pin', $commit->isPinned ? 'Unpin from profile' : 'Pin to profile', Lucide::Pin, 'togglePin');
         }
 
-        if ($viewer !== null && ! $isOwn && $commit->isApproved()) {
+        if ($viewer !== null && ! app(Account::class)->owns($commit) && $commit->isApproved()) {
             $items[] = NavAction::divider();
             $items[] = self::item($commit, 'report', 'Report commit', Lucide::Flag, 'reportCommit');
-        } elseif ($isOwn) {
+        } elseif (app(Account::class)->owns($commit)) {
             $items[] = NavAction::divider();
             $items[] = self::item($commit, 'delete', 'Delete commit', Lucide::Trash2, 'confirmDelete', destructive: true);
         }

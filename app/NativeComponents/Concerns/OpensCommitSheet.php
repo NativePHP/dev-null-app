@@ -2,6 +2,7 @@
 
 namespace App\NativeComponents\Concerns;
 
+use App\Devnull\Account;
 use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Draft;
@@ -588,7 +589,7 @@ trait OpensCommitSheet
     {
         $viewer = $this->me();
 
-        return $viewer !== null && ! $commit->isDeleted() && $commit->isApproved() && $commit->author->id !== $viewer->id;
+        return $viewer !== null && ! $commit->isDeleted() && $commit->isApproved() && ! app(Account::class)->owns($commit);
     }
 
     /**

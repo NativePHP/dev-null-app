@@ -55,7 +55,7 @@
 @php($stashed ??= [])
 @php($hasQuoteStash = in_array('quote-'.$commit->id, $stashed, true))
 @php($hasReplyStash = in_array('reply-'.$commit->id, $stashed, true))
-@php($isOwn = $commit->author->id === $viewer?->id)
+@php($isOwn = app(\App\Devnull\Account::class)->owns($commit))
 @php($canQuote = $commit->isApproved() || $isOwn)
 @php($showsReplies = $withReplies && ! $commit->isDeleted() && $repliesCount > 0)
 @php($endDot ??= null)

@@ -2,6 +2,8 @@
 
 namespace App\Devnull;
 
+use App\Devnull\Data\Commit;
+use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\Pasteis;
 use App\Devnull\Data\Profile;
 use App\Devnull\Data\Remotes;
@@ -24,6 +26,8 @@ final class Account
     private const string RemotesKey = 'devnull.remotes';
 
     private const string ProfileKey = 'devnull.profile';
+
+    private const string OrganizationsKey = 'devnull.organizations';
 
     private const string PinWarningKey = 'devnull.pin-warning-dismissed';
 
@@ -53,6 +57,27 @@ final class Account
     public function remember(User $user): void
     {
         Cache::forever(self::CacheKey, $user->toArray());
+    }
+
+    /**
+     * Keeps you as a `GET /me` answer has you: who you are, your pastéis, your Remotes and your organizations.
+     */
+    public function rememberCurrentUser(CurrentUser $current): void
+    {
+        $this->remember($current->user);
+        $this->rememberPasteis($current->pasteis());
+        $this->rememberRemotes($current->remotes);
+        Cache::forever(self::OrganizationsKey, $current->organizationIds);
+    }
+
+    /**
+     * Whether devnull counts the commit as yours, as the web does: you posted it, or an organization you're a member of did.
+     */
+    public function owns(Commit $commit): bool
+    {
+        $user = $this->user();
+
+        return $user !== null && ($commit->author->id === $user->id || in_array($commit->author->id, (array) Cache::get(self::OrganizationsKey), true));
     }
 
     /**
@@ -276,6 +301,7 @@ final class Account
         Cache::forget(self::PasteisKey);
         Cache::forget(self::RemotesKey);
         Cache::forget(self::ProfileKey);
+        Cache::forget(self::OrganizationsKey);
         Cache::forget(self::PinWarningKey);
         Cache::forget(self::TimezoneKey);
         Cache::forget(self::GuildsKey);

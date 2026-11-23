@@ -19,6 +19,8 @@ use Carbon\CarbonImmutable;
  * And the terms: the version in force, which is the moment it took effect, when
  * you last accepted them, and whether that was this version. A devnull too old
  * to say leaves all three null.
+ *
+ * And the ids of the organizations you're a member of, whose commits are yours too.
  */
 final readonly class CurrentUser
 {
@@ -37,6 +39,8 @@ final readonly class CurrentUser
         public ?string $termsVersion = null,
         public ?CarbonImmutable $termsAcceptedAt = null,
         public ?bool $termsAccepted = null,
+        /** @var list<string> */
+        public array $organizationIds = [],
     ) {}
 
     /**
@@ -69,6 +73,7 @@ final readonly class CurrentUser
             termsVersion: is_string($data['terms_version'] ?? null) && $data['terms_version'] !== '' ? $data['terms_version'] : null,
             termsAcceptedAt: Commit::date($data['terms_accepted_at'] ?? null),
             termsAccepted: is_bool($data['terms_accepted'] ?? null) ? $data['terms_accepted'] : null,
+            organizationIds: array_values(array_filter(array_column(is_array($data['organizations'] ?? null) ? $data['organizations'] : [], 'id'), is_string(...))),
         );
     }
 

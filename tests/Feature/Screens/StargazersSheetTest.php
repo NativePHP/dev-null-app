@@ -173,3 +173,29 @@ it('opens nothing for a commit of yours with no stars, nor for someone else\'s',
     expect(sentTo('GET', 'commits/c1/stars'))->toBe([])
         ->and(sentTo('GET', 'commits/c2/stars'))->toBe([]);
 });
+
+it('opens who starred a commit an organization you belong to posted, since devnull treats it as your commit', function (string $platform) {
+    $organization = fn (string $id, string $handle): array => userJson(['id' => $id, 'type' => 'organization', 'handle' => $handle, 'name' => $handle]);
+
+    serveApi([
+        'GET /api/v1/me' => [['data' => [...userJson(), 'organizations' => [['role' => 'admin', ...$organization('org-1', 'NativePHP')]]]]],
+        'GET /api/v1/log/following' => [pageJson([
+            commitJson(['id' => 'c1', 'stars_count' => 3, 'author' => $organization('org-1', 'NativePHP')]),
+            commitJson(['id' => 'c2', 'stars_count' => 2, 'author' => $organization('org-2', 'laravel')]),
+        ])],
+        'GET /api/v1/commits/c1/stars' => [pageJson([stargazerJson('grace', 'Grace Hopper')], path: 'http://devnull.test/api/v1/commits/c1/stars')],
+    ]);
+
+    $screen = finishRefreshes(Native::visit('/log', platform: $platform));
+
+    expect(nodeByRef($screen, 'star-count-c1'))->type->toBe('pressable')->props->a11y_label->toBe('3 stars, show who starred')
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'star-c1'))->toBeNull()
+        ->and(nodeByRef($screen, 'star-c2'))->type->toBe('pressable');
+
+    finishRefreshes($screen->call('toggleStar', 'c1'));
+
+    expect(sentTo('POST', 'commits/c1/star'))->toBe([])
+        ->and(nodeByRef($screen, 'star-count-c1')['props']['a11y_label'])->toBe('3 stars, show who starred');
+
+    $screen->tap('star-count-c1')->assertSee('Starred by')->assertSee('Grace Hopper');
+})->with(['ios', 'android']);

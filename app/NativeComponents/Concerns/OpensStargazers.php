@@ -2,6 +2,7 @@
 
 namespace App\NativeComponents\Concerns;
 
+use App\Devnull\Account;
 use App\Devnull\Data\Page;
 use App\Devnull\Data\User;
 
@@ -47,7 +48,7 @@ trait OpensStargazers
     {
         $commit = $this->shownCommit($id);
 
-        if ($commit === null || $commit->isDeleted() || $commit->starsCount === 0 || $commit->author->id !== $this->me()?->id) {
+        if ($commit === null || $commit->isDeleted() || $commit->starsCount === 0 || ! app(Account::class)->owns($commit)) {
             return;
         }
 

@@ -2,6 +2,7 @@
 
 use App\Devnull\Account;
 use App\Devnull\AppleSignIn;
+use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\User;
 use App\Devnull\DeviceKey;
 use App\Devnull\ResponseCache;
@@ -395,6 +396,27 @@ function signIn(array $user = []): FakeBridge
     app(Account::class)->remember(User::fromArray(userJson($user)));
 
     return $bridge;
+}
+
+/**
+ * Makes you a member of the given organizations, as `GET /me` lists them, so devnull counts their commits as yours.
+ */
+function joinOrganizations(string ...$ids): void
+{
+    app(Account::class)->rememberCurrentUser(CurrentUser::fromArray(['data' => [
+        ...(app(Account::class)->user()?->toArray() ?? userJson()),
+        'organizations' => array_map(fn (string $id): array => ['id' => $id], $ids),
+    ]]));
+}
+
+/**
+ * An organization as the API sends one as a commit's author.
+ *
+ * @return array<string, mixed>
+ */
+function organizationAuthorJson(string $id, string $handle): array
+{
+    return userJson(['id' => $id, 'type' => 'organization', 'handle' => $handle, 'name' => $handle]);
 }
 
 /**

@@ -484,7 +484,7 @@ trait ShowsCommits
 
     private function canReactTo(Commit $commit): bool
     {
-        return ! $commit->isDeleted() && $commit->isApproved() && $commit->author->id !== $this->me()?->id;
+        return ! $commit->isDeleted() && $commit->isApproved() && ! app(Account::class)->owns($commit);
     }
 
     private function canPin(Commit $commit): bool
@@ -494,7 +494,7 @@ trait ShowsCommits
 
     private function canDelete(Commit $commit): bool
     {
-        return ! $commit->isDeleted() && ! $commit->isStaged() && $commit->author->id === $this->me()?->id;
+        return ! $commit->isDeleted() && ! $commit->isStaged() && app(Account::class)->owns($commit);
     }
 
     /**

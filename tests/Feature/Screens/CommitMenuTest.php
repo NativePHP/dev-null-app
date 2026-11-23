@@ -247,3 +247,34 @@ it('leaves Pin to profile off your own commit posted in a guild, which devnull r
 
     Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/pin'));
 });
+
+it("leaves Report commit off a commit from an organization you're a member of, which devnull won't take", function () {
+    joinOrganizations('org-1');
+    serveApi(fn () => Http::response(pageJson([commitJson(['id' => 'c1', 'author' => organizationAuthorJson('org-1', 'NativePHP')])])));
+
+    $screen = Native::visit('/log', platform: 'ios')->call('reportCommit', 'c1');
+
+    expect(array_column(array_filter(menuItems($screen, 'more-c1'), is_array(...)), 0))->not->toContain('report-c1')
+        ->and($screen->instance()->sheetOpen)->toBeFalse();
+});
+
+it("deletes a commit from an organization you're a member of, as devnull lets you, without offering to pin it", function () {
+    joinOrganizations('org-1');
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'body' => 'Delete me', 'author' => organizationAuthorJson('org-1', 'NativePHP')])])],
+        'DELETE /api/v1/commits/c1' => [null, 204],
+    ]);
+
+    $screen = Native::visit('/log', platform: 'ios');
+
+    expect(menuItems($screen, 'more-c1'))->toBe([
+        ['share-c1', 'Share link', 'custom:link'],
+        'divider',
+        ['delete-c1', 'Delete commit', 'custom:trash-2'],
+    ]);
+
+    $screen->tap('delete-c1')
+        ->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Delete', 'id' => 'delete-commit']);
+
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE' && $request->url() === 'http://devnull.test/api/v1/commits/c1');
+});

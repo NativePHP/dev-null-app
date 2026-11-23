@@ -682,7 +682,7 @@ class CommitDetail extends NativeComponent
 
     public function isOwn(): bool
     {
-        return $this->commit !== null && $this->commit->author->username === $this->me()?->username;
+        return $this->commit !== null && app(Account::class)->owns($this->commit);
     }
 
     public function render(): View

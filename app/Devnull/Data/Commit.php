@@ -2,6 +2,7 @@
 
 namespace App\Devnull\Data;
 
+use App\Devnull\Account;
 use App\Devnull\Display;
 use App\Devnull\Lane;
 use Carbon\CarbonImmutable;
@@ -359,7 +360,7 @@ final readonly class Commit
         return $viewer !== null
             && $this->poll !== null
             && $this->isApproved()
-            && $this->author->id !== $viewer->id
+            && ! app(Account::class)->owns($this)
             && $this->poll->closesAt !== null
             && ! $this->poll->hasVoted
             && ! $this->poll->showsResults()
