@@ -109,6 +109,25 @@ final readonly class User
     }
 
     /**
+     * Their avatar at $pixels across, as the web's sizedAvatarUrl() asks for it. GitHub sends 460 pixels unless asked
+     * otherwise, and as large as the picture was uploaded when asked for more. An avatar from anywhere else is left
+     * as it is.
+     */
+    public function avatarUrlAt(int $pixels): ?string
+    {
+        $parts = $this->avatarUrl === null ? false : parse_url($this->avatarUrl);
+
+        if ($parts === false || ($parts['host'] ?? null) !== 'avatars.githubusercontent.com') {
+            return $this->avatarUrl;
+        }
+
+        parse_str($parts['query'] ?? '', $query);
+        $query['s'] = (string) $pixels;
+
+        return ($parts['scheme'] ?? 'https').'://'.$parts['host'].($parts['path'] ?? '').'?'.http_build_query($query);
+    }
+
+    /**
      * Their GitHub profile. Everyone on devnull signed in with GitHub, so it can be
      * worked out when the API leaves it out.
      */
