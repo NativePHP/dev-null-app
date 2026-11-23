@@ -10,6 +10,7 @@ use App\NativeComponents\Connections;
 use App\NativeComponents\Conversation;
 use App\NativeComponents\FeedWorkspace;
 use App\NativeComponents\Guild;
+use App\NativeComponents\GuildMembers;
 use App\NativeComponents\Guilds;
 use App\NativeComponents\Launch;
 use App\NativeComponents\Layouts\TabsLayout;
@@ -76,5 +77,6 @@ Route::nativeGroup(TabsLayout::class, function (): void {
         Route::native("{$tab}/search", Search::class);
         Route::native("{$tab}/guilds", Guilds::class);
         Route::native("{$tab}/guilds/{handle}", Guild::class);
+        Route::native("{$tab}/guilds/{handle}/members", GuildMembers::class);
     }
 });

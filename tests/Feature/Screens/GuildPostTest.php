@@ -61,27 +61,23 @@ function pressEditOnToast(TestableComponent $screen, int $writeId): TestableComp
     return $screen->emitNative(ToastActionPressed::class, ['toastId' => 'toast-1', 'actionId' => 'edit', 'data' => ['write' => $writeId]]);
 }
 
-it('offers New commit beside Share once the guild is loaded', function () {
-    holdRefreshes();
+it('offers Commit in the header, leaving Share alone in the bar', function () {
     fakeApi(['GET /api/v1/guilds/rust' => [boardOf(['c1'])]]);
-    $loading = Native::visit('/log/guilds/rust');
 
-    expect(hasTopBarAction($loading, 'compose'))->toBeFalse();
+    $screen = finishRefreshes(Native::visit('/log/guilds/rust'))->tap('guild-commit');
 
-    $loaded = finishRefreshes($loading);
-
-    expect(hasTopBarAction($loaded, 'share'))->toBeTrue()
-        ->and(hasTopBarAction($loaded, 'compose'))->toBeTrue()
-        ->and(findNode($loaded->tree(), fn (array $node): bool => ($node['props']['id'] ?? null) === 'compose')['props']['a11y_label'] ?? null)->toBe('New commit');
+    expect(treeShows(nodeByRef($screen, 'guild-commit'), 'Commit'))->toBeTrue()
+        ->and(hasTopBarAction($screen, 'share'))->toBeTrue()
+        ->and(hasTopBarAction($screen, 'compose'))->toBeFalse()
+        ->and($screen->instance()->sheetOpen)->toBeTrue();
 });
 
-it('offers no New commit on a paused guild, as the web has no composer there', function () {
+it('offers no Commit on a paused guild, as the web has no composer there', function () {
     fakeApi(['GET /api/v1/guilds/rust' => [boardOf(['c1'], overrides: ['guild' => guildJson(['is_paused' => true])])]]);
 
     $paused = finishRefreshes(Native::visit('/log/guilds/rust'))->call('composeForGuild');
 
-    expect(hasTopBarAction($paused, 'share'))->toBeTrue()
-        ->and(hasTopBarAction($paused, 'compose'))->toBeFalse()
+    expect(rendersRef($paused, 'guild-commit'))->toBeFalse()
         ->and($paused->instance()->sheetOpen)->toBeFalse();
 });
 

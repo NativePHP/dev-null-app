@@ -55,6 +55,7 @@ final class ResponseCache
         '#^scheduled-commits$#',
         '#^guilds$#',
         '#^guilds/[^/]+$#',
+        '#^guilds/[^/]+/members$#',
     ];
 
     /**
@@ -512,6 +513,40 @@ final class ResponseCache
         if ($kept !== null && ($kept['is_following'] ?? false) !== $following) {
             $this->patch("organizations/{$handle}", [], fn (array $json): array => [...self::count($json, 'followers_count', $following ? 1 : -1), 'is_following' => $following]);
         }
+    }
+
+    /**
+     * You joined or left a guild: wherever it's kept, on its page or in the directory, it says so, with its members
+     * counted to match, and joining unmutes it, as devnull does. Its kept members go, as you came or went there.
+     */
+    public function guildMembershipChanged(string $handle, bool $joined): void
+    {
+        $change = function (array $guild) use ($handle, $joined): array {
+            if (($guild['handle'] ?? null) !== rawurldecode($handle) || ($guild['is_joined'] ?? false) === $joined) {
+                return $guild;
+            }
+
+            return [
+                ...$guild,
+                'is_joined' => $joined,
+                'member_count' => max(0, (int) ($guild['member_count'] ?? 0) + ($joined ? 1 : -1)),
+                ...($joined ? ['is_muted' => false] : []),
+            ];
+        };
+
+        $this->patch("guilds/{$handle}", [], fn (array $json): array => is_array($json['guild'] ?? null) ? [...$json, 'guild' => $change($json['guild'])] : $json);
+
+        if (($userId = $this->userId()) !== null) {
+            foreach ($this->index($userId) as $meta) {
+                if ($meta['path'] === 'guilds') {
+                    $this->patch('guilds', $meta['query'], fn (array $json): array => is_array($json['data'] ?? null)
+                        ? [...$json, 'data' => array_map(fn (mixed $guild): mixed => is_array($guild) ? $change($guild) : $guild, $json['data'])]
+                        : $json);
+                }
+            }
+        }
+
+        $this->forget("guilds/{$handle}/members");
     }
 
     /**

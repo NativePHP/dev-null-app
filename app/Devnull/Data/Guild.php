@@ -73,6 +73,21 @@ final readonly class Guild
     }
 
     /**
+     * The guild once you've joined or left it: its members counted to match, and unmuted by joining, as devnull does.
+     */
+    public function withJoined(bool $isJoined): self
+    {
+        $change = $isJoined === $this->isJoined ? 0 : ($isJoined ? 1 : -1);
+
+        return new self(...[
+            ...get_object_vars($this),
+            'memberCount' => max(0, $this->memberCount + $change),
+            'isJoined' => $isJoined,
+            'isMuted' => $isJoined ? false : $this->isMuted,
+        ]);
+    }
+
+    /**
      * What an image element gets for the icon, or null when it can't be drawn:
      * there is no icon, or its signed link has expired and no copy was
      * downloaded while it was good. A link with no expiry counts as good.
