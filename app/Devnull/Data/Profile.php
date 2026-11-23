@@ -4,6 +4,10 @@ namespace App\Devnull\Data;
 
 final readonly class Profile
 {
+    /**
+     * @param  array<string, string>  $bioProfiles  the handles their bio and company tag that have a page on devnull, by lowercase handle
+     * @param  array<string, string>  $bioProfileTypes  what each of those is, by lowercase handle, when devnull says: user, organization or unclaimed
+     */
     public function __construct(
         public User $user,
         public int $commitsCount = 0,
@@ -17,13 +21,16 @@ final readonly class Profile
         public bool $isMuting = false,
         public ?Achievements $achievements = null,
         public ?int $pasteisReceived = null,
+        public array $bioProfiles = [],
+        public array $bioProfileTypes = [],
     ) {}
 
     /**
      * Reads a `GET /users/{username}` response: the user and counts in `data`,
      * and alongside it whether you follow or mute them, their pinned commit,
      * their streaks, their activity, their achievements and how many pastéis
-     * they have been given (null when devnull doesn't say).
+     * they have been given (null when devnull doesn't say), and which handles
+     * their bio and company tag have a page on devnull.
      *
      * @param  array<string, mixed>  $json
      */
@@ -47,7 +54,53 @@ final readonly class Profile
             isMuting: ($json['is_muting'] ?? $data['is_muting'] ?? false) === true,
             achievements: Achievements::fromArray($json['achievements'] ?? $data['achievements'] ?? null),
             pasteisReceived: is_int($received) ? max(0, $received) : null,
+            bioProfiles: self::handles($json['bio_profiles'] ?? $data['bio_profiles'] ?? null),
+            bioProfileTypes: self::handles($json['bio_profile_types'] ?? $data['bio_profile_types'] ?? null),
         );
+    }
+
+    /**
+     * Where a handle tagged in their bio or company opens: 'organization' or 'user' for a page on devnull the app has a
+     * screen for, or null for GitHub. devnull sends which handles have a page (bio_profiles) but not yet what each is,
+     * so a page of unknown kind opens as a user, whose screen hands over to the organization's when devnull has no
+     * such user (see Profile::refused()). An unclaimed developer's page has no screen in the app, so that goes to
+     * GitHub, as do handles with no page at all, as on the web.
+     */
+    public function bioMentionScreen(string $handle): ?string
+    {
+        $key = mb_strtolower($handle);
+
+        if (! isset($this->bioProfiles[$key])) {
+            return null;
+        }
+
+        return match ($this->bioProfileTypes[$key] ?? 'user') {
+            'organization' => 'organization',
+            'user' => 'user',
+            default => null,
+        };
+    }
+
+    /**
+     * A JSON object of strings by lowercase handle. PHP sends an empty one as [] and Laravel's (object) cast as {}.
+     *
+     * @return array<string, string>
+     */
+    private static function handles(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $handles = [];
+
+        foreach ($value as $key => $handle) {
+            if (is_string($key) && is_string($handle) && $handle !== '') {
+                $handles[mb_strtolower($key)] = $handle;
+            }
+        }
+
+        return $handles;
     }
 
     public function withFollowing(bool $isFollowing): self
