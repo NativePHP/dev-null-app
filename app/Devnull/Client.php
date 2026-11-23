@@ -112,10 +112,10 @@ final readonly class Client
     public const string IssuesPath = 'issues';
 
     /**
-     * How many replies the app asks for at a time. devnull sends 50 a page
-     * unless it's asked for fewer, and the app never asks for more than this.
+     * How many replies the app asks for at a time, in a feed's thread and on
+     * a commit's page. devnull sends 50 a page unless it's asked for fewer.
      */
-    public const int RepliesPerPage = 5;
+    public const int RepliesPerPage = 10;
 
     /**
      * Where the signed-in account's timezone is saved, or unset, with whether their profile shows their local time.

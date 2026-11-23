@@ -2,52 +2,83 @@
 
 namespace App\NativeComponents\Concerns;
 
+use App\Devnull\Beat;
+use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Page;
+use App\Devnull\ThreadRows;
 
 /**
- * "› N replies" under a commit in a feed opens its replies in place, the way
- * the web's thread toggle does, and "Hide replies" closes them again. One
- * level deep: a reply's own replies open its page.
+ * Replies in a feed stay hidden until you ask for them. "N replies", on its
+ * own line under a commit's actions, opens its replies in place, oldest first,
+ * ten at a time (Client::RepliesPerPage), with "Show more" under the last for
+ * the next ten. Tapped again ("Hide replies") it closes them. devnull's API
+ * sends 50 replies a page whatever `limit` asks for, so the replies it sent
+ * are kept and shown ten at a time ($threadShown), and the next page is only
+ * asked for once they're all showing.
  *
- * The app asks for replies oldest first, five at a time (see
- * Client::RepliesPerPage). A thread opened in place shows its first five,
- * and "Show more" under them opens the rest on the commit's page, with its
- * replies showing.
+ * A reply opened in place has the same button under its own actions, which
+ * opens its replies in place too, one step in. A reply that deep opens its
+ * replies on its page. Every thread is kept by the id of the commit or reply
+ * it answers, so a reply's replies sit in $threads beside its commit's.
  *
- * Under a commit devnull sends with its newest reply, "Show more" opens the
- * rest in place, newest first as on the web, so they're turned round here,
- * and a thread longer than a page opens the commit's page instead.
+ * EDGE can't animate a row coming into a list or going out of it, so replies
+ * fade: a page that opens is drawn see-through ($fadedRows) and drawn again
+ * as it should be once a Beat comes back, which every row in a thread
+ * animates to. Closing fades its rows out the same way, then takes them out.
  *
  * A thread opened before opens at once from the cache, and refreshes behind.
  */
 trait ExpandsThreads
 {
     /**
-     * The replies of each commit opened in place, by the commit's id.
+     * The replies opened in place, by the id of the commit or reply they answer.
      *
      * @var array<string, list<Commit>>
      */
     public array $threads = [];
 
     /**
-     * Threads opened from a preview with "Show more", which read newest first.
+     * Where the next page of each open thread starts, by the same id, for those with more.
      *
-     * @var list<string>
+     * @var array<string, string>
      */
-    public array $newestFirst = [];
+    public array $threadCursors = [];
 
     /**
-     * Threads opened in place with more replies than they show.
+     * How many of each open thread's replies show, by the same id.
+     *
+     * @var array<string, int>
+     */
+    public array $threadShown = [];
+
+    /**
+     * Open threads that have had a page after their first.
      *
      * @var list<string>
      */
-    public array $threadsWithMore = [];
+    public array $pagedThreads = [];
+
+    /**
+     * Rows drawn see-through: a page about to fade in, or a thread fading out.
+     * A reply's row goes by its id, a thread's "Show more" by "more-" and the
+     * thread's id.
+     *
+     * @var list<string>
+     */
+    public array $fadedRows = [];
+
+    /**
+     * Threads fading out, still drawn until they've faded.
+     *
+     * @var list<string>
+     */
+    public array $closingThreads = [];
 
     public function toggleReplies(string $id): void
     {
         if (array_key_exists($id, $this->threads)) {
-            $this->closeThread($id);
+            $this->fadeOut($id);
 
             return;
         }
@@ -56,37 +87,96 @@ trait ExpandsThreads
 
         if ($kept === null) {
             $this->loadThread($id);
-
-            return;
+        } else {
+            $this->takeThread($id, $kept);
+            $this->refreshThread($id);
         }
 
-        $this->takeThread($id, $kept);
-        $this->refreshThread($id);
+        if (array_key_exists($id, $this->threads)) {
+            $this->threadShown[$id] = min(Client::RepliesPerPage, count($this->threads[$id]));
+            $this->fadeIn($this->rowsOf($id, $this->shownReplies($id)));
+        }
     }
 
     /**
-     * "Show more" under the newest reply: the rest of the thread, in place.
+     * "Show more" under an open thread: its next page, under what's showing.
      */
     public function showMoreReplies(string $id): void
     {
-        if (array_key_exists($id, $this->threads)) {
+        if (! $this->isOpenThread($id)) {
             return;
         }
 
-        if (! in_array($id, $this->newestFirst, true)) {
-            $this->newestFirst[] = $id;
-        }
+        $shown = $this->threadShown[$id] ?? count($this->threads[$id]);
 
-        $kept = $this->cached('commits/'.$id.'/replies');
-
-        if ($kept === null) {
-            $this->loadThread($id);
-
+        if ($shown >= count($this->threads[$id]) && ! $this->loadNextPage($id)) {
             return;
         }
 
-        $this->takeThread($id, $kept);
-        $this->refreshThread($id);
+        $this->threadShown[$id] = min($shown + Client::RepliesPerPage, count($this->threads[$id]));
+        $this->fadeIn($this->rowsOf($id, array_slice($this->threads[$id], $shown, $this->threadShown[$id] - $shown)));
+    }
+
+    /**
+     * The replies of an open thread that show.
+     *
+     * @return list<Commit>
+     */
+    public function shownReplies(string $id): array
+    {
+        return array_slice($this->threads[$id] ?? [], 0, $this->threadShown[$id] ?? null);
+    }
+
+    /**
+     * Whether an open thread has replies past those that show, kept or still to ask for.
+     */
+    public function hasMoreReplies(string $id): bool
+    {
+        return isset($this->threadCursors[$id]) || count($this->shownReplies($id)) < count($this->threads[$id] ?? []);
+    }
+
+    /**
+     * Asks for the page after an open thread's replies, under them. False when there's none or it didn't come.
+     */
+    private function loadNextPage(string $id): bool
+    {
+        $cursor = $this->threadCursors[$id] ?? null;
+
+        if ($cursor === null) {
+            return false;
+        }
+
+        $page = $this->attempt(fn ($devnull) => $devnull->replies($id, $cursor));
+
+        if ($page === null || ! $this->isOpenThread($id)) {
+            return false;
+        }
+
+        $loaded = array_flip(array_map(fn (Commit $reply): string => $reply->id, $this->threads[$id]));
+        $added = array_values(array_filter($page->items, fn (Commit $reply): bool => ! isset($loaded[$reply->id])));
+
+        $this->threads[$id] = [...$this->threads[$id], ...$added];
+        $this->keepCursor($id, $page->nextCursor);
+        $this->pagedThreads = array_values(array_unique([...$this->pagedThreads, $id]));
+
+        return $added !== [];
+    }
+
+    /**
+     * Whether a thread shows, and isn't on its way out.
+     */
+    public function isOpenThread(string $id): bool
+    {
+        return array_key_exists($id, $this->threads) && ! in_array($id, $this->closingThreads, true);
+    }
+
+    /**
+     * Closes every thread at once, for a list that starts again.
+     */
+    protected function forgetThreads(): void
+    {
+        $this->threads = $this->threadCursors = $this->threadShown = $this->pagedThreads = [];
+        $this->fadedRows = $this->closingThreads = [];
     }
 
     /**
@@ -103,7 +193,7 @@ trait ExpandsThreads
     {
         $this->refresh('commits/'.$id.'/replies', [], function (array $json) use ($id): void {
             // Closed while it was on its way.
-            if (array_key_exists($id, $this->threads)) {
+            if ($this->isOpenThread($id)) {
                 $this->takeThread($id, $json);
             }
         });
@@ -118,6 +208,9 @@ trait ExpandsThreads
     }
 
     /**
+     * A thread's first page, over what it showed. Pages loaded after the first
+     * stay, past what it holds, with their own cursor.
+     *
      * @param  Page<Commit>  $page
      */
     private function openThread(string $id, Page $page): void
@@ -129,33 +222,111 @@ trait ExpandsThreads
             return;
         }
 
-        if (! in_array($id, $this->newestFirst, true)) {
-            $this->threads[$id] = $page->items;
-            $this->threadsWithMore = array_values(array_diff($this->threadsWithMore, [$id]));
-
-            if ($page->hasMore()) {
-                $this->threadsWithMore[] = $id;
-            }
+        // With only the first page loaded, the fresh one is the whole thread: a reply that's gone goes.
+        if (in_array($id, $this->pagedThreads, true)) {
+            $fresh = array_flip(array_map(fn (Commit $reply): string => $reply->id, $page->items));
+            $later = array_values(array_filter(array_slice($this->threads[$id], count($page->items)), fn (Commit $reply): bool => ! isset($fresh[$reply->id])));
+            $this->threads[$id] = [...$page->items, ...$later];
 
             return;
         }
 
-        // More than a page: the newest replies aren't on it, so the commit's page shows them.
-        if ($page->hasMore()) {
-            $this->closeThread($id);
-            $this->newestFirst = array_values(array_diff($this->newestFirst, [$id]));
-            $this->openReplies($id);
-
-            return;
-        }
-
-        $this->threads[$id] = array_reverse($page->items);
+        $this->threads[$id] = $page->items;
+        $this->keepCursor($id, $page->nextCursor);
     }
 
+    private function keepCursor(string $id, ?string $cursor): void
+    {
+        unset($this->threadCursors[$id]);
+
+        if ($cursor !== null) {
+            $this->threadCursors[$id] = $cursor;
+        }
+    }
+
+    /**
+     * Takes a thread out, and the replies opened in it.
+     */
     private function closeThread(string $id): void
     {
-        unset($this->threads[$id]);
-        $this->threadsWithMore = array_values(array_diff($this->threadsWithMore, [$id]));
+        foreach ($this->threads[$id] ?? [] as $reply) {
+            $this->closeThread($reply->id);
+        }
+
+        unset($this->threads[$id], $this->threadCursors[$id], $this->threadShown[$id]);
+        $this->pagedThreads = array_values(array_diff($this->pagedThreads, [$id]));
+        $this->closingThreads = array_values(array_diff($this->closingThreads, [$id]));
+    }
+
+    /**
+     * Draws rows see-through for a frame, then as they are, which they fade to.
+     *
+     * @param  list<string>  $rows
+     */
+    private function fadeIn(array $rows): void
+    {
+        if ($rows === []) {
+            return;
+        }
+
+        $this->fadedRows = array_values(array_unique([...$this->fadedRows, ...$rows]));
+
+        $shown = fn () => $this->fadedRows = array_values(array_diff($this->fadedRows, $rows));
+
+        Beat::dispatch(Beat::Step)->finished($shown)->failed($shown);
+    }
+
+    /**
+     * Fades a thread's rows out, and the replies opened in it, then takes them out.
+     */
+    private function fadeOut(string $id): void
+    {
+        if (in_array($id, $this->closingThreads, true)) {
+            return;
+        }
+
+        $rows = $this->rowsInside($id);
+        $this->closingThreads[] = $id;
+        $this->fadedRows = array_values(array_unique([...$this->fadedRows, ...$rows]));
+
+        $closed = function () use ($id, $rows): void {
+            $this->closeThread($id);
+            $this->fadedRows = array_values(array_diff($this->fadedRows, $rows));
+        };
+
+        Beat::dispatch(ThreadRows::Fade)->finished($closed)->failed($closed);
+    }
+
+    /**
+     * The rows of $replies in a thread, and its "Show more" when it has more.
+     *
+     * @param  list<Commit>  $replies
+     * @return list<string>
+     */
+    private function rowsOf(string $id, array $replies): array
+    {
+        return [
+            ...array_map(fn (Commit $reply): string => $reply->id, $replies),
+            ...($this->hasMoreReplies($id) ? ['more-'.$id] : []),
+        ];
+    }
+
+    /**
+     * Every row a thread draws, the replies opened inside it included.
+     *
+     * @return list<string>
+     */
+    private function rowsInside(string $id): array
+    {
+        $rows = $this->rowsOf($id, $this->shownReplies($id));
+
+        foreach ($this->shownReplies($id) as $reply) {
+            if (array_key_exists($reply->id, $this->threads)) {
+                $rows = [...$rows, ...$this->rowsInside($reply->id)];
+            }
+        }
+
+        return $rows;
     }
 
     /**

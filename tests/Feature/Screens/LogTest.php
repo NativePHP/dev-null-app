@@ -446,7 +446,7 @@ it('reads each image out by the description its author gave it, as the web does 
     ],
 ]);
 
-it('puts the web action row under each commit: the star, Quote, Reply and replies, then More', function () {
+it('puts the web action row under each commit: the star, Quote, Reply, then More, with the replies on a line below', function () {
     $ada = userJson(['id' => 'u2', 'handle' => 'ada']);
 
     Http::fake(['devnull.test/*' => Http::response(pageJson([
@@ -467,8 +467,9 @@ it('puts the web action row under each commit: the star, Quote, Reply and replie
         // Someone else's pending commit can't be starred or quoted, so the web leaves them off.
         ->assertMissingElement('pressable', fn (array $node): bool => in_array($node['ref'] ?? null, ['star-c0', 'quote-c0'], true));
 
-    // The web's order: star, Quote, Reply and replies on the left, then More for Share link and Report.
-    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'more-c2'])
+    // The web's order: star, Quote and Reply on the left, then More for Share link and Report. The replies are under them.
+    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'quote-c2', 'reply-to-c2', 'more-c2'])
+        ->and(findNode(nodeByRef($screen, 'actions-c2'), fn (array $node): bool => ($node['ref'] ?? null) === 'replies-c2'))->toBeNull()
         // Nor can it be reported, so all its menu has is the link.
         ->and(menuItems($screen, 'more-c0'))->toBe([['share-c0', 'Share link', 'custom:link']]);
 
@@ -484,6 +485,8 @@ it('puts the web action row under each commit: the star, Quote, Reply and replie
         ->and($icon('reply-to-c1')['props']['name'] ?? null)->toBe('custom:message-square-reply')
         ->and($icon('replies-c2')['props']['name'] ?? null)->toBe('custom:chevron-right')
         ->and($text('replies-c2', '1 reply')['props']['color'] ?? null)->toBe($primary)
+        ->and($text('quote-c1', 'Quote'))->not->toBeNull()
+        ->and($text('reply-to-c1', 'Reply'))->not->toBeNull()
         ->and($icon('more-c1')['props']['name'] ?? null)->toBe('custom:ellipsis')
         ->and($icon('more-c1')['props']['color'] ?? null)->toBe($muted);
 
@@ -616,7 +619,11 @@ it('opens a thread in place, as the web does, and closes it again', function () 
         ->assertSee('This commit was deleted.')
         ->assertSee('Hide replies');
 
-    expect(findNode(nodeByRef($screen, 'replies-c2'), fn (array $node): bool => ($node['type'] ?? null) === 'icon')['props']['name'] ?? null)->toBe('custom:chevron-down');
+    // The chevron turns down, which the phone animates.
+    $chevron = findNode(nodeByRef($screen, 'replies-c2'), fn (array $node): bool => ($node['type'] ?? null) === 'icon');
+    expect($chevron['props']['name'] ?? null)->toBe('custom:chevron-right')
+        ->and($chevron['props']['rotate'] ?? null)->toBe(90.0)
+        ->and($chevron['props']['animate-duration'] ?? null)->toBeGreaterThan(0.0);
 
     // Its replies get the same actions, and open their own page.
     $screen->tap('star-r1');
@@ -627,24 +634,29 @@ it('opens a thread in place, as the web does, and closes it again', function () 
     Native::visit('/log')->tap('replies-c2')->tap('thread-reply-r1')->assertNavigatedTo('/log/commits/r1');
 });
 
-it('opens five replies of a thread in place, and the rest on its commit page from Show more', function () {
-    fakeApi([
-        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c2', 'replies_count' => 7])])],
-        'GET /api/v1/commits/c2/replies' => [pageJson(array_map(fn (int $n): array => replyJson(['id' => "r{$n}", 'parent_id' => 'c2', 'body' => "Reply {$n}"]), range(1, 5)), 'page2', 'http://devnull.test/api/v1/commits/c2/replies')],
-        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2', 'replies_count' => 7]))],
-    ]);
+it('opens ten replies of a thread in place, and the next ten under them from Show more', function () {
+    $replies = fn (int $from, int $to): array => array_map(fn (int $n): array => replyJson(['id' => "r{$n}", 'parent_id' => 'c2', 'body' => "Reply {$n}"]), range($from, $to));
 
-    Native::visit('/log', platform: 'ios')
+    Http::fake(fn (Request $request) => Http::response(match (true) {
+        str_contains($request->url(), '/log/following') => pageJson([commitJson(['id' => 'c2', 'replies_count' => 13])]),
+        str_contains($request->url(), 'cursor=page2') => pageJson($replies(11, 13), path: 'http://devnull.test/api/v1/commits/c2/replies'),
+        default => pageJson($replies(1, 10), 'page2', 'http://devnull.test/api/v1/commits/c2/replies'),
+    }));
+
+    $screen = Native::visit('/log', platform: 'ios')
         ->tap('replies-c2')
         ->assertNoNavigation()
-        ->assertSee('Reply 5')
+        ->assertSee('Reply 10')
+        ->assertDontSee('Reply 11')
         ->tap('more-replies-c2')
-        ->assertNavigatedTo('/log/commits/c2')
-        ->follow()
-        ->assertSet('repliesShown', true)
-        ->assertSee('Reply 5');
+        ->assertNoNavigation()
+        ->assertSee('Reply 13')
+        ->assertDontSee('Show more');
 
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/c2/replies?limit=5');
+    expect(array_map(fn ($reply): string => $reply->id, $screen->instance()->threads['c2']))->toBe(array_map(fn (int $n): string => "r{$n}", range(1, 13)));
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/c2/replies?limit=10');
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/c2/replies?cursor=page2&limit=10');
 });
 
 it('closes a thread whose replies have all gone', function () {
