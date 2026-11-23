@@ -51,12 +51,13 @@ final readonly class ScheduledCommit
         $previewSegments = is_array($data['preview_segments'] ?? null) ? array_values(array_filter($data['preview_segments'], is_array(...))) : null;
         $options = is_array($data['poll_options'] ?? null) ? array_values(array_filter($data['poll_options'], is_string(...))) : null;
         $status = $data['status'] ?? null;
+        $guilds = Guild::mentions($data['guild_mentions'] ?? null);
 
         return new self(
             id: (string) ($data['id'] ?? ''),
             body: $body,
-            content: $body === null ? [] : CommitBody::blocks($body, $segments),
-            previewContent: $body === null || $previewSegments === null ? null : CommitBody::blocks($body, $previewSegments),
+            content: $body === null ? [] : CommitBody::blocks($body, $segments, guilds: $guilds),
+            previewContent: $body === null || $previewSegments === null ? null : CommitBody::blocks($body, $previewSegments, guilds: $guilds),
             pollOptions: $options,
             imageCount: max(0, (int) ($data['image_count'] ?? 0)),
             scheduledAt: Commit::date($data['scheduled_at'] ?? null) ?? CarbonImmutable::now(),

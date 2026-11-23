@@ -13,8 +13,13 @@
     A hex color has a square of that color before it, as the web's swatch, held to it by a narrow no-break space so
     they wrap together.
 
-    A hashtag is medium weight in Commit Blue and searches commits for it on a tap, as the web's. In the composer's
-    preview ($static), as in the web's static preview, it stays plain text.
+    A hashtag is medium weight in Commit Blue and searches commits for it on a tap, as the web's. One that names a
+    guild is a chip instead, as the web's guild mention is, opening the guild: its name in medium mono on a wash, in a lane
+    colour picked from its handle (see Guild::lane), as text runs can't hold its icon. It's 14pt so its letters sit
+    near the middle of the wash, which fills the whole line's height. Text runs can't take padding, so a thin space
+    in the body font sits on the wash at each end (a mono one would be a whole character wide), held to the name by
+    word joiners. They can't round it either. In the composer's preview ($static), as in the web's static preview,
+    it stays plain text.
 
     A quote, lines that start with ">", sits behind an amber rule on the left like the web's blockquote, its
     runs drawn as a paragraph's.
@@ -32,6 +37,8 @@
 @php($ink = ($muted ?? false) ? 'text-theme-ink-muted' : 'text-theme-ink')
 @php($folded = ! ($focused ?? false) && $commit->isFolded() && ! in_array($commit->id, $unfolded ?? [], true))
 @php($linkIndex = 0)
+@php($chipStart = "\u{2009}\u{2060}")
+@php($chipEnd = "\u{2060}\u{2009}")
 @foreach ($folded ? $commit->previewContent : $commit->content as $block)
     @if ($block->isCode())
         <native:column class="w-full mt-1 mb-1 rounded-md border border-theme-hairline bg-theme-wash">
@@ -55,6 +62,8 @@
 <native:text :text="$run->link->shown" class="text-theme-primary" @press="openLink('{{ $commit->id }}', {{ $linkIndex++ }})" />
 @elseif ($run->isColor())
 <native:text><native:text text="■" class="text-[#{{ $run->color }}] dark:text-[#{{ $run->color }}]" />&#x202F;<native:text :text="$run->text" /></native:text>
+@elseif ($run->guild && ! ($static ?? false))
+<native:text @press="openGuild('{{ $run->guild->handle }}')"><native:text :text="$chipStart" class="text-[14px] bg-theme-wash" /><native:text :text="$run->guild->name" font="mono-medium" class="text-[14px] text-theme-{{ \App\Devnull\Lane::token($run->guild->lane()) }} bg-theme-wash" /><native:text :text="$chipEnd" class="text-[14px] bg-theme-wash" /></native:text>
 @elseif ($run->isHashtag && ! ($static ?? false))
 <native:text :text="$run->text" font="medium" class="font-medium text-theme-primary" @press="openHashtag('{{ $run->text }}')" />
 @elseif ($run->isWordmark)

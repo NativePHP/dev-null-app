@@ -125,6 +125,9 @@ final readonly class Commit
             $previewSegments = null;
         }
 
+        $guild = self::guild($data);
+        $guilds = Guild::mentions($data['guild_mentions'] ?? null, $guild);
+
         return new self(
             id: $id,
             body: $body,
@@ -140,7 +143,7 @@ final readonly class Commit
             mentions: $mentions,
             linkPreview: is_array($data['link_preview'] ?? null) ? LinkPreview::fromArray($data['link_preview']) : null,
             images: self::listOf($data['images'] ?? null, CommitImage::fromArray(...)),
-            content: CommitBody::blocks($scoreCard === null ? $body : ScoreCard::withoutRun($body), $segments, $mentions),
+            content: CommitBody::blocks($scoreCard === null ? $body : ScoreCard::withoutRun($body), $segments, $mentions, $guilds),
             parent: is_array($data['parent'] ?? null) ? self::fromArray($data['parent']) : null,
             shortHash: is_string($data['short_hash'] ?? null) && $data['short_hash'] !== '' ? $data['short_hash'] : Display::shortHash($id),
             seriesId: is_string($data['series_id'] ?? null) ? $data['series_id'] : null,
@@ -149,11 +152,11 @@ final readonly class Commit
             poll: is_array($data['poll'] ?? null) ? Poll::fromArray($data['poll']) : null,
             quotedCommitId: is_scalar($data['quoted_commit_id'] ?? null) && (string) $data['quoted_commit_id'] !== '' ? (string) $data['quoted_commit_id'] : null,
             quotedCommit: is_array($data['quoted_commit'] ?? null) ? self::fromArray($data['quoted_commit']) : null,
-            previewContent: $previewSegments === null ? null : CommitBody::blocks($body, $previewSegments, $mentions),
+            previewContent: $previewSegments === null ? null : CommitBody::blocks($body, $previewSegments, $mentions, $guilds),
             replyPreview: is_array($data['reply_preview'] ?? null) ? ReplyPreview::fromArray($data['reply_preview']) : null,
             pasteisCount: max(0, (int) ($data['pasteis_count'] ?? 0)),
             scoreCard: $scoreCard,
-            guild: self::guild($data),
+            guild: $guild,
         );
     }
 

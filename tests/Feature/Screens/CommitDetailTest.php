@@ -631,6 +631,53 @@ it('links a hashtag to a search for it in the tab, leaving a hex color and code 
     expect($screen->instance()->getNavigationIntent()->data)->toBe(['query' => '#laravel']);
 });
 
+it('draws a guild hashtag as a chip with its name in its lane colour that opens the guild, and any other hashtag as a search', function () {
+    fakeThread([
+        'body' => 'Ship #ANDROID and #rust, not #laravel',
+        'guild_mentions' => [
+            'android' => ['handle' => 'android', 'name' => 'Android Devs', 'emoji' => '🤖', 'icon_url' => null],
+            'rust' => ['handle' => 'rust', 'name' => 'Rustaceans', 'emoji' => '💻', 'icon_url' => 'https://dev-null.sh/guild-icons/rust.png'],
+        ],
+    ]);
+
+    $screen = Native::visit('/log/commits/c2');
+
+    expect(paragraphRuns($screen, 'Ship'))->toBe([
+        ['Ship '],
+        ["\u{2009}Android Devs\u{2009}", 'link'],
+        [' and '],
+        ["\u{2009}Rustaceans\u{2009}", 'link'],
+        [', not '],
+        ['#laravel', 'hashtag'],
+    ]);
+
+    $chip = findNode($screen->tree(), fn (array $node): bool => ($node['props']['text'] ?? null) === 'Android Devs');
+
+    // #android hashes to lane 3, teal.
+    expect($chip['props']['font_name'] ?? null)->toBe('mono-medium')
+        ->and($chip['style']['bg_color'] ?? null)->not->toBeNull()
+        ->and(strtolower($chip['props']['color']))->toBe(strtolower((string) config('native-ui.theme.light.lane-3')));
+
+    $screen->press("openGuild('android')")->assertNavigatedTo('/log/guilds/android');
+});
+
+it('links its own guild\'s hashtag in a commit posted there, even without guild mentions', function () {
+    fakeThread(['body' => 'Hello #rust', 'guild' => ['handle' => 'rust', 'name' => 'Rustaceans', 'emoji' => '🦀']]);
+
+    expect(paragraphRuns(Native::visit('/log/commits/c2'), 'Hello'))->toBe([['Hello '], ["\u{2009}Rustaceans\u{2009}", 'link']]);
+});
+
+it('names its own guild as devnull mentions it when the commit only knows that guild\'s handle', function () {
+    fakeThread([
+        'body' => 'Hello #rust',
+        'guild' => null,
+        'guild_handle' => 'rust',
+        'guild_mentions' => ['rust' => ['handle' => 'rust', 'name' => 'Rustaceans', 'emoji' => '🦀', 'icon_url' => null]],
+    ]);
+
+    expect(paragraphRuns(Native::visit('/log/commits/c2'), 'Hello'))->toBe([['Hello '], ["\u{2009}Rustaceans\u{2009}", 'link']]);
+});
+
 it('draws a hex color after a square of that color, in light and dark mode alike', function () {
     $body = 'Brand orange is #ff8a4c, not #123';
 

@@ -9,6 +9,7 @@ use App\Devnull\Exceptions\ApiException;
 use App\Devnull\SiteLink;
 use App\Devnull\Timezone;
 use App\Devnull\Toasts;
+use App\NativeComponents\Concerns\OpensGuilds;
 use App\NativeComponents\Concerns\OpensHashtags;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\RefreshesInBackground;
@@ -37,6 +38,7 @@ use Native\Mobile\Facades\Browser;
  */
 class ScheduledCommits extends NativeComponent
 {
+    use OpensGuilds;
     use OpensHashtags;
     use OpensInTab;
     use RefreshesInBackground;
