@@ -27,6 +27,7 @@ use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\AttachesPhotos;
 use App\NativeComponents\Concerns\LeavesGonePush;
+use App\NativeComponents\Concerns\OpensGuilds;
 use App\NativeComponents\Concerns\OpensHashtags;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\PlaysVoiceNotes;
@@ -116,6 +117,7 @@ class Conversation extends NativeComponent
 {
     use AttachesPhotos;
     use LeavesGonePush;
+    use OpensGuilds;
     use OpensHashtags;
     use OpensInTab;
     use PlaysVoiceNotes;

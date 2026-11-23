@@ -42,3 +42,10 @@ it('keeps the icon url devnull sent', function () {
         ->and(Guild::fromArray(['handle' => 'go', 'icon_url' => ''])->iconUrl)->toBeNull()
         ->and(Guild::fromArray(['handle' => 'php'])->iconUrl)->toBeNull();
 });
+
+it('takes a lane colour from its handle, the same whatever its case', function () {
+    expect(Guild::fromArray(['handle' => 'android'])->lane())->toBe(3)
+        ->and(Guild::fromArray(['handle' => 'Android'])->lane())->toBe(3)
+        ->and(Guild::fromArray(['handle' => 'apple'])->lane())->toBe(2)
+        ->and(Guild::fromArray(['handle' => 'nativephp'])->lane())->toBe(5);
+});

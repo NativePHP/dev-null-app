@@ -754,6 +754,22 @@ it('links a hashtag in a message to a search for it in the tab', function () {
     $screen->press("openHashtag('#nativephp')")->assertNavigatedTo('/remotes/search');
 });
 
+it('links a guild hashtag in a message to its guild by name', function () {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => 'loving #android lately', 'guild_mentions' => ['android' => ['handle' => 'android', 'name' => 'Android', 'emoji' => '🤖', 'icon_url' => null]]]),
+    ], ['read_through_id' => 1]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+
+    expect(paragraphRuns($screen, 'loving'))->toBe([
+        ['loving '],
+        ['Android', 'link'],
+        [' lately'],
+    ]);
+
+    $screen->press("openGuild('android')")->assertNavigatedTo('/remotes/guilds/android');
+});
+
 it('opens no link preview that is not a web page', function () {
     serveRemoteThread(threadJson([
         remoteMessageJson(['id' => 1, 'body' => 'Tap me', 'link_preview' => ['url' => 'javascript:alert(1)', 'title' => 'Tap me']]),

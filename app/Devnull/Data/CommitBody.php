@@ -114,9 +114,10 @@ final class CommitBody
     /**
      * @param  list<array<string, mixed>>|null  $segments  The `body_segments`, or null when the API sent none.
      * @param  list<Mention>  $mentions
+     * @param  array<string, Guild>  $guilds  The guilds mentioned by hashtag, keyed by lowercase handle (see Guild::mentions()).
      * @return list<BodyBlock>
      */
-    public static function blocks(string $body, ?array $segments, array $mentions = []): array
+    public static function blocks(string $body, ?array $segments, array $mentions = [], array $guilds = []): array
     {
         $segments ??= $body === '' ? [] : [['type' => 'text', 'text' => $body]];
 
@@ -166,7 +167,7 @@ final class CommitBody
 
                     break;
                 case 'block':
-                    array_push($blocks, ...self::paragraphs($runs));
+                    array_push($blocks, ...self::paragraphs(self::withGuilds($runs, $guilds)));
                     $runs = [];
 
                     [$code, $cursor] = self::fencedCode($body, $cursor);
@@ -178,9 +179,30 @@ final class CommitBody
             }
         }
 
-        array_push($blocks, ...self::paragraphs($runs));
+        array_push($blocks, ...self::paragraphs(self::withGuilds($runs, $guilds)));
 
         return $blocks;
+    }
+
+    /**
+     * Gives each hashtag that names a guild that guild, matched without case as devnull matches it, so it opens the
+     * guild rather than a search, as the web's guild mentions do.
+     *
+     * @param  list<BodyRun>  $runs
+     * @param  array<string, Guild>  $guilds
+     * @return list<BodyRun>
+     */
+    private static function withGuilds(array $runs, array $guilds): array
+    {
+        if ($guilds === []) {
+            return $runs;
+        }
+
+        return array_map(function (BodyRun $run) use ($guilds): BodyRun {
+            $guild = $run->isHashtag ? ($guilds[mb_strtolower(ltrim($run->text, '#'))] ?? null) : null;
+
+            return $guild === null ? $run : new BodyRun($run->text, isHashtag: true, guild: $guild);
+        }, $runs);
     }
 
     /**

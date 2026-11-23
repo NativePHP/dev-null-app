@@ -89,6 +89,7 @@ final readonly class Message
                     fn (mixed $mention): ?Mention => is_array($mention) ? Mention::fromArray($mention) : null,
                     is_array($data['mentions'] ?? null) ? $data['mentions'] : [],
                 ))),
+                Guild::mentions($data['guild_mentions'] ?? null),
             ),
             replyToId: is_int($data['reply_to_id'] ?? null) ? $data['reply_to_id'] : null,
             replyTo: $replyTo === null ? null : [

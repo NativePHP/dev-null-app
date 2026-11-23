@@ -11,6 +11,7 @@ use Native\Mobile\Edge\Enums\AlignItems;
 use Native\Mobile\Edge\TailwindParser;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
+use Native\Mobile\Testing\TestableComponent;
 use Tests\Support\GlassOpacity;
 use Tests\Support\ScrollEdge;
 
@@ -700,6 +701,41 @@ it('draws code blocks as mono text in a hairline box, from the body rather than 
     $screen->press("openProfile('ada')")->assertNavigatedTo('/log/users/ada');
 });
 
+/**
+ * A paragraph drawn as rows of words and guild pills (see BodyFlow), line by line: [text] for a word, [name, 'guild']
+ * for a pill, and [text, kind] for a word that's a mention, hashtag, link or code, as paragraphRuns names them.
+ *
+ * @return list<list<array{0: string, 1?: string}>>
+ */
+function bodyLines(TestableComponent $screen, string $text): array
+{
+    $column = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'column'
+        && ($node['children'] ?? []) !== []
+        && array_filter($node['children'], fn (array $child): bool => ($child['type'] ?? null) !== 'row') === []
+        && str_contains(json_encode($node, JSON_UNESCAPED_UNICODE), $text));
+
+    expect($column)->not->toBeNull("No rows of words with [{$text}] were rendered.");
+
+    return array_map(fn (array $row): array => array_map(function (array $piece): array {
+        if (str_starts_with($piece['ref'] ?? '', 'guild-mention-')) {
+            return [findNode($piece, fn (array $node): bool => ($node['props']['font_name'] ?? null) === 'mono-medium')['props']['text'], 'guild'];
+        }
+
+        $run = $piece;
+        $text = $run['props']['text'] ?? implode('', array_map(fn (array $part): string => $part['props']['text'], $run['children'] ?? []));
+
+        return match (true) {
+            isset($run['on_press']) => [$text, match (true) {
+                str_starts_with($text, '@') => 'mention',
+                str_starts_with($text, '#') => 'hashtag',
+                default => 'link',
+            }],
+            isset($run['style']['bg_color']) => [$text, 'code'],
+            default => [$text],
+        };
+    }, $row['children']), $column['children']);
+}
+
 it('links a hashtag to a search for it in the tab, leaving a hex color and code as they are', function () {
     $body = 'Shipped #laravel in #fff and `#code`';
 
@@ -725,6 +761,113 @@ it('links a hashtag to a search for it in the tab, leaving a hex color and code 
     $screen->press("openHashtag('#laravel')")->assertNavigatedTo('/log/search');
 
     expect($screen->instance()->getNavigationIntent()->data)->toBe(['query' => '#laravel']);
+});
+
+it('draws a guild hashtag as a pill with its mark and name that opens the guild, and any other hashtag as a search', function () {
+    $icon = 'https://dev-null.sh/api/v1/guilds/rust/icon?expires='.(time() + 3600).'&signature=x';
+
+    fakeThread([
+        'body' => 'Ship #ANDROID and #rust, not #laravel',
+        'guild_mentions' => [
+            'android' => ['handle' => 'android', 'name' => 'Android Devs', 'emoji' => '🤖', 'icon_url' => null],
+            'rust' => ['handle' => 'rust', 'name' => 'Rustaceans', 'emoji' => '💻', 'icon_url' => $icon],
+        ],
+    ]);
+
+    $screen = Native::visit('/log/commits/c2');
+
+    expect(bodyLines($screen, 'Android Devs'))->toBe([[
+        ['Ship'],
+        ['Android Devs', 'guild'],
+        ['and'],
+        ['Rustaceans', 'guild'],
+        [','],
+        ['not'],
+        ['#laravel', 'hashtag'],
+    ]]);
+
+    expect(nodeByRef($screen, 'guild-mention-c2-0')['props']['a11y_label'])->toBe('Android Devs, #android')
+        ->and(nodeByRef($screen, 'guild-mention-c2-0-mark')['props']['text'] ?? null)->toBe('🤖')
+        ->and(nodeByRef($screen, 'guild-mention-c2-1-mark')['type'])->toBe('image')
+        ->and(nodeByRef($screen, 'guild-mention-c2-1-mark')['props']['src'])->toBe($icon);
+
+    $screen->press("openGuild('android')")->assertNavigatedTo('/log/guilds/android');
+});
+
+it('keeps the words around a guild pill as they look in text, and the lines without one as text', function () {
+    $body = "Ask @ada in #rust about `cargo`\nthen read https://rust-lang.org";
+
+    fakeThread([
+        'body' => $body,
+        'body_segments' => [
+            ['type' => 'text', 'text' => 'Ask @ada in #rust about '],
+            ['type' => 'code', 'code' => 'cargo'],
+            ['type' => 'text', 'text' => "\nthen read https://rust-lang.org"],
+        ],
+        'mentions' => [['handle' => 'ada', 'offset' => 4, 'length' => 4]],
+        'guild_mentions' => ['rust' => ['handle' => 'rust', 'name' => 'Rustaceans', 'emoji' => '🦀', 'icon_url' => null]],
+    ]);
+
+    $screen = Native::visit('/log/commits/c2');
+
+    expect(bodyLines($screen, 'Rustaceans'))->toBe([
+        [['Ask'], ['@ada', 'mention'], ['in'], ['Rustaceans', 'guild'], ['about'], ['cargo', 'code']],
+    ])->and(paragraphRuns($screen, 'then read'))->toBe([['then read '], ['rust-lang.org', 'link']]);
+
+    $screen->press("openProfile('ada')")->assertNavigatedTo('/log/users/ada');
+});
+
+it('keeps the lines around a line of guild pills as text, with their blank lines', function () {
+    fakeThread([
+        'body' => "Here are my guilds\n\n#rust #android\n\nThat'll do",
+        'guild_mentions' => [
+            'rust' => ['handle' => 'rust', 'name' => 'Rustaceans', 'emoji' => '🦀', 'icon_url' => null],
+            'android' => ['handle' => 'android', 'name' => 'Android Devs', 'emoji' => '🤖', 'icon_url' => null],
+        ],
+    ]);
+
+    $screen = Native::visit('/log/commits/c2');
+
+    expect(paragraphRuns($screen, 'Here are my guilds'))->toBe([['Here are my guilds'], ["\n"]])
+        ->and(bodyLines($screen, 'Rustaceans'))->toBe([[['Rustaceans', 'guild'], ['Android Devs', 'guild']]])
+        ->and(paragraphRuns($screen, "That'll do"))->toBe([["\n"], ["That'll do"]]);
+});
+
+it('numbers the links after a paragraph with a guild pill as the body orders them', function () {
+    $body = "See https://one.dev in #rust\n```\nnpm i\n```\nThen https://two.dev";
+
+    fakeThread([
+        'body' => $body,
+        'body_segments' => [
+            ['type' => 'text', 'text' => 'See https://one.dev in #rust'],
+            ['type' => 'block', 'language' => null, 'html' => 'npm i'],
+            ['type' => 'text', 'text' => 'Then https://two.dev'],
+        ],
+        'guild_mentions' => ['rust' => ['handle' => 'rust', 'name' => 'Rustaceans', 'emoji' => '🦀', 'icon_url' => null]],
+    ]);
+
+    Native::visit('/log/commits/c2')
+        ->press("openLink('c2', 0)")
+        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://one.dev')
+        ->press("openLink('c2', 1)")
+        ->assertNativeCalled('Browser.OpenInApp', fn (array $params): bool => $params['url'] === 'https://two.dev');
+});
+
+it('draws its own guild\'s hashtag as a pill in a commit posted there, even without guild mentions', function () {
+    fakeThread(['body' => 'Hello #rust', 'guild' => ['handle' => 'rust', 'name' => 'Rustaceans', 'emoji' => '🦀']]);
+
+    expect(bodyLines(Native::visit('/log/commits/c2'), 'Rustaceans'))->toBe([[['Hello'], ['Rustaceans', 'guild']]]);
+});
+
+it('names its own guild as devnull mentions it when the commit only knows that guild\'s handle', function () {
+    fakeThread([
+        'body' => 'Hello #rust',
+        'guild' => null,
+        'guild_handle' => 'rust',
+        'guild_mentions' => ['rust' => ['handle' => 'rust', 'name' => 'Rustaceans', 'emoji' => '🦀', 'icon_url' => null]],
+    ]);
+
+    expect(bodyLines(Native::visit('/log/commits/c2'), 'Rustaceans'))->toBe([[['Hello'], ['Rustaceans', 'guild']]]);
 });
 
 it('draws a hex color after a square of that color, in light and dark mode alike', function () {
