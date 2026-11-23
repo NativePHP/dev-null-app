@@ -85,7 +85,7 @@ it('leaves pastéis out of the rows while the mode is off, as the web hides them
 
     $screen = Native::visit('/log', platform: 'ios')->assertSee('3 replies');
 
-    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'more-c2'])
+    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'quote-c2', 'reply-to-c2', 'more-c2', 'end-dot'])
         ->and(findNode($screen->tree(), fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'pastel')))->toBeNull()
         ->and(findNode($screen->tree(), fn (array $node): bool => ($node['props']['src'] ?? null) === Pasteis::Image))->toBeNull();
 
@@ -103,7 +103,7 @@ it('puts the pastel and its count beside the star in pastéis mode', function ()
 
     $screen = Native::visit('/log', platform: 'ios');
 
-    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'pastel-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'more-c2'])
+    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'pastel-c2', 'quote-c2', 'reply-to-c2', 'more-c2'])
         ->and(nodeByRef($screen, 'pastel-c2')['props']['a11y_label'])->toBe('Give a pastel, 3 pastéis, 7 left today')
         ->and(nodeByRef($screen, 'pastel-c1')['props']['a11y_label'])->toBe('Give a pastel, 0 pastéis, 7 left today')
         // The web shows the count even when it's 0.
@@ -166,7 +166,7 @@ it("leaves the pastel off an organization's commits, since organizations can't b
 
     $screen = Native::visit('/log', platform: 'ios')->call('givePastel', 'c1');
 
-    expect(array_values(array_filter(childRefs($screen, 'actions-c1'))))->toBe(['star-c1', 'quote-c1', 'reply-to-c1', 'more-c1'])
+    expect(array_values(array_filter(childRefs($screen, 'actions-c1'))))->toBe(['star-c1', 'quote-c1', 'reply-to-c1', 'more-c1', 'end-dot'])
         ->and(nodeByRef($screen, 'pastel-c2'))->not->toBeNull()
         ->and(pasteisSent())->toBe([])
         ->and($screen->instance()->commits[1]->pasteisCount)->toBe(2);
@@ -295,11 +295,12 @@ it('gives pastéis to replies in a thread and on a commit page', function () {
     pasteisOn();
     $reply = commitJson(['id' => 'r1', 'parent_id' => 'c1', 'pasteis_count' => 1, 'author' => pastelAuthor()]);
     fakeApi([
-        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'replies_count' => 1, 'author' => pastelAuthor(), 'reply_preview' => ['data' => [$reply], 'next_cursor' => null]])])],
+        'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'replies_count' => 1, 'author' => pastelAuthor()])])],
+        'GET /api/v1/commits/c1/replies' => [pageJson([$reply])],
         'POST /api/v1/commits/r1/pasteis' => [pastelAnswer([...$reply, 'pasteis_count' => 2], remaining: 9)],
     ]);
 
-    $screen = Native::visit('/log', platform: 'ios')->tap('pastel-r1');
+    $screen = Native::visit('/log', platform: 'ios')->tap('replies-c1')->tap('pastel-r1');
 
     expect(pasteisSent())->toBe(['r1'])
         ->and(textInside($screen, 'pastel-r1'))->toBe('2');

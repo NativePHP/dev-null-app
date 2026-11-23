@@ -10,7 +10,8 @@
       'tombstone' a dashed Rail Gray ring where a deleted commit's avatar was
       'skeleton'  a wash disc, for a row still loading
       null        no node; a $previous segment then runs the full height of the row
-    $endsWithDot stops the $tail 20pt above the bottom at a lane dot, as the web ends a commit that's alone in its run.
+    $endsWithDot stops the $tail at a lane dot $endDotAt above the bottom (its middle), as the web ends a commit that's
+    alone in its run. A commit row draws that dot in its action row ($dotInActions), so the rail only runs to it.
     $replyTail runs a dashed line in the lane on down from the node, or from that dot, to the replies under the row.
     $avatarSize draws the avatar's ring smaller than its 48pt, centred in the same place.
 --}}
@@ -23,7 +24,8 @@
 @php($replyTail ??= false)
 @php($avatarSize ??= 48)
 @php($center = 32)
-@php($endDot = 20)
+@php($endDotAt ??= 20)
+@php($dotInActions ??= false)
 @php($segment = fn (int|string $lane): string => 'bg-theme-'.\App\Devnull\Lane::token($lane))
 
 @if ($node === null)
@@ -41,18 +43,19 @@
             @endforeach
         </native:column>
     @elseif ($tail !== null)
-        {{-- `bottom-0`, never `bottom-[0]`: EDGE reads an arbitrary zero inset as no inset, which leaves the tail no height. --}}
-        <native:column class="absolute top-[{{ $center }}] {{ $endsWithDot ? 'bottom-['.$endDot.']' : 'bottom-0' }} left-[31] w-[2] {{ $segment($tail) }}" />
+        {{-- `bottom-0`, never `bottom-[0]`: EDGE reads an arbitrary zero inset as no inset, which leaves the tail no height.
+             Ending at a dot, it stops 2pt into the dot's ring, which is in the same lane, so no gap shows. --}}
+        <native:column class="absolute top-[{{ $center }}] {{ $endsWithDot ? 'bottom-['.($endDotAt + 7).']' : 'bottom-0' }} left-[31] w-[2] {{ $segment($tail) }}" />
     @endif
 
     @if ($replyTail && $endsWithDot)
-        @include('native.partials.dashed-line', ['position' => 'bottom-0 h-['.$endDot.']', 'left' => 31.5, 'lane' => $lane])
+        @include('native.partials.dashed-line', ['position' => 'bottom-0 h-['.($endDotAt - 9).']', 'left' => 31.5, 'lane' => $lane])
     @elseif ($replyTail)
         @include('native.partials.dashed-line', ['position' => 'top-['.($node === 'dot' ? $center - 9 : $center).'] bottom-0', 'left' => 31.5, 'lane' => $lane])
     @endif
 
-    @if ($endsWithDot && $tail !== null)
-        @include('native.partials.rail-node', ['lane' => $tail, 'nodeRef' => 'end-dot', 'position' => 'absolute bottom-['.($endDot - 9).'] left-[23]'])
+    @if ($endsWithDot && $tail !== null && ! $dotInActions)
+        @include('native.partials.rail-node', ['lane' => $tail, 'nodeRef' => 'end-dot', 'position' => 'absolute bottom-['.($endDotAt - 9).'] left-[23]'])
     @endif
 
     {{-- The node itself takes its place on the rail, or the pressable around it does: no wrapper just to position it. --}}

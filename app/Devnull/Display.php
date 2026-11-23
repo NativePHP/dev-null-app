@@ -36,12 +36,6 @@ final class Display
     public const int HomeIndicatorHeight = 34;
 
     /**
-     * How far below the top of a reply's row its elbow comes level with the
-     * middle of the reply's avatar.
-     */
-    public const int ElbowLevel = 22;
-
-    /**
      * Classes for a screen's scrolling column: as wide as the screen on a phone, but a
      * comfortable 672pt line once the window reaches the expanded width (840pt, the inner
      * display of a foldable held sideways), centred by its parent (give the parent items-center).

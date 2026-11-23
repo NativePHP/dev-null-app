@@ -300,7 +300,7 @@ class Profile extends NativeComponent
         $this->tab = $tab;
         $this->listKey = $this->listKeys[$tab] ?? 0;
         $this->commits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->nextCursor = null;
         $this->commitsLoaded = false;
         $this->forgetNewCommits();
@@ -732,7 +732,7 @@ class Profile extends NativeComponent
     private function forgetShownCommits(): void
     {
         $this->commits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->nextCursor = null;
         $this->forgetNewCommits();
     }
