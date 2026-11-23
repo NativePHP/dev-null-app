@@ -51,19 +51,19 @@ it('opens on the commit under its parent, with the older ancestors and the repli
         ->assertSee('Reply to @local_dev');
 
     // The commit comes after the one it replies to, and the row standing in for what that replies to.
-    expect(childRefs($screen, 'thread-page'))->toBe(['earlier-commits', 'commit-c1', 'focused-commit', 'reply-bar-clearance']);
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['earlier-commits', 'commit-c1', 'focused-commit', 'reply-bar-clearance']);
 
     $screen->tap('earlier-commits')
         ->assertSee('The root commit')
         ->assertDontSee('1 earlier commit');
 
-    expect(childRefs($screen, 'thread-page'))->toBe(['commit-c0', 'commit-c1', 'focused-commit', 'reply-bar-clearance']);
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['commit-c0', 'commit-c1', 'focused-commit', 'reply-bar-clearance']);
 
     $screen->tap('replies-c2')
         ->assertSee('First reply')
         ->assertSee('Hide replies');
 
-    expect(childRefs($screen, 'thread-page'))->toBe(['commit-c0', 'commit-c1', 'focused-commit', 'thread-reply-r1', 'reply-bar-clearance']);
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['commit-c0', 'commit-c1', 'focused-commit', 'thread-reply-r1', 'reply-bar-clearance']);
 
     $screen->tap('replies-c2')
         ->assertDontSee('First reply')
@@ -84,7 +84,7 @@ it('brings the commit back up under its parent when you tap into the reply bar',
         ->assertSee('The parent commit')
         ->assertDontSee('The root commit');
 
-    expect(childRefs($screen, 'thread-page'))->toBe(['earlier-commits', 'commit-c1', 'focused-commit', 'reply-bar-clearance'])
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['earlier-commits', 'commit-c1', 'focused-commit', 'reply-bar-clearance'])
         ->and(nodeByRef($screen, 'thread-scroll')['id'])->not->toBe($before);
 });
 
@@ -287,7 +287,7 @@ it("hangs the replies under the commit on the web's thread, the rail ending in a
         ->and(findNode($screen->tree(), fn (array $node): bool => str_starts_with((string) ($node['ref'] ?? ''), 'thread-end-')))->toBeNull();
 });
 
-it('shows the short hash under the focused commit, without the full date', function () {
+it('shows the short hash at the top right of the focused commit, without the full date', function () {
     fakeThread(['created_at' => '2026-10-14T20:13:05Z']);
 
     $screen = Native::visit('/log/commits/c2')
@@ -295,8 +295,13 @@ it('shows the short hash under the focused commit, without the full date', funct
         ->assertDontSee('+0000');
 
     $hash = nodeByRef($screen, 'focused-hash');
+    // The row with the name, the handle and the time, with a spacer pushing the hash to its end.
+    $nameRow = findNode(nodeByRef($screen, 'focused-commit'), fn (array $node): bool => ($node['type'] ?? null) === 'row' && in_array('focused-time', array_map(fn (array $child): ?string => $child['ref'] ?? null, $node['children'] ?? []), true));
+    $children = $nameRow['children'] ?? [];
 
-    expect($hash['text'] ?? $hash['props']['text'] ?? null)->toBe('c2');
+    expect($hash['text'] ?? $hash['props']['text'] ?? null)->toBe('c2')
+        ->and($children[array_key_last($children)]['ref'] ?? null)->toBe('focused-hash')
+        ->and($children[count($children) - 2]['type'] ?? null)->toBe('spacer');
 });
 
 it('says when the commit was made, in your timezone, when its time is tapped, as the web does on hover', function (?string $chosen, string $toast) {
@@ -347,7 +352,7 @@ it('shows a posted reply staged under the commit at once, then the one devnull m
 
     $staged = $screen->instance()->replies[1]->id;
 
-    expect(childRefs($screen, 'thread-page'))->toBe(['focused-commit', 'thread-reply-r1', "thread-reply-{$staged}", 'reply-bar-clearance'])
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['focused-commit', 'thread-reply-r1', "thread-reply-{$staged}", 'reply-bar-clearance'])
         ->and(PendingWrite::query()->count())->toBe(1);
 
     finishRefreshes($screen)
@@ -355,7 +360,7 @@ it('shows a posted reply staged under the commit at once, then the one devnull m
         ->assertSee('pending')
         ->assertDontSee('staged');
 
-    expect(childRefs($screen, 'thread-page'))->toBe(['focused-commit', 'thread-reply-r1', 'thread-reply-r9', 'reply-bar-clearance'])
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['focused-commit', 'thread-reply-r1', 'thread-reply-r9', 'reply-bar-clearance'])
         ->and(PendingWrite::query()->count())->toBe(0)
         ->and(collect(Http::recorded())->filter(fn (array $sent): bool => $sent[0]->method() === 'POST'))->toHaveCount(1);
 });
@@ -383,7 +388,7 @@ it('shows a reply you posted once when the next page of replies has it too', fun
         ->call('loadMoreReplies')
         ->assertSet('repliesCursor', null);
 
-    expect(childRefs($screen, 'thread-page'))->toBe(['focused-commit', 'thread-reply-r1', 'thread-reply-r2', 'thread-reply-r9', 'reply-bar-clearance']);
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['focused-commit', 'thread-reply-r1', 'thread-reply-r2', 'thread-reply-r9', 'reply-bar-clearance']);
 });
 
 it('marks a reply waiting for approval as pending on its row', function () {
@@ -504,63 +509,83 @@ it('offers delete only on your own commits', function () {
 });
 
 it('opens ancestors, replies and profiles', function () {
-    fakeThread(replies: [replyJson(['id' => 'r1'])]);
+    fakeThread(replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2'])]);
 
-    Native::visit('/log/commits/c2')->tap('earlier-commits')->tap('commit-c1')->assertNavigatedTo('/log/commits/c1');
-    Native::visit('/log/commits/c2')->tap('replies-c2')->tap('thread-reply-r1')->assertNavigatedTo('/log/commits/r1');
+    // Commits in the tree move the page to them, and anything else opens its own page.
+    Native::visit('/log/commits/c2')->tap('earlier-commits')->tap('commit-c1')->assertNoNavigation()->assertSet('id', 'c1');
+    Native::visit('/log/commits/c2')->tap('replies-c2')->tap('thread-reply-r1')->assertNoNavigation()->assertSet('id', 'r1');
     Native::visit('/log/commits/c2')->call('openProfile', 'ada')->assertNavigatedTo('/log/users/ada');
 });
+
+it("turns the replies button's chevron down while the replies show, as the Log does, and back as they close", function (string $platform) {
+    fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'replies_count' => 1])]);
+
+    $screen = Native::visit('/log/commits/c2', platform: $platform);
+    $chevron = fn (string $ref): array => findNode(nodeByRef($screen, $ref), fn (array $node): bool => ($node['type'] ?? null) === 'icon');
+
+    // Shut, it points right, and already carries the animation, so the turn animates on iOS.
+    expect($chevron('replies-c2')['props'])->toMatchArray(['name' => 'custom:chevron-right', 'rotate' => 0.0, 'animate-duration' => 220.0]);
+
+    $screen->tap('replies-c2')->assertSee('First reply')->assertSee('Hide replies');
+    expect($chevron('replies-c2')['props'])->toMatchArray(['name' => 'custom:chevron-right', 'rotate' => 90.0, 'animate-duration' => 220.0]);
+
+    $screen->tap('replies-c2')->assertDontSee('First reply')->assertSee('1 reply');
+    expect($chevron('replies-c2')['props'])->toMatchArray(['name' => 'custom:chevron-right', 'rotate' => 0.0, 'animate-duration' => 220.0]);
+
+    // A reply's button opens its replies in place too, so its chevron turns the same way.
+    $screen->tap('replies-c2');
+    expect($chevron('replies-r1')['props'])->toMatchArray(['rotate' => 0.0, 'animate-duration' => 220.0]);
+})->with(['ios', 'android']);
 
 it('opens with its replies showing from a replies button', function () {
     fakeThread(['replies_count' => 1], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'replies_count' => 1])], extra: [
         'GET /api/v1/commits/r1' => [commitPageJson(replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'First reply', 'replies_count' => 1]))],
-        'GET /api/v1/commits/r1/replies' => [pageJson([replyJson(['id' => 'r2', 'parent_id' => 'r1', 'body' => 'Answering the reply'])])],
+        // Someone other than r1's author, whose reply to themselves would carry r1 on as a thread instead.
+        'GET /api/v1/commits/r1/replies' => [pageJson([replyJson(['id' => 'r2', 'parent_id' => 'r1', 'body' => 'Answering the reply', 'author' => userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace'])])])],
     ]);
 
     Native::visit('/log/commits/c2', ['replies' => true])
         ->assertSee('First reply')
         ->assertSee('Hide replies');
 
-    // A reply's replies don't open in place on a commit page, so its button opens its page with them showing.
+    // A reply's replies open in place under it, as on the web, rather than on its page.
     Native::visit('/log/commits/c2')
         ->tap('replies-c2')
         ->tap('replies-r1')
-        ->assertNavigatedTo('/log/commits/r1')
-        ->follow()
-        ->assertSee('Answering the reply')
-        ->assertSee('Hide replies');
+        ->assertNoNavigation()
+        ->assertSee('Answering the reply');
 });
 
-it('asks for the replies five at a time, and the next five from Show more', function () {
+it('asks for the replies a page at a time, and the next page from Show more', function () {
     $replies = fn (int ...$numbers): array => array_map(fn (int $n): array => replyJson(['id' => "r{$n}", 'parent_id' => 'c2', 'body' => "Reply {$n}"]), $numbers);
 
     Http::fake(fn (Request $request) => match (parse_url($request->url(), PHP_URL_PATH)) {
         '/api/v1/commits/c2/replies' => Http::response(str_contains($request->url(), 'cursor=page2')
-            ? pageJson($replies(6))
-            : pageJson($replies(1, 2, 3, 4, 5), 'page2', 'http://devnull.test/api/v1/commits/c2/replies')),
+            ? pageJson($replies(11))
+            : pageJson($replies(...range(1, 10)), 'page2', 'http://devnull.test/api/v1/commits/c2/replies')),
         '/api/v1/commits/c2/related' => Http::response(['data' => []]),
-        default => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'replies_count' => 6]))),
+        default => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'The focused commit', 'replies_count' => 11]))),
     });
 
     $screen = Native::visit('/log/commits/c2', ['replies' => true])
-        ->assertSee('Reply 5')
-        ->assertDontSee('Reply 6')
+        ->assertSee('Reply 10')
+        ->assertDontSee('Reply 11')
         ->tap('more-replies-c2')
-        ->assertSee('Reply 6')
+        ->assertSee('Reply 11')
         ->assertDontSee('Show more');
 
     $asked = collect(Http::recorded())->map(fn (array $sent): string => $sent[0]->url())->filter(fn (string $url): bool => str_contains($url, '/replies'));
 
     expect($asked)->toHaveCount(2)
-        ->and($asked->every(fn (string $url): bool => str_contains($url, 'limit=5')))->toBeTrue();
+        ->and($asked->every(fn (string $url): bool => str_contains($url, 'limit=10')))->toBeTrue();
 
-    // Asking again for the first five keeps the one loaded after them.
+    // Asking again for the first page keeps the one loaded after it.
     $screen->call('load')
-        ->assertSee('Reply 6')
+        ->assertSee('Reply 11')
         ->assertDontSee('Show more');
 });
 
-it('opens the replies of a deleted reply five at a time too', function () {
+it('opens the replies of a deleted reply a page at a time too', function () {
     $nested = fn (int ...$numbers): array => array_map(fn (int $n): array => replyJson(['id' => "n{$n}", 'parent_id' => 'r1', 'body' => "Nested {$n}"]), $numbers);
 
     Http::fake(fn (Request $request) => match (parse_url($request->url(), PHP_URL_PATH)) {
@@ -586,7 +611,7 @@ it('opens the replies of a deleted reply five at a time too', function () {
         ->assertSee('Nested 6')
         ->assertMissingElement('pressable', $more);
 
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/r1/replies?cursor=page2&limit=5');
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/r1/replies?cursor=page2&limit=10');
 });
 
 it('keeps deleted ancestors on the rail as tombstones', function () {
@@ -645,7 +670,7 @@ it('keeps deleted replies as tombstones and opens their replies in place', funct
     // One level in, on an elbow off the deleted reply's spine.
     expect(findNode(nodeByRef($screen, 'thread-reply-r3'), fn (array $node): bool => ($node['ref'] ?? null) === 'thread-elbow'))->not->toBeNull();
 
-    $screen->tap('thread-reply-r3')->assertNavigatedTo('/log/commits/r3');
+    $screen->tap('thread-reply-r3')->assertNoNavigation()->assertSet('id', 'r3');
 
     Native::visit('/log/commits/c2')
         ->tap('replies-c2')
@@ -773,7 +798,7 @@ it('goes back to onboarding when the key stops working', function () {
     expect(app(Account::class)->user())->toBeNull();
 });
 
-it('reloads when you come back from a reply you deleted', function () {
+it('moves back to the parent when you delete a reply the page moved to', function () {
     $replyDeleted = false;
 
     Http::fake(function (Request $request) use (&$replyDeleted) {
@@ -790,15 +815,15 @@ it('reloads when you come back from a reply you deleted', function () {
         };
     });
 
-    $reply = Native::visit('/log/commits/c2')
+    // The page moved to the reply, so deleting it moves the page back to its parent, asked for again.
+    Native::visit('/log/commits/c2')
         ->tap('replies-c2')
         ->assertSee('Soon gone')
         ->tap('thread-reply-r1')
-        ->follow()
+        ->assertSet('id', 'r1')
         ->call('deleteCommit', 'r1')
-        ->assertWentBack();
-
-    $reply->goBack()
+        ->assertNoNavigation()
+        ->assertSet('id', 'c2')
         ->assertSee('Parent')
         ->assertDontSee('Soon gone')
         ->assertSee('No replies yet.');
@@ -843,7 +868,7 @@ it('focuses the reply composer when opened from a Reply action', function () {
 it('stars the focused commit and its replies in place', function () {
     $grace = userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace']);
 
-    fakeThread(['author' => $grace], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'author' => $grace])], extra: [
+    fakeThread(['author' => $grace], replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2'])], extra: [
         'POST /api/v1/commits/c2/star' => [['data' => commitJson(['id' => 'c2', 'stars_count' => 1, 'starred' => true])]],
         'POST /api/v1/commits/r1/star' => [['data' => commitJson(['id' => 'r1', 'starred' => true])]],
     ]);
@@ -932,7 +957,7 @@ it('ends the page above the reply bar, and further as the draft grows', function
 
     $screen = Native::visit('/log/commits/c2', platform: 'ios');
     $scroller = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'scroll_view');
-    $page = $scroller['children'][0]['children'];
+    $page = $scroller['children'];
 
     // The clearance is the last thing on the page, under the last reply: the fade, the bar and the home indicator.
     $bar = 24 + Display::ComposerFadeHeight + Display::ComposerBoxBarHeight + 34;
