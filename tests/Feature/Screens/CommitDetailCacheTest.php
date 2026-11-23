@@ -48,7 +48,8 @@ it('opens on the commit and replies kept last time, with no request and no spinn
 
     finishRefreshes($screen)->assertSee('A compiler');
 
-    expect(count(Http::recorded()))->toBe(3);
+    // The commit, its replies, what's related, and c0's own page for how many replies it has.
+    expect(count(Http::recorded()))->toBe(4);
 });
 
 it('opens from a row on what the row knew, then fills in the replies and what it replies to', function () {
@@ -140,10 +141,10 @@ it('asks for the replies of a deleted reply opened in place again', function () 
         'GET /api/v1/commits/d1/replies' => [pageJson([replyJson(['id' => 'r9', 'parent_id' => 'd1', 'body' => 'Under a deleted reply'])])],
     ]);
 
-    $screen = Native::visit('/log/commits/c1')->tap('replies-c1')->call('toggleTombstone', 'd1')->assertSee('Under a deleted reply');
+    $screen = Native::visit('/log/commits/c1')->tap('replies-c1')->call('toggleReplies', 'd1')->assertSee('Under a deleted reply');
 
     $screen->call('load');
 
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/d1/replies?limit=5');
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://devnull.test/api/v1/commits/d1/replies?limit=10');
     $screen->assertSee('Under a deleted reply');
 });
