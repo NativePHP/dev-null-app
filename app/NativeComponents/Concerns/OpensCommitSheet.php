@@ -582,7 +582,7 @@ trait OpensCommitSheet
     {
         $viewer = $this->me();
 
-        return $viewer !== null && ! $commit->isDeleted() && ! $commit->isStaged() && ($commit->isApproved() || $commit->author->id === $viewer->id);
+        return $viewer !== null && ! $commit->isDeleted() && ! $commit->isStaged() && ($commit->isApproved() || app(Account::class)->owns($commit));
     }
 
     private function canReport(Commit $commit): bool

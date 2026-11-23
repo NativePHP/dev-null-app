@@ -79,6 +79,15 @@ it('makes Quote a button with a full target where the row had it', function () {
     expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeFalse();
 });
 
+it("quotes a commit from an organization you're a member of while it waits for approval, as devnull lets you", function () {
+    joinOrganizations('org-1');
+    serveQuoteLog([commitJson(['id' => 'c1', 'status' => 'pending', 'author' => organizationAuthorJson('org-1', 'NativePHP')])]);
+
+    $screen = Native::visit('/log', platform: 'ios')->tap('quote-c1');
+
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue();
+});
+
 it('opens a composer over the commit being quoted, drawn as the static quote card', function () {
     $screen = quoteSheetOnLog();
 
