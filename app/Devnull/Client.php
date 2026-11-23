@@ -7,6 +7,8 @@ use App\Devnull\Data\CommitThread;
 use App\Devnull\Data\Connection;
 use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\DraftImage;
+use App\Devnull\Data\Guild;
+use App\Devnull\Data\GuildBoard;
 use App\Devnull\Data\IncomingCall;
 use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\Notification;
@@ -110,10 +112,10 @@ final readonly class Client
     public const string IssuesPath = 'issues';
 
     /**
-     * How many replies the app asks for at a time. devnull sends 50 a page
-     * unless it's asked for fewer, and the app never asks for more than this.
+     * How many replies the app asks for at a time, in a feed's thread and on
+     * a commit's page. devnull sends 50 a page unless it's asked for fewer.
      */
-    public const int RepliesPerPage = 5;
+    public const int RepliesPerPage = 10;
 
     /**
      * Where the signed-in account's timezone is saved, or unset, with whether their profile shows their local time.
@@ -302,12 +304,13 @@ final readonly class Client
      * Commits, as a reply to $parentId or quoting $quotedCommitId, as the web's
      * composer, reply box and Quote do. devnull takes one or the other, not both.
      * A new commit or a quote may start a poll (see PollDraft::payload()).
+     * A new commit can go straight to a guild's board ($guildHandle).
      *
      * @param  array{options: list<string>, duration: int}|null  $poll
      */
-    public function createCommit(string $body, ?string $parentId = null, ?string $quotedCommitId = null, ?array $poll = null): Commit
+    public function createCommit(string $body, ?string $parentId = null, ?string $quotedCommitId = null, ?array $poll = null, ?string $guildHandle = null): Commit
     {
-        $commit = $this->data($this->send('POST', 'commits', payload: self::commitPayload($body, $parentId, $quotedCommitId, poll: $poll)));
+        $commit = $this->data($this->send('POST', 'commits', payload: self::commitPayload($body, $parentId, $quotedCommitId, $poll, $guildHandle)));
         $this->cache->commitAdded($commit);
 
         return Commit::fromArray($commit);
@@ -319,9 +322,9 @@ final readonly class Client
      *
      * @param  array{options: list<string>, duration: int}|null  $poll
      */
-    public function signedCommit(string $body, ?string $parentId = null, ?string $quotedCommitId = null, ?array $poll = null): SignedRequest
+    public function signedCommit(string $body, ?string $parentId = null, ?string $quotedCommitId = null, ?array $poll = null, ?string $guildHandle = null): SignedRequest
     {
-        return $this->signedWrite('POST', 'commits', self::commitPayload($body, $parentId, $quotedCommitId, poll: $poll));
+        return $this->signedWrite('POST', 'commits', self::commitPayload($body, $parentId, $quotedCommitId, $poll, $guildHandle));
     }
 
     /**
@@ -331,9 +334,9 @@ final readonly class Client
      *
      * @param  list<DraftImage>  $images
      */
-    public function signedCommitWithImages(string $body, array $images, ?string $parentId = null, ?string $quotedCommitId = null): SignedRequest
+    public function signedCommitWithImages(string $body, array $images, ?string $parentId = null, ?string $quotedCommitId = null, ?string $guildHandle = null): SignedRequest
     {
-        return $this->signedWithImages('commits', self::commitPayload($body, $parentId, $quotedCommitId), $images);
+        return $this->signedWithImages('commits', self::commitPayload($body, $parentId, $quotedCommitId, guildHandle: $guildHandle), $images);
     }
 
     /**
@@ -360,14 +363,14 @@ final readonly class Client
      * Signs a commit to be submitted at $at, as the web's Schedule commit
      * does, for the background to send. Only you see it until then. With
      * photos it goes as multipart, as a commit with photos does, and a poll
-     * goes in its JSON.
+     * goes in its JSON. One for a guild's board says which ($guildHandle).
      *
      * @param  list<DraftImage>  $images
      * @param  array<string, mixed>|null  $poll
      */
-    public function signedScheduledCommit(string $body, CarbonInterface $at, array $images = [], ?array $poll = null): SignedRequest
+    public function signedScheduledCommit(string $body, CarbonInterface $at, array $images = [], ?array $poll = null, ?string $guildHandle = null): SignedRequest
     {
-        $payload = array_filter(['body' => $body, 'scheduled_at' => self::scheduleTime($at), 'poll' => $poll], fn (mixed $value): bool => $value !== null);
+        $payload = array_filter(['body' => $body, 'scheduled_at' => self::scheduleTime($at), 'poll' => $poll, 'guild_handle' => $guildHandle], fn (mixed $value): bool => $value !== null);
 
         return $images === []
             ? $this->signedWrite('POST', self::ScheduledCommitsPath, $payload)
@@ -452,6 +455,32 @@ final readonly class Client
     public function starred(?string $cursor = null): Page
     {
         return Page::fromArray($this->get('starred', ['cursor' => $cursor]), Commit::fromArray(...));
+    }
+
+    /**
+     * This is a list of Guilds from the web. It might be:
+     * - Biggest first, 24 per page.
+     * - Guilds matching $term in a name, #handle or description
+     *
+     * They're paged by number, which a Page carries as a cursor.
+     *
+     * @return Page<Guild>
+     */
+    public function guilds(string $term = '', ?string $page = null): Page
+    {
+        $guilds = Page::fromArray($this->get('guilds', ['q' => $term === '' ? null : $term, 'page' => $page]), Guild::fromArray(...));
+
+        return new Page(array_values(array_filter($guilds->items)), $guilds->nextCursor);
+    }
+
+    /**
+     * A guild's bulletin board: its latest commits and the one pinned to the top. Null when the answer carries
+     * no guild. A handle devnull has no guild by is a 404, which throws, as does guilds being switched off for
+     * you. Page 1 is asked for with no page number, so it's kept.
+     */
+    public function guild(string $handle, ?string $page = null): ?GuildBoard
+    {
+        return GuildBoard::fromArray($this->get('guilds/'.rawurlencode($handle), ['page' => $page]));
     }
 
     /**
@@ -914,6 +943,7 @@ final readonly class Client
         $json = $this->json($this->send('GET', $path, self::paged($path, $query)));
         $this->cache->put($path, $query, $json);
         ImageCache::prefetch($json);
+        VideoDetails::prefetch($json);
 
         return $json;
     }
@@ -976,13 +1006,14 @@ final readonly class Client
      * @param  array{options: list<string>, duration: int}|null  $poll
      * @return array<string, mixed>
      */
-    private static function commitPayload(string $body, ?string $parentId, ?string $quotedCommitId, ?array $poll = null): array
+    private static function commitPayload(string $body, ?string $parentId, ?string $quotedCommitId, ?array $poll = null, ?string $guildHandle = null): array
     {
         return array_filter([
             'body' => $body,
             'parent_id' => $parentId,
             'quoted_commit_id' => $quotedCommitId,
             'poll' => $poll,
+            'guild_handle' => $guildHandle,
         ], fn (mixed $value): bool => $value !== null);
     }
 

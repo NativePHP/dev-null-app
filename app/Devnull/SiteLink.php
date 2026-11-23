@@ -17,7 +17,8 @@ final class SiteLink
 {
     /**
      * The web's pages the app has a screen for, and that screen. {user} is a
-     * GitHub username, {id} a commit's or an org's id, and {photo} anything.
+     * GitHub username, {id} a commit's or an org's id, {handle} a guild's,
+     * and {photo} anything.
      */
     private const array Screens = [
         '/@{user}' => '/users/{user}',
@@ -26,6 +27,8 @@ final class SiteLink
         '/@{user}/commits/{id}/photos/{photo}' => '/commits/{id}',
         '/remotes/@{user}' => '/conversations/{user}',
         '/remotes/orgs/{id}' => '/orgs/{id}',
+        '/guilds' => '/guilds',
+        '/guilds/{handle}' => '/guilds/{handle}',
     ];
 
     /**
@@ -37,6 +40,11 @@ final class SiteLink
      * A GitHub username, as BodyLink matches one.
      */
     private const string Username = '[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}';
+
+    /**
+     * A guild's handle once decoded, as the web allows one (CreateGuildRequest).
+     */
+    private const string Handle = '/^\p{L}[\p{L}\p{M}\p{N}_]*$/uD';
 
     /**
      * A UUID in either case.
@@ -59,9 +67,16 @@ final class SiteLink
 
         foreach (self::Screens as $page => $screen) {
             if (preg_match(self::pattern($page), $path, $matches) === 1) {
+                $handle = rawurldecode($matches['handle'] ?? '');
+
+                if (isset($matches['handle']) && (mb_strlen($handle) > 60 || preg_match(self::Handle, $handle) !== 1)) {
+                    continue;
+                }
+
                 return strtr($screen, [
                     '{user}' => $matches['user'] ?? '',
                     '{connections}' => $matches['connections'] ?? '',
+                    '{handle}' => $handle,
                     '{id}' => strtolower($matches['id'] ?? ''),
                 ]);
             }
@@ -119,6 +134,7 @@ final class SiteLink
         return '#^'.strtr($page, [
             '{user}' => '(?<user>'.self::Username.')',
             '{connections}' => '(?<connections>'.implode('|', Connections::Types).')',
+            '{handle}' => '(?<handle>[^/]+)',
             '{id}' => '(?<id>'.self::Id.')',
             '{photo}' => '[^/]+',
         ]).'/?\z#';

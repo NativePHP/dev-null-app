@@ -161,7 +161,7 @@ class Connections extends NativeComponent
     /**
      * A list across a block says so as the profile does, whatever devnull's message says.
      */
-    protected function refused(ApiException $exception): bool
+    protected function refused(ApiException $exception, string $path): bool
     {
         if (! $exception->is(ErrorCode::UserBlocked) && ! $exception->is(ErrorCode::UserUnavailable)) {
             return false;

@@ -11,7 +11,9 @@ use App\Devnull\Data\Commit;
  * what they work out from the time.
  *
  * Images aren't here: ImageCache draws each URL the same way for as long as
- * the app runs, so a row's images only change with its commit.
+ * the app runs, so a row's images only change with its commit. A video's
+ * title, channel and thumbnail are, since they land after the row is first drawn (see
+ * VideoDetails).
  *
  * A partial that starts reading something new needs it here too, or its row
  * keeps showing what it showed before.
@@ -32,11 +34,14 @@ final class RowInputs
             'stashed' => $scope['stashed'] ?? [],
             'unfolded' => $scope['unfolded'] ?? [],
             'expandable' => isset($scope['threads']),
-            'opened' => array_key_exists($commit->id, $scope['threads'] ?? []),
+            'opened' => array_key_exists($commit->id, $scope['threads'] ?? []) && ! in_array($commit->id, $scope['closingThreads'] ?? [], true),
+            'faded' => in_array($commit->id, $scope['fadedRows'] ?? [], true),
+            'popping' => [$scope['popping']['star-'.$commit->id] ?? null, $scope['popping']['pastel-'.$commit->id] ?? null],
             'tombstones' => $scope['tombstones'] ?? false,
             'tombstoneReplies' => array_key_exists($commit->id, $scope['tombstoneReplies'] ?? []),
             'shown' => [self::changing($commit), $commit->quotedCommit === null ? null : self::changing($commit->quotedCommit)],
             'poll' => [$scope['pollChoices'][$commit->id] ?? null, in_array($commit->id, $scope['voting'] ?? [], true)],
+            'video' => $commit->linkPreview?->embed === null ? null : VideoDetails::card($commit->linkPreview),
         ];
     }
 

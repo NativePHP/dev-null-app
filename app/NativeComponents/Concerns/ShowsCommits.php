@@ -42,8 +42,10 @@ use Native\Mobile\Facades\Share;
 trait ShowsCommits
 {
     use OpensCommitSheet;
+    use OpensGuilds;
     use OpensHashtags;
     use OpensStargazers;
+    use PopsReactions;
     use ShowsImageViewer;
     use VotesOnPolls;
     use WritesInBackground;
@@ -192,12 +194,18 @@ trait ShowsCommits
 
         $this->showStar($id, ! $commit->starred);
         $this->queueStar($id, ! $commit->starred);
+
+        // The web only pops a star going on.
+        if (! $commit->starred) {
+            $this->pop('star-'.$id);
+        }
     }
 
     /**
      * Gives the commit a pastel, as the web's pastel button does in pastéis
      * mode: one per tap, from the ten you get each day, on someone else's
-     * published commit. Its count goes up and your allowance down at once,
+     * published commit, never an organization's (they can't receive them).
+     * The pastel's count goes up and your allowance down at once,
      * and the pastel goes from the background, so you can keep tapping. When
      * devnull turns one down, it comes back, and a toast says why in the web's
      * words. With none left, the toast says so without asking devnull.
@@ -207,7 +215,7 @@ trait ShowsCommits
         $commit = $this->shownCommit($id);
         $pasteis = app(Account::class)->pasteis();
 
-        if ($commit === null || $pasteis === null || ! $this->canReactTo($commit)) {
+        if ($commit === null || $pasteis === null || $commit->author->isOrganization || ! $this->canReactTo($commit)) {
             return;
         }
 
@@ -219,6 +227,7 @@ trait ShowsCommits
 
         app(Account::class)->rememberPasteis($pasteis->afterGiving());
         $this->changeShownCommit($id, fn (Commit $shown): Commit => $shown->withMorePasteis(1));
+        $this->pop('pastel-'.$id);
 
         $this->writeInBackground('POST', Client::pastelPath($id), null, fn (array $json) => $this->pastelGiven($id, $json), function (string $message, ?ApiException $exception = null) use ($id): void {
             $this->pastelTurnedDown($id, $exception);
@@ -263,6 +272,16 @@ trait ShowsCommits
     public function openLinkPreview(string $id): void
     {
         $this->openUrl($this->shownCommit($id)?->linkPreview?->url);
+    }
+
+    /**
+     * Plays the video a commit links to, from its poster. The app's web view
+     * can't play YouTube's embed yet (YouTube wants a referrer it doesn't
+     * send), so it opens in the in-app browser for now.
+     */
+    public function playEmbed(string $id): void
+    {
+        $this->openInBrowser($this->shownCommit($id)?->linkPreview?->url);
     }
 
     /**
@@ -461,7 +480,7 @@ trait ShowsCommits
 
     private function canPin(Commit $commit): bool
     {
-        return ! $commit->isDeleted() && $commit->isApproved() && $commit->parentId === null && $commit->author->id === $this->me()?->id;
+        return ! $commit->isDeleted() && $commit->isApproved() && $commit->parentId === null && $commit->guild === null && $commit->author->id === $this->me()?->id;
     }
 
     private function canDelete(Commit $commit): bool
