@@ -277,3 +277,9 @@ it('draws the floating suggestions on a raised surface on Android', function () 
     expect($overlay['props'])->not->toHaveKey('glass')
         ->and(strtolower($overlay['style']['bg_color']))->toBe(strtolower(config('native-ui.theme.light.surface')));
 });
+
+it('leaves a gap between the suggestions and the reply box under them on iOS', function () {
+    $screen = mentionsCommitPage()->input('reply-input', 'thanks @ad', 10);
+
+    expect(nodeByRef($screen, 'reply-mention-slot')['layout']['padding'][2])->toBe(8.0);
+});

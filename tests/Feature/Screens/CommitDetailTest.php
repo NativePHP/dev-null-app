@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
 use Tests\Support\GlassOpacity;
+use Tests\Support\ScrollEdge;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -926,6 +927,36 @@ it('fades the glass under the reply bar to 80% on iOS only', function (string $p
 
     expect($bottomBar['props']['glass_opacity'] ?? null)->toBe($platform === 'ios' ? Display::ComposerGlassOpacity / 100 : null);
 })->with(['ios', 'android']);
+
+it('stands the reply bar on the scroll edge effect from iOS 26, with no fade or tint, and glass for older iOS', function () {
+    fakeThread(replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'The last reply'])]);
+
+    ScrollEdge::onIos('26.1', function (): void {
+        $screen = Native::visit('/log/commits/c2', platform: 'ios');
+        $bottomBar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
+
+        // The bar asks for the edge effect and keeps its glass for older iOS, which mobile-air leaves out here.
+        // The field and tools sit in the glass box. The page ends where the bar starts, with no fade above it.
+        expect($bottomBar['props']['edge_blur'] ?? null)->toBe(Display::ComposerEdgeBlur)
+            ->and($bottomBar['props']['glass'] ?? null)->toBe(1)
+            ->and(childRefs($screen, 'reply-bar'))->toBe(['reply-rows'])
+            ->and(nodeByRef($screen, 'reply-rows')['style']['bg_color'] ?? null)->toBeNull()
+            ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'reply-fade'))->toBeNull()
+            ->and(nodeByRef($screen, 'reply-box')['props']['glass'] ?? null)->toBe(Display::ComposerInGlassBox ? 1 : null)
+            ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual(24 + Display::composerBoxBarHeight() + 34);
+    });
+});
+
+it('keeps the fade at the top of the reply bar before iOS 26', function () {
+    fakeThread();
+
+    ScrollEdge::onIos('18.5', function (): void {
+        $screen = Native::visit('/log/commits/c2', platform: 'ios');
+
+        expect(childRefs($screen, 'reply-bar'))->toBe(['reply-fade', 'reply-rows'])
+            ->and(nodeByRef($screen, 'reply-box')['props']['glass'] ?? null)->toBeNull();
+    });
+});
 
 it('ends the page above the reply bar, and further as the draft grows', function () {
     fakeThread(replies: [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'The last reply'])]);
