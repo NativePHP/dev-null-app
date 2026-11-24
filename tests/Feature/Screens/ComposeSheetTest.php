@@ -291,3 +291,21 @@ it('only commits from a sheet that has a composer in it', function () {
 
     Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
 });
+
+it("names the sheet's round buttons for VoiceOver, with nothing else announced inside them", function () {
+    $screen = composeSheetOnLog()->assertSee('New commit');
+    $cancel = nodeByRef($screen, 'sheet-cancel');
+    $commit = nodeByRef($screen, 'sheet-commit');
+
+    expect($cancel['type'])->toBe('pressable')
+        ->and($cancel['props'])->toMatchArray(['a11y_label' => 'Cancel'])
+        ->and($commit['props']['a11y_label'])->toBe('Commit, unavailable')
+        // On iOS every ref'd node becomes its own accessibility container (NodeIdentityModifier), so one ref is one announcement.
+        ->and(findNodes($cancel, fn (array $node): bool => isset($node['ref'])))->toHaveCount(1)
+        ->and(findNodes($commit, fn (array $node): bool => isset($node['ref'])))->toHaveCount(1);
+
+    $screen = $screen->input('sheet-body', 'Shipped');
+
+    expect(nodeByRef($screen, 'sheet-commit'))->toMatchArray(['type' => 'pressable'])
+        ->and(nodeByRef($screen, 'sheet-commit')['props'])->toMatchArray(['a11y_label' => 'Commit']);
+});

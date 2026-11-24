@@ -45,7 +45,7 @@
                     @endif
                     @foreach ($rows as $row)
                         @if ($isMaintainer || ! $loop->first)
-                            <native:column class="w-full h-[1] bg-theme-hairline" />
+                            <native:column class="w-full h-[1] border-b border-theme-hairline" />
                         @endif
                         @include('native.partials.org-member-row', $row + ['showsSlot' => $isMaintainer])
                     @endforeach
@@ -58,7 +58,7 @@
                 <native:column ref="members-loading" class="mx-4 rounded-lg border border-theme-hairline bg-theme-surface">
                     @foreach (range(1, 3) as $skeleton)
                         @if (! $loop->first)
-                            <native:column class="w-full h-[1] bg-theme-hairline" />
+                            <native:column class="w-full h-[1] border-b border-theme-hairline" />
                         @endif
                         <native:row class="w-full px-4 py-3 gap-3 items-center opacity-[0.5]" animate-duration="900" :animate-loop="true" a11y-label="Loading">
                             <native:column :width="40" :height="40" class="rounded-full bg-theme-wash" />

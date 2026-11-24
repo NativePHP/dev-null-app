@@ -2,7 +2,9 @@
 
 namespace App\NativeComponents\Concerns;
 
+use App\NativeComponents\FeedWorkspace;
 use App\NativeComponents\Layouts\TabsLayout;
+use App\NativeComponents\Log;
 
 /**
  * Opens commits and profiles inside the tab they were tapped in, and never
@@ -26,6 +28,12 @@ trait OpensInTab
      */
     protected function openInTab(string $path, array $data = []): void
     {
+        if ($this->nativeParentComponent instanceof FeedWorkspace && str_starts_with($path, '/commits/')) {
+            $this->emit('open-conversation', substr($path, strlen('/commits/')), $data, $this instanceof Log);
+
+            return;
+        }
+
         $uri = $this->tabRoot().$path;
 
         if ($this->isShowing($uri)) {

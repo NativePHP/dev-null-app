@@ -44,6 +44,7 @@ final class RowInputs
             'tombstones' => $scope['tombstones'] ?? false,
             'shown' => [self::changing($commit), $commit->quotedCommit === null ? null : self::changing($commit->quotedCommit)],
             'poll' => [$scope['pollChoices'][$commit->id] ?? null, in_array($commit->id, $scope['voting'] ?? [], true)],
+            'selected' => ($scope['selectedCommit'] ?? null) === $commit->id,
             'video' => $commit->linkPreview?->embed === null ? null : VideoDetails::card($commit->linkPreview),
         ];
     }

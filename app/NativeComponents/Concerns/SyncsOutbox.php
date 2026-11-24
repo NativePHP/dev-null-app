@@ -17,6 +17,9 @@ use App\Devnull\Stash;
 use App\Devnull\Toasts;
 use App\Devnull\VoiceNotes;
 use App\Models\PendingWrite;
+use App\NativeComponents\CommitDetail;
+use App\NativeComponents\FeedWorkspace;
+use App\NativeComponents\Log;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Facades\Browser;
 use Throwable;
@@ -74,6 +77,9 @@ trait SyncsOutbox
         $write = $outbox->add($starred ? PendingWrite::Star : PendingWrite::Unstar, $id, $starred ? [] : ['kept' => $cache->keptCommit($id)]);
 
         $cache->starChanged($id, $starred);
+        foreach ($this->outboxViews() as $view) {
+            $view->applyPendingStar($id, $starred);
+        }
 
         if ($write !== null && ! $outbox->starOnItsWay($id)) {
             $this->sendFromOutbox($write);
@@ -129,6 +135,16 @@ trait SyncsOutbox
     #[On(Outbox::Answered)]
     public function outboxAnswered(string $id = '', string $status = 'finished', mixed $result = null, ?string $message = null): void
     {
+        if ($this->nativeParentComponent instanceof FeedWorkspace && $this instanceof CommitDetail) {
+            foreach ($this->outboxViews() as $view) {
+                if ($view instanceof Log) {
+                    $view->outboxAnswered($id, $status, $result, $message);
+
+                    return;
+                }
+            }
+        }
+
         $write = app(Outbox::class)->forTask($id);
 
         if ($write === null) {
@@ -207,6 +223,10 @@ trait SyncsOutbox
     #[On(ToastActionPressed::class)]
     public function toastActionPressed(string $toastId = '', string $actionId = '', array $data = []): void
     {
+        if ($this->nativeParentComponent instanceof FeedWorkspace && $this->nativeParentComponent->foregroundPane() !== $this) {
+            return;
+        }
+
         match ($actionId) {
             'retry-star' => $this->retryStar($data),
             'retry-message' => $this->retryMessage($data),
@@ -235,7 +255,7 @@ trait SyncsOutbox
             if (! $later && $data !== []) {
                 app(ResponseCache::class)->commitReacted($data);
                 app(ResponseCache::class)->commitStarred($data);
-                $this->showStar((string) $write->target, ($data['starred'] ?? false) === true, Commit::fromArray($data));
+                $this->broadcastOutboxChange('star', $write, $data, ($data['starred'] ?? false) === true);
             }
 
             return;
@@ -249,7 +269,7 @@ trait SyncsOutbox
             // A post to a guild's board is known by its guild, even when devnull's answer leaves it out.
             $data = $write->guildHandle() === null ? $data : ['guild_handle' => $write->guildHandle(), ...$data];
             app(ResponseCache::class)->commitAdded($data);
-            $this->showCommitWent($write, Commit::fromArray($data));
+            $this->broadcastOutboxChange('commit-sent', $write, $data);
 
             return;
         }
@@ -276,7 +296,7 @@ trait SyncsOutbox
             }
 
             app(ResponseCache::class)->starChanged((string) $write->target, $write->wasStarred(), is_array($write->payload['kept'] ?? null) ? $write->payload['kept'] : null);
-            $this->showStar((string) $write->target, $write->wasStarred());
+            $this->broadcastOutboxChange('star', $write, starred: $write->wasStarred());
 
             Toasts::failed($error, ['label' => 'Retry', 'id' => 'retry-star', 'data' => ['commit' => $write->target, 'starred' => $starred]]);
 
@@ -312,16 +332,73 @@ trait SyncsOutbox
             $stash->put($this->me()?->id, $name, new StashedDraft($write->body()));
         }
 
-        $this->showCommitTurnedDown($write);
+        $this->broadcastOutboxChange('commit-rejected', $write);
         $this->checkOrganizations($write);
 
-        if ($reopen && $this->reopenFailedCommit($write)) {
+        $recovered = $reopen && ($this->nativeParentComponent instanceof FeedWorkspace
+            ? $this->nativeParentComponent->recoverOutboxDraft($write)
+            : $this->reopenFailedCommit($write));
+        if ($recovered) {
             Toasts::failed($error);
 
             return;
         }
 
         Toasts::failed($error, ['label' => 'Edit', 'id' => 'edit', 'data' => ['write' => $write->id]]);
+    }
+
+    public function applyStagedCommit(Commit $commit): void
+    {
+        $this->showCommitted($commit);
+
+        if ($this instanceof CommitDetail && $commit->parentId === null) {
+            foreach ($this->outboxViews() as $view) {
+                if ($view instanceof Log) {
+                    $view->applyStagedCommit($commit);
+                }
+            }
+        }
+    }
+
+    /** @return list<Log|CommitDetail|static> */
+    private function outboxViews(): array
+    {
+        return $this->nativeParentComponent instanceof FeedWorkspace
+            ? $this->nativeParentComponent->panes()
+            : [$this];
+    }
+
+    /** @param array<string, mixed> $data */
+    private function broadcastOutboxChange(string $state, PendingWrite $write, array $data = [], ?bool $starred = null): void
+    {
+        foreach ($this->outboxViews() as $view) {
+            $view->applyOutboxChange($state, $write, $data, $starred);
+        }
+    }
+
+    /**
+     * Applies only view state; the single answering owner settles storage,
+     * cache, files, subsequent writes and toasts before broadcasting here.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function applyOutboxChange(string $state, PendingWrite $write, array $data = [], ?bool $starred = null): void
+    {
+        match ($state) {
+            'star' => $this->showStar((string) $write->target, $starred === true, $data === [] ? null : Commit::fromArray($data)),
+            'commit-sent' => $this->showCommitWent($write, Commit::fromArray($data)),
+            'commit-rejected' => $this->showCommitTurnedDown($write),
+        };
+    }
+
+    public function reopenOutboxDraft(PendingWrite $write): bool
+    {
+        return $this->reopenFailedCommit($write);
+    }
+
+    public function applyPendingStar(string $id, bool $starred): void
+    {
+        $this->showStar($id, $starred);
     }
 
     /**
@@ -365,7 +442,6 @@ trait SyncsOutbox
             return;
         }
 
-        $this->showStar($data['commit'], $data['starred']);
         $this->queueStar($data['commit'], $data['starred']);
     }
 
@@ -407,6 +483,9 @@ trait SyncsOutbox
         $write = is_numeric($data['write'] ?? null) ? app(Outbox::class)->find((int) $data['write']) : null;
 
         if ($write !== null && $write->isCommit() && $write->isFailed()) {
+            if ($this->nativeParentComponent instanceof FeedWorkspace) {
+                $this->nativeParentComponent->navigationRevision++;
+            }
             $this->editFailedCommit($write);
         }
     }

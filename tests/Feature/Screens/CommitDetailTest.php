@@ -7,6 +7,8 @@ use App\Devnull\Stash;
 use App\Models\PendingWrite;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Edge\Enums\AlignItems;
+use Native\Mobile\Edge\TailwindParser;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
 use Tests\Support\GlassOpacity;
@@ -906,7 +908,7 @@ it('puts the reply bar on glass on iOS and the surface on Android, with no line,
 
     expect($bar['ref'] ?? null)->toBe('reply-bar')
         ->and($bar['props']['glass'] ?? null)->toBeNull()
-        ->and(childRefs($screen, 'reply-rows')[0])->toBe('reply-mention-slot');
+        ->and(childRefs($screen, 'reply-content')[0])->toBe('reply-mention-slot');
 
     if ($platform === 'ios') {
         // The page runs on under the bar, which is glass, so it shows through blurred. The bar draws the fade at its
@@ -950,6 +952,25 @@ it('fades the glass under the reply bar to 80% on iOS only', function (string $p
     $bottomBar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
 
     expect($bottomBar['props']['glass_opacity'] ?? null)->toBe($platform === 'ios' ? Display::ComposerGlassOpacity / 100 : null);
+})->with(['ios', 'android']);
+
+it("keeps the reply bar's root full width and centres a readable column in it, for Android's full-width bar box", function (string $platform) {
+    fakeThread();
+
+    $screen = Native::visit('/log/commits/c2', platform: $platform);
+    $bar = nodeByRef($screen, 'reply-bar');
+    $rows = nodeByRef($screen, 'reply-rows');
+    $content = nodeByRef($screen, 'reply-content');
+    $variant = json_decode($content['props']['_variants'], true)[0];
+
+    // The rows under the fade carry the tint full width, so they're what centres the readable column.
+    expect($bar['props'])->not->toHaveKey('_variants')
+        ->and($bar['layout']['width'] ?? null)->toBe('fill')
+        ->and($rows['props'])->not->toHaveKey('_variants')
+        ->and($rows['layout'])->toMatchArray(['width' => 'fill', 'align_items' => AlignItems::Center->value])
+        ->and($variant)->toMatchArray(['min' => TailwindParser::breakpointMinWidth('expanded'), 'layout' => TailwindParser::parse(Display::ReadableColumn)['variants']['expanded']])
+        ->and(childRefs($screen, 'reply-rows'))->toBe(['reply-content'])
+        ->and(childRefs($screen, 'reply-content'))->toContain('reply-mention-slot', 'reply-row');
 })->with(['ios', 'android']);
 
 it('ends the page above the reply bar, and further as the draft grows', function () {

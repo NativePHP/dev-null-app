@@ -107,7 +107,7 @@ it('holds the reply bar\'s suggestions to six rows and scrolls the rest inside t
         ->and($list['type'])->toBe('scroll_view')
         ->and($list['layout']['height'] ?? null)->toEqual(6 * 44)
         ->and(childRefs($screen, 'mention-scroll'))->toBe([...array_map(fn (int $n): string => "mention-ada{$n}", range(1, 7)), 'mention-adaptive'])
-        ->and(childRefs($screen, 'reply-rows'))->toBe(['reply-mention-slot', 'reply-photos-slot', 'reply-row']);
+        ->and(childRefs($screen, 'reply-content'))->toBe(['reply-mention-slot', 'reply-photos-slot', 'reply-row']);
 
     $screen->tap('mention-ada7')->assertSet('reply', '@ada7 ');
 });

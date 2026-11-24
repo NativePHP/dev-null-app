@@ -17,6 +17,7 @@ use App\Devnull\Stash;
 use App\Devnull\Timezone;
 use App\Devnull\Toasts;
 use App\Models\PendingWrite;
+use App\NativeComponents\FeedWorkspace;
 use Carbon\CarbonImmutable;
 use Closure;
 use Native\Mobile\Facades\System;
@@ -389,7 +390,7 @@ trait OpensCommitSheet
         app(Stash::class)->put($me->id, $stashName, new StashedDraft);
         $this->sheetImages = [];
         $this->closeCommitSheet();
-        $this->showCommitted($write->stagedCommit($me));
+        $this->applyStagedCommit($write->stagedCommit($me));
         $this->sendFromOutbox($write);
     }
 
@@ -436,7 +437,11 @@ trait OpensCommitSheet
         $write = $held === null ? null : app(Outbox::class)->find($held);
 
         if ($write !== null && $write->isCommit() && $write->isFailed()) {
-            $this->openFailedCommit($write);
+            if ($this->nativeParentComponent instanceof FeedWorkspace) {
+                $this->nativeParentComponent->recoverOutboxDraft($write);
+            } else {
+                $this->openFailedCommit($write);
+            }
 
             return;
         }
