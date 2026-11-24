@@ -4,6 +4,7 @@ namespace App\Devnull\Data;
 
 use App\Devnull\Display;
 use App\Devnull\Lane;
+use App\Devnull\Ownership;
 use Carbon\CarbonImmutable;
 use Closure;
 use Throwable;
@@ -20,6 +21,9 @@ use Throwable;
  *
  * A Nata Nu//ers high score carries its signed run in a fenced block, which
  * shows as a card ($scoreCard) instead of as code.
+ *
+ * $continuationId is the reply that carries on a thread its author writes as
+ * replies to themselves, when devnull says which (see SelfThread).
  */
 final readonly class Commit
 {
@@ -75,6 +79,7 @@ final readonly class Commit
         public ?ReplyPreview $replyPreview = null,
         public int $pasteisCount = 0,
         public ?ScoreCard $scoreCard = null,
+        public ?string $continuationId = null,
     ) {}
 
     /**
@@ -142,6 +147,7 @@ final readonly class Commit
             replyPreview: is_array($data['reply_preview'] ?? null) ? ReplyPreview::fromArray($data['reply_preview']) : null,
             pasteisCount: max(0, (int) ($data['pasteis_count'] ?? 0)),
             scoreCard: $scoreCard,
+            continuationId: is_string($data['continuation_id'] ?? null) && $data['continuation_id'] !== '' ? $data['continuation_id'] : null,
         );
     }
 
@@ -161,6 +167,14 @@ final readonly class Commit
     public function withMorePasteis(int $change): self
     {
         return new self(...[...get_object_vars($this), 'pasteisCount' => max(0, $this->pasteisCount + $change)]);
+    }
+
+    /**
+     * This commit with the count of replies its own page gives, for a copy that came without one.
+     */
+    public function withRepliesCount(int $repliesCount): self
+    {
+        return new self(...[...get_object_vars($this), 'repliesCount' => max(0, $repliesCount)]);
     }
 
     public function withPinned(bool $isPinned): self
@@ -327,15 +341,15 @@ final readonly class Commit
     }
 
     /**
-     * Whether $viewer may vote on the commit's poll, as the web decides it: someone else's published commit, whose
-     * poll is open and hasn't had their vote yet.
+     * Whether you may vote on the commit's poll, as the web decides it: a published commit that isn't yours or your
+     * organization's (see Ownership), whose poll is open and hasn't had your vote yet.
      */
-    public function canBeVotedOnBy(?User $viewer): bool
+    public function canBeVotedOnBy(Ownership $ownership): bool
     {
-        return $viewer !== null
+        return $ownership->isSignedIn()
             && $this->poll !== null
             && $this->isApproved()
-            && $this->author->id !== $viewer->id
+            && ! $ownership->owns($this)
             && $this->poll->closesAt !== null
             && ! $this->poll->hasVoted
             && ! $this->poll->showsResults()

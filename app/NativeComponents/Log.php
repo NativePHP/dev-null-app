@@ -6,9 +6,9 @@ use App\Devnull\Account;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Page;
 use App\Devnull\Data\TimelineRow;
-use App\Devnull\Data\User;
 use App\Devnull\Display;
 use App\Devnull\LastVisit;
+use App\Devnull\Ownership;
 use App\Devnull\ResponseCache;
 use App\Devnull\RowCache;
 use App\Devnull\RowWindow;
@@ -412,7 +412,7 @@ class Log extends NativeComponent
     private function openAfresh(): void
     {
         $this->commits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->latestCommits = [];
         $this->suggestions = [];
         $this->rankedSince = null;
@@ -959,7 +959,7 @@ class Log extends NativeComponent
         $this->commits = $page->items;
         $this->nextCursor = $page->nextCursor;
         $this->latestCommits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->rankedSince = is_string($json['newest_commit_id'] ?? null) ? $json['newest_commit_id'] : null;
         $this->forgetNewCommits();
         $this->keepStagedOnTop();
@@ -1169,6 +1169,7 @@ class Log extends NativeComponent
     private function frame(): View
     {
         $viewer = $this->me();
+        $ownership = $this->ownership();
 
         foreach (self::Logs as $log) {
             $this->rowCache($log)->startFrame();
@@ -1184,14 +1185,15 @@ class Log extends NativeComponent
                 'loaded' => $this->loaded,
                 'lastVisitAt' => $this->lastVisitAt,
                 'error' => $this->error,
-            ], $viewer, $this->listKey)
-            : $this->page($log, $this->previewState($log), $viewer, $this->listKeys[$log] ?? 0), self::Logs);
+            ], $ownership, $this->listKey)
+            : $this->page($log, $this->previewState($log), $ownership, $this->listKeys[$log] ?? 0), self::Logs);
 
         $showing = $pages[array_search($this->log, self::Logs, true)];
 
         return view('native.log', [
             'myColour' => $this->myColour(),
             'viewer' => $viewer,
+            'ownership' => $ownership,
             'pasteis' => app(Account::class)->pasteis(),
             'stashed' => app(Stash::class)->names($viewer?->id),
             'newCommitsLabel' => $this->newCommitsLabel(),
@@ -1208,7 +1210,7 @@ class Log extends NativeComponent
      * @param  array<string, mixed>  $state
      * @return array<string, mixed>
      */
-    private function page(string $log, array $state, ?User $viewer, int $listKey): array
+    private function page(string $log, array $state, Ownership $ownership, int $listKey): array
     {
         /** @var list<Commit> $commits */
         $commits = $state['commits'];
@@ -1216,7 +1218,7 @@ class Log extends NativeComponent
         $latestCommits = $state['latestCommits'];
         // Only the log you're on has who to follow: the others show their first few commits.
         $showsWhoToFollow = $log === $this->log && $this->showsWhoToFollow();
-        $rows = $this->timeline($log, $latestCommits, $commits, $log === self::Ranked ? null : LastVisit::firstSeenId($commits, $state['lastVisitAt'], $viewer?->id), $showsWhoToFollow);
+        $rows = $this->timeline($log, $latestCommits, $commits, $log === self::Ranked ? null : LastVisit::firstSeenId($commits, $state['lastVisitAt'], $ownership), $showsWhoToFollow);
 
         return [
             'log' => $log,

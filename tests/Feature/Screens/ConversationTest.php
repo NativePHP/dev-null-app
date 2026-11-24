@@ -1281,7 +1281,7 @@ it("lists an org's other members under Members when you type @, and closes once 
         ->assertMissingElement('column', fn (array $node): bool => ($node['ref'] ?? null) === 'mention-suggestions');
 });
 
-it('filters org members as the web ranks them: exact handle, handle prefix, name prefix, then the rest, followed first, six at most', function () {
+it('filters org members as the web ranks them: exact handle, handle prefix, name prefix, then the rest, followed first, all of them in a list that scrolls past six', function () {
     serveOrgThread(orgWithMembers([
         ['grace', 'Grace Hopper'],
         ['tobias', 'Ada Tobias'],
@@ -1295,7 +1295,8 @@ it('filters org members as the web ranks them: exact handle, handle prefix, name
 
     $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))->input('message-input', '@ADA', 4);
 
-    expect(childRefs($screen, 'mention-suggestions'))->toBe(['mention-ada', 'mention-adams', 'mention-adamant', 'mention-tobias', 'mention-bada', 'mention-cada']);
+    expect(childRefs($screen, 'mention-scroll'))->toBe(['mention-ada', 'mention-adams', 'mention-adamant', 'mention-tobias', 'mention-bada', 'mention-cada', 'mention-dada'])
+        ->and(nodeByRef($screen, 'mention-scroll')['layout']['height'])->toEqual(Display::MentionRowsShown * Display::MentionRowHeight);
 });
 
 it('never suggests you, or a member devnull says not to, and suggests nothing in a thread with one person', function () {

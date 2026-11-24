@@ -3,7 +3,6 @@
 use App\Devnull\Account;
 use App\Devnull\Data\Pasteis;
 use App\Devnull\Data\StashedDraft;
-use App\Devnull\Display;
 use App\Devnull\Stash;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
@@ -199,16 +198,18 @@ it('stashes a reply per commit, and brings it back in the reply bar marked as re
     $screen = Native::visit('/log/commits/c2')->input('reply-input', 'A reply in progress');
     $clearance = nodeByRef($screen, 'reply-bar-clearance')['layout']['height'];
 
+    // While you write it, there's only drop.
     expect(stashed('reply-c2'))->toBe('A reply in progress')
-        ->and(showsRef($screen, 'reply-stash'))->toBeFalse();
+        ->and(stashLabel($screen, 'reply-stash'))->toBe(['drop', 'Discard the draft']);
 
     $screen = Native::visit('/log/commits/c2');
 
     expect(nodeByRef($screen, 'reply-input')['props']['value'])->toBe('A reply in progress')
         ->and(stashLabel($screen, 'reply-stash'))->toBe(['stash@{0}', 'Discard the restored draft'])
-        ->and(nodeByRef($screen, 'send-reply')['props']['disabled'] ?? false)->toBeFalse()
-        // The page ends above the row that marks it, too.
-        ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual($clearance + Display::ReplyBarStashLabelHeight);
+        ->and(canSend($screen, 'send-reply'))->toBeTrue()
+        // It's marked in the row under the field, beside Reply, so the bar is no taller for it.
+        ->and(array_slice(childRefs($screen, 'reply-actions'), -2))->toBe(['reply-stash', 'send-reply'])
+        ->and(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual($clearance);
 });
 
 it("forgets a reply's stash once it's sent", function () {
@@ -272,7 +273,7 @@ it('keeps the dots inside Quote and Reply in pastéis mode, beside the pastel, t
     $screen = Native::visit('/log', platform: 'ios');
 
     // The dots sit inside the buttons, so the row has the same actions as without them.
-    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'pastel-c2', 'quote-c2', 'reply-to-c2', 'replies-c2', 'more-c2'])
+    expect(array_values(array_filter(childRefs($screen, 'actions-c2'))))->toBe(['star-c2', 'pastel-c2', 'quote-c2', 'reply-to-c2', 'more-c2'])
         ->and(array_values(array_filter(childRefs($screen, 'actions-c1'))))->toBe(['star-c1', 'pastel-c1', 'quote-c1', 'reply-to-c1', 'more-c1'])
         ->and(showsRef($screen, 'quote-stash-c2'))->toBeTrue()
         ->and(showsRef($screen, 'reply-stash-c2'))->toBeTrue()

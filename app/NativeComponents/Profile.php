@@ -300,7 +300,7 @@ class Profile extends NativeComponent
         $this->tab = $tab;
         $this->listKey = $this->listKeys[$tab] ?? 0;
         $this->commits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->nextCursor = null;
         $this->commitsLoaded = false;
         $this->forgetNewCommits();
@@ -732,7 +732,7 @@ class Profile extends NativeComponent
     private function forgetShownCommits(): void
     {
         $this->commits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->nextCursor = null;
         $this->forgetNewCommits();
     }
@@ -899,6 +899,7 @@ class Profile extends NativeComponent
             'canRemote' => $this->canRemote(),
             'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),
+            'ownership' => $this->ownership(),
             'stashed' => app(Stash::class)->names($this->me()?->id),
             'pages' => $pages,
             'pageIndex' => array_search($this->tab, self::Tabs, true),

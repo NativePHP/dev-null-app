@@ -28,6 +28,20 @@ final class ComposerMenu
         ];
     }
 
+    /**
+     * What the photo button in the reply bar on a commit's page opens: the photo library, or the camera, as the
+     * composer sheet's two photo buttons do.
+     *
+     * @return list<TopBarAction>
+     */
+    public static function photoItems(): array
+    {
+        return [
+            self::item('reply-pick-photos', 'Choose photos', Lucide::ImagePlus, 'pickPhotos'),
+            self::item('reply-take-photo', 'Take a photo', Lucide::Camera, 'takePhoto'),
+        ];
+    }
+
     private static function item(string $ref, string $label, Lucide $icon, string $method, bool $disabled = false): TopBarAction
     {
         return NavAction::make($ref)

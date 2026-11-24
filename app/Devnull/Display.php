@@ -13,21 +13,27 @@ use Native\Mobile\Platform;
 final class Display
 {
     /**
-     * The commit page's reply bar with one line of draft: its hairline, the
-     * field and the padding around them, as drawn on an iPhone.
+     * How much a line of draft adds to a composer bar's field.
      */
-    public const int ReplyBarHeight = 53;
-
     public const int ReplyBarLineHeight = 21;
 
     public const int ReplyBarMaxLines = 5;
 
-    public const int ReplyBarCharactersPerLine = 34;
+    /**
+     * The photos on a reply's draft, above the field in the reply bar (see partials/composer-photos), and the
+     * description of one under them while it's open.
+     */
+    public const int ReplyBarPhotosHeight = 88;
+
+    public const int ReplyBarDescriptionHeight = 100;
 
     /**
-     * The row under the reply bar's field that marks a restored draft (see partials/stash-label) and counts its photos.
+     * The people to mention above a field (see partials/mention-suggestions): a row's height, and how many rows show
+     * before the rest scroll inside the list.
      */
-    public const int ReplyBarStashLabelHeight = 28;
+    public const int MentionRowHeight = 44;
+
+    public const int MentionRowsShown = 6;
 
     /**
      * A bar holding partials/composer-box with one line of draft, as drawn on an iPhone: the bar's padding, then the
@@ -47,8 +53,13 @@ final class Display
     public const int ComposerGlassTint = 40;
 
     /**
-     * About how many characters fit on a line of the box's field. It runs the width of the box, so more fit than
-     * beside the reply bar's tools and button.
+     * How opaque, in percent, the glass under a composer bar gets on iOS once it has faded in (glass/N, see
+     * composerBarGlass()). Full glass over a dark screen reads as a heavy slab.
+     */
+    public const int ComposerGlassOpacity = 80;
+
+    /**
+     * About how many characters fit on a line of the box's field, which runs the width of the box.
      */
     public const int ComposerBoxCharactersPerLine = 46;
 
@@ -58,12 +69,6 @@ final class Display
      * long on phones without one.
      */
     public const int HomeIndicatorHeight = 34;
-
-    /**
-     * How far below the top of a reply's row its elbow comes level with the
-     * middle of the reply's avatar.
-     */
-    public const int ElbowLevel = 22;
 
     /**
      * How long ago a commit was made, as the web prints it beside the commit:
@@ -240,16 +245,21 @@ final class Display
      * How far a commit page has to scroll past its last reply to clear the
      * reply bar. A pushed screen is drawn under its bottom bar and the home
      * indicator, with no inset for either, so the page pads its own end: the
-     * bar as the draft grows to its five lines, and the indicator below it.
-     * With the keyboard up the bar sits on the keyboard instead, which only
-     * leaves a little more room. A restored draft, or one with photos, adds
-     * the row under the field ($draftRow).
+     * fade over its foot (partials/composer-fade), the bar
+     * (partials/composer-box) as the draft grows to its five lines, and the
+     * indicator below it. With the keyboard up the bar sits on the keyboard
+     * instead, which only leaves a little more room. Photos on the draft add
+     * their row above the field ($hasPhotos), and an open description of one
+     * its box under them ($describing). A link too long for devnull adds the
+     * line that says so.
      */
-    public static function replyBarClearance(string $draft, bool $draftRow = false): int
+    public static function replyBarClearance(string $draft, bool $hasPhotos = false, bool $describing = false): int
     {
-        return self::ReplyBarHeight
-            + (min(self::ReplyBarMaxLines, self::lineCount($draft, self::ReplyBarCharactersPerLine)) - 1) * self::ReplyBarLineHeight
-            + ($draftRow ? self::ReplyBarStashLabelHeight : 0)
+        return self::ComposerFadeHeight
+            + self::ComposerBoxBarHeight
+            + self::composerBoxGrowth($draft)
+            + ($hasPhotos ? self::ReplyBarPhotosHeight : 0)
+            + ($hasPhotos && $describing ? self::ReplyBarDescriptionHeight : 0)
             + (CommitBody::hasOversizedUrl($draft) ? 3 * self::ReplyBarLineHeight : 0)
             + self::HomeIndicatorHeight;
     }
@@ -298,12 +308,13 @@ final class Display
      * The classes for a composer's native:bottom-bar. On iOS that's Liquid Glass: what scrolls under the bar shows
      * through it, blurred. A patched mobile-air draws the glass behind the whole bar, under the home indicator too,
      * and fades it in over the bar's top ComposerFadeHeight points, so it has no hard top edge. EDGE's own glass on
-     * an element can't be faded, and stops short of the home indicator. Android has no glass, so the bar stays the
-     * surface there.
+     * an element can't be faded, and stops short of the home indicator. The glass stops at ComposerGlassOpacity
+     * percent (glass/N), so a little of the screen under the bar shows through. Android has no glass, so the bar
+     * stays the surface there.
      */
     public static function composerBarGlass(): string
     {
-        return self::fadesInBar() ? 'glass' : '';
+        return self::fadesInBar() ? 'glass/'.self::ComposerGlassOpacity : '';
     }
 
     /**
