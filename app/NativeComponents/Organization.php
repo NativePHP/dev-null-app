@@ -254,6 +254,7 @@ class Organization extends NativeComponent
             'myColour' => $this->myColour(),
             'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),
+            'ownership' => $this->ownership(),
             'stashed' => app(Stash::class)->names($this->me()?->id),
             'pages' => $pages,
             'pageIndex' => array_search($this->tab, self::Tabs, true),
@@ -296,7 +297,7 @@ class Organization extends NativeComponent
         $this->tab = $tab;
         $this->listKey = $this->listKeys[$tab] ?? 0;
         $this->commits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->nextCursor = null;
         $this->commitsLoaded = false;
         $this->commitsFailed = false;

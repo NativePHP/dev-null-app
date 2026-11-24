@@ -9,6 +9,7 @@ use App\Devnull\Data\PollDraft;
 use App\Devnull\Data\StashedDraft;
 use App\Devnull\DraftImages;
 use App\Devnull\Outbox;
+use App\Devnull\PostAs;
 use App\Devnull\ReportReason;
 use App\Devnull\ResponseCache;
 use App\Devnull\SignedRequest;
@@ -55,6 +56,11 @@ use Native\Mobile\Facades\System;
  * does (see AttachesToCommits), and suggests people to @mention, as the
  * web's does: devnull's people for a new commit, a reply or a quote (see
  * SuggestsMentions).
+ *
+ * A member of a GitHub organization can post as it instead, from the avatar
+ * over the field, as the web's Post as menu does, in a new commit, a quote or
+ * a reply (see PostAs). It starts as you each time, as the web's does, and
+ * the commit shows staged as the organization while it goes.
  *
  * The sheet keeps its commit while it slides away, so it doesn't empty on the
  * way down, and lets go of it once iOS says it's gone, however it was closed.
@@ -103,6 +109,11 @@ trait OpensCommitSheet
      * The commit you're writing in the sheet, quoting its commit or not.
      */
     public string $sheetBody = '';
+
+    /**
+     * The handle of the organization the sheet posts as, or null for you (see PostAs).
+     */
+    public ?string $sheetAuthor = null;
 
     /**
      * Whether the sheet opened on a stashed draft, which it marks until you empty it or drop it.
@@ -250,6 +261,15 @@ trait OpensCommitSheet
     }
 
     /**
+     * Post as, from the sheet's avatar: an organization's handle, or '' for you.
+     */
+    public function postAsInSheet(string $handle = ''): void
+    {
+        $this->sheetAuthor = PostAs::author($handle)?->username;
+        $this->sheetError = null;
+    }
+
+    /**
      * The web's clock button, in a new commit's composer: it opens "Submit at" under the field, with no time picked,
      * or closes it, and the commit goes now again. Its photos or its poll go with it either way, as on the web.
      */
@@ -335,6 +355,7 @@ trait OpensCommitSheet
             'images' => PendingWrite::imagePayload($this->sheetImages),
             'stash' => $stashName,
             'composer' => $this->sheetView,
+            ...PendingWrite::authorPayload(PostAs::author($this->sheetAuthor)),
         ]);
 
         if ($write === null) {
@@ -519,18 +540,24 @@ trait OpensCommitSheet
         return $this->sheetOpen && $this->sheetStashName() === $write->stashName();
     }
 
+    /**
+     * A published commit, or one of yours still waiting for approval, as the web's Quote shows.
+     */
     private function canQuote(Commit $commit): bool
     {
-        $viewer = $this->me();
+        $ownership = $this->ownership();
 
-        return $viewer !== null && ! $commit->isDeleted() && ! $commit->isStaged() && ($commit->isApproved() || $commit->author->id === $viewer->id);
+        return $ownership->isSignedIn() && ! $commit->isDeleted() && ! $commit->isStaged() && ($commit->isApproved() || $ownership->owns($commit));
     }
 
+    /**
+     * Someone else's published commit: never yours or an organization's you're in, which devnull won't take a report of.
+     */
     private function canReport(Commit $commit): bool
     {
-        $viewer = $this->me();
+        $ownership = $this->ownership();
 
-        return $viewer !== null && ! $commit->isDeleted() && $commit->isApproved() && $commit->author->id !== $viewer->id;
+        return $ownership->isSignedIn() && ! $commit->isDeleted() && $commit->isApproved() && ! $ownership->owns($commit);
     }
 
     /**
@@ -549,10 +576,11 @@ trait OpensCommitSheet
 
         $images = $this->sheetImages;
         $poll = $this->sheetPollPayload();
+        $author = PostAs::author($this->sheetAuthor)?->username;
         $this->sendingSchedule = true;
         $this->sheetError = null;
 
-        $this->sendInBackground(fn (Client $devnull): SignedRequest => $devnull->signedScheduledCommit($body, $at, $images, $poll), function () use ($me, $stashName, $images): void {
+        $this->sendInBackground(fn (Client $devnull): SignedRequest => $devnull->signedScheduledCommit($body, $at, $images, $poll, $author), function () use ($me, $stashName, $images): void {
             $this->sendingSchedule = false;
             app(ResponseCache::class)->forget(Client::ScheduledCommitsPath);
             app(Stash::class)->put($me->id, $stashName, new StashedDraft);
@@ -560,9 +588,13 @@ trait OpensCommitSheet
             $this->sheetImages = [];
             $this->closeCommitSheet();
             Toasts::say(self::Scheduled);
-        }, function (string $message): void {
+        }, function (string $message) use ($author): void {
             $this->sendingSchedule = false;
             $this->sheetError = $message;
+
+            if ($author !== null && method_exists($this, 'refreshUnreadNotifications')) {
+                $this->refreshUnreadNotifications();
+            }
         }, timeout: $images === [] ? 30 : 120);
     }
 
@@ -574,6 +606,7 @@ trait OpensCommitSheet
         $this->reportReason = '';
         $this->reportDetails = '';
         $this->sheetBody = '';
+        $this->sheetAuthor = null;
         $this->sheetRestored = false;
         $this->sheetError = null;
         $this->forgetMention('sheetBody');
@@ -621,9 +654,10 @@ trait OpensCommitSheet
     }
 
     /**
-     * The sheet starts from its stashed draft, with its photos and poll. A
-     * commit devnull turned down that was written under it comes back whole,
-     * and leaves the outbox: from here it's a draft again.
+     * The sheet starts from its stashed draft, with its photos and poll, as
+     * you. A commit devnull turned down that was written under it comes back
+     * whole, as the organization it was to go out as, and leaves the outbox:
+     * from here it's a draft again.
      */
     private function restoreSheetDraft(): void
     {
@@ -631,6 +665,7 @@ trait OpensCommitSheet
         $failed = $name === null ? null : app(Outbox::class)->failedDraft($name);
 
         if ($failed !== null) {
+            $this->sheetAuthor = $failed->author();
             $this->takeFailedCommit($failed);
         }
 

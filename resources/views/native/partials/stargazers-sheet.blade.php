@@ -3,6 +3,9 @@
     then each of them, newest first, with their avatar, name and handle. A tap opens them. While a page loads, skeleton
     rows stand in for up to three of them. When one doesn't load, the web's line says so, with Try again, and while
     there are more, Show more. Nothing is drawn until the sheet opens.
+
+    On an organization's commit that a different member posted, devnull's API won't list who starred it, though the
+    web does, so the sheet says that instead ($stargazersForPoster).
 --}}
 <native:bottom-sheet ref="stargazers-sheet" :visible="$stargazersOf !== null" detents="medium,large" @dismiss="stargazersClosed">
     @if ($stargazersOf !== null)
@@ -34,7 +37,9 @@
                     @endif
                 </native:column>
 
-                @if ($stargazersFailed)
+                @if ($stargazersForPoster)
+                    <native:text ref="stargazers-poster-only" class="w-full text-sm text-theme-ink-muted">Only the member who posted this commit can see who starred it here.</native:text>
+                @elseif ($stargazersFailed)
                     <native:row ref="stargazers-failed" class="w-full gap-3 items-center">
                         <native:text font="mono" class="text-[13px] text-theme-ink-muted">fatal: could not load stars</native:text>
                         <native:button ref="stargazers-retry" variant="secondary" size="sm" @press="loadStargazers">Try again</native:button>

@@ -39,12 +39,16 @@ use Native\Mobile\Facades\Share;
  *
  * A commit can be tapped where a row nests it too: the commit a row quotes,
  * and the replies a feed shows under a commit.
+ *
+ * A commit is yours when you made it or an organization you're in did, as
+ * devnull decides it (see Ownership).
  */
 trait ShowsCommits
 {
     use OpensCommitSheet;
     use OpensHashtags;
     use OpensStargazers;
+    use PopsReactions;
     use VotesOnPolls;
     use WritesInBackground;
 
@@ -210,8 +214,8 @@ trait ShowsCommits
      * star goes to devnull from the outbox (see SyncsOutbox). The commit takes
      * the count devnull sends back, or the star comes back off it if devnull
      * says no. Like the web, only someone else's published commit can be
-     * starred, as devnull turns down a star on your own (whose star opens who
-     * starred it instead, see OpensStargazers).
+     * starred, as devnull turns down a star on your own or your organization's
+     * (whose star opens who starred it instead, see OpensStargazers).
      */
     public function toggleStar(string $id): void
     {
@@ -223,12 +227,18 @@ trait ShowsCommits
 
         $this->showStar($id, ! $commit->starred);
         $this->queueStar($id, ! $commit->starred);
+
+        // The web only pops a star going on.
+        if (! $commit->starred) {
+            $this->pop('star-'.$id);
+        }
     }
 
     /**
      * Gives the commit a pastel, as the web's pastel button does in pastéis
      * mode: one per tap, from the ten you get each day, on someone else's
-     * published commit. Its count goes up and your allowance down at once,
+     * published commit, never an organization's, which has no pastel at all,
+     * as on the web. Its count goes up and your allowance down at once,
      * and the pastel goes from the background, so you can keep tapping. When
      * devnull turns one down, it comes back, and a toast says why in the web's
      * words. With none left, the toast says so without asking devnull.
@@ -238,7 +248,7 @@ trait ShowsCommits
         $commit = $this->shownCommit($id);
         $pasteis = app(Account::class)->pasteis();
 
-        if ($commit === null || $pasteis === null || ! $this->canReactTo($commit)) {
+        if ($commit === null || $pasteis === null || ! $this->canGivePastel($commit)) {
             return;
         }
 
@@ -250,6 +260,7 @@ trait ShowsCommits
 
         app(Account::class)->rememberPasteis($pasteis->afterGiving());
         $this->changeShownCommit($id, fn (Commit $shown): Commit => $shown->withMorePasteis(1));
+        $this->pop('pastel-'.$id);
 
         $this->writeInBackground('POST', Client::pastelPath($id), null, fn (array $json) => $this->pastelGiven($id, $json), function (string $message, ?ApiException $exception = null) use ($id): void {
             $this->pastelTurnedDown($id, $exception);
@@ -258,8 +269,9 @@ trait ShowsCommits
 
     /**
      * Pin to profile or Unpin from profile, in your own published commit's
-     * More menu. Once devnull answers, a toast says so in the web's words, and
-     * a pin takes the place of the one before (see showPinned()).
+     * More menu. Not an organization's: devnull pins to its author's profile,
+     * which only a person has. Once devnull answers, a toast says so in the
+     * web's words, and a pin takes the place of the one before (see showPinned()).
      */
     public function togglePin(string $id): void
     {
@@ -398,7 +410,8 @@ trait ShowsCommits
     }
 
     /**
-     * Delete commit, in your own commit's More menu, asks first, as the web does.
+     * Delete commit, in the More menu of your own commit or an organization's
+     * you're in, asks first, as the web does.
      */
     public function confirmDelete(string $id): void
     {
@@ -473,6 +486,11 @@ trait ShowsCommits
     /**
      * Deletes your commit on devnull, which takes it out of every list kept on
      * this phone, then the screen lets it go (see showDeleted()).
+     *
+     * An organization's commit is only yours while you're in it. When devnull
+     * turns its delete down, the screen says why in devnull's words, and asks
+     * GET /me which organizations you're still in, so the commit stops
+     * offering Delete if you've left.
      */
     public function deleteCommit(string $id): void
     {
@@ -491,6 +509,8 @@ trait ShowsCommits
         if ($deleted === true) {
             Toasts::say('rm '.$commit->shortHash.' → /dev/null', short: true);
             $this->showDeleted($id);
+        } elseif ($this->error !== null && $commit->author->isOrganization && method_exists($this, 'refreshUnreadNotifications')) {
+            $this->refreshUnreadNotifications();
         }
     }
 
@@ -533,17 +553,22 @@ trait ShowsCommits
 
     private function canReactTo(Commit $commit): bool
     {
-        return ! $commit->isDeleted() && $commit->isApproved() && $commit->author->id !== $this->me()?->id;
+        return ! $commit->isDeleted() && $commit->isApproved() && ! $this->ownership()->owns($commit);
+    }
+
+    private function canGivePastel(Commit $commit): bool
+    {
+        return $this->canReactTo($commit) && ! $commit->author->isOrganization;
     }
 
     private function canPin(Commit $commit): bool
     {
-        return ! $commit->isDeleted() && $commit->isApproved() && $commit->parentId === null && $commit->author->id === $this->me()?->id;
+        return ! $commit->isDeleted() && $commit->isApproved() && $commit->parentId === null && $this->ownership()->isYourOwn($commit);
     }
 
     private function canDelete(Commit $commit): bool
     {
-        return ! $commit->isDeleted() && ! $commit->isStaged() && $commit->author->id === $this->me()?->id;
+        return ! $commit->isDeleted() && ! $commit->isStaged() && $this->ownership()->owns($commit);
     }
 
     /**

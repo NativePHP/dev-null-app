@@ -28,6 +28,14 @@ final class Display
     public const int ReplyBarDescriptionHeight = 100;
 
     /**
+     * The people to mention above a field (see partials/mention-suggestions): a row's height, and how many rows show
+     * before the rest scroll inside the list.
+     */
+    public const int MentionRowHeight = 44;
+
+    public const int MentionRowsShown = 6;
+
+    /**
      * A bar holding partials/composer-box with one line of draft, as drawn on an iPhone: the bar's padding, then the
      * field over the row of tools and the send button.
      */
@@ -45,6 +53,12 @@ final class Display
     public const int ComposerGlassTint = 40;
 
     /**
+     * How opaque, in percent, the glass under a composer bar gets on iOS once it has faded in (glass/N, see
+     * composerBarGlass()). Full glass over a dark screen reads as a heavy slab.
+     */
+    public const int ComposerGlassOpacity = 80;
+
+    /**
      * About how many characters fit on a line of the box's field, which runs the width of the box.
      */
     public const int ComposerBoxCharactersPerLine = 46;
@@ -55,12 +69,6 @@ final class Display
      * long on phones without one.
      */
     public const int HomeIndicatorHeight = 34;
-
-    /**
-     * How far below the top of a reply's row its elbow comes level with the
-     * middle of the reply's avatar.
-     */
-    public const int ElbowLevel = 22;
 
     /**
      * How long ago a commit was made, as the web prints it beside the commit:
@@ -300,12 +308,13 @@ final class Display
      * The classes for a composer's native:bottom-bar. On iOS that's Liquid Glass: what scrolls under the bar shows
      * through it, blurred. A patched mobile-air draws the glass behind the whole bar, under the home indicator too,
      * and fades it in over the bar's top ComposerFadeHeight points, so it has no hard top edge. EDGE's own glass on
-     * an element can't be faded, and stops short of the home indicator. Android has no glass, so the bar stays the
-     * surface there.
+     * an element can't be faded, and stops short of the home indicator. The glass stops at ComposerGlassOpacity
+     * percent (glass/N), so a little of the screen under the bar shows through. Android has no glass, so the bar
+     * stays the surface there.
      */
     public static function composerBarGlass(): string
     {
-        return self::fadesInBar() ? 'glass' : '';
+        return self::fadesInBar() ? 'glass/'.self::ComposerGlassOpacity : '';
     }
 
     /**

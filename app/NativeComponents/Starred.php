@@ -265,6 +265,7 @@ class Starred extends NativeComponent
         return view('native.starred', [
             'rowCache' => $this->rowCache,
             'viewer' => $viewer,
+            'ownership' => $this->ownership(),
             'stashed' => app(Stash::class)->names($viewer?->id),
             'myColour' => $this->myColour(),
             'rows' => Timeline::feed($this->commits),

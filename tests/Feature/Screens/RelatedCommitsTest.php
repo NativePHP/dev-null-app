@@ -85,7 +85,7 @@ it('shows related commits below the thread in relevance order on their own rail'
         ->assertSee('Next match')
         ->assertSee('Third match');
 
-    expect(childRefs($screen, 'thread-page'))->toBe(['focused-commit', 'thread-reply-r1', 'related-commits', 'reply-bar-clearance'])
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['focused-commit', 'thread-reply-r1', 'related-commits', 'reply-bar-clearance'])
         ->and(childRefs($screen, 'related-commits'))->toBe(['related-commits-toggle', 'related-c9', 'related-c3', 'related-c7'])
         ->and(childRefs($screen, 'related-c9'))->toBe(['commit-c9'])
         ->and(railNode($screen, 'commit-c9'))->toBe('avatar')
@@ -255,13 +255,13 @@ it("draws one full-width line above related commits, with the replies shut or op
     $relatedLine = fn (): float => (float) (nodeByRef($screen, 'related-commits')['props']['border_t'] ?? 0);
 
     // Shut, the commit sits right on the section, whose line is the only one.
-    expect(childRefs($screen, 'thread-page'))->toBe(['focused-commit', 'related-commits', 'reply-bar-clearance'])
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['focused-commit', 'related-commits', 'reply-bar-clearance'])
         ->and($commitLine())->toBe(0.0)
         ->and($relatedLine())->toBe(1.0);
 
     // Open, the last reply ends with no hairline of its own, so the section's line is still the only one.
     $screen->tap('replies-c1')->assertSee('A reply');
-    expect(childRefs($screen, 'thread-page'))->toBe(['focused-commit', 'thread-reply-r1', 'related-commits', 'reply-bar-clearance'])
+    expect(childRefs($screen, 'thread-scroll'))->toBe(['focused-commit', 'thread-reply-r1', 'related-commits', 'reply-bar-clearance'])
         ->and($commitLine())->toBe(0.0)
         ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'thread-end-r1'))->toBeNull()
         ->and($relatedLine())->toBe(1.0);

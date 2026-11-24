@@ -42,11 +42,11 @@ use Victorycodedev\ToastKit\Events\ToastActionPressed;
  * - A star comes back off the commit, here and in every kept copy, and the
  *   toast offers Retry.
  * - A commit or a reply leaves the screen, and its draft goes back where you
- *   wrote it: the text in its stash, and the photos and poll with the failed
- *   write in the outbox, for the composer to take when it opens. The screen
- *   that owns the composer opens it again with the lot. Anywhere else the
- *   toast offers Edit, which opens it here when it can, or the commit the
- *   reply or quote was for.
+ *   wrote it: the text in its stash, and the photos, poll and organization
+ *   it was to go out as with the failed write in the outbox, for the
+ *   composer to take when it opens. The screen that owns the composer opens
+ *   it again with the lot. Anywhere else the toast offers Edit, which opens
+ *   it here when it can, or the commit the reply or quote was for.
  * - A message stays in its thread as rejected, with its Retry, and the toast
  *   offers Retry too. Its photos or voice note stay on the phone with it
  *   until it goes.
@@ -310,6 +310,7 @@ trait SyncsOutbox
         }
 
         $this->showCommitTurnedDown($write);
+        $this->checkOrganizations($write);
 
         if ($reopen && $this->reopenFailedCommit($write)) {
             Toasts::failed($error);
@@ -318,6 +319,18 @@ trait SyncsOutbox
         }
 
         Toasts::failed($error, ['label' => 'Edit', 'id' => 'edit', 'data' => ['write' => $write->id]]);
+    }
+
+    /**
+     * A commit that was to go out as an organization asks devnull which ones
+     * you're still in, since leaving it is a reason devnull turns one down. Its
+     * composer then posts as you, as the web's does (see PostAs).
+     */
+    private function checkOrganizations(PendingWrite $write): void
+    {
+        if ($write->author() !== null && method_exists($this, 'refreshUnreadNotifications')) {
+            $this->refreshUnreadNotifications();
+        }
     }
 
     /**
@@ -333,8 +346,8 @@ trait SyncsOutbox
             PendingWrite::Unstar => $devnull->signedWrite('DELETE', $commit),
             PendingWrite::Message => $devnull->signedMessage((string) $write->target, $write->body(), $write->client_id, $write->replyToId(), $write->images(), $write->voice()),
             default => $write->images() === []
-                ? $devnull->signedCommit($write->body(), $write->parentId(), $write->quotedCommitId(), $write->poll())
-                : $devnull->signedCommitWithImages($write->body(), $write->images(), $write->parentId(), $write->quotedCommitId()),
+                ? $devnull->signedCommit($write->body(), $write->parentId(), $write->quotedCommitId(), $write->poll(), $write->author())
+                : $devnull->signedCommitWithImages($write->body(), $write->images(), $write->parentId(), $write->quotedCommitId(), $write->author()),
         };
     }
 

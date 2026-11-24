@@ -36,13 +36,13 @@ final class LastVisit
 
     /**
      * The commit the marker goes above, or null for a first visit, when nothing is
-     * new, or when the only new commits are your own.
+     * new, or when the only new commits are yours or your organizations' (see Ownership).
      *
      * @param  list<Commit>  $commits  newest first
      */
-    public static function firstSeenId(array $commits, ?string $seenAt, ?string $userId): ?string
+    public static function firstSeenId(array $commits, ?string $seenAt, Ownership $ownership): ?string
     {
-        if ($seenAt === null || $userId === null) {
+        if ($seenAt === null || ! $ownership->isSignedIn()) {
             return null;
         }
 
@@ -58,7 +58,7 @@ final class LastVisit
             }
 
             foreach (array_slice($commits, 0, $index) as $newer) {
-                if ($newer->author->id !== $userId) {
+                if (! $ownership->owns($newer)) {
                     return $commit->id;
                 }
             }
