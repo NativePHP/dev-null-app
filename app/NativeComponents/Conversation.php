@@ -29,6 +29,7 @@ use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\PlaysVoiceNotes;
 use App\NativeComponents\Concerns\RecordsVoiceNotes;
 use App\NativeComponents\Concerns\RefreshesInBackground;
+use App\NativeComponents\Concerns\ShowsImageViewer;
 use App\NativeComponents\Concerns\SuggestsMentions;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -77,7 +78,8 @@ use NativePHP\Clipboard\Facades\Clipboard;
  * and letting go there sets the composer replying to it; it springs back
  * either way. A double tap toggles a heart. A long press opens its menu (see
  * MessageMenu), whose React shows the web's quick reactions in a bubble
- * above it, with More for the phone's own emoji picker.
+ * above it, with More for the phone's own emoji picker. A tap on one of its
+ * images opens them full-screen (see ShowsImageViewer).
  *
  * An org's pinned messages show as the web shows them: the latest in a bar
  * over the top of the thread, which opens them all in a sheet, and a pin
@@ -109,6 +111,7 @@ class Conversation extends NativeComponent
     use PlaysVoiceNotes;
     use RecordsVoiceNotes;
     use RefreshesInBackground;
+    use ShowsImageViewer;
     use SuggestsMentions;
     use SyncsOutbox;
     use TalksToDevnull;
@@ -1107,6 +1110,20 @@ class Conversation extends NativeComponent
         if (SiteLink::isWebUrl($url)) {
             Browser::inApp($url);
         }
+    }
+
+    /**
+     * Opens a message's images full-screen (see ShowsImageViewer), from the one
+     * tapped, which it grows out of, paging through that message's images only,
+     * as a commit's do. A message the thread isn't showing opens nothing, nor
+     * does one still being pushed, whose images are only on the phone.
+     */
+    public function openMessageImage(int $id, int $index = 0): void
+    {
+        $images = $this->findMessage($id)?->images ?? [];
+
+        // The refs partials/message-images gives them, keyed by the message's id.
+        $this->showImagesInViewer($images, $index, array_map(fn (int $place): string => "image-{$id}-{$place}", array_keys($images)));
     }
 
     /**

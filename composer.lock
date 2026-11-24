@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c04ed57c9f1aabaac5fe95860c71babf",
+    "content-hash": "8da614573009c041da1206198f293c72",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -460,6 +460,42 @@
                 "MIT"
             ],
             "description": "One-to-one WebRTC calls for the devnull app, speaking the same protocol as dev-null.sh's browser calls",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "devnull/nativephp-photos",
+            "version": "1.0.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/photos",
+                "reference": "bfb784d83f6154ce2b97592ad994951e69cfebaf"
+            },
+            "require": {
+                "nativephp/mobile": "^4.6.1",
+                "php": "^8.3"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Devnull\\Photos\\PhotosServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Devnull\\Photos\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Saves an image to the phone's photo library for the devnull app",
             "transport-options": {
                 "relative": true
             }

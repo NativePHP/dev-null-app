@@ -1,6 +1,6 @@
 {{--
     The profile's header, which the pager draws above its tabs (see profile.blade.php): the avatar ringed in their
-    lane, Follow (or, on your own, Edit on GitHub), who they are, what GitHub says about them, their counts and, in
+    lane, which opens full-screen, Follow (or, on your own, Edit on GitHub), who they are, what GitHub says about them, their counts and, in
     pastéis mode, the pastéis they've been given, then their activity, streaks and achievements.
     It scrolls up with the tab you're on until the tabs pin under the nav bar.
 --}}
@@ -22,6 +22,15 @@
                         @include('native.partials.live-badge', ['size' => 'lg'])
                     </native:row>
                 </native:pressable>
+            @elseif ($user->avatarUrl)
+                {{-- A tap shows the picture full-screen, as the web's does, where it can be zoomed and saved. --}}
+                <native:pressable ref="profile-picture" @press="viewProfilePicture" :width="92" :height="92" a11y-label="View {{ $user->name }}'s profile picture">
+                    <native:stack :width="92" :height="92" class="rounded-full bg-theme-{{ \App\Devnull\Lane::token($user->lane()) }}">
+                        <native:stack :width="88" :height="88" class="rounded-full bg-theme-surface">
+                            @include('native.partials.avatar', ['user' => $user, 'size' => 80, 'imageRef' => \App\NativeComponents\Profile::ProfilePictureRef])
+                        </native:stack>
+                    </native:stack>
+                </native:pressable>
             @else
                 <native:stack :width="92" :height="92" class="rounded-full bg-theme-{{ \App\Devnull\Lane::token($user->lane()) }}">
                     <native:stack :width="88" :height="88" class="rounded-full bg-theme-surface">
@@ -39,12 +48,12 @@
                 {{-- The web's Remote, beside Follow, when you can push to them. --}}
                 <native:row class="gap-2 items-center">
                     @if ($canRemote)
-                        <native:button ref="remote" variant="secondary" size="sm" :ios-icon="\App\Icons\Lucide::MessagesSquare->ios()" :android-icon="\App\Icons\Lucide::MessagesSquare->android()" @press="openRemote" a11y-label="Remote {{ $user->handle() }}">Remote</native:button>
+                        @include('native.partials.glass-pill-button', ['ref' => 'remote', 'label' => 'Remote', 'icon' => \App\Icons\Lucide::MessagesSquare, 'press' => 'openRemote', 'a11yLabel' => 'Remote '.$user->handle()])
                     @endif
                     @if ($profile->isFollowing)
-                        <native:button ref="follow" variant="secondary" size="sm" @press="toggleFollow" a11y-hint="Unfollows {{ $user->handle() }}">Unfollow</native:button>
+                        @include('native.partials.glass-pill-button', ['ref' => 'follow', 'label' => 'Unfollow', 'press' => 'toggleFollow', 'hint' => 'Unfollows '.$user->handle()])
                     @else
-                        <native:button ref="follow" :variant="$myColour" size="sm" @press="toggleFollow">Follow</native:button>
+                        @include('native.partials.glass-pill-button', ['ref' => 'follow', 'label' => 'Follow', 'press' => 'toggleFollow', 'filled' => true])
                     @endif
                 </native:row>
             @endif
@@ -78,7 +87,7 @@
         </native:column>
 
         @if ($user->bio)
-            @include('native.partials.github-text', ['text' => $user->bio, 'ref' => 'profile-bio', 'classes' => 'w-full text-[15px] leading-relaxed text-theme-ink', 'maxLines' => null])
+            @include('native.partials.bio-text', ['text' => $user->bio, 'ref' => 'profile-bio', 'classes' => 'w-full text-[15px] leading-relaxed text-theme-ink', 'press' => 'openBioMention'])
         @endif
 
         {{--
@@ -87,7 +96,7 @@
         --}}
         <native:column ref="profile-facts" class="w-full gap-[6]">
             @if ($user->company)
-                @include('native.partials.profile-fact', ['key' => 'company', 'icon' => \App\Icons\Lucide::Building2, 'label' => $user->company, 'gitHubMentions' => true])
+                @include('native.partials.profile-fact', ['key' => 'company', 'icon' => \App\Icons\Lucide::Building2, 'label' => $user->company, 'gitHubMentions' => true, 'mentionPress' => 'openBioMention'])
             @endif
             @if ($user->location)
                 @include('native.partials.profile-fact', ['key' => 'location', 'icon' => \App\Icons\Lucide::MapPin, 'label' => $user->location])

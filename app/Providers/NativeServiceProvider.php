@@ -5,6 +5,7 @@ namespace App\Providers;
 use Codingwithrk\NativephpSocialAuth\NativephpSocialAuthServiceProvider;
 use Devnull\AdaptiveLayout\AdaptiveLayoutServiceProvider;
 use Devnull\Calls\CallsServiceProvider;
+use Devnull\Photos\PhotosServiceProvider;
 use Illuminate\Support\ServiceProvider;
 use Native\Mobile\Providers\BrowserServiceProvider;
 use Native\Mobile\Providers\CameraServiceProvider;
@@ -65,6 +66,7 @@ class NativeServiceProvider extends ServiceProvider
             ToastKitServiceProvider::class,
             ClipboardServiceProvider::class,
             CallsServiceProvider::class,
+            PhotosServiceProvider::class,
             SkiaServiceProvider::class,
             ...(config('devnull.apple_sign_in') ? [NativephpSocialAuthServiceProvider::class] : []),
         ];

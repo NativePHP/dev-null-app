@@ -76,7 +76,7 @@ it('opens on what a commit row knew of its author, then fills in the rest', func
         ->assertSee('@ada')
         ->assertSee('Wrote the first program.')
         ->assertMissingElement('row', fn (array $node): bool => ($node['ref'] ?? null) === 'counts')
-        ->assertMissingElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'follow')
+        ->assertMissingElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'follow')
         ->assertElement('row', fn (array $node): bool => ($node['ref'] ?? null) === 'loading-1')
         ->assertMissingElement('column', fn (array $node): bool => ($node['ref'] ?? null) === 'loading-profile');
 
@@ -84,7 +84,7 @@ it('opens on what a commit row knew of its author, then fills in the rest', func
 
     finishRefreshes($profile)
         ->assertElement('row', fn (array $node): bool => ($node['ref'] ?? null) === 'counts')
-        ->assertElement('button', fn (array $node): bool => ($node['ref'] ?? null) === 'follow')
+        ->assertElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'follow')
         ->assertSee('Analytical engine notes');
 
     expect(showsLoading(showingProfile($profile)))->toBeFalse();
