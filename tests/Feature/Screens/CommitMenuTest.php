@@ -229,3 +229,21 @@ it("leaves Pin to profile off a reply, and off someone else's commit", function 
 
     Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/pin'));
 });
+
+it('leaves Pin to profile off your own commit posted in a guild, which devnull refuses to pin', function () {
+    serveApi(fn () => Http::response(pageJson([
+        commitJson(['id' => 'g1', 'guild_handle' => 'rust', 'guild' => ['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀', 'icon_url' => null]]),
+    ])));
+
+    $screen = Native::visit('/log', platform: 'ios');
+
+    expect(menuItems($screen, 'more-g1'))->toBe([
+        ['share-g1', 'Share link', 'custom:link'],
+        'divider',
+        ['delete-g1', 'Delete commit', 'custom:trash-2'],
+    ]);
+
+    $screen->call('togglePin', 'g1');
+
+    Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/pin'));
+});

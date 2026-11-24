@@ -425,3 +425,23 @@ it('signs a commit to schedule with photos as multipart, as a commit with photos
         ->and($request->body)->toContain('{"body":"","scheduled_at":"2026-10-20T08:00:00+00:00","image_descriptions":["A cabin."]}')
         ->and($request->body)->toContain('name="images[]"; filename="image-1.png"');
 });
+
+it('asks for a guild board with no page on the first, and keeps only that', function () {
+    serveApi(['GET /api/v1/guilds/rust' => [boardJson()]]);
+
+    $this->devnull->guild('rust');
+    $this->devnull->guild('rust', '2');
+
+    expect(array_map(fn (array $call): string => $call[0]->url(), Http::recorded()->all()))->toBe([
+        'http://devnull.test/api/v1/guilds/rust',
+        'http://devnull.test/api/v1/guilds/rust?page=2',
+    ])
+        ->and(kept('guilds/rust')['guild']['handle'])->toBe('rust')
+        ->and(kept('guilds/rust', ['page' => '2']))->toBeNull();
+});
+
+it('is nothing for a guild devnull answers without', function () {
+    serveApi(['GET /api/v1/guilds/rust' => [['data' => []]]]);
+
+    expect($this->devnull->guild('rust'))->toBeNull();
+});

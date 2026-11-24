@@ -69,6 +69,7 @@ enum Lucide
     case Bug;
     case ImagePlus;
     case Image;
+    case Download;
     case Camera;
     case ChartBar;
     case Eye;
@@ -209,6 +210,7 @@ enum Lucide
             self::Bug => 'bug',
             self::ImagePlus => 'image-plus',
             self::Image => 'image',
+            self::Download => 'download',
             self::Camera => 'camera',
             self::ChartBar => 'chart-bar',
             self::Eye => 'eye',

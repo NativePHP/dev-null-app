@@ -1,4 +1,7 @@
-{{-- One thing GitHub says about someone, under their bio: a muted icon and text, or a link in Commit Blue when $press is set. --}}
+{{--
+    One thing GitHub says about someone, under their bio: a muted icon and text, or a link in Commit Blue when $press is
+    set. With $gitHubMentions, the accounts it tags are badges, as in the bio, which call $mentionPress (see bio-text).
+--}}
 @php($press ??= null)
 @if ($press)
     <native:pressable ref="profile-{{ $key }}" @press="{{ $press }}" a11y-label="{{ $label }}">
@@ -15,7 +18,7 @@
             <native:icon :ios="$icon->ios()" :android="$icon->android()" :size="14" class="text-theme-ink-muted" />
         </native:column>
         @if ($gitHubMentions ?? false)
-            @include('native.partials.github-text', ['text' => $label, 'ref' => 'profile-'.$key.'-text', 'classes' => 'flex-1 text-sm text-theme-ink-muted', 'maxLines' => 1])
+            @include('native.partials.bio-text', ['text' => $label, 'ref' => 'profile-'.$key.'-text', 'classes' => 'flex-1 text-sm text-theme-ink-muted', 'maxLines' => 1, 'size' => 14, 'flowClasses' => 'flex-1', 'wordClasses' => 'text-theme-ink-muted', 'press' => $mentionPress ?? 'openGitHubMention'])
         @else
             <native:text class="flex-1 text-sm text-theme-ink-muted" :max-lines="1">{{ $label }}</native:text>
         @endif

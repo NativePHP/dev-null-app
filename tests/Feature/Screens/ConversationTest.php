@@ -3,8 +3,12 @@
 use App\Devnull\Account;
 use App\Devnull\Data\Remotes;
 use App\Devnull\Display;
+use App\Devnull\ImageCache;
+use App\Devnull\ImageViewer;
 use App\NativeComponents\Conversation;
+use Devnull\Photos\Events\Saved;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
@@ -1390,4 +1394,97 @@ it('leaves the draft alone when it no longer has the @handle where the caret fou
         ->set('draft', 'hi')
         ->tap('mention-ada')
         ->assertSet('draft', 'hi');
+});
+
+/**
+ * A message's photos as devnull sends them: $count of them, numbered from $first, the first described.
+ *
+ * @return list<array<string, mixed>>
+ */
+function remotePhotos(int $count, int $first = 1): array
+{
+    return array_map(fn (int $n): array => [
+        'id' => $n,
+        'width' => 400,
+        'height' => 300,
+        'description' => $n === $first ? 'The new logo' : null,
+        'url' => 'https://img.test/'.$n,
+    ], range($first, $first + $count - 1));
+}
+
+it("opens a message's image full-screen from the one tapped, and pages through that message's images only", function (string $platform) {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => '', 'images' => remotePhotos(3)]),
+        remoteMessageJson(['id' => 2, 'body' => 'and the dark one', 'images' => remotePhotos(2, first: 4)]),
+    ], ['read_through_id' => 2]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada', platform: $platform));
+
+    // Hidden until a tap, always in the tree.
+    expect(nodeByRef($screen, 'image-viewer')['props']['visible'])->toBeFalse()
+        ->and(nodeByRef($screen, 'image-1-1')['on_press'] ?? null)->not->toBeNull();
+
+    $screen->tap('image-1-1')->assertSet('viewerOpen', true)->assertSet('viewerIndex', 1)
+        // It grows out of the message's own images, by their refs, and shrinks back into whichever it pages to.
+        ->assertSet('viewerSources', ['image-1-0', 'image-1-1', 'image-1-2']);
+
+    $shown = findNodes(nodeByRef($screen, 'image-viewer'), fn (array $node): bool => ($node['type'] ?? null) === 'image');
+
+    expect(nodeByRef($screen, 'image-viewer')['props']['visible'])->toBeTrue()
+        ->and(array_map(fn (array $node): string => $node['props']['src'], $shown))->toBe(['https://img.test/1', 'https://img.test/2', 'https://img.test/3'])
+        ->and(nodeByRef($screen, 'viewed-image-0')['props']['alt'])->toBe('The new logo, image 1 of 3')
+        ->and(nodeByRef($screen, 'viewer-dots')['props']['a11y_label'])->toBe('Image 2 of 3')
+        ->and(nodeByRef($screen, 'viewer-save')['props']['a11y_label'])->toBe('Save to Photos');
+
+    $screen->changeTab('viewerPaged', 2)->assertSet('viewerIndex', 2);
+    $screen->dismissSheet('image-viewer')->assertSet('viewerOpen', false)->assertSet('viewerImages', []);
+
+    // A message with text keeps its images tappable too, and opens on its own.
+    $screen->tap('image-2-1')->assertSet('viewerIndex', 1);
+
+    expect(array_map(fn ($image): string => $image->url, $screen->instance()->viewerImages))->toBe(['https://img.test/4', 'https://img.test/5'])
+        ->and(nodeByRef($screen, 'viewer-dots')['props']['a11y_label'])->toBe('Image 2 of 2');
+
+    $screen->assertNativeNotCalled('Browser.OpenInApp');
+})->with(['ios', 'android']);
+
+it("keeps a message's long-press menu on its images while a tap opens them", function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => '', 'images' => remotePhotos(2)])], ['read_through_id' => 1]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada', platform: 'ios'));
+
+    expect(array_column(menuItems($screen, 'photos-1'), 1))->toBe(['Reply', 'React']);
+
+    $screen->tap('image-1-0')->assertSet('viewerOpen', true);
+});
+
+it("drags a message's image away and saves it to the phone's photos", function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => '', 'images' => remotePhotos(2)])], ['read_through_id' => 1]));
+    $this->bridge->respondTo('Photos.Save', ['success' => true]);
+
+    $kept = ImageCache::path('https://img.test/2');
+    File::ensureDirectoryExists(dirname($kept));
+    File::put($kept, 'jpeg bytes');
+
+    try {
+        $screen = finishRefreshes(Native::visit('/remotes/conversations/ada', platform: 'ios'))->tap('image-1-1');
+
+        $screen->tap('viewer-save')
+            ->assertNativeCalled('Photos.Save', fn (array $params): bool => $params['path'] === $kept)
+            ->emitNative(Saved::class)
+            ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Saved to Photos');
+
+        $screen->dragEnd('viewer-dismiss', 0, ImageViewer::DismissDistance)->assertSet('viewerOpen', false);
+    } finally {
+        File::delete($kept);
+    }
+});
+
+it("opens nothing for a message the thread isn't showing, or a place with no image", function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => '', 'images' => remotePhotos(1)])], ['read_through_id' => 1]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada', platform: 'ios'));
+
+    $screen->call('openMessageImage', 42, 0)->assertSet('viewerOpen', false);
+    $screen->call('openMessageImage', 1, 3)->assertSet('viewerOpen', false);
 });

@@ -24,6 +24,9 @@ use Throwable;
  *
  * $continuationId is the reply that carries on a thread its author writes as
  * replies to themselves, when devnull says which (see SelfThread).
+ *
+ * A commit posted straight to a guild's board knows that guild ($guild), which
+ * keeps it out of general logs.
  */
 final readonly class Commit
 {
@@ -80,6 +83,7 @@ final readonly class Commit
         public int $pasteisCount = 0,
         public ?ScoreCard $scoreCard = null,
         public ?string $continuationId = null,
+        public ?Guild $guild = null,
     ) {}
 
     /**
@@ -148,6 +152,7 @@ final readonly class Commit
             pasteisCount: max(0, (int) ($data['pasteis_count'] ?? 0)),
             scoreCard: $scoreCard,
             continuationId: is_string($data['continuation_id'] ?? null) && $data['continuation_id'] !== '' ? $data['continuation_id'] : null,
+            guild: self::guild($data),
         );
     }
 
@@ -375,6 +380,18 @@ final readonly class Commit
         } catch (Throwable) {
             return null;
         }
+    }
+
+    /**
+     * The guild this commit was posted in. It might be known
+     * because devnull sent the guild with the commit, or it
+     * might be known only by its handle.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private static function guild(array $data): ?Guild
+    {
+        return Guild::fromArray(is_array($data['guild'] ?? null) ? $data['guild'] : ['handle' => $data['guild_handle'] ?? null]);
     }
 
     private static function positiveInt(mixed $value): ?int

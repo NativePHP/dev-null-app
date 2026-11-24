@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitBody;
 use App\Devnull\Data\DraftImage;
+use App\Devnull\Data\Guild;
 use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\ScoreCard;
 use App\Devnull\Data\User;
@@ -20,7 +21,8 @@ use Illuminate\Database\Eloquent\Model;
  * message goes to. $payload is what's sent, and for a commit what the
  * composer needs to have it back: its body, what it replies to or quotes,
  * its poll, its photos with their descriptions, the draft it was stashed
- * under, and the organization it goes out as, if not as you.
+ * under, the organization it goes out as, if not as you, and the guild whose
+ * board it goes to, if any.
  *
  * It's queued until it goes, sending while it's on its way, and failed once
  * devnull turned it down, when a commit stays for you to edit and a message
@@ -173,6 +175,14 @@ class PendingWrite extends Model
     }
 
     /**
+     * The guild whose board a new commit goes to, or null for one that goes to your log.
+     */
+    public function guildHandle(): ?string
+    {
+        return is_string($this->payload['guild_handle'] ?? null) ? $this->payload['guild_handle'] : null;
+    }
+
+    /**
      * The message a Remotes message replies to.
      */
     public function replyToId(): ?int
@@ -247,6 +257,7 @@ class PendingWrite extends Model
             images: array_map(fn (DraftImage $image, int $index) => $image->asCommitImage($index), $this->images(), array_keys($this->images())),
             content: CommitBody::blocks(ScoreCard::withoutRun($this->body()), null, []),
             quotedCommitId: $this->quotedCommitId(),
+            guild: Guild::fromArray(['handle' => $this->guildHandle()]),
             scoreCard: ScoreCard::fromCommit($this->body(), $author),
         );
     }

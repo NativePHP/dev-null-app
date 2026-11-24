@@ -1,10 +1,12 @@
 {{--
-    What hangs under a commit's body on the web: its images, its poll, the commit it quotes, then the link preview.
+    What hangs under a commit's body on the web: its images, its poll, the commit it quotes, then the link preview, or
+    for a YouTube link the player devnull offers (see partials/commit-embed). Other players keep the preview for now.
     A Nata Nu//ers high score has its card first, which the web doesn't draw (see partials/score-card).
     A reply in a thread shows only its images and link preview ($withEmbeds false), as the web's thread does.
     Images hold their space at their aspect ratio on a wash, so one that fails to load leaves the row as it was. Each is
     read out by the description its author gave it, as the web's alt text. Images come from the device once ImageCache has
-    them, so they don't load again each time they scroll into view.
+    them, so they don't load again each time they scroll into view. Each image has a ref of its own for the image viewer
+    to grow out of and shrink back into (see Concerns\ShowsImageViewer).
 --}}
 @if ($commit->scoreCard)
     @include('native.partials.score-card')
@@ -14,7 +16,7 @@
 @if (count($images) === 1)
     <native:pressable ref="image-{{ $images[0]->id }}" @press="openImage('{{ $commit->id }}', 0)" class="w-full mt-2" a11y-label="{{ $images[0]->label() }}">
         <native:column class="w-full aspect-[{{ $images[0]->ratio() }}] rounded-lg border border-theme-hairline bg-theme-wash">
-            <native:image :src="\App\Devnull\ImageCache::src($images[0]->url)" :fit="2" alt="{{ $images[0]->label() }}" class="w-full h-full rounded-lg" />
+            <native:image ref="{{ $images[0]->thumbRef() }}" :src="\App\Devnull\ImageCache::src($images[0]->url)" :fit="2" alt="{{ $images[0]->label() }}" class="w-full h-full rounded-lg" />
         </native:column>
     </native:pressable>
 @elseif (count($images) > 1)
@@ -25,7 +27,7 @@
                 @foreach ($column as $image)
                     @php($index = array_search($image, $images, true))
                     <native:pressable ref="image-{{ $image->id }}" @press="openImage('{{ $commit->id }}', {{ $index }})" class="w-full flex-1 bg-theme-wash" a11y-label="{{ $image->label($index, count($images)) }}">
-                        <native:image :src="\App\Devnull\ImageCache::src($image->url)" :fit="2" alt="{{ $image->label($index, count($images)) }}" class="w-full h-full" />
+                        <native:image ref="{{ $image->thumbRef() }}" :src="\App\Devnull\ImageCache::src($image->url)" :fit="2" alt="{{ $image->label($index, count($images)) }}" class="w-full h-full" />
                     </native:pressable>
                 @endforeach
             </native:column>
@@ -41,7 +43,9 @@
     @include('native.partials.quoted-commit')
 @endif
 
-@if ($commit->linkPreview?->isReady())
+@if ($commit->linkPreview?->embed?->isYouTube())
+    @include('native.partials.commit-embed', ['preview' => $commit->linkPreview])
+@elseif ($commit->linkPreview?->isReady())
     @php($preview = $commit->linkPreview)
     {{-- A compact row, not a card: a small image, the mono site, then the title and description. --}}
     <native:pressable ref="link-preview-{{ $commit->id }}" @press="openLinkPreview('{{ $commit->id }}')" class="w-full mt-2" a11y-label="{{ $preview->title }}, {{ $preview->site() }}">

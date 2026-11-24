@@ -18,6 +18,8 @@
     one its author carried on that way links to that thread ($showsThread), as the web's "Show thread" does (see
     SelfThread). $repliesBelow says its replies show under the row, so its action row leaves out "› N replies".
 
+    A commit posted straight to a guild's board says so under its header (see guild-badge), except in search.
+
     A commit you just made that devnull doesn't have yet is staged: dimmed, with the staged chip and no actions, until
     the real one takes its place (see SyncsOutbox).
 
@@ -81,6 +83,10 @@
             <native:text ref="focused-hash" font="mono" class="{{ $metaSize }} text-theme-ink-muted flex-shrink-0">{{ $commit->shortHash }}</native:text>
         @endif
     </native:row>
+
+    @if ($commit->guild !== null && ! ($hidesGuildBadge ?? false))
+        @include('native.partials.guild-badge')
+    @endif
 
     @if ($commit->parent?->isDeleted())
         <native:row ref="replying-to-{{ $commit->id }}" class="gap-1 items-center">

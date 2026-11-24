@@ -23,6 +23,12 @@ it('finds the app screen for a page on dev/null', function (string $url, string 
     'a query and a fragment' => ['https://dev-null.sh/@ada/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8/?ref=share#replies', '/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8'],
     'a Remotes conversation' => ['https://dev-null.sh/remotes/@ada', '/conversations/ada'],
     'an org' => ['https://dev-null.sh/remotes/orgs/0199E5C4-0000-7000-8000-000000000002', '/orgs/0199e5c4-0000-7000-8000-000000000002'],
+    'the guilds directory' => ['https://dev-null.sh/guilds', '/guilds'],
+    'a guild' => ['https://dev-null.sh/guilds/rust', '/guilds/rust'],
+    'a guild with an underscore' => ['https://dev-null.sh/guilds/rust_lang/', '/guilds/rust_lang'],
+    'a guild with a letter beyond ASCII' => ['https://dev-null.sh/guilds/café', '/guilds/café'],
+    'a guild as a browser sends it, percent-encoded' => ['https://dev-null.sh/guilds/caf%C3%A9', '/guilds/café'],
+    'a guild with digits and an underscore' => ['https://dev-null.sh/guilds/rust_2024', '/guilds/rust_2024'],
     'the host the app talks to' => ['http://devnull.test/@ada', '/users/ada'],
 ]);
 
@@ -30,6 +36,13 @@ it('finds no app screen for anything else', function (?string $url) {
     expect(SiteLink::screen($url))->toBeNull();
 })->with([
     'nothing' => [null],
+    "a percent-encoded guild's icon" => ['https://dev-null.sh/guilds/caf%C3%A9/icon?v=1'],
+    'a handle with a hyphen' => ['https://dev-null.sh/guilds/rust-lang'],
+    'a handle that is not valid UTF-8' => ['https://dev-null.sh/guilds/caf%E9'],
+    'a handle longer than the web allows' => ['https://dev-null.sh/guilds/'.str_repeat('a', 61)],
+    "a guild's icon" => ['https://dev-null.sh/guilds/rust/icon?v=1700000000000'],
+    'a page beneath a guild' => ['https://dev-null.sh/guilds/rust/members/extra'],
+    'a handle that starts with a digit' => ['https://dev-null.sh/guilds/1rust'],
     'a host ending like dev/null' => ['https://dev-null.sh.evil.com/@ada'],
     'a subdomain' => ['https://api.dev-null.sh/@ada'],
     'another site' => ['https://evil.com/@ada'],

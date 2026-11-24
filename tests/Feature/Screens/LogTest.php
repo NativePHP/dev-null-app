@@ -317,6 +317,15 @@ it('opens a dev/null page linked in a commit here rather than in the browser', f
         ->assertNativeNotCalled('Browser.OpenInApp');
 });
 
+it('opens a guild directory linked in a commit on top of the tab it was tapped in', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson(['id' => 'c1', 'body' => 'All guilds: https://dev-null.sh/guilds'])]))]);
+
+    Native::visit('/log')
+        ->press("openLink('c1', 0)")
+        ->assertNavigatedTo('/log/guilds')
+        ->assertNativeNotCalled('Browser.OpenInApp');
+});
+
 it('shows a link preview as a compact row and opens it in the browser', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([commitJson([
         'id' => 'c1',
@@ -384,7 +393,7 @@ it('holds images at their aspect ratio, so one that never loads leaves the row i
         ->assertElement('image', fn (array $node): bool => ($node['props']['src'] ?? null) === 'http://devnull.test/commit-images/i1')
         ->tap('image-i1')
         ->assertSet('viewerOpen', true)
-        ->assertElement('image', fn (array $node): bool => ($node['ref'] ?? null) === 'viewed-image'
+        ->assertElement('image', fn (array $node): bool => ($node['ref'] ?? null) === 'viewed-image-0'
             && ($node['props']['src'] ?? null) === 'http://devnull.test/commit-images/i1')
         ->assertNativeNotCalled('Browser.OpenInApp');
 });
@@ -403,7 +412,7 @@ it('lays out several images in the web grid', function () {
         ->assertElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'image-i3' && ($node['a11y']['label'] ?? $node['props']['a11y_label'] ?? null) !== null)
         ->tap('image-i3')
         ->assertSet('viewerIndex', 2)
-        ->assertElement('image', fn (array $node): bool => ($node['ref'] ?? null) === 'viewed-image'
+        ->assertElement('image', fn (array $node): bool => ($node['ref'] ?? null) === 'viewed-image-2'
             && ($node['props']['src'] ?? null) === 'https://img.test/3')
         ->assertNativeNotCalled('Browser.OpenInApp');
 });
@@ -803,4 +812,46 @@ it("wears the web header's logo in place of its title, in the system appearance"
 
     // Other screens keep their text titles.
     expect($titleView(Native::visit('/notifications')->assertNavTitle('Notifications')))->toBeNull();
+});
+
+/**
+ * Answers GET guilds with what $guilds gives, and the Log's own requests with an empty page.
+ */
+function serveGuildsProbe(Closure $guilds): void
+{
+    serveApi(fn (Request $request) => parse_url($request->url(), PHP_URL_PATH) === '/api/v1/guilds' ? $guilds() : Http::response(pageJson([])));
+}
+
+it('leaves guilds to their tab, with Search and New commit in its bar', function () {
+    serveApi(fn (Request $request) => Http::response(pageJson([])));
+
+    $screen = finishRefreshes(Native::visit('/log'));
+
+    expect(hasTopBarAction($screen, 'guilds'))->toBeFalse()
+        ->and(hasTopBarAction($screen, 'search'))->toBeTrue()
+        ->and(hasTopBarAction($screen, 'compose'))->toBeTrue();
+});
+
+it('asks devnull whether guilds are on until it knows, for the next launch\'s tabs', function (Closure $serve, ?bool $remembered) {
+    $serve();
+
+    finishRefreshes(Native::visit('/log'));
+
+    expect(app(Account::class)->guildsAvailable())->toBe($remembered);
+})->with([
+    'on' => [fn () => serveGuildsProbe(fn () => Http::response(pageJson([]))), true],
+    'off' => [fn () => serveGuildsProbe(fn () => Http::response(['message' => 'Not Found'], 404)), false],
+    'a 404 devnull did not send' => [fn () => serveGuildsProbe(fn () => Http::response('<html>Example: Hotel Wi-Fi sign-in</html>', 404)), null],
+    'devnull failing' => [fn () => serveGuildsProbe(fn () => Http::response(['message' => 'Server Error'], 500)), null],
+    // No connection at launch must not hide the tab next time.
+    'no connection' => [fn () => fakeOffline(), null],
+]);
+
+it('stops asking whether guilds are on once it knows they are', function () {
+    app(Account::class)->rememberGuildsAvailable(true);
+    serveApi(fn (Request $request) => Http::response(pageJson([])));
+
+    finishRefreshes(Native::visit('/log'));
+
+    Http::assertNotSent(fn (Request $request): bool => parse_url($request->url(), PHP_URL_PATH) === '/api/v1/guilds');
 });
