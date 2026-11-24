@@ -339,9 +339,6 @@ trait OpensCommitSheet
     }
 
     /**
-     * Stashes the draft as it changes (see stashSheetDraft()).
-     */
-    /**
      * The sheet's field drew its caret somewhere else: it moved, the text wrapped differently, or the field scrolled.
      */
     public function sheetCaretMoved(Caret $caret): void
@@ -368,6 +365,9 @@ trait OpensCommitSheet
         );
     }
 
+    /**
+     * Stashes the draft as it changes (see stashSheetDraft()).
+     */
     public function updatedSheetBody(): void
     {
         $this->typeIssueCommand();
