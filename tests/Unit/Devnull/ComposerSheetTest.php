@@ -2,9 +2,6 @@
 
 use App\Devnull\ComposerSheet;
 use Native\Mobile\UI\Caret;
-use Tests\Support\TextFieldFill;
-
-beforeEach(fn () => TextFieldFill::skipUnlessSupported());
 
 /** A field 360pt tall, as on a phone with the keyboard up, with its caret's line ending at $bottom. */
 function composerCaret(float $bottom, float $fieldHeight = 360): array

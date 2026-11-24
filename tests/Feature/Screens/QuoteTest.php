@@ -5,7 +5,6 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
-use Tests\Support\TextFieldFill;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -214,8 +213,6 @@ it('quotes from a commit page, where closing the sheet is all there is to do', f
 });
 
 it('puts the quoted commit right under the field, which gives up the room it takes', function () {
-    TextFieldFill::skipUnlessSupported();
-
     $screen = quoteSheetOnLog();
 
     expect(childRefs($screen, 'sheet-below'))->toBe(['quote-card'])

@@ -7,7 +7,6 @@ use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 use Native\Mobile\UI\Caret;
 use Tests\Support\LayoutAnimation;
-use Tests\Support\TextFieldFill;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -212,8 +211,6 @@ it('forgets the suggestions when the sheet closes', function () {
 });
 
 it('floats the suggestions over the quoted commit on glass, just under the caret line and as tall as their rows', function () {
-    TextFieldFill::skipUnlessSupported();
-
     $screen = mentionsComposer(quoting: true)
         ->input('sheet-body', "see\n@a", 6)
         ->moveCaretTo('sheet-body', new Caret(x: 20, y: 22, width: 2, height: 22, line: 1, fieldWidth: 350, fieldHeight: 240));
@@ -239,8 +236,6 @@ it('floats the suggestions over the quoted commit on glass, just under the caret
 });
 
 it('scrolls a long list of suggestions in the sheet with one scroll view, its own', function () {
-    TextFieldFill::skipUnlessSupported();
-
     $people = array_map(fn (int $n): array => userJson(['id' => "u{$n}", 'handle' => "ada{$n}", 'name' => "Ada {$n}"]), range(1, 9));
     $screen = mentionsComposer(mentions: [['data' => $people]])
         ->input('sheet-body', "see\n\n\n\n\n\n@a", 12)
@@ -256,8 +251,6 @@ it('scrolls a long list of suggestions in the sheet with one scroll view, its ow
 });
 
 it('shortens the field to end on the caret line when the suggestions would not fit under it, and fills it again once they go', function () {
-    TextFieldFill::skipUnlessSupported();
-
     $screen = mentionsComposer(quoting: true)->input('sheet-body', "see\n\n\n\n\n\n\n\n@a", 14);
     $field = idsDownTo($screen->tree(), 'sheet-body');
 

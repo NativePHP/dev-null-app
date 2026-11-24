@@ -25,12 +25,12 @@ final class ComposerSheet
     public const int MinFieldLines = 2;
 
     /**
-     * The mention list's rows, and how many show before the rest scroll inside it. The same as
-     * Display::MentionRowHeight and Display::MentionRowsShown, which cap the lists by the other fields.
+     * The mention list's rows, and how many show before the rest scroll inside it. The same as the lists by the other
+     * fields (see Display), whose row height partials/mention-suggestions draws.
      */
-    public const int MentionRowHeight = 44;
+    public const int MentionRowHeight = Display::MentionRowHeight;
 
-    public const int MentionRowsShown = 6;
+    public const int MentionRowsShown = Display::MentionRowsShown;
 
     /** The list's own padding above and under its rows (py-1), and its heading's height (one line of text-xs, py-1). */
     public const int MentionPadding = 8;

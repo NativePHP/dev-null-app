@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 use Native\Mobile\UI\Caret;
-use Tests\Support\TextFieldFill;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -285,8 +284,6 @@ it('keeps the field the same view while what is drawn above it changes, so the k
 });
 
 it('fills the sheet with the field, with nothing scrolling around it', function () {
-    TextFieldFill::skipUnlessSupported();
-
     $screen = composeSheetOnLog();
     $field = nodeByRef($screen, 'sheet-body')['props'];
 
@@ -308,8 +305,6 @@ it('puts the poll under the field, which gives up the room it takes', function (
 });
 
 it('keeps where the field says its caret is until the sheet goes', function () {
-    TextFieldFill::skipUnlessSupported();
-
     $screen = composeSheetOnLog()
         ->moveCaretTo('sheet-body', new Caret(y: 48, height: 24, line: 2, fieldWidth: 350, fieldHeight: 240))
         ->assertSet('sheetCaret', ['bottom' => 72.0, 'line_height' => 24.0, 'field_height' => 240.0]);
