@@ -12,7 +12,7 @@
             </native:stack>
         </native:pressable>
     </native:row>
-    <native:column class="w-full h-[1] bg-theme-hairline" />
+    <native:column class="w-full h-[1] border-b border-theme-hairline" />
     <native:scroll-view ref="pinned-list" class="w-full flex-1">
         @foreach ($pinned as $message)
             @include('native.partials.pinned-message', ['message' => $message, 'key' => 'pin-'.$message->id, 'first' => $loop->first])

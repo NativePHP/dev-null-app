@@ -15,7 +15,7 @@
             <native:column class="w-full pb-10">
                 @forelse ($timezones['zones'] as $zone)
                     @if (! $loop->first)
-                        <native:column class="w-full h-[1] bg-theme-hairline" />
+                        <native:column class="w-full h-[1] border-b border-theme-hairline" />
                     @endif
                     <native:pressable ref="timezone-{{ $zone['name'] }}" @press="chooseTimezone('{{ $zone['name'] }}')" a11y-label="{{ $zone['offset'] }} {{ $zone['name'] }}{{ $zone['name'] === $chosenTimezone ? ', selected' : '' }}">
                         <native:row class="w-full px-5 py-3 gap-3 items-center">

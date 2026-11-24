@@ -25,7 +25,7 @@
             <native:button ref="watch-live-stream" variant="primary" size="lg" :ios-icon-trailing="\App\Icons\Lucide::ArrowUpRight->ios()" :android-icon-trailing="\App\Icons\Lucide::ArrowUpRight->android()" @press="watchLiveStream" class="w-full">Watch now</native:button>
 
             @if ($liveStreamWithProfile)
-                <native:column class="w-full h-[1] bg-theme-hairline" />
+                <native:column class="w-full h-[1] border-b border-theme-hairline" />
                 <native:row class="w-full gap-3 items-center">
                     @include('native.partials.rail-avatar', ['user' => $streamer, 'lane' => $streamer->lane(), 'size' => 48])
                     <native:column class="flex-1 gap-[2]">

@@ -604,18 +604,18 @@ class Conversation extends NativeComponent
     /**
      * Leaving the thread stops the voice note playing, and throws away one being recorded, as leaving the web's does.
      */
-    public function navigate(string $uri, array $data = []): static
+    public function navigate(string $uri, array $data = [], Transition|string|null $transition = null): static
     {
         $this->leaveVoiceNotes();
 
-        return parent::navigate($uri, $data);
+        return parent::navigate($uri, $data, $transition);
     }
 
-    public function back(): static
+    public function back(Transition|string|null $transition = null): static
     {
         $this->leaveVoiceNotes();
 
-        return parent::back();
+        return parent::back($transition);
     }
 
     public function unmount(): void

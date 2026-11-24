@@ -1,6 +1,7 @@
 <?php
 
 use App\NativeComponents\Profile;
+use Native\Mobile\Edge\TailwindParser;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 
@@ -82,7 +83,7 @@ it('swipes between commits and replies both ways under the tabs the pager draws,
     $screen->changeTab('showPage', -1)->assertSet('tab', 'commits');
 });
 
-it('draws the header once, for the pager to put above its tabs, and hangs the pill under them', function () {
+it('draws the header once, for the pager to put above its tabs or beside them once the window is expanded, and hangs the pill under them', function () {
     holdRefreshes();
     keepProfile('ada', [commitJson(['id' => 'c1'])], [commitJson(['id' => 'r1'])]);
 
@@ -91,7 +92,10 @@ it('draws the header once, for the pager to put above its tabs, and hangs the pi
     $hasRef = fn (string $ref): Closure => fn (array $node): bool => ($node['ref'] ?? null) === $ref;
 
     expect(array_column($pager['children'], 'type'))->toBe(['pager_header', 'column', 'column', 'pager_overlay'])
+        ->and($pager['props']['header_beside_from'])->toBe(TailwindParser::breakpointMinWidth('expanded'))
         ->and(findNode($pager['children'][0], $hasRef('profile-header')))->not->toBeNull()
+        ->and(findNodes($screen->tree(), $hasRef('profile-header')))->toHaveCount(1)
+        ->and(findNodes($screen->tree(), $hasRef('follow')))->toHaveCount(1)
         ->and(findNode(showingProfile($screen), $hasRef('profile-header')))->toBeNull()
         ->and(findNode(profileList($screen, 'replies'), $hasRef('profile-header')))->toBeNull()
         ->and(findNode($pager['children'][3], $hasRef('new-commits-slot')))->not->toBeNull();
