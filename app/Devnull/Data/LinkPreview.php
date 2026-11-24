@@ -13,6 +13,7 @@ final readonly class LinkPreview
         public ?string $description = null,
         public ?string $imageUrl = null,
         public ?string $siteName = null,
+        public ?Embed $embed = null,
     ) {}
 
     /**
@@ -32,6 +33,7 @@ final readonly class LinkPreview
             description: self::string($data['description'] ?? null),
             imageUrl: self::string($data['image_url'] ?? null),
             siteName: self::string($data['site_name'] ?? null),
+            embed: is_array($data['embed'] ?? null) ? Embed::fromArray($data['embed']) : null,
         );
     }
 

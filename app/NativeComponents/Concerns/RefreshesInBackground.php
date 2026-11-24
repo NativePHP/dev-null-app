@@ -12,6 +12,7 @@ use App\Devnull\FetchInBackground;
 use App\Devnull\ImageCache;
 use App\Devnull\ResponseCache;
 use App\Devnull\Timezone;
+use App\Devnull\VideoDetails;
 use App\NativeComponents\AcceptTerms;
 use Closure;
 use Throwable;
@@ -83,10 +84,11 @@ trait RefreshesInBackground
      * Asks devnull for a GET in the background and hands $apply the JSON when it
      * lands. A refresh of the same thing already on its way isn't sent twice,
      * unless $again says it must be. A $quiet one never says it failed on the
-     * screen. It only tells $failed, for a caller that has something else to
-     * do then, with devnull's status code, or 0 when it never answered. One
-     * $withImages brings the answer's images down before it lands, rather
-     * than after in a task of their own (see FetchInBackground).
+     * screen. It only tells $failed, with devnull's status (0 when devnull didn't
+     * answer), for a caller that has something else to do then, such as
+     * telling a 404 from a dropped connection. One $withImages brings the
+     * answer's images down before it lands, rather than after in a task of
+     * their own (see FetchInBackground).
      *
      * @param  array<string, string|null>  $query
      * @param  Closure(array<string, mixed>): void  $apply
@@ -200,9 +202,10 @@ trait RefreshesInBackground
     /**
      * A screen that has its own way of saying devnull refused it, such as a
      * profile across a block, says so here and returns true. Anything else
-     * prints the error.
+     * prints the error. $path is what was asked for, as a screen may ask
+     * for more than its own page, such as an opened thread's replies.
      */
-    protected function refused(ApiException $exception): bool
+    protected function refused(ApiException $exception, string $path): bool
     {
         return false;
     }
@@ -232,9 +235,10 @@ trait RefreshesInBackground
 
             app(ResponseCache::class)->put($path, $query, $json);
 
-            // Its images came with it. Any that didn't come in time load from their URLs.
+            // Its images and videos' titles came with it. Any images that didn't come in time load from their URLs.
             if (! $withImages) {
                 ImageCache::prefetch($json);
+                VideoDetails::prefetch($json);
             }
 
             if (! $quiet) {
@@ -248,7 +252,7 @@ trait RefreshesInBackground
         }
 
         if ($quiet) {
-            $failed?->__invoke($status);
+            $failed?->__invoke(($result['from_devnull'] ?? false) === true ? $status : 0);
 
             return;
         }
@@ -269,7 +273,7 @@ trait RefreshesInBackground
         if (in_array($status, [403, 404, 410], true)) {
             app(ResponseCache::class)->forget($path, $query);
 
-            if (! $this->refused($exception)) {
+            if (! $this->refused($exception, $path)) {
                 $this->error = $exception->firstError();
             }
 

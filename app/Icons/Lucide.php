@@ -36,6 +36,7 @@ enum Lucide
     case ArrowUp;
     case Pin;
     case ListOrdered;
+    case ListTree;
     /** lucide-react 1.57 draws Building2 as building-complex, so that is the drawing in building-2.svg. */
     case Building2;
     case MapPin;
@@ -68,6 +69,7 @@ enum Lucide
     case Bug;
     case ImagePlus;
     case Image;
+    case Download;
     case Camera;
     case ChartBar;
     case Eye;
@@ -177,6 +179,7 @@ enum Lucide
             self::ArrowUp => 'arrow-up',
             self::ChevronsUp => 'chevrons-up',
             self::ListOrdered => 'list-ordered',
+            self::ListTree => 'list-tree',
             self::Building2 => 'building-2',
             self::MapPin => 'map-pin',
             self::CalendarDays => 'calendar-days',
@@ -207,6 +210,7 @@ enum Lucide
             self::Bug => 'bug',
             self::ImagePlus => 'image-plus',
             self::Image => 'image',
+            self::Download => 'download',
             self::Camera => 'camera',
             self::ChartBar => 'chart-bar',
             self::Eye => 'eye',

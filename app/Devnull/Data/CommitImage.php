@@ -51,6 +51,14 @@ final readonly class CommitImage
     }
 
     /**
+     * The ref of the image as a commit row draws it, which the image viewer grows out of and shrinks back into.
+     */
+    public function thumbRef(): string
+    {
+        return 'thumb-'.$this->id;
+    }
+
+    /**
      * Width over height, so the space is held before the image loads, or if it never does.
      */
     public function ratio(): float

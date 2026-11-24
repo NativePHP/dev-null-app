@@ -30,6 +30,14 @@ final class Display
     public const int ReplyBarDescriptionHeight = 100;
 
     /**
+     * The people to mention above a field (see partials/mention-suggestions): a row's height, and how many rows show
+     * before the rest scroll inside the list.
+     */
+    public const int MentionRowHeight = 44;
+
+    public const int MentionRowsShown = 6;
+
+    /**
      * A bar holding partials/composer-box with one line of draft, as drawn on an iPhone: the bar's padding, then the
      * field over the row of tools and the send button.
      */
@@ -88,10 +96,13 @@ final class Display
     public const int HomeIndicatorHeight = 34;
 
     /**
-     * How far below the top of a reply's row its elbow comes level with the
-     * middle of the reply's avatar.
+     * Classes for a screen's scrolling column: as wide as the screen on a phone, but a
+     * comfortable 672pt line once the window reaches the expanded width (840pt, the inner
+     * display of a foldable held sideways), centred by its parent (give the parent items-center).
+     * A fixed width rather than max-w: EDGE stretches a w-full child across its parent and
+     * ignores items-center for it, and has no mx-auto.
      */
-    public const int ElbowLevel = 22;
+    public const string ReadableColumn = 'expanded:w-[672px]';
 
     /**
      * How long ago a commit was made, as the web prints it beside the commit:

@@ -208,3 +208,12 @@ it('follows a developer from the results, and puts it back when devnull refuses'
 
     expect(treeShows(nodeByRef($screen, 'person-grace'), 'Following'))->toBeFalse();
 });
+
+it('leaves out the guild a result was posted in, as the web does', function () {
+    serveSearch(commits: [commitJson(['id' => 'g1', 'body' => 'Board post about #rust', 'guild_handle' => 'rust', 'guild' => ['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀', 'icon_url' => null]])]);
+
+    $screen = Native::visit('/log/search', ['query' => '#rust'])->assertSee('Board post about');
+
+    expect(rendersRef($screen, 'guild-badge-g1'))->toBeFalse();
+    $screen->assertDontSee('not shown in general logs');
+});

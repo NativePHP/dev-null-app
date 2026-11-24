@@ -163,6 +163,13 @@ class Log extends NativeComponent
 
     public string $log = 'following';
 
+    public bool $embedded = false;
+
+    /**
+     * The commit of the conversation open from the log, whose row shows as selected.
+     */
+    public ?string $selectedCommit = null;
+
     /**
      * The list key of each log you're not on. The log you're on uses $listKey.
      *
@@ -326,7 +333,7 @@ class Log extends NativeComponent
     }
 
     /**
-     * Search, as the web's phone header has it, then a new commit.
+     * Search, as the web's phone header has it, then a new commit. Guilds have their own tab.
      */
     public function navigationOptions(): ?NavBarOptions
     {
@@ -412,7 +419,7 @@ class Log extends NativeComponent
     private function openAfresh(): void
     {
         $this->commits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->latestCommits = [];
         $this->suggestions = [];
         $this->rankedSince = null;
@@ -509,6 +516,30 @@ class Log extends NativeComponent
             : $this->takeFresh($log, $json));
         $this->refreshThreads();
         $this->refreshUnreadNotifications();
+        $this->refreshGuildsAvailability();
+    }
+
+    /**
+     * Asks devnull whether guilds are on for you until it has said they are,
+     * for the tabs of the next launch (see Account::guildsTabShown()). This
+     * launch's tabs are settled before asking, so the answer can't move them.
+     * Only a 404 says guilds are off: no connection, or devnull failing,
+     * leaves what was known, so a phone offline at launch still shows the tab.
+     */
+    private function refreshGuildsAvailability(): void
+    {
+        $account = app(Account::class);
+        $account->guildsTabShown();
+
+        if ($account->guildsAvailable() === true) {
+            return;
+        }
+
+        $this->refresh('guilds', [], fn () => $account->rememberGuildsAvailable(true), quiet: true, failed: function (int $status) use ($account): void {
+            if ($status === 404) {
+                $account->rememberGuildsAvailable(false);
+            }
+        });
     }
 
     /**
@@ -959,7 +990,7 @@ class Log extends NativeComponent
         $this->commits = $page->items;
         $this->nextCursor = $page->nextCursor;
         $this->latestCommits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->rankedSince = is_string($json['newest_commit_id'] ?? null) ? $json['newest_commit_id'] : null;
         $this->forgetNewCommits();
         $this->keepStagedOnTop();

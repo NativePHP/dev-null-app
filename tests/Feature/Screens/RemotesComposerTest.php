@@ -114,9 +114,10 @@ it('pushes photos with a message, showing them staged at once and pushed once de
     $screen->tap('push')->assertSee('the new logo')->assertSee('staged')->assertSet('photos', []);
     $clientId = $screen->instance()->pending[0]->clientId;
 
-    // Drawn from the phone while they go.
+    // Drawn from the phone while they go, and not opened full-screen until devnull has them.
     expect(nodeByRef($screen, 'image-'.$clientId.'-0')['props']['src'])->toBe($kept[0])
-        ->and(nodeByRef($screen, 'image-'.$clientId.'-1')['props']['src'])->toBe($kept[1]);
+        ->and(nodeByRef($screen, 'image-'.$clientId.'-1')['props']['src'])->toBe($kept[1])
+        ->and(nodeByRef($screen, 'image-'.$clientId.'-0'))->not->toHaveKey('on_press');
 
     finishRefreshes($screen)->assertSee('pushed')->assertSet('pending', []);
 
@@ -126,6 +127,7 @@ it('pushes photos with a message, showing them staged at once and pushed once de
         ['name' => 'images[]', 'type' => 'image/png', 'contents' => $contents[1]],
     ]])
         ->and(nodeByRef($screen, 'image-99-0')['props']['src'])->toBe('http://devnull.test/message-images/1?signature=abc')
+        ->and(nodeByRef($screen, 'image-99-0')['on_press'] ?? null)->not->toBeNull()
         ->and(array_filter($kept, file_exists(...)))->toBe([]);
 });
 

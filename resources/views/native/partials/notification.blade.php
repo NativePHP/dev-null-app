@@ -97,7 +97,7 @@
                     @endif
                 @endif
             </native:column>
-            <native:column class="w-full h-[1] bg-theme-hairline" />
+            <native:column class="w-full h-[1] border-b border-theme-hairline" />
         </native:column>
 
         {{-- The Rail Gray rail runs the whole inbox, through each node. --}}

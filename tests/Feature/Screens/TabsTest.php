@@ -1,5 +1,8 @@
 <?php
 
+use App\Devnull\Account;
+use App\NativeComponents\Guilds;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
@@ -21,17 +24,64 @@ function tabIcons(TestableComponent $screen): array
         ->all();
 }
 
-it('has Log, Notifications, Remotes and Profile tabs with the Lucide icons of the web nav', function (string $platform) {
+it('has Log, Notifications, Guilds, Remotes and Profile tabs with the Lucide icons of the web nav', function (string $platform) {
     Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
 
     // The same drawings on both platforms. A custom icon has no Material font variant.
     expect(tabIcons(Native::visit('/log', platform: $platform)))->toBe([
         'Log' => ['custom:git-commit-vertical', null],
         'Notifications' => ['custom:bell', null],
+        'Guilds' => ['custom:users-round', null],
         'Remotes' => ['custom:messages-square', null],
         'Profile' => ['custom:user-round', null],
     ]);
 })->with(['ios', 'android']);
+
+it('shows the Guilds tab unless devnull said guilds were off before launch', function (?bool $available, array $tabs) {
+    if ($available !== null) {
+        app(Account::class)->rememberGuildsAvailable($available);
+    }
+    Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
+
+    expect(tabsShown(Native::visit('/log')))->toBe($tabs);
+})->with([
+    'not known yet' => [null, ['Log' => '/log', 'Notifications' => '/notifications', 'Guilds' => '/guilds', 'Remotes' => '/remotes', 'Profile' => '/profile']],
+    'on' => [true, ['Log' => '/log', 'Notifications' => '/notifications', 'Guilds' => '/guilds', 'Remotes' => '/remotes', 'Profile' => '/profile']],
+    'off' => [false, ['Log' => '/log', 'Notifications' => '/notifications', 'Remotes' => '/remotes', 'Profile' => '/profile']],
+]);
+
+it('keeps the tabs it launched with', function () {
+    app(Account::class)->rememberGuildsAvailable(true);
+    serveApi(fn (Request $request) => parse_url($request->url(), PHP_URL_PATH) === '/api/v1/guilds'
+        ? Http::response(['message' => 'Not Found'], 404)
+        : Http::response(pageJson([])));
+
+    expect(tabsShown(Native::visit('/log')))->toHaveKey('Guilds');
+
+    finishRefreshes(Native::visit('/guilds'))->assertSet('unavailable', true);
+
+    expect(app(Account::class)->guildsAvailable())->toBeFalse()
+        ->and(tabsShown(finishRefreshes(Native::visit('/log'))))->toHaveKey('Guilds');
+});
+
+it('keeps the Guilds tab for the launch in which devnull first says guilds are off', function () {
+    serveApi(fn (Request $request) => parse_url($request->url(), PHP_URL_PATH) === '/api/v1/guilds'
+        ? Http::response(['message' => 'Not Found'], 404)
+        : Http::response(pageJson([])));
+
+    $log = finishRefreshes(Native::visit('/log'));
+
+    expect(app(Account::class)->guildsAvailable())->toBeFalse()
+        ->and(tabsShown($log))->toHaveKey('Guilds');
+});
+
+it('opens the guild directory as the Guilds tab', function () {
+    Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
+
+    $screen = Native::visit('/guilds')->assertTabActive('Guilds');
+
+    expect($screen->instance())->toBeInstanceOf(Guilds::class);
+});
 
 it('picks out the tab you are on in the colour you chose for your lane', function (int $lane) {
     signIn(['lane' => $lane]);

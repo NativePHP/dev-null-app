@@ -8,7 +8,9 @@
     Cancel closes it as a swipe does, keeping the draft. Commit closes it at once, and the commit goes from the outbox
     (see SyncsOutbox). If devnull says no, a toast says why and the draft comes back in the sheet. The
     Log's compose button opens the same composer for a new commit, without the card. A draft stashed last time comes
-    back in it, with the web's stash@{0} and drop beside the counter, in the toolbar at the bottom.
+    back in it, with the web's stash@{0} and drop beside the counter, in the toolbar at the bottom. A guild's page opens
+    it for a post to its board, which asks what you want to share with the guild and says under the field that it isn't
+    going to your profile log, as the web's guild composer does, with no issue commands.
 
     Report commit, in someone else's published commit's More menu, opens it as the web's Report dialog: the private,
     not-hidden line, the commit's body clamped to three lines, the four reasons, optional details, and Send report,
@@ -75,7 +77,7 @@
                         @include('native.partials.sheet-bar-button', ['ref' => 'sheet-commit', 'icon' => \App\Icons\Lucide::Check, 'label' => match (true) { $schedulingThis => 'Schedule commit', $replying => 'Reply', default => 'Commit' }, 'main' => true, 'mainColour' => $postingMe === null ? $myColour : \App\Devnull\PostAs::colour($postingMe, \App\Devnull\PostAs::author($sheetAuthor)), 'loading' => $sendingSchedule, 'press' => $sendingSchedule || ! $canCommit || ($schedulingThis && ! $hasScheduledTime) ? null : 'commitFromSheet'])
                     @endif
                 </native:row>
-                <native:column class="w-full h-[1] bg-theme-hairline" />
+                <native:column class="w-full h-[1] border-b border-theme-hairline" />
                 {{--
                     Nothing here scrolls but the field (or the preview in its place). What's over the field and under
                     it take their own height, and the field (h-full in a flex-1 slot) takes what's left between them
@@ -85,7 +87,8 @@
                 @php($sheetLayout = \App\Devnull\ComposerSheet::class)
                 @php($linkTooLong = ! $issueCommand && \App\Devnull\Data\CommitBody::hasOversizedUrl($sheetBody))
                 @php($pollShown = $sheetPoll !== null && ! $replying)
-                @php($offersIssues = ! $quoting && ! $scheduling && ! $replying && ! $issueCommand)
+                @php($guildHint = $sheetGuild !== null && $sheetView === 'compose')
+                @php($offersIssues = ! $quoting && ! $scheduling && ! $replying && ! $issueCommand && $sheetGuild === null)
                 @php($issueCommands = $offersIssues && $sheetTyped ? \App\Devnull\IssueCommand::suggested($sheetBody) : [])
                 @php($issueHint = $offersIssues && ! $issueHintsDismissed ? \App\Devnull\IssueCommand::hinted($sheetBody) : null)
                 @php($hasAbove = $postsAs || $sheetError || $issueCommand || $replying)
@@ -137,7 +140,7 @@
                                 native:key="sheet-body"
                                 ref="sheet-body"
                                 class="w-full h-full text-theme-ink"
-                                :placeholder="$issueCommand?->placeholder() ?? match (true) { $quoting => 'Add your take', $replying => 'Reply to '.$sheetCommit->author->handle(), default => 'What did you ship?' }"
+                                :placeholder="$issueCommand?->placeholder() ?? match (true) { $quoting => 'Add your take', $replying => 'Reply to '.$sheetCommit->author->handle(), $sheetGuild !== null => 'What do you want to share with the guild?', default => 'What did you ship?' }"
                                 native:model.debounce.150ms="sheetBody"
                                 :selection="$mentionCarets['sheetBody'] ?? null"
                                 @selectionChange="caretMoved('sheetBody')"
@@ -151,8 +154,12 @@
                                 a11y-label="Your commit"
                             />
                         </native:column>
-                        @php($hasBelow = $linkTooLong || $sheetImages !== [] || $pollShown || $quoting || $scheduling || $issueCommands !== [] || $issueHint !== null)
+                        @php($hasBelow = $guildHint || $linkTooLong || $sheetImages !== [] || $pollShown || $quoting || $scheduling || $issueCommands !== [] || $issueHint !== null)
                         <native:column native:key="sheet-below" ref="sheet-below" class="w-full {{ $hasBelow ? 'px-5 pt-3 pb-3 gap-3' : '' }}">
+                            @if ($guildHint)
+                                <native:text ref="sheet-guild-hint" class="w-full text-xs text-theme-ink-muted">Posted to this guild, not your profile log.</native:text>
+                            @endif
+
                             @if ($linkTooLong)
                                 <native:text ref="sheet-link-error" class="w-full text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
                             @endif
@@ -200,7 +207,7 @@
                     @endif
                 </native:column>
                 {{-- Pinned under the field and what's around it, so it rides just above the keyboard, and above the home indicator without it. --}}
-                <native:column class="w-full h-[1] bg-theme-hairline" />
+                <native:column class="w-full h-[1] border-b border-theme-hairline" />
                 <native:row ref="sheet-toolbar" class="w-full pl-3 pr-5 py-1 gap-3 items-center">
                     @unless ($issueCommand)
                         @include('native.partials.composer-tools')
@@ -221,9 +228,9 @@
                     </native:column>
 
                     <native:column class="w-full">
-                        <native:column class="w-full h-[1] bg-theme-hairline" />
+                        <native:column class="w-full h-[1] border-b border-theme-hairline" />
                         <native:text ref="report-body" class="w-full py-3 text-sm leading-relaxed text-theme-ink" :max-lines="3">{{ $sheetCommit->plainText() }}</native:text>
-                        <native:column class="w-full h-[1] bg-theme-hairline" />
+                        <native:column class="w-full h-[1] border-b border-theme-hairline" />
                     </native:column>
 
                     <native:radio-group ref="report-reason" label="Why are you reporting this commit?" native:model="reportReason">

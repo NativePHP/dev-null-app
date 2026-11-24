@@ -74,10 +74,22 @@ trait HoldsNewCommits
      */
     public function newCommitsLabel(): string
     {
-        $count = max(count($this->newCommits), $this->newCommitsCount ?? 0);
+        $count = max(count($this->waitingCommits()), $this->newCommitsCount ?? 0);
         $more = $this->newCommitsCount === null && $this->newCommitsReplaceList && $this->newCommitsCursor !== null;
 
         return $count.($more ? '+' : '').' '.($count === 1 ? 'new commit' : 'new commits');
+    }
+
+    /**
+     * The new commits the pill counts. A screen that already shows one of
+     * them elsewhere, as a guild's board shows its pinned commit on top,
+     * leaves that one out (see Guild).
+     *
+     * @return list<Commit>
+     */
+    protected function waitingCommits(): array
+    {
+        return $this->newCommits;
     }
 
     /**
@@ -111,7 +123,7 @@ trait HoldsNewCommits
         $shown = (new FreshPage($this->commits, $this->nextCursor, $this->newCommits, $this->newCommitsReplaceList, $this->newCommitsCursor))->withNewer();
 
         if ($this->newCommitsReplaceList) {
-            $this->threads = [];
+            $this->forgetThreads();
             $this->replacedList();
         }
 
