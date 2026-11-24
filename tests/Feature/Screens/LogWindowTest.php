@@ -7,15 +7,24 @@ beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
     signIn();
 
-    // A day marker and 300 commits, with a reply under c220, then the row loading the next page.
+    // A day marker and 300 commits, with a reply under c220 (opened by visit()), then the row loading the next page.
     fakeApi([
+        'GET /api/v1/commits/c220/replies' => [pageJson([replyJson(['id' => 'r220', 'parent_id' => 'c220'])])],
         'GET /api/v1/log/following' => [pageJson(array_map(fn (int $n): array => commitJson([
             'id' => "c{$n}",
             'body' => "Commit {$n}",
-            ...($n === 220 ? ['replies_count' => 1, 'reply_preview' => ['data' => [replyJson(['id' => 'r220', 'parent_id' => 'c220'])], 'next_cursor' => null]] : []),
+            ...($n === 220 ? ['replies_count' => 1] : []),
         ]), range(0, 299)), nextCursor: 'more')],
     ]);
 });
+
+/**
+ * The log, with c220's reply opened under it.
+ */
+function visitWithThread(): TestableComponent
+{
+    return Native::visit('/log')->call('toggleReplies', 'c220');
+}
 
 /**
  * Each row of the log's list as its ref, or "placeholder".
@@ -41,7 +50,7 @@ function windowRowIds(TestableComponent $screen): array
 }
 
 it('draws the first rows and those near the top, and puts placeholders in the rest', function () {
-    $rows = windowRows(Native::visit('/log'));
+    $rows = windowRows(visitWithThread());
 
     // The first 151 rows of the timeline: the day marker and c0 to c149.
     expect($rows)->toHaveCount(303)
@@ -53,7 +62,7 @@ it('draws the first rows and those near the top, and puts placeholders in the re
 });
 
 it('draws the rows around the ones on screen as you scroll, each keeping its place in the list', function () {
-    $screen = Native::visit('/log');
+    $screen = visitWithThread();
     $ids = windowRowIds($screen);
 
     // On screen: c229 to c234, which come after c220 and its reply. Drawn: the first ten rows of the timeline, and
@@ -71,21 +80,21 @@ it('draws the rows around the ones on screen as you scroll, each keeping its pla
 
 it('draws more rows above the screen once you scroll back up and stop', function () {
     // Down to c229, then back up to c199: drawn from 150 above c199 (c49).
-    $rows = windowRows(Native::visit('/log')->call('showRows', 231, 236)->call('showRows', 200, 205)->call('scrollEnded', 200, 205));
+    $rows = windowRows(visitWithThread()->call('showRows', 231, 236)->call('showRows', 200, 205)->call('scrollEnded', 200, 205));
 
     expect($rows[49])->toBe('placeholder')
         ->and($rows[50])->toBe('commit-c49');
 });
 
 it('only asks the log you are on where it is scrolled to, and when it stops', function () {
-    $screen = Native::visit('/log');
+    $screen = visitWithThread();
 
     expect(showingLog($screen)['props'])->toHaveKeys(['on_visible_range', 'on_scroll_end'])
         ->and(nodeByRef($screen, 'log-latest')['props'] ?? [])->not->toHaveKey('on_visible_range')->not->toHaveKey('on_scroll_end');
 });
 
 it('draws the top again when the log goes back to the top of a new list', function () {
-    $screen = Native::visit('/log')->call('showRows', 231, 236)->call('show', 'following');
+    $screen = visitWithThread()->call('showRows', 231, 236)->call('show', 'following');
     $rows = windowRows($screen);
 
     expect($rows[21])->toBe('commit-c20')

@@ -11,12 +11,13 @@
     row, ahead of the tools, and for the end, left of the send button, such as the count of a long draft. $send is
     send-button's: its ref, label, method, and whether it can send yet.
 
-    The field's text lines up with the tools' icons under it.
+    The field's text lines up with the tools' icons under it. The field sits a little nearer the fade above it than
+    the row under it: the row around the box has no top padding, and the field row leaves 8pt under the field.
 --}}
 @php($lead ??= [])
 @php($trail ??= [])
 <native:column native:key="{{ $ref }}-box" ref="{{ $ref }}-box" class="w-full">
-    <native:row native:key="{{ $ref }}-field-row" ref="{{ $ref }}-field-row" class="w-full pl-4 pr-3 pt-1">
+    <native:row native:key="{{ $ref }}-field-row" ref="{{ $ref }}-field-row" class="w-full pl-4 pr-3 pt-1 pb-2">
         @include($field)
     </native:row>
     <native:row native:key="{{ $ref }}-actions" ref="{{ $ref }}-actions" class="w-full h-[40] pl-1 pr-[6] pb-1 gap-2 items-center">

@@ -56,19 +56,27 @@ final class PostAs
     }
 
     /**
-     * The menu: you first, then your organizations, the one posting now ticked. $method is called with the handle
-     * picked, or '' for you.
+     * The menu: you first, then your organizations, each with their avatar, round for you and a rounded square for
+     * an organization, as elsewhere in the app, and the one posting now ticked. Until an avatar loads, or if it
+     * can't, a person or building icon stands in. $method is called with the handle picked, or '' for you.
      *
      * @return list<TopBarAction>
      */
     public static function menu(User $me, ?User $author, string $method): array
     {
-        return array_map(fn (User $identity): TopBarAction => NavAction::make('post-as-'.$identity->username)
-            ->label($identity->name.' (@'.$identity->username.')')
-            ->icon(...self::icon($identity, $author))
-            ->press($method."('".($identity->isOrganization ? $identity->username : '')."')")
-            ->toElement()
-            ->ref('post-as-'.$identity->username), [$me, ...self::organizations()]);
+        return array_map(function (User $identity) use ($author, $method): TopBarAction {
+            $icon = $identity->isOrganization ? Lucide::Building2 : Lucide::UserRound;
+
+            return NavAction::make('post-as-'.$identity->username)
+                ->label($identity->name.' (@'.$identity->username.')')
+                ->icon(ios: $icon->ios(), android: $icon->android())
+                ->image(ImageCache::src($identity->avatarUrl))
+                ->press($method."('".($identity->isOrganization ? $identity->username : '')."')")
+                ->toElement()
+                ->setProp('image_shape', $identity->isOrganization ? 'rounded' : 'circle')
+                ->setProp('checked', self::posting($identity, $author))
+                ->ref('post-as-'.$identity->username);
+        }, [$me, ...self::organizations()]);
     }
 
     /**
@@ -88,19 +96,10 @@ final class PostAs
     }
 
     /**
-     * A tick beside whoever posts now, and what each is beside the rest, as the menu has no room for avatars.
-     *
-     * @return array{ios: string, android: string}
+     * Whether the menu ticks this one: whoever posts now.
      */
-    private static function icon(User $identity, ?User $author): array
+    private static function posting(User $identity, ?User $author): bool
     {
-        $posting = $author === null ? ! $identity->isOrganization : $identity->isOrganization && $identity->username === $author->username;
-        $icon = match (true) {
-            $posting => Lucide::Check,
-            $identity->isOrganization => Lucide::Building2,
-            default => Lucide::UserRound,
-        };
-
-        return ['ios' => $icon->ios(), 'android' => $icon->android()];
+        return $author === null ? ! $identity->isOrganization : $identity->isOrganization && $identity->username === $author->username;
     }
 }
