@@ -508,6 +508,29 @@ final readonly class Client
     }
 
     /**
+     * Mutes a guild, as the web's Mute does: its commits leave your logs and search.
+     */
+    public function muteGuild(string $handle): void
+    {
+        $this->send('POST', 'guilds/'.rawurlencode($handle).'/mute');
+        $this->cache->guildMuteChanged(rawurlencode($handle), true);
+    }
+
+    public function unmuteGuild(string $handle): void
+    {
+        $this->send('DELETE', 'guilds/'.rawurlencode($handle).'/mute');
+        $this->cache->guildMuteChanged(rawurlencode($handle), false);
+    }
+
+    /**
+     * Reports a guild to devnull's admins, as the web's Report guild does. Reporting it again keeps the first report.
+     */
+    public function reportGuild(string $handle, string $details): void
+    {
+        $this->send('POST', 'guilds/'.rawurlencode($handle).'/reports', payload: ['details' => $details]);
+    }
+
+    /**
      * A page of your Remotes inbox, newest first, for the web's Open, Fetched
      * or Stashed tab, continuing before a conversation.
      *

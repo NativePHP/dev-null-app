@@ -123,6 +123,11 @@ final readonly class Guild
         ]);
     }
 
+    public function withMuted(bool $isMuted): self
+    {
+        return new self(...[...get_object_vars($this), 'isMuted' => $isMuted]);
+    }
+
     /**
      * What an image element gets for the icon, or null when it can't be drawn:
      * there is no icon, or its signed link has expired and no copy was

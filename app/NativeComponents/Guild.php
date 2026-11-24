@@ -25,9 +25,12 @@ use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Closure;
 use Illuminate\View\View;
+use Native\Mobile\Attributes\On;
 use Native\Mobile\Edge\Layouts\Builders\NavAction;
 use Native\Mobile\Edge\Layouts\Builders\NavBarOptions;
 use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Events\Alert\ButtonPressed;
+use Native\Mobile\Facades\Dialog;
 use Native\Mobile\Facades\Share;
 
 /**
@@ -64,6 +67,15 @@ class Guild extends NativeComponent
     use ShowsCommits;
     use TalksToDevnull;
 
+    public const string MuteAlert = 'mute';
+
+    public const string UnmuteAlert = 'unmute';
+
+    /**
+     * The most devnull takes in a guild report, as the web's field allows.
+     */
+    public const int ReportDetailsMaxLength = 500;
+
     /**
      * Every frame goes in full, as on a profile (see Profile::$forceFullFrames).
      */
@@ -81,6 +93,31 @@ class Guild extends NativeComponent
      * on top rather than in its place.
      */
     public ?string $pinnedId = null;
+
+    /**
+     * You moderate this guild, as devnull says with its board.
+     */
+    public bool $canModerate = false;
+
+    /**
+     * The Report guild sheet is up.
+     */
+    public bool $guildReportOpen = false;
+
+    /**
+     * What looks wrong, as typed in the report sheet.
+     */
+    public string $guildReportDetails = '';
+
+    /**
+     * devnull has the report, so the sheet says so.
+     */
+    public bool $guildReportSent = false;
+
+    /**
+     * Why devnull turned the report down, shown in the sheet.
+     */
+    public ?string $guildReportError = null;
 
     /**
      * devnull has no guild by this handle, though it has guilds.
@@ -119,16 +156,162 @@ class Guild extends NativeComponent
     }
 
     /**
-     * Share. Commit and Join are in the header, as Remote and Follow are on a profile.
+     * ⋯, as on someone else's profile: Share guild, then Mute or Unmute while
+     * you haven't joined, as the web hides Mute once you join. Commit and Join
+     * are in the header, as Remote and Follow are on a profile.
      */
     public function navigationOptions(): ?NavBarOptions
     {
-        return NavBarOptions::make()->action(
+        $hashtag = '#'.($this->guild->handle ?? $this->handle());
+        $items = [
             NavAction::make('share')
+                ->label('Share guild')
                 ->icon(ios: Lucide::Share->ios(), android: Lucide::Share2->android())
-                ->a11yLabel('Share guild')
                 ->press('share'),
+        ];
+
+        if ($this->guild !== null && ! $this->guild->isJoined) {
+            $muted = $this->guild->isMuted;
+            $icon = $muted ? Lucide::Volume2 : Lucide::VolumeX;
+            $items[] = NavAction::make($muted ? 'unmute' : 'mute')
+                ->label(($muted ? 'Unmute ' : 'Mute ').$hashtag)
+                ->icon(ios: $icon->ios(), android: $icon->android())
+                ->press('confirmMute');
+        }
+
+        if ($this->guild !== null && ! $this->canModerate) {
+            $items[] = NavAction::make('report')
+                ->label('Report guild')
+                ->icon(ios: Lucide::Flag->ios(), android: Lucide::Flag->android())
+                ->press('reportGuild');
+        }
+
+        return NavBarOptions::make()->action(
+            NavAction::make('more')
+                ->icon(ios: Lucide::Ellipsis->ios(), android: Lucide::Ellipsis->android())
+                ->a11yLabel("More options for {$hashtag}")
+                ->items($items),
         );
+    }
+
+    /**
+     * Report guild, from the menu: its sheet, empty. devnull doesn't take a report from the guild's moderator.
+     */
+    public function reportGuild(): void
+    {
+        if ($this->guild === null || $this->canModerate) {
+            return;
+        }
+
+        $this->guildReportClosed();
+        $this->guildReportOpen = true;
+    }
+
+    /**
+     * Sends the report. The sheet says it was received, or keeps what you wrote with why it wasn't.
+     */
+    public function sendGuildReport(): void
+    {
+        $details = trim($this->guildReportDetails);
+
+        if (! $this->guildReportOpen || $this->guildReportSent || $this->guild === null || $details === '') {
+            return;
+        }
+
+        $handle = $this->guild->handle;
+        $screenError = $this->error;
+        $this->guildReportError = null;
+
+        $sent = $this->attempt(function (Client $devnull) use ($handle, $details): bool {
+            $devnull->reportGuild($handle, $details);
+
+            return true;
+        });
+
+        if ($sent === true) {
+            $this->guildReportSent = true;
+
+            return;
+        }
+
+        // The sheet says why, not the page under it.
+        $this->guildReportError = $this->error;
+        $this->error = $screenError;
+    }
+
+    /**
+     * Done: the sheet goes, still saying the report was received while it slides away. What was in it goes when the
+     * sheet next opens, as the commit sheet's Done does.
+     */
+    public function hideGuildReport(): void
+    {
+        $this->guildReportOpen = false;
+    }
+
+    /**
+     * The sheet swiped away, or about to open again: it closes, and what was in it goes.
+     */
+    public function guildReportClosed(): void
+    {
+        $this->guildReportOpen = false;
+        $this->guildReportDetails = '';
+        $this->guildReportSent = false;
+        $this->guildReportError = null;
+    }
+
+    /**
+     * Mute or Unmute, from the menu, confirmed first as on a profile.
+     */
+    public function confirmMute(): void
+    {
+        if ($this->guild === null || $this->guild->isJoined) {
+            return;
+        }
+
+        $hashtag = '#'.$this->guild->handle;
+
+        $this->guild->isMuted
+            ? Dialog::alert("Unmute {$hashtag}?", '', [
+                ['label' => 'Cancel', 'style' => 'cancel'],
+                ['label' => 'Unmute'],
+            ])->id(self::UnmuteAlert.':'.$this->guild->handle)
+            : Dialog::alert("Mute {$hashtag}?", "You won't see its commits in your logs or search.", [
+                ['label' => 'Cancel', 'style' => 'cancel'],
+                ['label' => 'Mute'],
+            ])->id(self::MuteAlert.':'.$this->guild->handle);
+    }
+
+    /**
+     * NativePHP gives each event one listener per screen, so this one answers
+     * the delete alert of a commit on the board too (see ShowsCommits).
+     */
+    #[On(ButtonPressed::class)]
+    public function onAlertButton(string $label = '', ?string $id = null): void
+    {
+        $this->answerDeleteAlert($label, $id);
+
+        $handle = $this->guild->handle ?? null;
+
+        if ($handle !== null && $id === self::MuteAlert.':'.$handle && $label === 'Mute') {
+            $this->mute();
+        }
+
+        if ($handle !== null && $id === self::UnmuteAlert.':'.$handle && $label === 'Unmute') {
+            $this->unmute();
+        }
+    }
+
+    /**
+     * Mutes straight away, so the menu says Unmute, and puts it back if devnull says no.
+     */
+    public function mute(): void
+    {
+        $this->changeMute(true);
+    }
+
+    public function unmute(): void
+    {
+        $this->changeMute(false);
     }
 
     /**
@@ -399,6 +582,7 @@ class Guild extends NativeComponent
         $this->guild = $board->guild;
         $this->pinned = $board->pinned;
         $this->pinnedId = $board->pinned?->id;
+        $this->canModerate = $board->canModerate;
         $this->missing = false;
         $this->unavailable = false;
     }
@@ -430,6 +614,27 @@ class Guild extends NativeComponent
 
         if ($write !== null && $write->isCommit() && $write->isFailed()) {
             $this->editFailedCommit($write);
+        }
+    }
+
+    private function changeMute(bool $muted): void
+    {
+        $before = $this->guild;
+
+        if ($before === null || $before->isJoined || $before->isMuted === $muted) {
+            return;
+        }
+
+        $this->guild = $before->withMuted($muted);
+
+        $done = $this->attempt(function (Client $devnull) use ($before, $muted): bool {
+            $muted ? $devnull->muteGuild($before->handle) : $devnull->unmuteGuild($before->handle);
+
+            return true;
+        });
+
+        if ($done !== true) {
+            $this->guild = $before;
         }
     }
 
