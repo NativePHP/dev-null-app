@@ -18,6 +18,10 @@ use Native\Mobile\Facades\System;
  * moment you tap it, so a skeleton frame there only cut from those rows to a
  * spinner and back.
  *
+ * A tab that opens a pushed screen on top of itself fills in at once: its
+ * first frame is only up for a moment, and the background thread's answer
+ * would reach the screen on top instead and leave the tab on skeleton rows.
+ *
  * config('devnull.skeleton_first') turns it off, as phpunit.xml does, so a
  * test sees a screen as it fills in.
  */
@@ -34,7 +38,7 @@ trait DrawsSkeletonFirst
      */
     protected function fillInAfterFirstFrame(string $then): void
     {
-        if (! config('devnull.skeleton_first') || System::isIos()) {
+        if (! config('devnull.skeleton_first') || System::isIos() || $this->opensScreenOnTop()) {
             $this->fillIn($then);
 
             return;
@@ -46,6 +50,16 @@ trait DrawsSkeletonFirst
             ->timeout(FirstFrame::Within)
             ->finished(fn () => $this->fillIn($then))
             ->failed(fn () => $this->fillIn($then));
+    }
+
+    /**
+     * Whether this tab is about to open a screen on top of itself: as it mounts, or once its first frame is back,
+     * for a push (see OpensPushedScreen).
+     */
+    private function opensScreenOnTop(): bool
+    {
+        return $this->hasNavigationIntent()
+            || (method_exists($this, 'pushedScreen') && $this->pushedScreen() !== null);
     }
 
     private function fillIn(string $then): void

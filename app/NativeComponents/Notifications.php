@@ -13,7 +13,7 @@ use App\Devnull\NotificationFilter;
 use App\Icons\Lucide;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\OffersPush;
-use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\OpensPushedScreen;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -51,7 +51,7 @@ class Notifications extends NativeComponent
 {
     use DrawsSkeletonFirst;
     use OffersPush;
-    use OpensInTab;
+    use OpensPushedScreen;
     use RefreshesInBackground;
     use SyncsOutbox;
     use TalksToDevnull;
@@ -135,6 +135,7 @@ class Notifications extends NativeComponent
     {
         $this->kinds = app(NotificationFilter::class)->enabled($this->me()?->id);
         $this->checkPushPrompt();
+        $this->openPushedScreen();
         $this->fillInAfterFirstFrame('revalidate');
     }
 

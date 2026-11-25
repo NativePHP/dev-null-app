@@ -15,7 +15,7 @@ use App\Devnull\Toasts;
 use App\Icons\Lucide;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\OffersPush;
-use App\NativeComponents\Concerns\OpensInTab;
+use App\NativeComponents\Concerns\OpensPushedScreen;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\SyncsOutbox;
 use App\NativeComponents\Concerns\TalksToDevnull;
@@ -64,7 +64,7 @@ class Remotes extends NativeComponent
 {
     use DrawsSkeletonFirst;
     use OffersPush;
-    use OpensInTab;
+    use OpensPushedScreen;
     use RefreshesInBackground;
     use SyncsOutbox;
     use TalksToDevnull;
@@ -149,6 +149,7 @@ class Remotes extends NativeComponent
         $this->off = app(Account::class)->remotes() === null;
         $this->tab = app(ShownTabs::class)->get($this->me()?->id, 'remotes', array_keys($this->tabs()), 'open');
         $this->checkPushPrompt();
+        $this->openPushedScreen();
         $this->fillInAfterFirstFrame('revalidate');
     }
 
