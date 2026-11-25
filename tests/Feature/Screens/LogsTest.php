@@ -1,6 +1,7 @@
 <?php
 
 use App\Devnull\Client;
+use App\Devnull\FirstFrame;
 use App\Devnull\Timeline;
 use App\NativeComponents\CommitDetail;
 use App\NativeComponents\Log;
@@ -8,6 +9,7 @@ use App\NativeComponents\Notifications;
 use App\NativeComponents\Profile;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Events\Async\AsyncTaskFailed;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 
@@ -583,6 +585,22 @@ it('drops a commit you deleted from Trending when you come back to it', function
     $screen->call('onResume');
 
     expect(shownLogIds($screen))->toBe(['a']);
+});
+
+it('fills in what it kept when the first frame has had its time, though every background thread is busy', function () {
+    config(['devnull.skeleton_first' => true]);
+    holdRefreshes();
+    keep('log/following', pageJson([commitJson(['id' => 'f1', 'body' => 'Kept following'])]));
+
+    $screen = Native::visit('/log')->assertSet('skeletonFrame', true)->assertDontSee('Kept following');
+    $firstFrame = $screen->bridge()->callsTo('AsyncTask.Dispatch')[0]['params'];
+
+    expect($firstFrame['timeout'])->toBe(FirstFrame::Within);
+
+    // Its watchdog fails it, as when it never got a thread.
+    $screen->emitNative(AsyncTaskFailed::class, ['id' => $firstFrame['id'], 'exceptionClass' => 'RuntimeException', 'message' => 'The async task did not complete within 2 seconds.'])
+        ->assertSet('skeletonFrame', false)
+        ->assertSee('Kept following');
 });
 
 it('opens on skeleton rows, and fills in what it kept straight after, so a tab tap shows at once', function () {
