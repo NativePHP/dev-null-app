@@ -62,7 +62,7 @@ it('draws a poll you voted on like the web: bars, percentages, your vote checked
     $spaces = nodeByRef($screen, 'poll-option-o2');
     $soft = config('native-ui.theme.light.primary-soft');
     $wash = config('native-ui.theme.light.wash');
-    $fill = fn (array $option): array => $option['children'][0]['children'];
+    $fill = fn (array $option): array => findNode($option, fn (array $node): bool => ($node['ref'] ?? null) === str_replace('poll-option-', 'poll-bar-', $option['ref']))['children'];
 
     expect($tabs['props']['a11y_label'])->toBe('Tabs, your vote, 75%, 3 votes')
         ->and($spaces['props']['a11y_label'])->toBe('Spaces, 25%, 1 vote')
@@ -88,10 +88,39 @@ it('fills the whole option at 100%, with no spacer for EDGE to grow', function (
         ],
     ])])])->assertSee('100%');
 
-    $bar = nodeByRef($screen, 'poll-option-o1')['children'][0]['children'];
+    $bar = nodeByRef($screen, 'poll-bar-o1')['children'];
 
     expect($bar)->toHaveCount(1)
         ->and($bar[0]['layout']['flex_grow'] ?? $bar[0]['layout']['flexGrow'] ?? null)->toEqual(100);
+});
+
+it("draws each option's label over its bar on Android too, which lays absolute layers over the rest", function () {
+    $screen = logOf([commitJson(['id' => 'c1', 'body' => 'Tabs or spaces?', 'poll' => votedPollJson()])]);
+    $option = nodeByRef($screen, 'poll-option-o1');
+    $refs = array_column($option['children'], 'ref');
+    $layer = fn (string $ref): array => $option['children'][array_search($ref, $refs, true)];
+    $isAbsolute = fn (array $node): bool => ($node['layout']['position_type'] ?? $node['layout']['positionType'] ?? 0) === 1;
+
+    // iOS draws layers in the order they're written, but Android draws every absolute one after the flow ones, so the
+    // label is an absolute layer after the bar on both. An invisible copy in the flow gives the option its height.
+    expect($refs)->toBe(['poll-sizer-o1', 'poll-bar-o1', 'poll-label-o1'])
+        ->and($isAbsolute($layer('poll-sizer-o1')))->toBeFalse()
+        ->and($layer('poll-sizer-o1')['style']['opacity'] ?? null)->toEqual(0)
+        ->and($isAbsolute($layer('poll-bar-o1')))->toBeTrue()
+        ->and($isAbsolute($layer('poll-label-o1')))->toBeTrue()
+        ->and(findNode($layer('poll-label-o1'), fn (array $node): bool => ($node['ref'] ?? null) === 'poll-voted-o1'))->not->toBeNull();
+
+    // The copy only sizes the option if it draws exactly what the label does, the check included.
+    $content = function (array $node) use (&$content): array {
+        return array_map($content, $node['children'] ?? []) + ['type' => $node['type'], 'props' => array_diff_key($node['props'] ?? [], ['ref' => true, 'id' => true]), 'style' => $node['style'] ?? [], 'layout' => $node['layout'] ?? []];
+    };
+
+    foreach (['o1', 'o2'] as $id) {
+        $option = nodeByRef($screen, "poll-option-{$id}");
+        $rows = array_column($option['children'], null, 'ref');
+
+        expect(array_map($content, $rows["poll-sizer-{$id}"]['children']))->toEqual(array_map($content, $rows["poll-label-{$id}"]['children']));
+    }
 });
 
 it('gives every action under a commit a target big enough to tap, without growing the row', function () {
@@ -105,10 +134,12 @@ it('gives every action under a commit a target big enough to tap, without growin
         expect($target($ref))->toMatchArray(['min_width' => 44.0, 'height' => 36.0]);
     }
 
+    // The row takes its full 36pt, with no negative margins above or below, which Android draws as an offset and keeps
+    // the space of. The padding under it takes back the 6pt its buttons reach past their icons.
     expect($target('reply-to-c1')['height'])->toBe(36.0)
         ->and($target('replies-c1')['height'])->toBe(36.0)
-        // 6pt more above and below than the 24pt the row used to be, so it's pulled in by that much.
-        ->and(array_slice(nodeByRef($screen, 'actions-c1')['layout']['margin'], 0, 3))->toBe([-6.0, 0.0, -6.0]);
+        ->and(nodeByRef($screen, 'actions-c1')['layout']['height'])->toBe(36.0)
+        ->and(array_slice(nodeByRef($screen, 'actions-c1')['layout']['margin'] ?? [0.0, 0.0, 0.0], 0, 3))->toBe([0.0, 0.0, 0.0]);
 });
 
 it('builds a row from as few views as it can, as a list builds and measures each of them while it scrolls', function () {
@@ -122,7 +153,8 @@ it('builds a row from as few views as it can, as a list builds and measures each
         ->and($content['layout']['margin'])->toBe([0.0, 0.0, 0.0, 64.0])
         ->and($content['props']['border_b'])->toBe(1.0)
         ->and(array_column(nodeByRef($screen, 'star-c1')['children'], 'type'))->toBe(['icon', 'text'])
-        ->and(count(findNodes($row, fn (): bool => true)))->toBeLessThanOrEqual(35);
+        // Quote's label, and the end of the rail drawn in the action row, came to two more.
+        ->and(count(findNodes($row, fn (): bool => true)))->toBeLessThanOrEqual(37);
 });
 
 it("draws a poll you haven't voted on as plain options, with nothing to tap, since the app can't vote yet", function () {
@@ -230,4 +262,42 @@ it('shows a long commit whole on its own page', function () {
     ]))), 'devnull.test/*' => Http::response(pageJson([]))]);
 
     Native::visit('/log/commits/c1')->assertSee('The very end.')->assertDontSee('Show more');
+});
+
+it('says which guild a commit was posted in, as the web does', function () {
+    $screen = logOf([['id' => 'g1', 'guild_handle' => 'rust', 'guild' => ['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀', 'icon_url' => null]]])
+        ->assertSee('posted in')
+        ->assertSee('Rust')
+        ->assertSee('· not shown in general logs');
+
+    expect(rendersRef($screen, 'guild-badge-g1'))->toBeTrue()
+        ->and(nodeByRef($screen, 'guild-pill-g1')['props']['a11y_label'])->toBe('Rust, #rust');
+});
+
+it('opens the guild a commit was posted in', function () {
+    logOf([['id' => 'g1', 'guild_handle' => 'rust', 'guild' => ['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀', 'icon_url' => null]]])
+        ->tap('guild-pill-g1')
+        ->assertNavigatedTo('/log/guilds/rust');
+});
+
+it('says nothing about guilds on a commit that was not posted in one', function () {
+    $screen = logOf([['id' => 'c1']]);
+
+    expect(rendersRef($screen, 'guild-badge-c1'))->toBeFalse();
+    $screen->assertDontSee('posted in');
+});
+
+it('shows the uploaded icon of the guild a commit was posted in', function () {
+    $url = 'https://dev-null.sh/api/v1/guilds/php/icon?expires='.(time() + 3600).'&signature=x';
+    $screen = logOf([['id' => 'g1', 'guild_handle' => 'php', 'guild' => ['handle' => 'php', 'name' => 'PHP', 'emoji' => '💻', 'icon_url' => $url]]]);
+
+    expect(nodeByRef($screen, 'guild-pill-mark-g1')['type'])->toBe('image')
+        ->and(nodeByRef($screen, 'guild-pill-mark-g1')['props']['src'])->toBe($url);
+    $screen->assertDontSee('💻');
+});
+
+it('shows the emoji of the guild a commit was posted in when it has no uploaded icon', function () {
+    $screen = logOf([['id' => 'g1', 'guild_handle' => 'rust', 'guild' => ['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀', 'icon_url' => null]]]);
+
+    expect(nodeByRef($screen, 'guild-pill-mark-g1')['props']['text'] ?? null)->toBe('🦀');
 });

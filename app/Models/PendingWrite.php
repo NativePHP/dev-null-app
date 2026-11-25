@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\CommitBody;
 use App\Devnull\Data\DraftImage;
+use App\Devnull\Data\Guild;
 use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\ScoreCard;
 use App\Devnull\Data\User;
@@ -19,8 +20,9 @@ use Illuminate\Database\Eloquent\Model;
  * $target is what it's about: the commit starred, or the Remotes thread a
  * message goes to. $payload is what's sent, and for a commit what the
  * composer needs to have it back: its body, what it replies to or quotes,
- * its poll, its photos with their descriptions, and the draft it was
- * stashed under.
+ * its poll, its photos with their descriptions, the draft it was stashed
+ * under, the organization it goes out as, if not as you, and the guild whose
+ * board it goes to, if any.
  *
  * It's queued until it goes, sending while it's on its way, and failed once
  * devnull turned it down, when a commit stays for you to edit and a message
@@ -133,6 +135,34 @@ class PendingWrite extends Model
     }
 
     /**
+     * The handle of the organization a commit goes out as, or null when it goes out as you.
+     */
+    public function author(): ?string
+    {
+        return is_string($this->payload['author'] ?? null) && $this->payload['author'] !== '' ? $this->payload['author'] : null;
+    }
+
+    /**
+     * The organization a commit goes out as, as the composer knew it, for the staged commit to show it, or null.
+     */
+    public function authorProfile(): ?User
+    {
+        $profile = $this->payload['author_profile'] ?? null;
+
+        return $this->author() !== null && is_array($profile) ? User::fromArray([...$profile, 'type' => 'organization']) : null;
+    }
+
+    /**
+     * The payload's part for who a commit goes out as: nothing for you, and an organization's handle and profile.
+     *
+     * @return array{author?: string, author_profile?: array<string, mixed>}
+     */
+    public static function authorPayload(?User $organization): array
+    {
+        return $organization === null ? [] : ['author' => $organization->username, 'author_profile' => $organization->toArray()];
+    }
+
+    /**
      * The commit's poll as devnull takes it, or null with none.
      *
      * @return array{options: list<string>, duration: int}|null
@@ -142,6 +172,14 @@ class PendingWrite extends Model
         $poll = $this->payload['poll'] ?? null;
 
         return is_array($poll) && is_array($poll['options'] ?? null) && is_int($poll['duration'] ?? null) ? $poll : null;
+    }
+
+    /**
+     * The guild whose board a new commit goes to, or null for one that goes to your log.
+     */
+    public function guildHandle(): ?string
+    {
+        return is_string($this->payload['guild_handle'] ?? null) ? $this->payload['guild_handle'] : null;
     }
 
     /**
@@ -200,12 +238,15 @@ class PendingWrite extends Model
     }
 
     /**
-     * The commit a commit on its way stands in as, by you, at once: what you
-     * wrote and its photos, marked staged, as the web's git words go, until
-     * devnull has it and the real one takes its place.
+     * The commit a commit on its way stands in as, at once: by you, or by the
+     * organization it goes out as, with what you wrote and its photos, marked
+     * staged, as the web's git words go, until devnull has it and the real one
+     * takes its place.
      */
-    public function stagedCommit(User $author): Commit
+    public function stagedCommit(User $me): Commit
     {
+        $author = $this->authorProfile() ?? $me;
+
         return new Commit(
             id: self::StagedPrefix.$this->client_id,
             body: $this->body(),
@@ -216,6 +257,7 @@ class PendingWrite extends Model
             images: array_map(fn (DraftImage $image, int $index) => $image->asCommitImage($index), $this->images(), array_keys($this->images())),
             content: CommitBody::blocks(ScoreCard::withoutRun($this->body()), null, []),
             quotedCommitId: $this->quotedCommitId(),
+            guild: Guild::fromArray(['handle' => $this->guildHandle()]),
             scoreCard: ScoreCard::fromCommit($this->body(), $author),
         );
     }

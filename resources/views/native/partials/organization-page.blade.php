@@ -16,7 +16,7 @@
             @include('native.partials.empty', [
                 'command' => $page['tab'] === 'mentions' ? '$ git log --grep='.$user->handle() : '$ git log --author='.$user->handle(),
                 'message' => $page['tab'] === 'mentions' ? "Its mentions didn't load here." : "Its commits didn't load here.",
-                'link' => 'Open it on dev/null',
+                'link' => 'Open it on /dev/null',
                 'press' => 'openOnWeb',
             ])
         @elseif (! $page['loaded'])

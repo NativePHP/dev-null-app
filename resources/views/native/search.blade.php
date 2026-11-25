@@ -3,18 +3,18 @@
     developers whose name or handle matches, then the commits nearest in meaning, on a rail of their own as the web's
     results page draws them. A term with nothing near it answers in git's voice.
 --}}
-<native:column class="w-full h-full bg-theme-background">
+<native:column class="w-full h-full bg-theme-surface items-center">
     @include('native.partials.error')
     @include('native.partials.refresh-failed')
     @include('native.partials.commit-sheet')
     @include('native.partials.live-stream-sheet')
 
-    <native:column class="w-full px-4 py-3 bg-theme-surface">
+    <native:column class="w-full px-4 py-3 bg-theme-surface {{ \App\Devnull\Display::ReadableColumn }}">
         @include('native.partials.people-search', ['placeholder' => 'Search developers or commits', 'autofocus' => $autofocus, 'a11yLabel' => 'Search developers or commits'])
     </native:column>
-    <native:column class="w-full h-[1] bg-theme-hairline" />
+    <native:column class="w-full h-[1] border-b border-theme-hairline {{ \App\Devnull\Display::ReadableColumn }}" />
 
-    <native:list native:key="search" ref="search-results" class="w-full flex-1 bg-theme-surface">
+    <native:list native:key="search" ref="search-results" class="w-full flex-1 bg-theme-surface {{ \App\Devnull\Display::ReadableColumn }}">
         @if ($term === '')
             <native:row ref="search-suggestions-heading" class="w-full px-4 pt-6 pb-3 gap-2 items-center bg-theme-surface">
                 <native:icon :ios="\App\Icons\Lucide::Sparkles->ios()" :android="\App\Icons\Lucide::Sparkles->android()" :size="16" class="text-theme-primary" />

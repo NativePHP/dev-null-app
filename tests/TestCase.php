@@ -2,12 +2,14 @@
 
 namespace Tests;
 
+use App\Devnull\Account;
 use App\Devnull\Timezone;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\File;
 use Native\Mobile\AsyncTask;
 use Native\Mobile\Support\AsyncTaskTransport;
+use Native\Mobile\System;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -22,6 +24,8 @@ abstract class TestCase extends BaseTestCase
      * first frame. A test that wants to see the frame before it calls
      * holdRefreshes() (see Pest.php).
      *
+     * Each test is a fresh launch, so the Guilds tab is decided afresh.
+     *
      * The phone's timezone is unknown, so times show in UTC whatever this
      * machine's is, until a test puts the phone somewhere (see phoneIn()).
      */
@@ -29,6 +33,7 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
+        Account::forgetGuildsTabShown();
         AsyncTask::fake();
         $this->app->instance(Timezone::class, new Timezone(localtime: '/nonexistent'));
     }
@@ -36,6 +41,7 @@ abstract class TestCase extends BaseTestCase
     protected function tearDown(): void
     {
         AsyncTask::clearFake();
+        System::rememberPlatform(null);
         File::deleteDirectory(AsyncTaskTransport::directory());
 
         parent::tearDown();

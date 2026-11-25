@@ -180,3 +180,17 @@ it('reads achievements with the Unix rank, the XP to the next one and the badges
         ->and(Achievements::fromArray(null))->toBeNull()
         ->and(Achievements::fromArray(['level' => 9, 'rank' => 'root', 'xp' => 9000, 'next_level_xp' => null, 'ranks' => []])->nextRankLabel())->toBe('Maximum rank (UID 0)');
 });
+
+it('knows the guild a commit was posted in', function () {
+    $commit = Commit::fromArray(cardJson(['guild_handle' => 'rust', 'guild' => ['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀', 'icon_url' => null]]));
+
+    expect($commit->guild?->name)->toBe('Rust')
+        ->and($commit->guild?->emoji)->toBe('🦀')
+        ->and($commit->withStar(true)->guild?->handle)->toBe('rust');
+});
+
+it('names the guild by its hashtag when only the handle came', function () {
+    expect(Commit::fromArray(cardJson(['guild_handle' => 'rust', 'guild' => null]))->guild?->name)->toBe('#rust')
+        ->and(Commit::fromArray(cardJson())->guild)->toBeNull()
+        ->and(Commit::fromArray(cardJson(['guild_handle' => '', 'guild' => ['name' => 'Rust']]))->guild)->toBeNull();
+});

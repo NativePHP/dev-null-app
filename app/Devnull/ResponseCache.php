@@ -2,6 +2,7 @@
 
 namespace App\Devnull;
 
+use App\Devnull\Data\Guild;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Contracts\Cache\Repository;
@@ -52,6 +53,8 @@ final class ResponseCache
         '#^remotes/@[^/]+/messages$#',
         '#^remotes/orgs/[^/]+/messages$#',
         '#^scheduled-commits$#',
+        '#^guilds$#',
+        '#^guilds/[^/]+$#',
     ];
 
     /**
@@ -113,7 +116,8 @@ final class ResponseCache
     public static function caches(string $path, array $query = []): bool
     {
         // A cursor's page, a numbered page, and a Remotes thread's messages before or after one, aren't the first page.
-        if (array_intersect_key(self::normalise($query), array_flip(['cursor', 'page', 'before', 'after'])) !== []) {
+        // A search (q) isn't kept either: each term would push a kept page out, and screens open on the unsearched list.
+        if (array_intersect_key(self::normalise($query), array_flip(['cursor', 'page', 'before', 'after', 'q'])) !== []) {
             return false;
         }
 
@@ -396,7 +400,11 @@ final class ResponseCache
 
     /**
      * You committed. A commit goes on top of your logs and your profile; a reply
-     * goes under its parent and counts there, and on top of your replies.
+     * goes under its parent and counts there, and on top of your replies. One
+     * you posted as an organization is the organization's, so it stays off
+     * your profile and its counts, as devnull keeps it. A post to a guild's
+     * board goes on top of that board alone, as it isn't in the logs or your
+     * profile's list, though devnull counts it among your commits.
      *
      * @param  array<string, mixed>  $commit
      */
@@ -409,14 +417,23 @@ final class ResponseCache
         }
 
         $parentId = is_string($commit['parent_id'] ?? null) ? $commit['parent_id'] : null;
+        $onYourProfile = ! self::isOrganizations($commit);
+
+        $guild = Guild::fromArray(is_array($commit['guild'] ?? null) ? $commit['guild'] : ['handle' => $commit['guild_handle'] ?? null]);
 
         if ($parentId === null) {
             // Trending is ranked, so a new commit has no place at the top of it.
-            foreach (['log/following', 'log/latest', "users/{$me}/commits"] as $path) {
+            $paths = $guild === null
+                ? ['log/following', 'log/latest', ...($onYourProfile ? ["users/{$me}/commits"] : [])]
+                : ['guilds/'.rawurlencode($guild->handle)];
+
+            foreach ($paths as $path) {
                 $this->patch($path, [], fn (array $json): array => self::prepend($json, $commit));
             }
 
-            $this->patch("users/{$me}", [], fn (array $json): array => self::count($json, 'commits_count', 1));
+            if ($onYourProfile) {
+                $this->patch("users/{$me}", [], fn (array $json): array => self::count($json, 'commits_count', 1));
+            }
 
             return;
         }
@@ -425,7 +442,10 @@ final class ResponseCache
         $this->patch("commits/{$parentId}/replies", [], fn (array $json): array => ($json['meta']['next_cursor'] ?? null) === null
             ? [...$json, 'data' => [...self::without($json['data'] ?? [], $commit['id']), $commit]]
             : $json);
-        $this->patch("users/{$me}/commits", ['replies' => '1'], fn (array $json): array => self::prepend($json, $commit));
+        if ($onYourProfile) {
+            $this->patch("users/{$me}/commits", ['replies' => '1'], fn (array $json): array => self::prepend($json, $commit));
+        }
+
         $this->patchCommit($parentId, fn (array $parent): array => self::withNewestReply([...$parent, 'replies_count' => (int) ($parent['replies_count'] ?? 0) + 1], $commit));
     }
 
@@ -450,11 +470,14 @@ final class ResponseCache
     }
 
     /**
-     * You deleted a commit: it leaves every list, its page goes, and its parent counts one reply fewer.
+     * You deleted a commit: it leaves every list, its page goes, and its parent
+     * counts one reply fewer. Your profile counts one commit fewer, unless it
+     * was an organization's you're in (see Ownership).
      */
     public function commitDeleted(string $id): void
     {
-        $parentId = $this->findCommit($id)['parent_id'] ?? null;
+        $found = $this->findCommit($id);
+        $parentId = $found['parent_id'] ?? null;
 
         $this->rememberDeletion($id);
 
@@ -465,9 +488,19 @@ final class ResponseCache
 
         if (is_string($parentId) && $parentId !== '') {
             $this->patchCommit($parentId, fn (array $parent): array => [...$parent, 'replies_count' => max(0, (int) ($parent['replies_count'] ?? 0) - 1)]);
-        } elseif (($me = $this->username()) !== null) {
+        } elseif (($me = $this->username()) !== null && ($found === null || ! self::isOrganizations($found))) {
             $this->patch("users/{$me}", [], fn (array $json): array => self::count($json, 'commits_count', -1));
         }
+    }
+
+    /**
+     * Whether a kept commit is an organization's.
+     *
+     * @param  array<array-key, mixed>  $commit
+     */
+    private static function isOrganizations(array $commit): bool
+    {
+        return is_array($commit['author'] ?? null) && ($commit['author']['type'] ?? null) === 'organization';
     }
 
     /**

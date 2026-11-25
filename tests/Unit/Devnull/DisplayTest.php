@@ -8,6 +8,16 @@ it('keeps the last reply clear of the link validation message', function () {
     expect(Display::replyBarClearance($url))->toBe(Display::replyBarClearance(str_repeat('a', mb_strlen($url))) + 3 * Display::ReplyBarLineHeight);
 });
 
+it('grows a composer box by a line height for each line the draft wraps to, up to five lines', function (string $draft, int $lines) {
+    expect(Display::composerBoxGrowth($draft))->toBe(($lines - 1) * Display::ReplyBarLineHeight);
+})->with([
+    'empty' => ['', 1],
+    'one line' => [str_repeat('a', Display::ComposerBoxCharactersPerLine), 1],
+    'wraps once' => [str_repeat('a', Display::ComposerBoxCharactersPerLine + 1), 2],
+    'its own lines' => ["one\ntwo\nthree", 3],
+    'past five' => [str_repeat("line\n", 9), 5],
+]);
+
 it('prints compact counts from a thousand as the web does', function (int $count, string $expected) {
     expect(Display::compactCount($count))->toBe($expected);
 })->with([

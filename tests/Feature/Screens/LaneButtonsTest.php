@@ -59,27 +59,11 @@ dataset('main buttons', [
 
         return Native::visit('/log');
     }, 'follow-ada'],
-    'Follow, on a profile' => [function (): TestableComponent {
-        serveApi([
-            'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']), 'is_following' => false]],
-            'GET /api/v1/users/ada/commits' => [pageJson([])],
-        ]);
-
-        return Native::visit('/log/users/ada');
-    }, 'follow'],
     'Follow, in a profile\'s followers' => [function (): TestableComponent {
         serveApi(['GET /api/v1/users/ada/followers' => [pageJson([userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace', 'is_followed' => false, 'follows_you' => false])])]]);
 
         return Native::visit('/log/users/ada/followers');
     }, 'follow-grace'],
-    'Reply' => [function (): TestableComponent {
-        serveApi([
-            'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2']))],
-            'GET /api/v1/commits/c2/replies' => [pageJson([])],
-        ]);
-
-        return Native::visit('/log/commits/c2');
-    }, 'send-reply'],
     'Edit on GitHub, on the Account screen' => [function (): TestableComponent {
         serveApi(['GET /api/v1/me' => [currentUserJson(['lane' => app(Account::class)->user()?->lane()])]]);
 
@@ -113,6 +97,27 @@ it("fills the compose sheet's check with your lane, with a check that reads on i
 ])->with([
     'green, checked in ink' => 1,
     'rose, checked in white' => 4,
+]);
+
+it("fills the reply bar's round Reply with your lane, with an arrow that reads on it", function (int $lane) {
+    signIn(['lane' => $lane]);
+    serveApi([
+        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2']))],
+        'GET /api/v1/commits/c2/replies' => [pageJson([])],
+    ]);
+
+    $circle = nodeByRef(Native::visit('/log/commits/c2')->input('reply-input', 'Agreed'), 'send-reply-circle');
+    $icon = findNode($circle, fn (array $node): bool => $node['type'] === 'icon')['props'];
+
+    expect(array_map(strtolower(...), [$circle['style']['bg_color'], $circle['props']['dark_bg_color'], $icon['color'], $icon['dark_color']]))->toBe(array_map(strtolower(...), [
+        config("native-ui.theme.light.lane-{$lane}"),
+        config("native-ui.theme.dark.lane-{$lane}"),
+        config("native-ui.theme.light.on-lane-{$lane}"),
+        config("native-ui.theme.dark.on-lane-{$lane}"),
+    ]));
+})->with([
+    'green, an arrow in ink' => 1,
+    'rose, a white arrow' => 4,
 ]);
 
 it('draws the tab underline in your lane, in its light and dark shades', function (string $path, int $lane) {
@@ -193,3 +198,27 @@ it('makes Unlink Apple ID large too', function () {
 
     expect(buttonProps(Native::visit('/profile/device', platform: 'ios'), 'unlink-apple')['size'] ?? null)->toBe('lg');
 });
+
+it('fills Follow on a profile and an organization with your lane, with a label that reads on it', function (string $path, array $api, int $lane) {
+    signIn(['lane' => $lane]);
+    serveApi($api);
+
+    $screen = finishRefreshes(Native::visit($path));
+    $pill = nodeByRef($screen, 'follow-pill');
+    $label = findNode($pill, fn (array $node): bool => ($node['type'] ?? null) === 'text');
+
+    expect(strtolower($pill['style']['bg_color']))->toBe(strtolower(config("native-ui.theme.light.lane-{$lane}")))
+        ->and(strtolower($label['props']['color']))->toBe(strtolower(config("native-ui.theme.light.on-lane-{$lane}")));
+})->with([
+    'a profile' => ['/log/users/ada', [
+        'GET /api/v1/users/ada' => [['data' => userWithCountsJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada']), 'is_following' => false]],
+        'GET /api/v1/users/ada/commits' => [pageJson([])],
+    ]],
+    'an organization' => ['/log/organizations/laravel', [
+        'GET /api/v1/organizations/laravel' => [['data' => ['handle' => 'laravel', 'name' => 'Laravel', 'type' => 'organization', 'followers_count' => 1], 'is_following' => false]],
+        'GET /api/v1/organizations/laravel/commits' => [pageJson([])],
+    ]],
+])->with([
+    'green, labelled in ink' => 1,
+    'rose, labelled in white' => 4,
+]);

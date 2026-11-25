@@ -13,19 +13,23 @@ use Native\Mobile\Edge\Layouts\Builders\Tab;
 use Native\Mobile\Edge\Layouts\Builders\TabBar;
 use Native\Mobile\Edge\Layouts\NativeLayout;
 use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Facades\System;
 
 /**
- * The top-level sections: Log, Notifications, Remotes and your Profile, with
- * the icons of the web's nav, picked out in the colour you chose for your lane.
- * Notifications and Remotes wear a badge with the unread count devnull last
- * gave. Starred opens from your own profile.
+ * The top-level sections: Log, Notifications, Guilds, Remotes and your
+ * Profile, with the icons of the web's nav, picked out in the colour you chose
+ * for your lane. Notifications and Remotes wear a badge with the unread count
+ * devnull last gave. Starred opens from your own profile. Guilds is left out
+ * for a launch that began with devnull having said they're off for you (see
+ * Account::guildsTabShown()).
  */
 class TabsLayout extends NativeLayout
 {
     /**
-     * Each tab's URI. Commits and profiles open beneath the one they were tapped in.
+     * Each tab's URI, Guilds among them even in a launch that leaves its tab
+     * out. Commits and profiles open beneath the one they were tapped in.
      */
-    public const array Tabs = ['/log', '/notifications', '/remotes', '/profile'];
+    public const array Tabs = ['/log', '/notifications', '/guilds', '/remotes', '/profile'];
 
     /**
      * The icon and "/dev/null" wordmark as the web's MobileHeader draws them, 105 x 28pt.
@@ -63,6 +67,10 @@ class TabsLayout extends NativeLayout
             ->title($screen->navTitle())
             ->displayMode('inline');
 
+        if (System::isIos()) {
+            $navBar->backgroundColor((string) theme('surface'));
+        }
+
         if ($screen instanceof Log) {
             $logo = Image::make(self::logo())->height(28)->alt('devnull')->ref('wordmark');
 
@@ -80,11 +88,17 @@ class TabsLayout extends NativeLayout
         self::badge($notifications, app(Account::class)->unreadNotifications());
         self::badge($remotes, app(Account::class)->unreadRemotes());
 
-        return TabBar::make()
+        $tabBar = TabBar::make()
             ->activeColor(self::accent())
             ->labelVisibility('labeled')
             ->add(Tab::link('Log', '/log', ios: Lucide::GitCommitVertical->ios(), android: Lucide::GitCommitVertical->android()))
-            ->add($notifications)
+            ->add($notifications);
+
+        if (app(Account::class)->guildsTabShown()) {
+            $tabBar->add(Tab::link('Guilds', '/guilds', ios: Lucide::UsersRound->ios(), android: Lucide::UsersRound->android()));
+        }
+
+        return $tabBar
             ->add($remotes)
             ->add(Tab::link('Profile', '/profile', ios: Lucide::UserRound->ios(), android: Lucide::UserRound->android()));
     }

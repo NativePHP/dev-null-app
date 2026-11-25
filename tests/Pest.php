@@ -400,7 +400,8 @@ function userJson(array $overrides = []): array
     $username = $overrides['handle'] ?? 'local_dev';
 
     return [
-        'id' => '0199e5c4-0000-7000-8000-000000000001',
+        // Someone else, named by a handle of their own, is someone else to the app too.
+        'id' => $username === 'local_dev' ? '0199e5c4-0000-7000-8000-000000000001' : 'user-'.$username,
         'handle' => $username,
         'name' => 'Local Dev',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/1?v=4',
@@ -415,6 +416,17 @@ function userJson(array $overrides = []): array
         'lane' => 3,
         ...$overrides,
     ];
+}
+
+/**
+ * Someone replying to a commit, who isn't its author.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function replierJson(array $overrides = []): array
+{
+    return userJson(['id' => '0199e5c4-0000-7000-8000-0000000000aa', 'handle' => 'replier', 'name' => 'Re Plier', 'lane' => 5, ...$overrides]);
 }
 
 /**
@@ -459,6 +471,65 @@ function currentUserJson(array $overrides = [], array $extra = []): array
 function currentUserTermsJson(bool $accepted, ?string $acceptedAt = '2026-10-05T10:00:00Z', string $version = '2026-11-01T14:35:00Z'): array
 {
     return currentUserJson(['terms_version' => $version, 'terms_accepted_at' => $acceptedAt, 'terms_accepted' => $accepted]);
+}
+
+/**
+ * A guild as devnull sends it: a row of the directory, or the `guild` of a board.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function guildJson(array $overrides = []): array
+{
+    $handle = $overrides['handle'] ?? 'rust';
+
+    return [
+        'handle' => $handle,
+        'name' => ucfirst($handle),
+        'description' => "All about {$handle}.",
+        'emoji' => '💻',
+        'icon_url' => null,
+        'member_count' => 3,
+        'is_joined' => false,
+        'is_muted' => false,
+        'is_paused' => false,
+        'html_url' => "http://devnull.test/guilds/{$handle}",
+        ...$overrides,
+    ];
+}
+
+/**
+ * A guild board answer, as `GET /guilds/{handle}` sends it.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function boardJson(array $overrides = []): array
+{
+    return [
+        'guild' => guildJson(),
+        'data' => [commitJson(['id' => 'c1']), commitJson(['id' => 'c2'])],
+        'pinned_commit' => commitJson(['id' => 'c2']),
+        'links' => ['next' => 'https://dev-null.sh/api/v1/guilds/rust?page=2'],
+        ...$overrides,
+    ];
+}
+
+/**
+ * A board page of commits by id, newest first, with no pin unless one is given.
+ *
+ * @param  list<string>  $ids
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function boardOf(array $ids, ?int $nextPage = null, array $overrides = []): array
+{
+    return boardJson([
+        'data' => array_map(fn (string $id): array => commitJson(['id' => $id]), $ids),
+        'pinned_commit' => null,
+        'links' => ['next' => $nextPage === null ? null : 'http://devnull.test/api/v1/guilds/rust?page='.$nextPage],
+        ...$overrides,
+    ]);
 }
 
 /**
@@ -516,14 +587,16 @@ function commitPageJson(array $commit, array $ancestors = [], array $series = []
 
 /**
  * A reply as `GET /commits/{id}/replies` sends it: like any commit, but without
- * stars_count or starred, which that list doesn't load.
+ * stars_count or starred, which that list doesn't load. It comes from someone
+ * other than the commit's author unless a test says who, since a reply of
+ * theirs carries their own thread on (see SelfThread).
  *
  * @param  array<string, mixed>  $overrides
  * @return array<string, mixed>
  */
 function replyJson(array $overrides = []): array
 {
-    return array_diff_key(commitJson($overrides), array_flip(['stars_count', 'starred']));
+    return array_diff_key(commitJson(['author' => replierJson(), ...$overrides]), array_flip(['stars_count', 'starred']));
 }
 
 /**
@@ -693,6 +766,26 @@ function findNode(array $node, callable $matches): ?array
 }
 
 /**
+ * The tabs along the bottom, in order, as label => URL.
+ *
+ * @return array<string, string>
+ */
+function tabsShown(TestableComponent $screen): array
+{
+    return collect(findNodes($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_nav_item'))
+        ->mapWithKeys(fn (array $tab): array => [$tab['props']['label'] => $tab['props']['url']])
+        ->all();
+}
+
+/**
+ * Whether the screen's top bar has the action with this id.
+ */
+function hasTopBarAction(TestableComponent $screen, string $id): bool
+{
+    return findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'top_bar_action' && ($node['props']['id'] ?? null) === $id) !== null;
+}
+
+/**
  * Whether anything with this ref was rendered.
  */
 function rendersRef(TestableComponent $screen, string $ref): bool
@@ -758,6 +851,15 @@ function nodeByRef(TestableComponent $screen, string $ref): array
  * Whether a round button in a sheet's bar can be tapped. A disabled one is drawn as a plain circle, not a pressable.
  */
 function sheetButtonEnabled(TestableComponent $screen, string $ref): bool
+{
+    return nodeByRef($screen, $ref)['type'] === 'pressable';
+}
+
+/**
+ * Whether a composer's round send button (partials/send-button) can be tapped. A disabled one is drawn as a plain
+ * circle, not a pressable.
+ */
+function canSend(TestableComponent $screen, string $ref): bool
 {
     return nodeByRef($screen, $ref)['type'] === 'pressable';
 }

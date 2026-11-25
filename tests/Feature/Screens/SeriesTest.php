@@ -131,7 +131,8 @@ it('lays the series out in order on a part\'s page, the part in focus', function
         ->and(railRunsOn($screen, 'focused-commit'))->toBeTrue()
         ->and(railRunsOn($screen, 'commit-p3'))->toBeFalse();
 
-    $screen->tap('commit-p3')->assertNavigatedTo('/log/commits/p3');
+    // A part in the tree moves the page to it rather than pushing another.
+    $screen->tap('commit-p3')->assertNoNavigation()->assertSet('id', 'p3');
 });
 
 it('puts a part\'s replies under it, above the later parts, as on the web', function () {
@@ -154,7 +155,10 @@ it('puts a part\'s replies under it, above the later parts, as on the web', func
         ->assertSee('Agreed')
         ->assertDontSee('2 replies');
 
-    expect(threadRows($screen))->toBe(['focused-commit', 'thread-reply-r1', 'thread-reply-r2', 'commit-p2', 'commit-p3']);
+    expect(threadRows($screen))->toBe(['focused-commit', 'thread-reply-r1', 'thread-reply-r2', 'commit-p2', 'commit-p3'])
+        // The focused part gave up its hairline to its replies, and the later parts follow, so the last reply ends on it.
+        ->and(rendersRef($screen, 'thread-end-r2'))->toBeTrue()
+        ->and(rendersRef($screen, 'thread-end-r1'))->toBeFalse();
 });
 
 it('keeps replies at the foot of the last part\'s page', function () {
@@ -167,7 +171,9 @@ it('keeps replies at the foot of the last part\'s page', function () {
         ->assertSee('The end');
 
     expect(threadRows($screen))->toBe(['commit-p1', 'commit-p2', 'focused-commit', 'thread-reply-r1'])
-        ->and(railRunsOn($screen, 'focused-commit'))->toBeFalse();
+        ->and(railRunsOn($screen, 'focused-commit'))->toBeFalse()
+        // Nothing follows the replies at the foot of the page, so they end on no hairline.
+        ->and(rendersRef($screen, 'thread-end-r1'))->toBeFalse();
 });
 
 it('keeps a deleted part in its place in the series', function () {

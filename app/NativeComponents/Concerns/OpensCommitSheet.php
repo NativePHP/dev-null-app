@@ -3,12 +3,14 @@
 namespace App\NativeComponents\Concerns;
 
 use App\Devnull\Client;
+use App\Devnull\ComposerSheet;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Draft;
 use App\Devnull\Data\PollDraft;
 use App\Devnull\Data\StashedDraft;
 use App\Devnull\DraftImages;
 use App\Devnull\Outbox;
+use App\Devnull\PostAs;
 use App\Devnull\ReportReason;
 use App\Devnull\ResponseCache;
 use App\Devnull\SignedRequest;
@@ -16,9 +18,11 @@ use App\Devnull\Stash;
 use App\Devnull\Timezone;
 use App\Devnull\Toasts;
 use App\Models\PendingWrite;
+use App\NativeComponents\FeedWorkspace;
 use Carbon\CarbonImmutable;
 use Closure;
 use Native\Mobile\Facades\System;
+use Native\Mobile\UI\Caret;
 
 /**
  * The sheet under a commit (see partials/commit-sheet). Report commit, in the
@@ -47,6 +51,12 @@ use Native\Mobile\Facades\System;
  * A new commit's draft can become a `/feature` or `/bug` issue, as on the web
  * (see DraftsIssues).
  *
+ * A guild's page opens it for a new commit on the guild's board, as the web's
+ * guild page has its own composer (see composeInGuildSheet()): its own draft,
+ * `guild:{handle}`, and no issue commands, as on the web. The commit goes to
+ * the board, not to your log, and if devnull turns it down it goes back only
+ * to that guild's page (see composerGuild()).
+ *
  * A commit's page can open its reply in the same composer, for the photos and
  * the preview the reply bar has no room for (see replyInSheet()). The draft
  * is the reply bar's, and goes back to it when the sheet closes.
@@ -55,6 +65,11 @@ use Native\Mobile\Facades\System;
  * does (see AttachesToCommits), and suggests people to @mention, as the
  * web's does: devnull's people for a new commit, a reply or a quote (see
  * SuggestsMentions).
+ *
+ * A member of a GitHub organization can post as it instead, from the avatar
+ * over the field, as the web's Post as menu does, in a new commit, a quote or
+ * a reply (see PostAs). It starts as you each time, as the web's does, and
+ * the commit shows staged as the organization while it goes.
  *
  * The sheet keeps its commit while it slides away, so it doesn't empty on the
  * way down, and lets go of it once iOS says it's gone, however it was closed.
@@ -93,6 +108,11 @@ trait OpensCommitSheet
     public string $sheetView = 'report';
 
     /**
+     * The guild whose board the new commit in the sheet goes to, or null for one that goes to your log.
+     */
+    public ?string $sheetGuild = null;
+
+    /**
      * The reason picked on the report form, or '' until one is.
      */
     public string $reportReason = '';
@@ -103,6 +123,19 @@ trait OpensCommitSheet
      * The commit you're writing in the sheet, quoting its commit or not.
      */
     public string $sheetBody = '';
+
+    /**
+     * Where the sheet's field last said its caret is drawn at its full height, for the mention list to go under (see
+     * ComposerSheet). Null until it has said, and again once the sheet is gone.
+     *
+     * @var array{bottom: float, line_height: float, field_height: float}|null
+     */
+    public ?array $sheetCaret = null;
+
+    /**
+     * The handle of the organization the sheet posts as, or null for you (see PostAs).
+     */
+    public ?string $sheetAuthor = null;
 
     /**
      * Whether the sheet opened on a stashed draft, which it marks until you empty it or drop it.
@@ -250,6 +283,27 @@ trait OpensCommitSheet
     }
 
     /**
+     * Post as, from the sheet's avatar: an organization's handle, or '' for you.
+     */
+    public function postAsInSheet(string $handle = ''): void
+    {
+        $this->sheetAuthor = PostAs::author($handle)?->username;
+        $this->sheetError = null;
+    }
+
+    /**
+     * A new commit in the sheet for the board of the guild $handle, under its own draft.
+     */
+    protected function composeInGuildSheet(string $handle): void
+    {
+        $this->forgetCommitSheet();
+        $this->sheetView = 'compose';
+        $this->sheetGuild = $handle;
+        $this->sheetOpen = true;
+        $this->restoreSheetDraft();
+    }
+
+    /**
      * The web's clock button, in a new commit's composer: it opens "Submit at" under the field, with no time picked,
      * or closes it, and the commit goes now again. Its photos or its poll go with it either way, as on the web.
      */
@@ -282,6 +336,33 @@ trait OpensCommitSheet
     {
         $this->opensScheduledCommits = true;
         $this->sheetOpen = false;
+    }
+
+    /**
+     * The sheet's field drew its caret somewhere else: it moved, the text wrapped differently, or the field scrolled.
+     */
+    public function sheetCaretMoved(Caret $caret): void
+    {
+        $this->sheetCaret = ComposerSheet::reported($caret, $this->sheetCaret, $this->sheetMentionLayout()['field'] ?? null);
+    }
+
+    /**
+     * Where the sheet's mention list goes and how tall its field is meanwhile (see ComposerSheet::mentionLayout()), or
+     * null while there's no list.
+     *
+     * @return array{field: int|null, top: int, height: int|null}|null
+     */
+    public function sheetMentionLayout(): ?array
+    {
+        if (($this->mention['field'] ?? null) !== 'sheetBody' || ($this->mentionPeople === [] && $this->mentionOrganizations === [])) {
+            return null;
+        }
+
+        return ComposerSheet::mentionLayout(
+            $this->sheetCaret,
+            count($this->mentionPeople) + count($this->mentionOrganizations),
+            ComposerSheet::mentionHeading($this->mention, $this->sheetView),
+        );
     }
 
     /**
@@ -335,6 +416,8 @@ trait OpensCommitSheet
             'images' => PendingWrite::imagePayload($this->sheetImages),
             'stash' => $stashName,
             'composer' => $this->sheetView,
+            ...PendingWrite::authorPayload(PostAs::author($this->sheetAuthor)),
+            ...($this->sheetGuild === null ? [] : ['guild_handle' => $this->sheetGuild]),
         ]);
 
         if ($write === null) {
@@ -344,7 +427,7 @@ trait OpensCommitSheet
         app(Stash::class)->put($me->id, $stashName, new StashedDraft);
         $this->sheetImages = [];
         $this->closeCommitSheet();
-        $this->showCommitted($write->stagedCommit($me));
+        $this->applyStagedCommit($write->stagedCommit($me));
         $this->sendFromOutbox($write);
     }
 
@@ -391,7 +474,11 @@ trait OpensCommitSheet
         $write = $held === null ? null : app(Outbox::class)->find($held);
 
         if ($write !== null && $write->isCommit() && $write->isFailed()) {
-            $this->openFailedCommit($write);
+            if ($this->nativeParentComponent instanceof FeedWorkspace) {
+                $this->nativeParentComponent->recoverOutboxDraft($write);
+            } else {
+                $this->openFailedCommit($write);
+            }
 
             return;
         }
@@ -432,7 +519,7 @@ trait OpensCommitSheet
      */
     protected function reopenFailedCommit(PendingWrite $write): bool
     {
-        if ($this->sheetOpen || ($write->composer() === 'compose' && ! $this->opensComposer())) {
+        if ($this->sheetOpen || ($write->composer() === 'compose' && (! $this->opensComposer() || $write->guildHandle() !== $this->composerGuild()))) {
             return false;
         }
 
@@ -448,11 +535,25 @@ trait OpensCommitSheet
     /**
      * Edit, on the toast of a commit devnull turned down: its sheet, here if
      * the commit it quotes or replies to is showing, or the commit's own page.
-     * A new commit's sheet opens anywhere it can.
+     * A new commit's sheet opens anywhere it can but a guild's page, which
+     * sends it to the Log. One for a guild's board opens only on that guild's
+     * page, which opens it.
      */
     protected function editFailedCommit(PendingWrite $write): void
     {
         if ($this->openFailedCommit($write)) {
+            return;
+        }
+
+        if ($write->guildHandle() !== null) {
+            $this->openInTab('/guilds/'.rawurlencode($write->guildHandle()), ['edit' => $write->id]);
+
+            return;
+        }
+
+        if ($write->composer() === 'compose') {
+            $this->composeInSheet();
+
             return;
         }
 
@@ -472,6 +573,7 @@ trait OpensCommitSheet
     {
         $this->sheetClosing = $this->sheetClosing || ($this->sheetOpen && System::isIos());
         $this->sheetOpen = false;
+        $this->sheetCaret = null;
         $this->forgetMention('sheetBody');
     }
 
@@ -503,14 +605,29 @@ trait OpensCommitSheet
     }
 
     /**
+     * The guild whose board this screen's composer posts to, or null when it posts to your log. A new commit devnull
+     * turned down goes back only to a composer for the same place.
+     */
+    protected function composerGuild(): ?string
+    {
+        return null;
+    }
+
+    /**
      * Opens the sheet a commit devnull turned down was written in, with everything it had (see restoreSheetDraft()).
      */
     private function openFailedCommit(PendingWrite $write): bool
     {
         $for = $write->parentId() ?? $write->quotedCommitId();
 
+        $guild = $write->guildHandle();
+
         match ($write->composer()) {
-            'compose' => $this->composeInSheet(),
+            'compose' => match (true) {
+                $guild === null => $this->composerGuild() === null ? $this->composeInSheet() : null,
+                $guild === $this->composerGuild() => $this->composeInGuildSheet($guild),
+                default => null,
+            },
             'quote' => $for === null ? null : $this->quoteCommit($for),
             'reply' => $for === null ? null : $this->replyInSheet($for),
             default => null,
@@ -519,18 +636,24 @@ trait OpensCommitSheet
         return $this->sheetOpen && $this->sheetStashName() === $write->stashName();
     }
 
+    /**
+     * A published commit, or one of yours still waiting for approval, as the web's Quote shows.
+     */
     private function canQuote(Commit $commit): bool
     {
-        $viewer = $this->me();
+        $ownership = $this->ownership();
 
-        return $viewer !== null && ! $commit->isDeleted() && ! $commit->isStaged() && ($commit->isApproved() || $commit->author->id === $viewer->id);
+        return $ownership->isSignedIn() && ! $commit->isDeleted() && ! $commit->isStaged() && ($commit->isApproved() || $ownership->owns($commit));
     }
 
+    /**
+     * Someone else's published commit: never yours or an organization's you're in, which devnull won't take a report of.
+     */
     private function canReport(Commit $commit): bool
     {
-        $viewer = $this->me();
+        $ownership = $this->ownership();
 
-        return $viewer !== null && ! $commit->isDeleted() && $commit->isApproved() && $commit->author->id !== $viewer->id;
+        return $ownership->isSignedIn() && ! $commit->isDeleted() && $commit->isApproved() && ! $ownership->owns($commit);
     }
 
     /**
@@ -549,10 +672,12 @@ trait OpensCommitSheet
 
         $images = $this->sheetImages;
         $poll = $this->sheetPollPayload();
+        $author = PostAs::author($this->sheetAuthor)?->username;
+        $guild = $this->sheetGuild;
         $this->sendingSchedule = true;
         $this->sheetError = null;
 
-        $this->sendInBackground(fn (Client $devnull): SignedRequest => $devnull->signedScheduledCommit($body, $at, $images, $poll), function () use ($me, $stashName, $images): void {
+        $this->sendInBackground(fn (Client $devnull): SignedRequest => $devnull->signedScheduledCommit($body, $at, $images, $poll, $author, $guild), function () use ($me, $stashName, $images): void {
             $this->sendingSchedule = false;
             app(ResponseCache::class)->forget(Client::ScheduledCommitsPath);
             app(Stash::class)->put($me->id, $stashName, new StashedDraft);
@@ -560,9 +685,13 @@ trait OpensCommitSheet
             $this->sheetImages = [];
             $this->closeCommitSheet();
             Toasts::say(self::Scheduled);
-        }, function (string $message): void {
+        }, function (string $message) use ($author): void {
             $this->sendingSchedule = false;
             $this->sheetError = $message;
+
+            if ($author !== null && method_exists($this, 'refreshUnreadNotifications')) {
+                $this->refreshUnreadNotifications();
+            }
         }, timeout: $images === [] ? 30 : 120);
     }
 
@@ -571,9 +700,12 @@ trait OpensCommitSheet
         $this->sheetOpen = false;
         $this->sheetCommit = null;
         $this->sheetView = 'report';
+        $this->sheetGuild = null;
         $this->reportReason = '';
         $this->reportDetails = '';
         $this->sheetBody = '';
+        $this->sheetCaret = null;
+        $this->sheetAuthor = null;
         $this->sheetRestored = false;
         $this->sheetError = null;
         $this->forgetMention('sheetBody');
@@ -592,7 +724,7 @@ trait OpensCommitSheet
     private function sheetStashName(): ?string
     {
         return match (true) {
-            $this->sheetView === 'compose' => 'commit',
+            $this->sheetView === 'compose' => $this->sheetGuild === null ? 'commit' : 'guild:'.$this->sheetGuild,
             $this->sheetView === 'quote' && $this->sheetCommit !== null => 'quote-'.$this->sheetCommit->id,
             $this->sheetView === 'reply' && $this->sheetCommit !== null => 'reply-'.$this->sheetCommit->id,
             default => null,
@@ -621,9 +753,10 @@ trait OpensCommitSheet
     }
 
     /**
-     * The sheet starts from its stashed draft, with its photos and poll. A
-     * commit devnull turned down that was written under it comes back whole,
-     * and leaves the outbox: from here it's a draft again.
+     * The sheet starts from its stashed draft, with its photos and poll, as
+     * you. A commit devnull turned down that was written under it comes back
+     * whole, as the organization it was to go out as, and leaves the outbox:
+     * from here it's a draft again.
      */
     private function restoreSheetDraft(): void
     {
@@ -631,6 +764,7 @@ trait OpensCommitSheet
         $failed = $name === null ? null : app(Outbox::class)->failedDraft($name);
 
         if ($failed !== null) {
+            $this->sheetAuthor = $failed->author();
             $this->takeFailedCommit($failed);
         }
 

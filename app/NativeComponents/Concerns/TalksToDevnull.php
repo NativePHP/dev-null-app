@@ -9,6 +9,7 @@ use App\Devnull\Exceptions\ApiException;
 use App\Devnull\Exceptions\KeychainUnavailable;
 use App\Devnull\Exceptions\Unauthenticated;
 use App\Devnull\Lane;
+use App\Devnull\Ownership;
 use Closure;
 
 /**
@@ -60,6 +61,14 @@ trait TalksToDevnull
     protected function me(): ?User
     {
         return app(Account::class)->user();
+    }
+
+    /**
+     * Which commits are yours: your own and your organizations' (see Ownership).
+     */
+    protected function ownership(): Ownership
+    {
+        return app(Account::class)->ownership();
     }
 
     /**

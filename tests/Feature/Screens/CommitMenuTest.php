@@ -130,7 +130,7 @@ it('deletes your reply from a commit page, staying on the page', function () {
                 $deleted = true;
             }),
             'GET /api/v1/commits/c2' => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'Ada asks', 'replies_count' => $deleted ? 0 : 1, 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]))),
-            'GET /api/v1/commits/c2/replies' => Http::response(pageJson($deleted ? [] : [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'Soon gone'])])),
+            'GET /api/v1/commits/c2/replies' => Http::response(pageJson($deleted ? [] : [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'Soon gone', 'author' => userJson()])])),
             default => Http::response(['message' => 'No fake.'], 404),
         };
     });
@@ -226,6 +226,24 @@ it("leaves Pin to profile off a reply, and off someone else's commit", function 
         ->not->toContain('pin-r1');
 
     $screen->call('togglePin', 'r1')->call('togglePin', 'c2');
+
+    Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/pin'));
+});
+
+it('leaves Pin to profile off your own commit posted in a guild, which devnull refuses to pin', function () {
+    serveApi(fn () => Http::response(pageJson([
+        commitJson(['id' => 'g1', 'guild_handle' => 'rust', 'guild' => ['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀', 'icon_url' => null]]),
+    ])));
+
+    $screen = Native::visit('/log', platform: 'ios');
+
+    expect(menuItems($screen, 'more-g1'))->toBe([
+        ['share-g1', 'Share link', 'custom:link'],
+        'divider',
+        ['delete-g1', 'Delete commit', 'custom:trash-2'],
+    ]);
+
+    $screen->call('togglePin', 'g1');
 
     Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/pin'));
 });

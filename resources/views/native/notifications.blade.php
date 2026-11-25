@@ -9,7 +9,7 @@
     Keyed per choice of kinds, so a change starts a fresh list at the top. Pull to refresh asks devnull again, and the
     end of the list asks for the next page.
 --}}
-<native:column class="w-full h-full bg-theme-background">
+<native:column class="w-full h-full items-center bg-theme-surface">
     @include('native.partials.error')
     @include('native.partials.refresh-failed')
     @include('native.partials.push-prompt')
@@ -17,7 +17,7 @@
     <native:list
         native:key="notifications-{{ $listKey }}"
         ref="notifications"
-        class="w-full flex-1 bg-theme-surface"
+        class="w-full flex-1 bg-theme-surface {{ Display::ReadableColumn }}"
         on-refresh="load"
         on-end-reached="loadMore"
         :end-reached-buffer="5"
