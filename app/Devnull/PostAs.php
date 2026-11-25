@@ -60,6 +60,9 @@ final class PostAs
      * an organization, as elsewhere in the app, and the one posting now ticked. Until an avatar loads, or if it
      * can't, a person or building icon stands in. $method is called with the handle picked, or '' for you.
      *
+     * Each row is the name with the handle under it, smaller, which screen readers read after the name. A core
+     * without NavAction::subtitle() (before NativePHP/mobile-air#740) gets one label, "Simon (@simon-hamp)", instead.
+     *
      * @return list<TopBarAction>
      */
     public static function menu(User $me, ?User $author, string $method): array
@@ -67,16 +70,32 @@ final class PostAs
         return array_map(function (User $identity) use ($author, $method): TopBarAction {
             $icon = $identity->isOrganization ? Lucide::Building2 : Lucide::UserRound;
 
-            return NavAction::make('post-as-'.$identity->username)
-                ->label($identity->name.' (@'.$identity->username.')')
+            $handle = '@'.$identity->username;
+            $subtitled = self::subtitles();
+
+            $row = NavAction::make('post-as-'.$identity->username)
+                ->label($subtitled ? $identity->name : $identity->name.' ('.$handle.')')
                 ->icon(ios: $icon->ios(), android: $icon->android())
                 ->image(ImageCache::src($identity->avatarUrl))
-                ->press($method."('".($identity->isOrganization ? $identity->username : '')."')")
-                ->toElement()
+                ->press($method."('".($identity->isOrganization ? $identity->username : '')."')");
+
+            if ($subtitled) {
+                $row->subtitle($handle);
+            }
+
+            return $row->toElement()
                 ->setProp('image_shape', $identity->isOrganization ? 'rounded' : 'circle')
                 ->setProp('checked', self::posting($identity, $author))
                 ->ref('post-as-'.$identity->username);
         }, [$me, ...self::organizations()]);
+    }
+
+    /**
+     * Whether the installed core can give a menu row a subtitle under its label.
+     */
+    private static function subtitles(): bool
+    {
+        return method_exists(NavAction::class, 'subtitle');
     }
 
     /**
