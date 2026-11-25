@@ -1396,6 +1396,15 @@ it('leaves the draft alone when it no longer has the @handle where the caret fou
         ->assertSet('draft', 'hi');
 });
 
+it('leaves a gap between the suggestions and the message box under them on iOS', function () {
+    serveOrgThread(orgWithMembers([['ada', 'Ada Lovelace']]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1', platform: 'ios'))->input('message-input', '@ADA', 4);
+
+    expect(childRefs($screen, 'mention-suggestions'))->not->toBe([])
+        ->and(nodeByRef($screen, 'mention-slot')['layout']['padding'][2])->toBe(8.0);
+});
+
 /**
  * A message's photos as devnull sends them: $count of them, numbered from $first, the first described.
  *

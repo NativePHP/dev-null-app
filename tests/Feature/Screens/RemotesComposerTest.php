@@ -11,6 +11,7 @@ use Native\Mobile\Facades\System;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 use Tests\Support\GlassOpacity;
+use Tests\Support\ScrollEdge;
 
 const ComposerViewerId = '0199e5c4-0000-7000-8000-000000000001';
 
@@ -343,6 +344,23 @@ it('puts the bar on glass on iOS and the surface on Android, with no box or line
     }
 })->with(['ios', 'android']);
 
+it('stands the message bar on the scroll edge effect from iOS 26, with no fade or tint', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    ScrollEdge::onIos('26.0', function (): void {
+        $screen = threadWithAda();
+        $bottomBar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
+
+        expect($bottomBar['props']['edge_blur'] ?? null)->toBe(Display::ComposerEdgeBlur)
+            ->and(nodeByRef($screen, 'message-box')['props']['glass'] ?? null)->toBe(Display::ComposerInGlassBox ? 1 : null)
+            ->and(childRefs($screen, 'composer-bar'))->toBe(['composer-rows'])
+            ->and(nodeByRef($screen, 'composer-bar')['style']['bg_color'] ?? null)->toBeNull()
+            ->and(nodeByRef($screen, 'composer-rows')['style']['bg_color'] ?? null)->toBeNull()
+            ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'composer-fade'))->toBeNull()
+            ->and(nodeByRef($screen, 'composer-clearance')['layout']['height'] ?? null)->toEqual(Display::composerBoxBarHeight() + 8);
+    });
+});
+
 it('fades to the dark surface in dark mode, and draws again when the phone switches', function () {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
@@ -469,4 +487,12 @@ it('pings everyone in an org, and shows who pinged it', function () {
     finishRefreshes($screen->tap('ping'))->assertSee('* you sent a ping');
 
     expect(sentTo('POST', 'remotes/orgs/org-1/ping'))->toBe(['']);
+});
+
+it('leaves a gap between what you are replying to and the message box under it on iOS', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda()->trigger('swipe-1')->assertSee('Replying to Ada Lovelace');
+
+    expect(nodeByRef($screen, 'replying-slot')['layout']['padding'][2])->toBe(8.0);
 });

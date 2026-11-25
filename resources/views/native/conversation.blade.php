@@ -81,14 +81,17 @@
             The composer: the field over a row holding the + and the round send button (see partials/composer-box),
             with the thread fading out above it (see partials/composer-fade) rather than meeting a line. On iOS the bar
             is Liquid Glass, faded in at the top, so the thread shows through it blurred (see
-            Display::composerBarGlass()). On Android it's the surface. Either fills the strip under the home indicator.
+            Display::composerBarGlass()). From iOS 26 the system's scroll edge effect blurs the thread under the bar
+            instead, with no fade or glass (see Display::composerEdgeBlur()), and the field and tools sit in a rounded
+            glass box on it (Display::composerInGlassBox()). On Android it's the surface. Either fills the strip under
+            the home indicator.
             The web's tools, photos, the microphone and Ping, open from the one +. Above the field sit the people to
             mention, what you're replying to and the photos on the draft. While the thread can't take a message, why
             goes in the field's place.
         --}}
-        <native:bottom-bar class="{{ \App\Devnull\Display::composerBarGlass() }}">
+        <native:bottom-bar class="{{ \App\Devnull\Display::composerBarGlass() }}" edge-blur="{{ \App\Devnull\Display::composerEdgeBlur() }}">
             <native:column native:key="composer-bar" ref="composer-bar" class="w-full {{ \App\Devnull\Display::composerBar() }}">
-                @if (\App\Devnull\Display::fadesInBar())
+                @if (\App\Devnull\Display::fadeRowInBar())
                     @include('native.partials.composer-fade', ['ref' => 'composer-fade', 'inBar' => true])
                 @endif
                 <native:column native:key="composer-rows" ref="composer-rows" class="w-full {{ \App\Devnull\Display::composerSurface() }}">
@@ -100,10 +103,10 @@
                         h-[0.1]: on iOS an empty one otherwise takes 10 points of the bar, and EDGE drops a height of 0.
                     --}}
                     @php($mentioning = ($mention['field'] ?? null) === 'draft' && ($mentionPeople !== [] || $mentionOrganizations !== []))
-                    <native:row native:key="mention-slot" ref="mention-slot" class="w-full {{ $mentioning ? 'pt-1 ios:px-4' : 'h-[0.1]' }}">
+                    <native:row native:key="mention-slot" ref="mention-slot" class="w-full {{ $mentioning ? 'pt-1 ios:pb-2 ios:px-4' : 'h-[0.1]' }}">
                         @include('native.partials.mention-suggestions', ['field' => 'draft', 'heading' => ($mention['query'] ?? null) === '' ? 'Members' : null])
                     </native:row>
-                    <native:row native:key="replying-slot" ref="replying-slot" class="w-full {{ $replyTo ? 'ios:px-4' : 'h-[0.1]' }}">
+                    <native:row native:key="replying-slot" ref="replying-slot" class="w-full {{ $replyTo ? 'ios:px-4 ios:pb-2' : 'h-[0.1]' }}">
                         @if ($replyTo)
                             <native:row ref="replying" class="flex-1 h-[44] px-4 gap-3 items-center ios:rounded-[18] ios:glass">
                                 <native:column class="w-[2] h-[28] rounded-full bg-theme-{{ $myColour }}" />

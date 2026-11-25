@@ -41,11 +41,11 @@ function isTool(TestableComponent $screen, string $ref): bool
     return nodeByRef($screen, $ref)['type'] === 'pressable';
 }
 
-it('pins the toolbar under the scroll view, so it stays just above the keyboard', function () {
+it('pins the toolbar under the field and what is around it, so it stays just above the keyboard', function () {
     $screen = composerOnLog();
     $toolbar = nodeByRef($screen, 'sheet-toolbar');
 
-    expect(findNode(nodeByRef($screen, 'sheet-composer'), fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-toolbar'))->toBeNull()
+    expect(findNode(nodeByRef($screen, 'sheet-body-area'), fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-toolbar'))->toBeNull()
         ->and(findNode($toolbar, fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-tools'))->not->toBeNull()
         ->and(findNode($toolbar, fn (array $node): bool => ($node['ref'] ?? null) === 'sheet-preview'))->not->toBeNull();
 });
