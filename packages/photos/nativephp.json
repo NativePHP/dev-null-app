@@ -1,0 +1,32 @@
+{
+    "namespace": "Photos",
+    "bridge_functions": [
+        {
+            "name": "Photos.Save",
+            "android": "com.devnull.plugins.photos.PhotosFunctions.Save",
+            "ios": "PhotosFunctions.Save",
+            "description": "Save an image file to the phone's photo library, asking to add to it first where the phone needs that"
+        }
+    ],
+    "events": [
+        "Devnull\\Photos\\Events\\Saved",
+        "Devnull\\Photos\\Events\\SaveFailed"
+    ],
+    "android": {
+        "min_version": 29,
+        "permissions": [],
+        "dependencies": {
+            "implementation": []
+        }
+    },
+    "ios": {
+        "min_version": "18.0",
+        "info_plist": {
+            "NSPhotoLibraryAddUsageDescription": "Saves the images you choose to your photo library."
+        },
+        "dependencies": {
+            "swift_packages": [],
+            "pods": []
+        }
+    }
+}

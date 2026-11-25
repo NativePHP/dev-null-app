@@ -176,12 +176,23 @@ class Onboarding extends NativeComponent
 
         app(Account::class)->remember($user);
         $this->keepProfile($user);
-        $this->replace('/log');
+        $this->replace($this->signedInHome());
     }
 
     protected function appleFailed(string $message): void
     {
         $this->appleError = $message;
+    }
+
+    /**
+     * Where signing in goes: the log, or the push that was tapped while the phone had lost its stored sign-in (see
+     * OpenPush::signedOut()).
+     */
+    private function signedInHome(): string
+    {
+        $then = $this->data('then');
+
+        return is_string($then) && str_starts_with($then, OpenPush::Path.'?') ? $then : '/log';
     }
 
     private function clearMessages(): void
@@ -247,7 +258,7 @@ class Onboarding extends NativeComponent
 
         app(Account::class)->remember($user);
         $this->keepProfile($user);
-        $this->replace('/log');
+        $this->replace($this->signedInHome());
     }
 
     /**
@@ -272,9 +283,10 @@ class Onboarding extends NativeComponent
         app(Account::class)->rememberUnreadNotifications($current->unreadNotificationsCount);
         app(Account::class)->rememberPasteis($current->pasteis());
         app(Account::class)->rememberRemotes($current->remotes);
+        app(Account::class)->rememberOrganizations($current->organizations);
         app(Account::class)->rememberTermsToAccept($current->termsToAccept());
         $this->keepProfile($current->user);
-        $this->replace($current->termsToAccept() === null ? '/log' : AcceptTerms::Path);
+        $this->replace($current->termsToAccept() === null ? $this->signedInHome() : AcceptTerms::Path);
     }
 
     /**

@@ -31,8 +31,6 @@ trait SuggestsMentions
      */
     public const string MentionBeforeCaret = '/(?:^|[^\p{L}\p{N}_.\/@-])@([A-Za-z0-9][A-Za-z0-9-]{0,38}|)$/u';
 
-    public const int MaxMentionSuggestions = 6;
-
     /**
      * The "@handle" the caret is after: the field it's in, where its "@" is, in code points, what follows it, and the
      * field's text when the caret was there. Null while there's none.
@@ -199,7 +197,8 @@ trait SuggestsMentions
     }
 
     /**
-     * An org's members to suggest for what's typed after the "@", best first.
+     * An org's members to suggest for what's typed after the "@", best first. All of them: past six the list scrolls
+     * (see partials/mention-suggestions), as the reply bar's does.
      *
      * @param  list<array{user: User, suggests_mentions?: bool, is_followed?: bool}>  $members
      * @return list<User>
@@ -236,6 +235,6 @@ trait SuggestsMentions
 
         usort($ranked, fn (array $a, array $b): int => [$a['tier'], ! $a['followed'], $a['user']->username] <=> [$b['tier'], ! $b['followed'], $b['user']->username]);
 
-        return array_column(array_slice($ranked, 0, self::MaxMentionSuggestions), 'user');
+        return array_column($ranked, 'user');
     }
 }

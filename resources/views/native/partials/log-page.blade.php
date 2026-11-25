@@ -12,11 +12,11 @@
     Every page keeps pull to refresh, which can only be pulled on the log you're on anyway: iOS builds a new list when a
     list gains or loses it, and the new one starts at the top.
 --}}
-<native:column native:key="page-{{ $page['log'] }}" class="w-full h-full bg-theme-surface">
+<native:column native:key="page-{{ $page['log'] }}" class="w-full h-full bg-theme-surface items-center">
     <native:list
         native:key="log-{{ $page['log'] }}-{{ $page['listKey'] }}"
         :ref="$page['showing'] ? 'log' : 'log-'.$page['log']"
-        class="w-full flex-1 bg-theme-surface"
+        class="w-full flex-1 bg-theme-surface {{ $embedded ? '' : \App\Devnull\Display::ReadableColumn }}"
         on-refresh="load"
         :on-end-reached="$page['showing'] ? 'loadMore' : null"
         :end-reached-buffer="5"
@@ -26,7 +26,9 @@
     >
         @if (! $page['loaded'] && $page['error'] === null)
             @foreach (range(1, 3) as $skeleton)
-                @include('native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits', 'pulse' => $page['showing']])
+                @php
+                    $page['rowCache']->include('loading-'.$skeleton, [], 'native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits', 'pulse' => $page['showing']], []);
+                @endphp
             @endforeach
         @endif
 
@@ -45,9 +47,13 @@
 
         @if ($page['lastCommit'])
             @if ($page['nextCursor'] !== null)
-                @include('native.partials.rail-loading', ['pulse' => $page['showing']])
+                @php
+                    $page['rowCache']->include('loading-more', [], 'native.partials.rail-loading', ['pulse' => $page['showing']], []);
+                @endphp
             @else
-                @include('native.partials.rail-end', ['lane' => $page['lastCommit']->lane(), 'message' => "That's the root commit. There's nothing before it."])
+                @php
+                    $page['rowCache']->include('root-commit', [], 'native.partials.rail-end', ['lane' => $page['lastCommit']->lane(), 'message' => "That's the root commit. There's nothing before it."], []);
+                @endphp
             @endif
         @endif
     </native:list>

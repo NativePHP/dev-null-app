@@ -4,14 +4,14 @@
     its percentage in mono on the right, and "4 votes · 3h left" under them all. Without results, the options are plain
     boxes over the time left.
 
-    On someone else's published commit whose poll is open and has no vote of yours yet, you vote as on the web: tap an
-    option to pick it, its box in Commit Blue on Blue Wash with its radio filled, then Vote, beside the time left,
-    since votes are final (see VotesOnPolls). Vote spins while it goes, and the poll then shows its results. $static
-    is the quote card's copy, which never votes.
+    On a published commit that isn't yours or your organization's, whose poll is open and has no vote of yours yet, you
+    vote as on the web: tap an option to pick it, its box in Commit Blue on Blue Wash with its radio filled, then Vote,
+    beside the time left, since votes are final (see VotesOnPolls). Vote spins while it goes, and the poll then shows
+    its results. $static is the quote card's copy, which never votes.
 --}}
 @php($poll = $commit->poll)
 @php($static ??= false)
-@php($canVote = ! $static && $commit->canBeVotedOnBy($viewer ?? app(\App\Devnull\Account::class)->user()))
+@php($canVote = ! $static && $commit->canBeVotedOnBy($ownership ?? app(\App\Devnull\Account::class)->ownership()))
 @php($choice = $pollChoices[$commit->id] ?? null)
 @php($isVoting = in_array($commit->id, $voting ?? [], true))
 <native:column ref="poll-{{ $commit->id }}" class="w-full mt-3 gap-2" a11y-label="{{ $poll->showsResults() ? 'Poll results' : 'Poll options' }}">
