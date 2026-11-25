@@ -36,6 +36,15 @@ final class Account
 
     private const string TermsKey = 'devnull.terms-to-accept';
 
+    private const string OrganizationsKey = 'devnull.organizations';
+
+    private const string GuildsKey = 'devnull.guilds-available';
+
+    /**
+     * Whether this launch shows the Guilds tab, once it's been asked (see guildsTabShown()).
+     */
+    private static ?bool $guildsTabShown = null;
+
     public function user(): ?User
     {
         $attributes = Cache::get(self::CacheKey);
@@ -91,6 +100,43 @@ final class Account
     public function rememberUnreadNotifications(int $count): void
     {
         Cache::forever(self::UnreadKey, max(0, $count));
+    }
+
+    /**
+     * Are guilds on for the current user? Guilds can be set to admin-only,
+     * which was used before public release. Handling the unlikely scenario
+     * where they get switched off again (at least temporarily) so we don't
+     * need an app update to handle it. They'll just be hidden in the app.
+     */
+    public function guildsAvailable(): ?bool
+    {
+        $available = Cache::get(self::GuildsKey);
+
+        return is_bool($available) ? $available : null;
+    }
+
+    public function rememberGuildsAvailable(bool $available): void
+    {
+        Cache::forever(self::GuildsKey, $available);
+    }
+
+    /**
+     * Whether this launch shows the Guilds tab: unless guilds were known to be
+     * off when it was first asked. iOS can't add or remove a tab mid-session,
+     * so guilds switching on or off shows from the next launch.
+     */
+    public function guildsTabShown(): bool
+    {
+        return self::$guildsTabShown ??= $this->guildsAvailable() !== false;
+    }
+
+    /**
+     * Forgets whether this launch shows the Guilds tab, so the next look
+     * decides it again, as a fresh launch would.
+     */
+    public static function forgetGuildsTabShown(): void
+    {
+        self::$guildsTabShown = null;
     }
 
     /**
@@ -215,8 +261,42 @@ final class Account
     }
 
     /**
-     * Signs this phone out: who it was, the badges, its pastéis and Remotes, your timezone, the terms you owe, every
-     * answer, image and voice note kept for a quick start, and your unsent drafts and recordings.
+     * The GitHub organizations you can post as, as devnull last said, oldest membership first. None until it has.
+     *
+     * @return list<User>
+     */
+    public function organizations(): array
+    {
+        $kept = Cache::get(self::OrganizationsKey);
+
+        return is_array($kept) ? array_values(array_map(User::fromArray(...), array_filter($kept, is_array(...)))) : [];
+    }
+
+    /**
+     * Which commits are yours: your own and your organizations' (see Ownership).
+     */
+    public function ownership(): Ownership
+    {
+        return Ownership::of($this->user(), $this->organizations());
+    }
+
+    /**
+     * Remembers the organizations you can post as. With null, from a devnull too old to say, it keeps what it had.
+     *
+     * @param  list<User>|null  $organizations
+     */
+    public function rememberOrganizations(?array $organizations): void
+    {
+        if ($organizations !== null) {
+            Cache::forever(self::OrganizationsKey, array_map(fn (User $organization): array => $organization->toArray(), $organizations));
+        }
+    }
+
+    /**
+     * Signs this phone out: who it was, the badges, its pastéis and Remotes, your organizations, whether it has guilds
+     * and shows their tab, your timezone, the terms you owe, every answer, image and voice note kept for a quick start,
+     * and your unsent drafts and recordings. Signing out leaves the tabs for onboarding, so the next account's tabs are
+     * decided afresh.
      */
     public function forget(): void
     {
@@ -233,6 +313,9 @@ final class Account
         Cache::forget(self::ProfileKey);
         Cache::forget(self::PinWarningKey);
         Cache::forget(self::TimezoneKey);
+        Cache::forget(self::GuildsKey);
         Cache::forget(self::TermsKey);
+        Cache::forget(self::OrganizationsKey);
+        self::forgetGuildsTabShown();
     }
 }

@@ -241,7 +241,7 @@ class Remotes extends NativeComponent
     /**
      * devnull answers a 404 while you have Remotes off, as the web does.
      */
-    protected function refused(ApiException $exception): bool
+    protected function refused(ApiException $exception, string $path): bool
     {
         if ($exception->status !== 404) {
             return false;

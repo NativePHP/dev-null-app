@@ -31,7 +31,7 @@ final readonly class Activity
      */
     public static function fromArray(mixed $data): self
     {
-        if (! is_array($data) || ! array_key_exists($data['scale'] ?? null, self::Windows) || ! is_array($data['buckets'] ?? null)) {
+        if (! is_array($data) || ! is_array($data['buckets'] ?? null)) {
             return new self;
         }
 
@@ -43,7 +43,7 @@ final readonly class Activity
             }
         }
 
-        return new self($data['scale'], $buckets);
+        return new self(in_array($data['scale'] ?? null, array_keys(self::Windows), true) ? $data['scale'] : 'year', $buckets);
     }
 
     public function total(): int

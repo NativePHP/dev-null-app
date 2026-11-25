@@ -27,5 +27,5 @@
             <native:icon :ios="\App\Icons\Lucide::X->ios()" :android="\App\Icons\Lucide::X->android()" :size="16" class="text-theme-ink-muted" />
         </native:pressable>
     </native:row>
-    <native:column class="w-full h-[1] bg-theme-hairline" />
+    <native:column class="w-full h-[1] border-b border-theme-hairline" />
 @endif

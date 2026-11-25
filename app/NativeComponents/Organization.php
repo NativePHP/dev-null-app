@@ -8,10 +8,12 @@ use App\Devnull\Data\Commit;
 use App\Devnull\Data\Mention;
 use App\Devnull\Data\Organization as OrganizationData;
 use App\Devnull\Data\Page;
+use App\Devnull\Exceptions\ApiException;
 use App\Devnull\RowCache;
 use App\Devnull\SiteLink;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
+use App\Icons\Lucide;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
@@ -22,16 +24,18 @@ use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Closure;
 use Illuminate\View\View;
+use Native\Mobile\Edge\Layouts\Builders\NavAction;
+use Native\Mobile\Edge\Layouts\Builders\NavBarOptions;
 use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Facades\Browser;
 use Native\Mobile\Facades\Share;
 
 /**
  * A GitHub organization's page, as the web shows it at its "@handle": its
- * avatar as a rounded square in its lane, Follow and Share, what GitHub says
- * about it, how many follow it and its admins, then its Commits and the
+ * avatar as a rounded square in its lane, Follow, what GitHub says about it,
+ * how many follow it and its admins, then its Commits and the
  * commits that mention it, as pages you swipe between, as on a profile (see
- * Profile).
+ * Profile). Share is a button of its own in the nav bar.
  *
  * It opens from a commit the organization posted, or a mention of it, beneath
  * the tab it was tapped in, on the page as it was kept last time, then asks
@@ -89,6 +93,13 @@ class Organization extends NativeComponent
     public bool $commitsFailed = false;
 
     /**
+     * devnull has no organization by this handle, nor a member, since a profile hands a handle no member has over to
+     * this screen. It's someone on GitHub who isn't on /dev/null yet, so the page says that rather than that it
+     * didn't load, and offers the web's page for them, where you can follow them for when they join.
+     */
+    public bool $isNotOnDevnull = false;
+
+    /**
      * Each tab's rows from the last frame, so a render only builds the rows that changed, as on a profile.
      *
      * @var array<string, RowCache>
@@ -113,6 +124,20 @@ class Organization extends NativeComponent
     public function navTitle(): string
     {
         return $this->organization->organization->name ?? $this->handle();
+    }
+
+    /**
+     * Share in the nav bar, as its own button, under the share shape each phone uses (Lucide's share on iOS, share-2
+     * on Android), as a profile's Share profile has it. It's always there, as the link needs nothing but the handle.
+     */
+    public function navigationOptions(): ?NavBarOptions
+    {
+        return NavBarOptions::make()->action(
+            NavAction::make('share')
+                ->icon(ios: Lucide::Share->ios(), android: Lucide::Share2->android())
+                ->a11yLabel('Share '.($this->organization?->organization->handle() ?? '@'.$this->handle()))
+                ->press('share'),
+        );
     }
 
     /**
@@ -185,7 +210,7 @@ class Organization extends NativeComponent
     }
 
     /**
-     * The web's Share beside Follow: the system share sheet, with the organization's page on the web.
+     * The web's Share, from the nav bar: the system share sheet, with the organization's page on the web.
      */
     public function share(): void
     {
@@ -254,6 +279,7 @@ class Organization extends NativeComponent
             'myColour' => $this->myColour(),
             'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),
+            'ownership' => $this->ownership(),
             'stashed' => app(Stash::class)->names($this->me()?->id),
             'pages' => $pages,
             'pageIndex' => array_search($this->tab, self::Tabs, true),
@@ -270,6 +296,23 @@ class Organization extends NativeComponent
     protected function showsContent(): bool
     {
         return $this->organization !== null;
+    }
+
+    /**
+     * devnull has nothing by this handle, so the page says it isn't on /dev/null yet (see $isNotOnDevnull). Anything
+     * else that stops it loading, the page says didn't load. Only a page with no organization on it yet says so: once
+     * one is showing, what else devnull refuses, such as a thread's replies or its stargazers, keeps it showing.
+     */
+    protected function refused(ApiException $exception): bool
+    {
+        if ($exception->status !== 404 || $this->organization !== null) {
+            return false;
+        }
+
+        $this->isNotOnDevnull = true;
+        $this->error = null;
+
+        return true;
     }
 
     /**
@@ -296,7 +339,7 @@ class Organization extends NativeComponent
         $this->tab = $tab;
         $this->listKey = $this->listKeys[$tab] ?? 0;
         $this->commits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->nextCursor = null;
         $this->commitsLoaded = false;
         $this->commitsFailed = false;
@@ -358,6 +401,7 @@ class Organization extends NativeComponent
         // An answer with no organization in it, like a maintenance page, leaves what's showing alone.
         if ($organization->organization->username !== '') {
             $this->organization = $organization;
+            $this->isNotOnDevnull = false;
         }
     }
 

@@ -88,10 +88,10 @@ it("keeps a thread's unchanged replies between renders, and only builds the ones
     });
     $screen = Native::visit('/log/commits/c2')->tap('replies-c2')->assertSee('Second reply');
 
-    // The commits above the replies read what the screen shows of the thread, so they're built every time. The last
-    // reply of a page changes when the next page comes, since it no longer carries "more".
+    // The commits above the replies read what the screen shows of the thread, so they're built every time. "Show
+    // more" is a row of its own, so the last reply of a page stays as it was when the next page comes.
     expect(rowsBuiltBy(fn () => $screen->call('navTitle')))->toBe(['c2'])
-        ->and(rowsBuiltBy(fn () => $screen->call('loadMoreReplies')->assertSee('Third reply')))->toBe(['c2', 'r2', 'r3']);
+        ->and(rowsBuiltBy(fn () => $screen->call('loadMoreReplies')->assertSee('Third reply')))->toBe(['c2', 'r3']);
 
     expectKeptRowsMatchFreshOnes($screen, CommitDetail::class, 'replyRows', null);
 });

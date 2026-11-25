@@ -1,11 +1,13 @@
 <?php
 
+use App\Devnull\ComposerSheet;
 use App\Devnull\Data\Commit;
 use App\Models\PendingWrite;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
+use Native\Mobile\UI\Caret;
 
 beforeEach(function () {
     config(['devnull.url' => 'http://devnull.test']);
@@ -281,6 +283,52 @@ it('keeps the field the same view while what is drawn above it changes, so the k
         ->and(idsDownTo($screen->tree(), 'sheet-body'))->toBe($field);
 });
 
+it('fills the sheet with the field, with nothing scrolling around it', function () {
+    $screen = composeSheetOnLog();
+    $field = nodeByRef($screen, 'sheet-body')['props'];
+
+    expect(findNodes(nodeByRef($screen, 'sheet'), fn (array $node): bool => $node['type'] === 'scroll_view'))->toBe([])
+        // As tall as the space between the author row and the toolbar, scrolling its own text.
+        ->and($field['fills_height'] ?? null)->toBeTrue()
+        ->and($field['min_lines'])->toBe(ComposerSheet::MinFieldLines)
+        ->and($field)->not->toHaveKey('max_lines')
+        ->and(nodeByRef($screen, 'sheet-field-slot')['layout']['flex_grow'] ?? null)->toEqual(1)
+        // It says where its caret is drawn, for the mention list.
+        ->and($field['on_caret_change'] ?? null)->toBeInt();
+});
+
+it('puts the poll under the field, which gives up the room it takes', function () {
+    $screen = composeSheetOnLog()->tap('sheet-poll');
+
+    expect(childRefs($screen, 'sheet-body-area'))->toBe(['sheet-field-slot', 'sheet-below'])
+        ->and(findNode(nodeByRef($screen, 'sheet-below'), fn (array $node): bool => ($node['ref'] ?? null) === 'poll-editor'))->not->toBeNull();
+});
+
+it('keeps where the field says its caret is until the sheet goes', function () {
+    $screen = composeSheetOnLog()
+        ->moveCaretTo('sheet-body', new Caret(y: 48, height: 24, line: 2, fieldWidth: 350, fieldHeight: 240))
+        ->assertSet('sheetCaret', ['bottom' => 72.0, 'line_height' => 24.0, 'field_height' => 240.0]);
+
+    $screen->press('hideCommitSheet')->assertSet('sheetCaret', null);
+});
+
+it('keeps the field the same view while photos, a poll and mentions come and go around it', function () {
+    fakeApi([
+        'GET /api/v1/log/following' => [pageJson([])],
+        'GET /api/v1/search/mentions' => [['data' => [userJson(['id' => 'u9', 'handle' => 'ada'])], 'organizations' => []]],
+    ]);
+    $screen = Native::visit('/log', platform: 'ios')->press('composeInSheet');
+    $field = idsDownTo($screen->tree(), 'sheet-body');
+
+    $screen->input('sheet-body', 'hi @a', 5);
+    expect(nodeByRef($screen, 'sheet-mentions'))->not->toBeEmpty()
+        ->and(idsDownTo($screen->tree(), 'sheet-body'))->toBe($field);
+
+    $screen->input('sheet-body', 'hi', 2)->tap('sheet-poll');
+    expect(nodeByRef($screen, 'poll-editor'))->not->toBeEmpty()
+        ->and(idsDownTo($screen->tree(), 'sheet-body'))->toBe($field);
+});
+
 it('only commits from a sheet that has a composer in it', function () {
     fakeApi(['GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])])])]]);
 
@@ -290,4 +338,22 @@ it('only commits from a sheet that has a composer in it', function () {
         ->call('commitFromSheet');
 
     Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
+});
+
+it("names the sheet's round buttons for VoiceOver, with nothing else announced inside them", function () {
+    $screen = composeSheetOnLog()->assertSee('New commit');
+    $cancel = nodeByRef($screen, 'sheet-cancel');
+    $commit = nodeByRef($screen, 'sheet-commit');
+
+    expect($cancel['type'])->toBe('pressable')
+        ->and($cancel['props'])->toMatchArray(['a11y_label' => 'Cancel'])
+        ->and($commit['props']['a11y_label'])->toBe('Commit, unavailable')
+        // On iOS every ref'd node becomes its own accessibility container (NodeIdentityModifier), so one ref is one announcement.
+        ->and(findNodes($cancel, fn (array $node): bool => isset($node['ref'])))->toHaveCount(1)
+        ->and(findNodes($commit, fn (array $node): bool => isset($node['ref'])))->toHaveCount(1);
+
+    $screen = $screen->input('sheet-body', 'Shipped');
+
+    expect(nodeByRef($screen, 'sheet-commit'))->toMatchArray(['type' => 'pressable'])
+        ->and(nodeByRef($screen, 'sheet-commit')['props'])->toMatchArray(['a11y_label' => 'Commit']);
 });

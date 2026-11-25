@@ -19,9 +19,16 @@ use Carbon\CarbonImmutable;
  * And the terms: the version in force, which is the moment it took effect, when
  * you last accepted them, and whether that was this version. A devnull too old
  * to say leaves all three null.
+ *
+ * And the GitHub organizations you're a member of, admin or not, oldest
+ * membership first, which you can post as, as the web's Post as menu lists
+ * them. A devnull too old to say leaves it null.
  */
 final readonly class CurrentUser
 {
+    /**
+     * @param  list<User>|null  $organizations
+     */
     public function __construct(
         public User $user,
         public int $unreadNotificationsCount = 0,
@@ -37,6 +44,7 @@ final readonly class CurrentUser
         public ?string $termsVersion = null,
         public ?CarbonImmutable $termsAcceptedAt = null,
         public ?bool $termsAccepted = null,
+        public ?array $organizations = null,
     ) {}
 
     /**
@@ -69,7 +77,21 @@ final readonly class CurrentUser
             termsVersion: is_string($data['terms_version'] ?? null) && $data['terms_version'] !== '' ? $data['terms_version'] : null,
             termsAcceptedAt: Commit::date($data['terms_accepted_at'] ?? null),
             termsAccepted: is_bool($data['terms_accepted'] ?? null) ? $data['terms_accepted'] : null,
+            organizations: is_array($data['organizations'] ?? null) ? self::organizations($data['organizations']) : null,
         );
+    }
+
+    /**
+     * The organizations you can post as, each drawn as an organization whatever the answer said.
+     *
+     * @param  array<mixed>  $organizations
+     * @return list<User>
+     */
+    private static function organizations(array $organizations): array
+    {
+        $users = array_map(fn (array $organization): User => User::fromArray([...$organization, 'type' => 'organization']), array_values(array_filter($organizations, is_array(...))));
+
+        return array_values(array_filter($users, fn (User $organization): bool => $organization->username !== ''));
     }
 
     /**

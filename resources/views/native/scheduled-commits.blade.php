@@ -21,7 +21,7 @@
                 </native:row>
                 <native:text ref="scheduled-timezone" font="mono" class="text-xs text-theme-ink-muted">Times in {{ $timezone }}</native:text>
             </native:column>
-            <native:column class="w-full h-[1] bg-theme-hairline" />
+            <native:column class="w-full h-[1] border-b border-theme-hairline" />
 
             @if (! $loaded)
                 @if ($error === null)
@@ -31,7 +31,7 @@
                             <native:column class="w-2/5 h-[10] rounded bg-theme-wash" />
                             <native:column class="w-4/5 h-[12] rounded bg-theme-wash" />
                         </native:column>
-                        <native:column class="w-full h-[1] bg-theme-hairline" />
+                        <native:column class="w-full h-[1] border-b border-theme-hairline" />
                     @endforeach
                 @endif
             @elseif ($scheduled === [])
@@ -47,6 +47,13 @@
                             <native:column class="flex-1 gap-1">
                                 <native:text ref="scheduled-status-{{ $item->id }}" font="medium" class="text-sm text-theme-ink">{{ $item->label($now) }}</native:text>
                                 <native:text ref="scheduled-at-{{ $item->id }}" font="mono" class="text-xs text-theme-ink-muted">{{ Display::scheduleTime($item->scheduledAt, $timezone) }}</native:text>
+                                @if ($item->author)
+                                    {{-- The organization it goes out as, as the web's list shows it under the time. --}}
+                                    <native:row ref="scheduled-author-{{ $item->id }}" class="mt-1 gap-1.5 items-center" a11y-label="As {{ $item->author->handle() }}">
+                                        @include('native.partials.avatar', ['user' => $item->author, 'size' => 16])
+                                        <native:text class="text-xs text-theme-ink-muted" :max-lines="1">As {{ $item->author->handle() }}</native:text>
+                                    </native:row>
+                                @endif
                             </native:column>
                             @if ($item->isWaiting())
                                 @php($when = Display::scheduleTime($item->scheduledAt, $timezone))
@@ -81,7 +88,7 @@
                             <native:text class="text-xs leading-relaxed text-theme-ink-muted">{{ $item->isDue($now) ? 'Waiting for the scheduler. If submission fails, it is retried automatically.' : 'Private until submitted. You can commit it now or cancel it before submission.' }}</native:text>
                         @endif
                     </native:column>
-                    <native:column class="w-full h-[1] bg-theme-hairline" />
+                    <native:column class="w-full h-[1] border-b border-theme-hairline" />
                 @endforeach
 
                 @if ($nextPage !== null)

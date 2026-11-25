@@ -4,22 +4,29 @@
     its percentage in mono on the right, and "4 votes · 3h left" under them all. Without results, the options are plain
     boxes over the time left.
 
-    On someone else's published commit whose poll is open and has no vote of yours yet, you vote as on the web: tap an
-    option to pick it, its box in Commit Blue on Blue Wash with its radio filled, then Vote, beside the time left,
-    since votes are final (see VotesOnPolls). Vote spins while it goes, and the poll then shows its results. $static
-    is the quote card's copy, which never votes.
+    On a published commit that isn't yours or your organization's, whose poll is open and has no vote of yours yet, you
+    vote as on the web: tap an option to pick it, its box in Commit Blue on Blue Wash with its radio filled, then Vote,
+    beside the time left, since votes are final (see VotesOnPolls). Vote spins while it goes, and the poll then shows
+    its results. $static is the quote card's copy, which never votes.
 --}}
 @php($poll = $commit->poll)
 @php($static ??= false)
-@php($canVote = ! $static && $commit->canBeVotedOnBy($viewer ?? app(\App\Devnull\Account::class)->user()))
+@php($canVote = ! $static && $commit->canBeVotedOnBy($ownership ?? app(\App\Devnull\Account::class)->ownership()))
 @php($choice = $pollChoices[$commit->id] ?? null)
 @php($isVoting = in_array($commit->id, $voting ?? [], true))
 <native:column ref="poll-{{ $commit->id }}" class="w-full mt-3 gap-2" a11y-label="{{ $poll->showsResults() ? 'Poll results' : 'Poll options' }}">
     @foreach ($poll->options as $option)
         @if ($poll->showsResults())
+            {{--
+                iOS draws an option's layers in the order they're written, but Android draws every absolute layer
+                after the flow ones (NativePHP/mobile-air#712), so a bar written first would still cover the label
+                there. The label is an absolute layer after the bar instead, and an invisible copy in the flow gives
+                the option its height. The option's a11y-label stands in for all three, so the copy is never read.
+            --}}
             <native:column ref="poll-option-{{ $option->id }}" class="w-full rounded-md border border-theme-hairline" a11y-label="{{ $option->label }}{{ $option->voted ? ', your vote' : '' }}, {{ $option->share() }}%, {{ $option->votesLabel() }}">
+                @include('native.partials.poll-option-label', ['ref' => 'poll-sizer-'.$option->id, 'class' => 'opacity-0', 'isVisible' => false])
                 @if ($option->share() > 0)
-                    <native:row class="absolute top-0 bottom-0 left-0 right-0">
+                    <native:row ref="poll-bar-{{ $option->id }}" class="absolute top-0 bottom-0 left-0 right-0">
                         <native:column :flexGrow="$option->share()" :flexBasis="0" class="h-full rounded-md {{ $option->voted ? 'bg-theme-primary-soft' : 'bg-theme-wash' }}" />
                         {{-- EDGE grows a 0 flex-grow child that would fill the row (FlexContainer.swift effectiveGrow), so at 100% there's no spacer at all. --}}
                         @if ($option->share() < 100)
@@ -27,14 +34,7 @@
                         @endif
                     </native:row>
                 @endif
-                <native:row class="w-full px-3 py-2 gap-[6] items-center">
-                    <native:text :font="$option->voted ? 'medium' : null" class="flex-shrink text-[15px] text-theme-ink">{{ $option->label }}</native:text>
-                    @if ($option->voted)
-                        <native:icon ref="poll-voted-{{ $option->id }}" :ios="\App\Icons\Lucide::Check->ios()" :android="\App\Icons\Lucide::Check->android()" :size="16" class="text-theme-primary" />
-                    @endif
-                    <native:spacer />
-                    <native:text font="mono" class="text-[13px] text-theme-ink">{{ $option->share() }}%</native:text>
-                </native:row>
+                @include('native.partials.poll-option-label', ['ref' => 'poll-label-'.$option->id, 'class' => 'absolute top-0 bottom-0 left-0 right-0', 'isVisible' => true])
             </native:column>
         @elseif ($canVote)
             @php($chosen = $choice === $option->id)

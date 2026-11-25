@@ -43,13 +43,24 @@
             </native:pager-overlay>
         </native:pager>
     @else
-        {{-- devnull's error isn't printed: the page says itself when it didn't load, and offers the page on the web. --}}
+        {{--
+            devnull's error isn't printed: the page says itself when it didn't load, and offers the page on the web. A
+            handle devnull has nothing by is someone who isn't on /dev/null yet, and you can follow them on the web's page
+            for when they join.
+        --}}
         <native:list native:key="organization-{{ $listKey }}" class="w-full flex-1 bg-theme-surface" on-refresh="load">
-            @if ($error)
+            @if ($isNotOnDevnull)
+                @include('native.partials.empty', [
+                    'command' => '$ git log --grep=@'.$handle,
+                    'message' => "@{$handle} isn't on /dev/null yet.",
+                    'link' => 'Follow them on the web for when they join',
+                    'press' => 'openOnWeb',
+                ])
+            @elseif ($error)
                 @include('native.partials.empty', [
                     'command' => '$ git log --grep=@'.$handle,
                     'message' => "This organization's page didn't load here.",
-                    'link' => 'Open it on dev/null',
+                    'link' => 'Open it on /dev/null',
                     'press' => 'openOnWeb',
                 ])
             @else

@@ -2,8 +2,13 @@
 
 use App\Devnull\Account;
 use App\Devnull\Data\Remotes;
+use App\Devnull\Display;
+use App\Devnull\ImageCache;
+use App\Devnull\ImageViewer;
 use App\NativeComponents\Conversation;
+use Devnull\Photos\Events\Saved;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
@@ -760,18 +765,18 @@ it('opens no link preview that is not a web page', function () {
         ->assertNativeNotCalled('Browser.OpenInApp');
 });
 
-it('pads the end of the thread for the composer bar alone, and for the reply bar while replying', function () {
+it('pads the end of the thread for the fade and the composer bar alone, and for the reply bar while replying', function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
 
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
     $clearance = fn (): mixed => nodeByRef($screen, 'composer-clearance')['layout']['height'] ?? null;
 
     // The scroll view adds the home indicator itself while the keyboard is down, so it isn't counted here.
-    expect($clearance())->toEqual(Conversation::ComposerBarHeight + 8);
+    expect($clearance())->toEqual(Display::ComposerFadeHeight + Conversation::ComposerBarHeight + 8);
 
     $screen->trigger('swipe-1');
 
-    expect($clearance())->toEqual(Conversation::ComposerBarHeight + Conversation::ReplyingBarHeight + 8);
+    expect($clearance())->toEqual(Display::ComposerFadeHeight + Conversation::ComposerBarHeight + Conversation::ReplyingBarHeight + 8);
 });
 
 // ── Pins ────────────────────────────────
@@ -1026,7 +1031,7 @@ it('shows the latest pinned message in a bar over the thread, which opens them a
         ->assertSee(' release checklist');
 
     // It lies over the thread, which clears it at the top.
-    expect(childRefs($screen, 'thread-stack'))->toBe(['thread', 'pinned-bar'])
+    expect(array_slice(childRefs($screen, 'thread-stack'), 0, 2))->toBe(['thread', 'pinned-bar'])
         ->and(childRefs($screen, 'thread')[0])->toBe('pinned-clearance')
         ->and(nodeByRef($screen, 'pinned-bar')['props']['a11y_label'] ?? null)->toBe('2 pinned messages. Latest from Ada Lovelace: release checklist');
 
@@ -1280,7 +1285,7 @@ it("lists an org's other members under Members when you type @, and closes once 
         ->assertMissingElement('column', fn (array $node): bool => ($node['ref'] ?? null) === 'mention-suggestions');
 });
 
-it('filters org members as the web ranks them: exact handle, handle prefix, name prefix, then the rest, followed first, six at most', function () {
+it('filters org members as the web ranks them: exact handle, handle prefix, name prefix, then the rest, followed first, all of them in a list that scrolls past six', function () {
     serveOrgThread(orgWithMembers([
         ['grace', 'Grace Hopper'],
         ['tobias', 'Ada Tobias'],
@@ -1294,7 +1299,8 @@ it('filters org members as the web ranks them: exact handle, handle prefix, name
 
     $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))->input('message-input', '@ADA', 4);
 
-    expect(childRefs($screen, 'mention-suggestions'))->toBe(['mention-ada', 'mention-adams', 'mention-adamant', 'mention-tobias', 'mention-bada', 'mention-cada']);
+    expect(childRefs($screen, 'mention-scroll'))->toBe(['mention-ada', 'mention-adams', 'mention-adamant', 'mention-tobias', 'mention-bada', 'mention-cada', 'mention-dada'])
+        ->and(nodeByRef($screen, 'mention-scroll')['layout']['height'])->toEqual(Display::MentionRowsShown * Display::MentionRowHeight);
 });
 
 it('never suggests you, or a member devnull says not to, and suggests nothing in a thread with one person', function () {
@@ -1388,4 +1394,106 @@ it('leaves the draft alone when it no longer has the @handle where the caret fou
         ->set('draft', 'hi')
         ->tap('mention-ada')
         ->assertSet('draft', 'hi');
+});
+
+it('leaves a gap between the suggestions and the message box under them on iOS', function () {
+    serveOrgThread(orgWithMembers([['ada', 'Ada Lovelace']]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1', platform: 'ios'))->input('message-input', '@ADA', 4);
+
+    expect(childRefs($screen, 'mention-suggestions'))->not->toBe([])
+        ->and(nodeByRef($screen, 'mention-slot')['layout']['padding'][2])->toBe(8.0);
+});
+
+/**
+ * A message's photos as devnull sends them: $count of them, numbered from $first, the first described.
+ *
+ * @return list<array<string, mixed>>
+ */
+function remotePhotos(int $count, int $first = 1): array
+{
+    return array_map(fn (int $n): array => [
+        'id' => $n,
+        'width' => 400,
+        'height' => 300,
+        'description' => $n === $first ? 'The new logo' : null,
+        'url' => 'https://img.test/'.$n,
+    ], range($first, $first + $count - 1));
+}
+
+it("opens a message's image full-screen from the one tapped, and pages through that message's images only", function (string $platform) {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => '', 'images' => remotePhotos(3)]),
+        remoteMessageJson(['id' => 2, 'body' => 'and the dark one', 'images' => remotePhotos(2, first: 4)]),
+    ], ['read_through_id' => 2]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada', platform: $platform));
+
+    // Hidden until a tap, always in the tree.
+    expect(nodeByRef($screen, 'image-viewer')['props']['visible'])->toBeFalse()
+        ->and(nodeByRef($screen, 'image-1-1')['on_press'] ?? null)->not->toBeNull();
+
+    $screen->tap('image-1-1')->assertSet('viewerOpen', true)->assertSet('viewerIndex', 1)
+        // It grows out of the message's own images, by their refs, and shrinks back into whichever it pages to.
+        ->assertSet('viewerSources', ['image-1-0', 'image-1-1', 'image-1-2']);
+
+    $shown = findNodes(nodeByRef($screen, 'image-viewer'), fn (array $node): bool => ($node['type'] ?? null) === 'image');
+
+    expect(nodeByRef($screen, 'image-viewer')['props']['visible'])->toBeTrue()
+        ->and(array_map(fn (array $node): string => $node['props']['src'], $shown))->toBe(['https://img.test/1', 'https://img.test/2', 'https://img.test/3'])
+        ->and(nodeByRef($screen, 'viewed-image-0')['props']['alt'])->toBe('The new logo, image 1 of 3')
+        ->and(nodeByRef($screen, 'viewer-dots')['props']['a11y_label'])->toBe('Image 2 of 3')
+        ->and(nodeByRef($screen, 'viewer-save')['props']['a11y_label'])->toBe('Save to Photos');
+
+    $screen->changeTab('viewerPaged', 2)->assertSet('viewerIndex', 2);
+    $screen->dismissSheet('image-viewer')->assertSet('viewerOpen', false)->assertSet('viewerImages', []);
+
+    // A message with text keeps its images tappable too, and opens on its own.
+    $screen->tap('image-2-1')->assertSet('viewerIndex', 1);
+
+    expect(array_map(fn ($image): string => $image->url, $screen->instance()->viewerImages))->toBe(['https://img.test/4', 'https://img.test/5'])
+        ->and(nodeByRef($screen, 'viewer-dots')['props']['a11y_label'])->toBe('Image 2 of 2');
+
+    $screen->assertNativeNotCalled('Browser.OpenInApp');
+})->with(['ios', 'android']);
+
+it("keeps a message's long-press menu on its images while a tap opens them", function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => '', 'images' => remotePhotos(2)])], ['read_through_id' => 1]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada', platform: 'ios'));
+
+    expect(array_column(menuItems($screen, 'photos-1'), 1))->toBe(['Reply', 'React']);
+
+    $screen->tap('image-1-0')->assertSet('viewerOpen', true);
+});
+
+it("drags a message's image away and saves it to the phone's photos", function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => '', 'images' => remotePhotos(2)])], ['read_through_id' => 1]));
+    $this->bridge->respondTo('Photos.Save', ['success' => true]);
+
+    $kept = ImageCache::path('https://img.test/2');
+    File::ensureDirectoryExists(dirname($kept));
+    File::put($kept, 'jpeg bytes');
+
+    try {
+        $screen = finishRefreshes(Native::visit('/remotes/conversations/ada', platform: 'ios'))->tap('image-1-1');
+
+        $screen->tap('viewer-save')
+            ->assertNativeCalled('Photos.Save', fn (array $params): bool => $params['path'] === $kept)
+            ->emitNative(Saved::class)
+            ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === 'Saved to Photos');
+
+        $screen->dragEnd('viewer-dismiss', 0, ImageViewer::DismissDistance)->assertSet('viewerOpen', false);
+    } finally {
+        File::delete($kept);
+    }
+});
+
+it("opens nothing for a message the thread isn't showing, or a place with no image", function () {
+    serveRemoteThread(threadJson([remoteMessageJson(['id' => 1, 'body' => '', 'images' => remotePhotos(1)])], ['read_through_id' => 1]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada', platform: 'ios'));
+
+    $screen->call('openMessageImage', 42, 0)->assertSet('viewerOpen', false);
+    $screen->call('openMessageImage', 1, 3)->assertSet('viewerOpen', false);
 });

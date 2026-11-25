@@ -13,8 +13,8 @@
 @php($position ??= '')
 @php($live = ! $staged && $user->isLive())
 @if ($staged)
-    <native:column ref="staged-avatar" :width="48" :height="48" class="{{ $position }} rounded-full bg-theme-surface">
-        @include('native.partials.dashed-ring', ['size' => 48, 'lane' => $lane])
+    <native:column ref="staged-avatar" :width="48" :height="48" class="{{ $position }} {{ $user->isOrganization ? 'rounded-lg' : 'rounded-full' }} bg-theme-surface">
+        @include('native.partials.dashed-ring', ['size' => 48, 'lane' => $lane, 'rounded' => $user->isOrganization ? 'rounded-lg' : 'rounded-full'])
         <native:column class="absolute top-[4] left-[4]">
             @include('native.partials.avatar', ['user' => $user, 'size' => 40])
         </native:column>

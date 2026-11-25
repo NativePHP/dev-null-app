@@ -4,6 +4,7 @@ namespace App\NativeComponents;
 
 use App\Devnull\Account;
 use App\Devnull\Data\Commit;
+use App\Devnull\Data\CommitImage;
 use App\Devnull\Data\Mention;
 use App\Devnull\Data\Page;
 use App\Devnull\Data\Profile as ProfileData;
@@ -102,6 +103,16 @@ class Profile extends NativeComponent
      * Log::PreviewCommits: every row sent is one the phone builds.
      */
     public const int PreviewCommits = 3;
+
+    /**
+     * How large the profile picture is fetched for the image viewer, as the web's ProfilePicture asks for it.
+     */
+    public const int ProfilePicturePixels = 1024;
+
+    /**
+     * The ref of the avatar in the profile's header, which the image viewer grows the profile picture out of.
+     */
+    public const string ProfilePictureRef = 'profile-picture-image';
 
     /**
      * The alerts the safety menu confirms with, as the web words them. Each one's id names the profile too, so an
@@ -300,7 +311,7 @@ class Profile extends NativeComponent
         $this->tab = $tab;
         $this->listKey = $this->listKeys[$tab] ?? 0;
         $this->commits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->nextCursor = null;
         $this->commitsLoaded = false;
         $this->forgetNewCommits();
@@ -604,17 +615,50 @@ class Profile extends NativeComponent
         $this->openInTab('/safety');
     }
 
-    public function openGitHubMention(string $username): void
+    /**
+     * An account their bio or company tags, from its badge, as the web links it: its screen here in the app when it
+     * has a page on devnull, an organization's included, otherwise GitHub (see ProfileData::bioMentionScreen()). Only
+     * a handle the bio or company does tag opens.
+     */
+    public function openBioMention(string $username): void
     {
         $user = $this->profile?->user;
 
         foreach (Mention::inText(($user?->bio ?? '')."\n".($user?->company ?? '')) as $mention) {
-            if ($mention->username === $username) {
-                Browser::inApp('https://github.com/'.rawurlencode($username));
-
-                return;
+            if ($mention->username !== $username) {
+                continue;
             }
+
+            match ($this->profile?->bioMentionScreen($username)) {
+                'organization' => $this->openOrganization($username),
+                'user' => $this->openInTab('/users/'.rawurlencode($username)),
+                default => Browser::inApp('https://github.com/'.rawurlencode($username)),
+            };
+
+            return;
         }
+    }
+
+    /**
+     * Their profile picture full-screen, as the web opens it from the avatar, at the 1024 pixels the web asks GitHub
+     * for, in the image viewer commits use (see ShowsImageViewer), where it can be zoomed and saved.
+     */
+    public function viewProfilePicture(): void
+    {
+        $user = $this->profile?->user;
+        $url = $user?->avatarUrlAt(self::ProfilePicturePixels);
+
+        if ($user === null || $url === null) {
+            return;
+        }
+
+        $this->showImagesInViewer([new CommitImage(
+            id: 'avatar-'.$user->id,
+            url: $url,
+            width: self::ProfilePicturePixels,
+            height: self::ProfilePicturePixels,
+            description: "{$user->name}'s profile picture",
+        )], sources: [self::ProfilePictureRef]);
     }
 
     public function openGitHubProfile(): void
@@ -692,7 +736,7 @@ class Profile extends NativeComponent
      * you blocked with it, for the page's name and avatar. A handle no user has may be an organization's, which shares
      * its link on the web, so until devnull has sent anything for it, the organization's screen takes this one's place.
      */
-    protected function refused(ApiException $exception): bool
+    protected function refused(ApiException $exception, string $path): bool
     {
         if ($exception->status === 404 && ! $this->commitsLoaded && ($this->profile === null || $this->sketched)) {
             $this->replace($this->tabRoot().'/organizations/'.rawurlencode($this->username));
@@ -732,7 +776,7 @@ class Profile extends NativeComponent
     private function forgetShownCommits(): void
     {
         $this->commits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->nextCursor = null;
         $this->forgetNewCommits();
     }
@@ -899,6 +943,7 @@ class Profile extends NativeComponent
             'canRemote' => $this->canRemote(),
             'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),
+            'ownership' => $this->ownership(),
             'stashed' => app(Stash::class)->names($this->me()?->id),
             'pages' => $pages,
             'pageIndex' => array_search($this->tab, self::Tabs, true),

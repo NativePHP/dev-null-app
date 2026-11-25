@@ -271,13 +271,16 @@ class Notifications extends NativeComponent
 
         $commitId = $notification->commitToOpen();
 
-        $this->openInTab($commitId !== null
-            ? '/commits/'.$commitId
-            : '/users/'.$notification->actor->username);
+        $this->openInTab(match (true) {
+            $commitId !== null => '/commits/'.$commitId,
+            $notification->actor->isOrganization => '/organizations/'.rawurlencode($notification->actor->username),
+            default => '/users/'.$notification->actor->username,
+        });
     }
 
     /**
-     * Names and avatars open their profile independently of the notification's commit.
+     * Names and avatars open their profile independently of the notification's commit: an organization's page for
+     * one that replied, quoted or mentioned you.
      */
     public function openActor(string $username): void
     {
@@ -288,7 +291,9 @@ class Notifications extends NativeComponent
 
             foreach ([$notification->actor, ...$notification->actors] as $actor) {
                 if ($username !== '' && $actor->username === $username) {
-                    $this->openInTab('/users/'.$actor->username, ['user' => $actor]);
+                    $actor->isOrganization
+                        ? $this->openInTab('/organizations/'.rawurlencode($actor->username))
+                        : $this->openInTab('/users/'.$actor->username, ['user' => $actor]);
 
                     return;
                 }
