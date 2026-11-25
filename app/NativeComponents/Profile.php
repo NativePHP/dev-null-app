@@ -82,13 +82,6 @@ class Profile extends NativeComponent
     use TalksToDevnull;
     use WatchesForCalls;
 
-    /**
-     * Every frame goes in full, as on the Log (see Log::$forceFullFrames). A tab
-     * tapped again goes back to the top in a list with a new key and the same
-     * rows, which EDGE's subtree reuse would otherwise never send.
-     */
-    protected bool $forceFullFrames = true;
-
     public string $username = '';
 
     public const array Tabs = ['commits', 'replies'];

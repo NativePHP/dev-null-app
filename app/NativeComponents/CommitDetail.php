@@ -289,18 +289,11 @@ class CommitDetail extends NativeComponent
     public string $openedId = '';
 
     /**
-     * The replies from the last frame, so a render only builds the replies that changed, as the Log does its rows.
+     * The page's rows from the last frame, so a render only builds the ones that changed, as the Log does its rows:
+     * the commit, what it replies to and the rest of its series, its replies, and the related commits. Typing a reply
+     * draws a frame a few times a second, and each used to build every commit above the reply bar again.
      */
     private ?RowCache $replyRows = null;
-
-    /**
-     * Every frame goes in full, as on the Log (see Log::$forceFullFrames). A
-     * tap on the reply field mounts the thread's scroll view again under a new
-     * key, and EDGE's subtree reuse sent its unchanged rows as references to
-     * nodes the phone dropped with the old one, so the thread went blank as
-     * you started typing.
-     */
-    protected bool $forceFullFrames = true;
 
     public function data(string $key, mixed $default = null): mixed
     {

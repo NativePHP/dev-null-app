@@ -59,11 +59,6 @@ class Notifications extends NativeComponent
     use WritesInBackground;
 
     /**
-     * Every frame goes in full, as on the Log (see Log::$forceFullFrames).
-     */
-    protected bool $forceFullFrames = true;
-
-    /**
      * How long a group's notifications take to fade in or out, and its
      * chevron to turn, in milliseconds: as long as replies take on the Log.
      */

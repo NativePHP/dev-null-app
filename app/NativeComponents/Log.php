@@ -114,14 +114,6 @@ class Log extends NativeComponent
     use TalksToDevnull;
     use WatchesForCalls;
 
-    /**
-     * Every frame goes in full. EDGE's subtree reuse sometimes refers to rows
-     * the phone never got once a list has grown or reordered, and the phone
-     * drops them, which drew the log blank under a pull to refresh. EDGE's own
-     * answer for a screen whose lists change often is to send it in full.
-     */
-    protected bool $forceFullFrames = true;
-
     public const array Logs = ['following', 'latest', 'trending'];
 
     /**
@@ -250,6 +242,14 @@ class Log extends NativeComponent
      * @var array<string, RowCache>
      */
     private array $rowCaches = [];
+
+    /**
+     * The logs beside yours as they were last drawn, by log: what was kept
+     * for them, hashed, and what they showed (see previewState()).
+     *
+     * @var array<string, array{0: string, 1: array<string, mixed>}>
+     */
+    private array $previews = [];
 
     /**
      * Which rows of each log are drawn.
@@ -438,6 +438,10 @@ class Log extends NativeComponent
      * A log you're not on: the first few commits kept for it, as it will
      * open, or skeleton rows with nothing kept, or while it's two swipes away.
      *
+     * Every frame draws it, so its commits are only made again when what's
+     * kept for them changes. Made afresh, they cost the frame as much again
+     * to lay out and to check against the rows kept for them.
+     *
      * @return array<string, mixed>
      */
     private function previewState(string $log): array
@@ -445,19 +449,25 @@ class Log extends NativeComponent
         $beside = abs(array_search($log, self::Logs, true) - array_search($this->log, self::Logs, true)) === 1;
         $json = $beside && ! $this->skeletonFrame ? $this->cached('log/'.$log) : null;
         $kept = is_array($json['data'] ?? null) ? $json['data'] : [];
-        $page = $json === null ? null : Page::fromArray(['data' => array_slice($kept, 0, self::PreviewCommits)] + $json, Commit::fromArray(...));
+        $shown = $json === null ? null : [array_slice($kept, 0, self::PreviewCommits), count($kept) > self::PreviewCommits, array_diff_key($json, ['data' => true])];
+        $key = hash('xxh3', serialize($shown));
 
-        return [
-            'commits' => $page->items ?? [],
-            // Rows past the preview are left out, with a skeleton row for them, as for the next page.
-            'nextCursor' => count($kept) > self::PreviewCommits ? 'preview' : $page?->nextCursor,
-            'threads' => [],
-            'latestCommits' => [],
-            'suggestions' => array_values(array_map(Commit::fromArray(...), array_filter(is_array($json['suggestions'] ?? null) ? $json['suggestions'] : [], is_array(...)))),
-            'loaded' => $page !== null,
-            'lastVisitAt' => $this->lastVisitSeenAt($log),
-            'error' => null,
-        ];
+        if (($this->previews[$log][0] ?? null) !== $key) {
+            $page = $json === null ? null : Page::fromArray(['data' => array_slice($kept, 0, self::PreviewCommits)] + $json, Commit::fromArray(...));
+
+            $this->previews[$log] = [$key, [
+                'commits' => $page->items ?? [],
+                // Rows past the preview are left out, with a skeleton row for them, as for the next page.
+                'nextCursor' => count($kept) > self::PreviewCommits ? 'preview' : $page?->nextCursor,
+                'threads' => [],
+                'latestCommits' => [],
+                'suggestions' => array_values(array_map(Commit::fromArray(...), array_filter(is_array($json['suggestions'] ?? null) ? $json['suggestions'] : [], is_array(...)))),
+                'loaded' => $page !== null,
+                'error' => null,
+            ]];
+        }
+
+        return [...$this->previews[$log][1], 'lastVisitAt' => $this->lastVisitSeenAt($log)];
     }
 
     public function isRanked(): bool

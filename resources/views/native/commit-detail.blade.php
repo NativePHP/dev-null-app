@@ -62,6 +62,16 @@
                     <native:row ref="loading-replies" class="w-full pl-[64] pr-4 py-4 gap-2 items-center" a11y-label="Loading replies">
                         <native:activity-indicator size="small" />
                     </native:row>
+                @elseif ($pageRow['partial'] === 'native.partials.commit-row')
+                    {{--
+                        The commits are kept like the replies, so typing a reply only builds the reply bar. A row's
+                        data says where its commit sits in the tree: its rail, its place in its author's thread, and
+                        for a commit above, how many replies its button counts. RowInputs has whether those are open.
+                        The commit the page is about also shows its own replies' toggle and count, and its time in your
+                        timezone, which only the page knows.
+                    --}}
+                    @php($rowScope = array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))
+                    @php($replyRows->include($pageRow['key'], [...\App\Devnull\RowInputs::for($pageRow['data']['commit'], $rowScope), 'focused' => $pageRow['data']['focused'] ? [$repliesShown, $replyCount, app(\App\Devnull\Timezone::class)->yours()] : null], $pageRow['partial'], $pageRow['data'], $rowScope))
                 @elseif ($pageRow['reply'] === null)
                     @include($pageRow['partial'], $pageRow['data'])
                 @else
