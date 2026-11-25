@@ -129,3 +129,89 @@ it("keeps a commit page's commits between renders, and builds the commit again w
         expectKeptRowsMatchFreshOnes($screen, CommitDetail::class, 'replyRows', null);
     }
 });
+
+it("keeps a commit page's commits right as the replies of a commit above open and fold, and as the page moves", function () {
+    $person = fn (string $handle, int $lane): array => userJson(['id' => 'u-'.$handle, 'handle' => $handle, 'name' => ucfirst($handle), 'lane' => $lane]);
+    $c1 = commitJson(['id' => 'c1', 'body' => 'The commit above', 'replies_count' => 2, 'author' => $person('ada', 1)]);
+    $c2 = commitJson(['id' => 'c2', 'parent_id' => 'c1', 'body' => 'The focused commit', 'replies_count' => 1, 'author' => $person('grace', 2)]);
+    $x1 = replyJson(['id' => 'x1', 'parent_id' => 'c1', 'body' => 'Another reply above', 'replies_count' => 1, 'author' => $person('linus', 4)]);
+    $x2 = replyJson(['id' => 'x2', 'parent_id' => 'x1', 'body' => 'A reply to the other reply', 'author' => $person('alan', 5)]);
+    $r1 = replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'A reply below', 'author' => $person('ken', 6)]);
+    fakeApi([
+        'GET /api/v1/commits/c2' => [commitPageJson($c2, [$c1])],
+        'GET /api/v1/commits/c1' => [commitPageJson($c1)],
+        'GET /api/v1/commits/r1' => [commitPageJson($r1, [$c1, $c2])],
+        'GET /api/v1/commits/c1/related' => [['data' => []]],
+        'GET /api/v1/commits/c2/related' => [['data' => []]],
+        'GET /api/v1/commits/r1/related' => [['data' => []]],
+        'GET /api/v1/commits/c1/replies' => [pageJson([$c2, $x1])],
+        'GET /api/v1/commits/c2/replies' => [pageJson([$r1])],
+        'GET /api/v1/commits/x1/replies' => [pageJson([$x2])],
+        'GET /api/v1/commits/r1/replies' => [pageJson([])],
+        'GET /api/v1/commits/x2/replies' => [pageJson([])],
+    ]);
+    // Held, so the frame while the replies above fade out is drawn too.
+    holdRefreshes();
+    $screen = finishRefreshes(Native::visit('/log/commits/c2', ['replies' => true]))->assertSee('A reply below');
+
+    finishRefreshes($screen->tap('replies-c1'))->assertSee('Another reply above');
+    expectKeptRowsMatchFreshOnes($screen, CommitDetail::class, 'replyRows', null);
+
+    // With the replies above open, a frame builds none of the commits, and typing a reply only builds the commit it
+    // replies to, once, when the draft is first kept.
+    expect(rowsBuiltBy(fn () => $screen->call('navTitle')))->toBe([])
+        ->and(rowsBuiltBy(fn () => $screen->input('reply-input', 'N')))->toBe(['c2'])
+        ->and(rowsBuiltBy(fn () => $screen->input('reply-input', 'Nice')))->toBe([]);
+
+    $changes = [
+        'a reply above opens its own' => fn () => finishRefreshes($screen->tap('replies-x1'))->assertSee('A reply to the other reply'),
+        'the replies above fading out' => fn () => expect($screen->tap('replies-c1')->get('closingThreads'))->toBe(['c1']),
+        'the replies above folded' => fn () => finishRefreshes($screen)->assertDontSee('Another reply above'),
+        'the page moved up to the commit above' => fn () => finishRefreshes($screen->tap('commit-c1'))->assertSet('id', 'c1'),
+        'the page moved back down' => fn () => finishRefreshes($screen->tap('thread-reply-c2'))->assertSet('id', 'c2'),
+        'the page moved down to a reply' => fn () => finishRefreshes($screen->tap('thread-reply-r1'))->assertSet('id', 'r1'),
+        'the replies above opened over the reply' => fn () => finishRefreshes($screen->tap('replies-c1'))->assertSee('Another reply above'),
+    ];
+
+    foreach ($changes as $change) {
+        $change();
+        expectKeptRowsMatchFreshOnes($screen, CommitDetail::class, 'replyRows', null);
+    }
+});
+
+it("keeps a commit page's commits right on a thread its author wrote as replies to themselves", function () {
+    $ada = userJson(['id' => 'u-ada', 'handle' => 'ada', 'name' => 'Ada', 'lane' => 2]);
+    $part = fn (string $id, ?string $parent, int $minutes, array $overrides = []): array => commitJson(['id' => $id, 'parent_id' => $parent, 'body' => "Ada's {$id}", 'author' => $ada, 'created_at' => now()->subMinutes($minutes)->toIso8601ZuluString(), ...$overrides]);
+    fakeApi([
+        'GET /api/v1/commits/c1' => [commitPageJson($part('c1', null, 30, ['replies_count' => 2]))],
+        'GET /api/v1/commits/p2' => [commitPageJson($part('p2', 'c1', 25), [$part('c1', null, 30, ['replies_count' => 2])])],
+        'GET /api/v1/commits/c1/related' => [['data' => []]],
+        'GET /api/v1/commits/p2/related' => [['data' => []]],
+        'GET /api/v1/commits/c1/replies' => [pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c1', 'body' => 'Grace answers', 'created_at' => now()->subMinutes(28)->toIso8601ZuluString()]), $part('p2', 'c1', 25)])],
+        'GET /api/v1/commits/p2/replies' => [pageJson([replyJson(['id' => 'x1', 'parent_id' => 'p2', 'body' => 'Under part two']), $part('p3', 'p2', 20)])],
+        'GET /api/v1/commits/p3/replies' => [pageJson([replyJson(['id' => 'y1', 'parent_id' => 'p3', 'body' => 'Under the last part'])])],
+        'GET /api/v1/commits/r1/replies' => [pageJson([])],
+        'GET /api/v1/commits/x1/replies' => [pageJson([])],
+        'GET /api/v1/commits/y1/replies' => [pageJson([])],
+    ]);
+    $screen = finishRefreshes(Native::visit('/log/commits/c1'))->assertSee("Ada's p3")->assertSee('Under the last part');
+
+    // Typing a reply builds the commit the page is about once, for its draft, and none of the parts after it.
+    expect(rowsBuiltBy(fn () => $screen->input('reply-input', 'N')))->toBe(['c1'])
+        ->and(rowsBuiltBy(fn () => $screen->input('reply-input', 'Nice')))->toBe([]);
+
+    $changes = [
+        'its replies opened' => fn () => $screen->tap('replies-c1')->assertSee('Grace answers'),
+        'its replies closed' => fn () => finishRefreshes($screen->tap('replies-c1')),
+        'the time' => function () use ($screen) {
+            $this->travel(2)->hours();
+            $screen->call('navTitle');
+        },
+        'the page moved to a later part' => fn () => finishRefreshes($screen->tap('commit-p2')->assertSet('id', 'p2')),
+    ];
+
+    foreach ($changes as $change) {
+        $change();
+        expectKeptRowsMatchFreshOnes($screen, CommitDetail::class, 'replyRows', null);
+    }
+});
