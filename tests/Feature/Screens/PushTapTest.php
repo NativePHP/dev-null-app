@@ -128,3 +128,43 @@ it('stays on a pushed commit that failed for any other reason, so Try again can 
 
     finishRefreshes(Native::visit('/notifications/commits/c1', ['pushed' => true]))->assertNoNavigation();
 });
+
+/**
+ * iOS reconciles a tab's stack only when it redraws the tabs, so of two frames that land together it sees the
+ * second. A tab that pushed its push's screen as it mounted published its own frame and the pushed screen's back to
+ * back, and iOS never saw the tab. It then stacked two or three copies of the pushed screen (NativePHP/mobile-air,
+ * PerTabNavigationCoordinator), and back slid through each. The tab now waits for its first frame to come back.
+ */
+it('opens a push tapped on a cold start once, after the tab has drawn', function () {
+    signIn();
+    holdRefreshes();
+
+    $tab = Native::visit('/push?type=replied&notification_id=n1&commit_id=c1')
+        ->assertReplacedWith('/notifications')
+        ->follow()
+        ->assertNoNavigation();
+
+    finishRefreshes($tab)->assertNavigatedTo('/notifications/commits/c1');
+
+    expect($tab->navigationIntent()->data)->toBe(['pushed' => true]);
+
+    serveApi(['GET /api/v1/commits/c1' => [['data' => commitJson(['id' => 'c1'])]]]);
+    $tab->follow()->goBack();
+
+    finishRefreshes($tab)->assertNoNavigation();
+});
+
+it('opens a push tapped while the app runs once, after the tab has drawn', function () {
+    signIn();
+    holdRefreshes();
+
+    $tab = Native::visit('/log')
+        ->emitNative('__deeplink', ['uri' => '/push?type=followed&notification_id=n1&handle=ada'])
+        ->assertNavigatedTo('/push?type=followed&notification_id=n1&handle=ada')
+        ->follow()
+        ->assertReplacedWith('/notifications')
+        ->follow()
+        ->assertNoNavigation();
+
+    finishRefreshes($tab)->assertNavigatedTo('/notifications/users/ada');
+});
