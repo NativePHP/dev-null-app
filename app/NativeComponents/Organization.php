@@ -13,6 +13,7 @@ use App\Devnull\RowCache;
 use App\Devnull\SiteLink;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
+use App\Icons\Lucide;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\ExpandsThreads;
 use App\NativeComponents\Concerns\HoldsNewCommits;
@@ -23,16 +24,18 @@ use App\NativeComponents\Concerns\ShowsCommits;
 use App\NativeComponents\Concerns\TalksToDevnull;
 use Closure;
 use Illuminate\View\View;
+use Native\Mobile\Edge\Layouts\Builders\NavAction;
+use Native\Mobile\Edge\Layouts\Builders\NavBarOptions;
 use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Facades\Browser;
 use Native\Mobile\Facades\Share;
 
 /**
  * A GitHub organization's page, as the web shows it at its "@handle": its
- * avatar as a rounded square in its lane, Follow and Share, what GitHub says
- * about it, how many follow it and its admins, then its Commits and the
+ * avatar as a rounded square in its lane, Follow, what GitHub says about it,
+ * how many follow it and its admins, then its Commits and the
  * commits that mention it, as pages you swipe between, as on a profile (see
- * Profile).
+ * Profile). Share is a button of its own in the nav bar.
  *
  * It opens from a commit the organization posted, or a mention of it, beneath
  * the tab it was tapped in, on the page as it was kept last time, then asks
@@ -50,11 +53,6 @@ class Organization extends NativeComponent
     use RefreshesInBackground;
     use ShowsCommits;
     use TalksToDevnull;
-
-    /**
-     * Every frame goes in full, as on a profile (see Profile::$forceFullFrames).
-     */
-    protected bool $forceFullFrames = true;
 
     public const array Tabs = ['commits', 'mentions'];
 
@@ -121,6 +119,20 @@ class Organization extends NativeComponent
     public function navTitle(): string
     {
         return $this->organization->organization->name ?? $this->handle();
+    }
+
+    /**
+     * Share in the nav bar, as its own button, under the share shape each phone uses (Lucide's share on iOS, share-2
+     * on Android), as a profile's Share profile has it. It's always there, as the link needs nothing but the handle.
+     */
+    public function navigationOptions(): ?NavBarOptions
+    {
+        return NavBarOptions::make()->action(
+            NavAction::make('share')
+                ->icon(ios: Lucide::Share->ios(), android: Lucide::Share2->android())
+                ->a11yLabel('Share '.($this->organization?->organization->handle() ?? '@'.$this->handle()))
+                ->press('share'),
+        );
     }
 
     /**
@@ -193,7 +205,7 @@ class Organization extends NativeComponent
     }
 
     /**
-     * The web's Share beside Follow: the system share sheet, with the organization's page on the web.
+     * The web's Share, from the nav bar: the system share sheet, with the organization's page on the web.
      */
     public function share(): void
     {
@@ -262,6 +274,7 @@ class Organization extends NativeComponent
             'myColour' => $this->myColour(),
             'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),
+            'ownership' => $this->ownership(),
             'stashed' => app(Stash::class)->names($this->me()?->id),
             'pages' => $pages,
             'pageIndex' => array_search($this->tab, self::Tabs, true),
@@ -321,7 +334,7 @@ class Organization extends NativeComponent
         $this->tab = $tab;
         $this->listKey = $this->listKeys[$tab] ?? 0;
         $this->commits = [];
-        $this->threads = [];
+        $this->forgetThreads();
         $this->nextCursor = null;
         $this->commitsLoaded = false;
         $this->commitsFailed = false;

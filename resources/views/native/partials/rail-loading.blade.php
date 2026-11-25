@@ -17,7 +17,7 @@
             <native:column class="w-4/5 h-[12] rounded bg-theme-wash" />
             <native:column class="w-3/5 h-[12] rounded bg-theme-wash" />
         </native:column>
-        <native:column class="w-full h-[1] bg-theme-hairline" />
+        <native:column class="w-full h-[1] border-b border-theme-hairline" />
     </native:column>
 
     @include('native.partials.rail', ['tail' => \App\Devnull\Lane::Rail, 'endsWithDot' => true, 'lane' => \App\Devnull\Lane::Rail, 'node' => 'skeleton'])

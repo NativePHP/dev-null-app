@@ -141,14 +141,20 @@ it('puts the follow back when devnull refuses it', function () {
         ->and($screen->instance()->organization->followersCount)->toBe(45);
 });
 
-it('shares the organization page and opens its admins', function () {
+it('shares the organization page from its own button in the nav bar, and opens its admins', function () {
     fakeApi([
         'GET /api/v1/organizations/laravel' => [organizationJson()],
         'GET /api/v1/organizations/laravel/commits' => [pageJson([])],
     ]);
 
-    finishRefreshes(Native::visit('/log/organizations/laravel'))
-        ->tap('share')
+    $screen = finishRefreshes(Native::visit('/log/organizations/laravel', platform: 'ios'));
+    $actions = findNodes($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'top_bar_action');
+
+    expect(array_map(fn (array $node): string => $node['props']['id'], $actions))->toBe(['share'])
+        ->and($actions[0]['props'])->toMatchArray(['icon' => 'custom:share', 'a11y_label' => 'Share @laravel'])
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'share'))->toBeNull();
+
+    $screen->press('share')
         ->assertNativeCalled('Share.Url', fn (array $params): bool => $params['url'] === 'http://devnull.test/@laravel')
         ->tap('admin-nunomaduro')
         ->assertNavigatedTo('/log/users/nunomaduro');

@@ -81,6 +81,15 @@ it('takes the badge off a row the log kept once the stream ends', function () {
         ->and(railRingColour($screen, 'commit-c1'))->toBe(strtolower(config('native-ui.theme.light.lane-2')));
 });
 
+it("announces an author's avatar by name, and as live while they stream", function (?array $live, string $label) {
+    $avatar = findNode(nodeByRef(logByStreamer($live), 'commit-c1'), fn (array $node): bool => ($node['props']['a11y_label'] ?? null) === $label);
+
+    expect($avatar)->not->toBeNull();
+})->with([
+    'not live' => [null, "Ada's profile"],
+    'live' => [fn (): array => adaStream(now()->addHour()->toIso8601ZuluString()), 'Ada is live'],
+]);
+
 it('keeps the lane ring once the stream has ended', function (?array $live) {
     $screen = logByStreamer($live);
 

@@ -130,7 +130,7 @@ it('deletes your reply from a commit page, staying on the page', function () {
                 $deleted = true;
             }),
             'GET /api/v1/commits/c2' => Http::response(commitPageJson(commitJson(['id' => 'c2', 'body' => 'Ada asks', 'replies_count' => $deleted ? 0 : 1, 'author' => userJson(['id' => 'u2', 'handle' => 'ada'])]))),
-            'GET /api/v1/commits/c2/replies' => Http::response(pageJson($deleted ? [] : [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'Soon gone'])])),
+            'GET /api/v1/commits/c2/replies' => Http::response(pageJson($deleted ? [] : [replyJson(['id' => 'r1', 'parent_id' => 'c2', 'body' => 'Soon gone', 'author' => userJson()])])),
             default => Http::response(['message' => 'No fake.'], 404),
         };
     });
