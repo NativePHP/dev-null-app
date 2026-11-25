@@ -210,7 +210,7 @@ it('keeps an organization on the phone in step through stars, threads, its tabs 
     expect(nodesSentInFull($screen))->toBeLessThan(40);
 });
 
-it('keeps the commit page on the phone in step while you open the thread and type a reply', function () {
+it('keeps the commit page on the phone in step while you open the thread, type a reply and move around its tree', function () {
     sendPartialFrames();
     $grace = userJson(['id' => 'u3', 'handle' => 'grace', 'name' => 'Grace']);
     fakeApi([
@@ -223,6 +223,15 @@ it('keeps the commit page on the phone in step while you open the thread and typ
         )],
         'GET /api/v1/commits/c2/replies' => [pageJson(array_map(fn (int $n): array => replyJson(['id' => "r{$n}", 'parent_id' => 'c2', 'body' => "Reply {$n}", 'author' => $grace]), range(1, 3)))],
         'GET /api/v1/commits/c2/related' => [['data' => []]],
+        'GET /api/v1/commits/c0/replies' => [pageJson([
+            commitJson(['id' => 'c1', 'parent_id' => 'c0', 'body' => 'The parent commit', 'author' => userJson(['id' => 'u2', 'handle' => 'ada', 'name' => 'Ada'])]),
+            replyJson(['id' => 'x1', 'parent_id' => 'c0', 'body' => 'Another reply to the root']),
+        ])],
+        'GET /api/v1/commits/c1/replies' => [pageJson([commitJson(['id' => 'c2', 'parent_id' => 'c1', 'body' => 'The focused commit', 'replies_count' => 3])])],
+        'GET /api/v1/commits/c1/related' => [['data' => []]],
+        'GET /api/v1/commits/r2/replies' => [pageJson([])],
+        'GET /api/v1/commits/r2/related' => [['data' => []]],
+        'GET /api/v1/commits/x1/replies' => [pageJson([])],
     ]);
 
     $screen = Native::visit('/log/commits/c2');
@@ -238,6 +247,12 @@ it('keeps the commit page on the phone in step while you open the thread and typ
         'the replies hidden' => fn () => $screen->call('toggleReplies'),
         'the reply field tapped again' => fn () => $screen->call('replyTapped'),
         'the replies opened again' => fn () => $screen->call('toggleReplies'),
+        // The page moves to a commit above, keeping its scroll view and the commits it shows, and back down.
+        'the page moved up' => fn () => $screen->call('openCommit', 'c1')->assertSet('id', 'c1'),
+        'the replies above opened' => fn () => $screen->call('toggleReplies', 'c0')->assertSee('Another reply to the root'),
+        'the replies above folded' => fn () => $screen->call('toggleReplies', 'c0')->assertDontSee('Another reply to the root'),
+        'the page moved back down' => fn () => $screen->call('openCommit', 'c2')->assertSet('id', 'c2'),
+        'the page moved down to a reply' => fn () => $screen->call('openCommit', 'r2')->assertSet('id', 'r2'),
     ];
 
     $sentInFull = [];
