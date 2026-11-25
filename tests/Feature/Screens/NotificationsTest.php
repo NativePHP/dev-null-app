@@ -84,6 +84,13 @@ it('opens an expanded notification actor from their own profile link', function 
     Native::visit('/notifications')->tap('group-n-starred')->tap('group-actor-older')->assertNavigatedTo('/notifications/users/linus');
 });
 
+it('opens the page of an organization that replied to you, from its name', function () {
+    $organization = [...personJson('dev-null-sh', '/dev/null'), 'type' => 'organization'];
+    fakeApi(['GET /api/v1/notifications' => [inboxJson([notificationJson('replied', ['actor' => $organization, 'actors' => [$organization]])])]]);
+
+    Native::visit('/notifications')->tap('actor-name-n-replied')->assertNavigatedTo('/notifications/organizations/dev-null-sh');
+});
+
 it('does not navigate to an actor absent from the displayed notifications', function () {
     fakeApi(['GET /api/v1/notifications' => [inboxJson([])]]);
     Native::visit('/notifications')->call('openActor', 'nobody')->assertNoNavigation();

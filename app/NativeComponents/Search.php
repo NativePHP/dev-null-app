@@ -289,6 +289,7 @@ class Search extends NativeComponent
             'searchesCommits' => $this->searchesCommits($term),
             'rowCache' => $this->rowCache,
             'viewer' => $viewer,
+            'ownership' => $this->ownership(),
             'stashed' => app(Stash::class)->names($viewer?->id),
             'myColour' => $this->myColour(),
             'rows' => Timeline::ranked([], $this->commits),

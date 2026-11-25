@@ -409,7 +409,8 @@ function userJson(array $overrides = []): array
     $username = $overrides['handle'] ?? 'local_dev';
 
     return [
-        'id' => '0199e5c4-0000-7000-8000-000000000001',
+        // Someone else, named by a handle of their own, is someone else to the app too.
+        'id' => $username === 'local_dev' ? '0199e5c4-0000-7000-8000-000000000001' : 'user-'.$username,
         'handle' => $username,
         'name' => 'Local Dev',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/1?v=4',
@@ -424,6 +425,17 @@ function userJson(array $overrides = []): array
         'lane' => 3,
         ...$overrides,
     ];
+}
+
+/**
+ * Someone replying to a commit, who isn't its author.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function replierJson(array $overrides = []): array
+{
+    return userJson(['id' => '0199e5c4-0000-7000-8000-0000000000aa', 'handle' => 'replier', 'name' => 'Re Plier', 'lane' => 5, ...$overrides]);
 }
 
 /**
@@ -584,14 +596,16 @@ function commitPageJson(array $commit, array $ancestors = [], array $series = []
 
 /**
  * A reply as `GET /commits/{id}/replies` sends it: like any commit, but without
- * stars_count or starred, which that list doesn't load.
+ * stars_count or starred, which that list doesn't load. It comes from someone
+ * other than the commit's author unless a test says who, since a reply of
+ * theirs carries their own thread on (see SelfThread).
  *
  * @param  array<string, mixed>  $overrides
  * @return array<string, mixed>
  */
 function replyJson(array $overrides = []): array
 {
-    return array_diff_key(commitJson($overrides), array_flip(['stars_count', 'starred']));
+    return array_diff_key(commitJson(['author' => replierJson(), ...$overrides]), array_flip(['stars_count', 'starred']));
 }
 
 /**
@@ -846,6 +860,15 @@ function nodeByRef(TestableComponent $screen, string $ref): array
  * Whether a round button in a sheet's bar can be tapped. A disabled one is drawn as a plain circle, not a pressable.
  */
 function sheetButtonEnabled(TestableComponent $screen, string $ref): bool
+{
+    return nodeByRef($screen, $ref)['type'] === 'pressable';
+}
+
+/**
+ * Whether a composer's round send button (partials/send-button) can be tapped. A disabled one is drawn as a plain
+ * circle, not a pressable.
+ */
+function canSend(TestableComponent $screen, string $ref): bool
 {
     return nodeByRef($screen, $ref)['type'] === 'pressable';
 }

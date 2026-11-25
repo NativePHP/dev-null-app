@@ -332,7 +332,15 @@ it('invalidates old native commands when a rejected sheet reopens after dismissa
     holdRefreshes();
     serveWorkspace();
     $screen = finishRefreshes(Native::test(FeedWorkspace::class, platform: 'ios'))->tap('commit-c2');
-    finishRefreshes($screen)->input('reply-input', 'Fast rejected reply')->tap('reply-expand')->tap('sheet-commit');
+    finishRefreshes($screen);
+
+    // The reply bar sends a reply without the sheet, so the conversation's sheet here is a quote of its commit.
+    $inDetail = fn (string $ref): array => findNode(
+        findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'adaptive_detail'),
+        fn (array $node): bool => ($node['ref'] ?? null) === $ref,
+    );
+    $screen->fireEvent('hostChanged', TestableComponent::EVENT_PRESS, ['callback_id' => $inDetail('quote-c2')['on_press']])
+        ->input('sheet-body', 'Fast rejected reply')->tap('sheet-commit');
     $old = ['action' => $action, 'depth' => 0, 'expected_depth' => 1, 'expected_revision' => 1, 'expected_history' => ['conversation-1']];
     serveApi(['POST /api/v1/commits' => [['message' => 'Fast rejection'], 422]]);
     finishRefreshes($screen);

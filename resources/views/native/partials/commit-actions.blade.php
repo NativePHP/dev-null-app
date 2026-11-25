@@ -10,14 +10,15 @@
     in place, as on the web (see Concerns\ExpandsThreads); elsewhere it opens the commit with its replies showing. Like
     the web, someone else's commit that isn't approved gets no star or Quote. devnull doesn't let you star your own
     commits, so on those the star is the count, which opens who starred it (see OpensStargazers), or a faint star until
-    there are any, as on the web.
+    there are any, as on the web. An organization's commit is yours while you're a member of it, whoever posted it
+    ($ownership, see Ownership).
 
     Quote opens a sheet to write the quote in, over the commit being quoted (see commit-sheet).
 
     The pastel is the web's: the pastel de nata and how many the commit was given, always, even 0. On someone else's
     published commit it gives one more per tap; on your own, or one that isn't published, it's just the count. It
-    only shows in pastéis mode ($pasteis), and never on an organization's commit, since organizations can't be given
-    pastéis.
+    only shows in pastéis mode ($pasteis), and never on an organization's commit, which takes no pastéis, as the web
+    leaves it off. A star you give and a pastel pop as they do on the web (see PopsReactions).
 
     A commit with a quote or a reply you started and didn't send marks that button, as the web does with stash@{0}
     beside its label. That doesn't fit the row, so here it's a dot after the label, inside the button.
@@ -52,10 +53,11 @@
 @php($iconSize = $compact ? 14 : 16)
 @php($labelSize = $compact ? 'text-xs' : 'text-[13px]')
 @php($viewer ??= app(\App\Devnull\Account::class)->user())
+@php($ownership ??= app(\App\Devnull\Account::class)->ownership())
 @php($stashed ??= [])
 @php($hasQuoteStash = in_array('quote-'.$commit->id, $stashed, true))
 @php($hasReplyStash = in_array('reply-'.$commit->id, $stashed, true))
-@php($isOwn = $commit->author->id === $viewer?->id)
+@php($isOwn = $ownership->owns($commit))
 @php($canQuote = $commit->isApproved() || $isOwn)
 @php($showsReplies = $withReplies && ! $commit->isDeleted() && $repliesCount > 0)
 @php($endDot ??= null)
@@ -120,7 +122,7 @@
 
     <native:spacer />
 
-    <native:pressable ref="more-{{ $commit->id }}" :menu="\App\Devnull\CommitMenu::items($commit, $viewer)" a11y-label="More">
+    <native:pressable ref="more-{{ $commit->id }}" :menu="\App\Devnull\CommitMenu::items($commit, $ownership)" a11y-label="More">
         <native:column class="min-w-[44] h-[36] items-center justify-center">
             <native:icon :ios="\App\Icons\Lucide::Ellipsis->ios()" :android="\App\Icons\Lucide::Ellipsis->android()" :size="$iconSize" class="text-theme-ink-muted" />
         </native:column>

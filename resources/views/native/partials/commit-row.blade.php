@@ -15,7 +15,7 @@
 @if ($commit->isDeleted())
     @include('native.partials.commit-tombstone')
 @elseif ($focused)
-    <native:row ref="focused-commit" class="w-full bg-theme-surface">
+    <native:row native:key="{{ $rowKey ?? 'commit-'.$commit->id }}" ref="focused-commit" class="w-full bg-theme-surface">
         @include('native.partials.commit-row-content')
     </native:row>
 @else

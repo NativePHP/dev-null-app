@@ -27,18 +27,21 @@ final class RowInputs
     public static function for(Commit $commit, array $scope): array
     {
         $viewer = $scope['viewer'] ?? app(Account::class)->user();
+        $ownership = $scope['ownership'] ?? app(Account::class)->ownership();
 
         return [
             'viewer' => $viewer?->id,
+            'organizations' => $ownership->organizationIds,
             'pasteis' => $scope['pasteis'] ?? app(Account::class)->pasteis(),
             'stashed' => $scope['stashed'] ?? [],
             'unfolded' => $scope['unfolded'] ?? [],
             'expandable' => isset($scope['threads']),
             'opened' => array_key_exists($commit->id, $scope['threads'] ?? []) && ! in_array($commit->id, $scope['closingThreads'] ?? [], true),
             'faded' => in_array($commit->id, $scope['fadedRows'] ?? [], true),
+            // A reply whose replies, opened in place, showed its author carried it on gets "Show thread".
+            'continued' => in_array($commit->id, $scope['threadsContinued'] ?? [], true),
             'popping' => [$scope['popping']['star-'.$commit->id] ?? null, $scope['popping']['pastel-'.$commit->id] ?? null],
             'tombstones' => $scope['tombstones'] ?? false,
-            'tombstoneReplies' => array_key_exists($commit->id, $scope['tombstoneReplies'] ?? []),
             'shown' => [self::changing($commit), $commit->quotedCommit === null ? null : self::changing($commit->quotedCommit)],
             'poll' => [$scope['pollChoices'][$commit->id] ?? null, in_array($commit->id, $scope['voting'] ?? [], true)],
             'selected' => ($scope['selectedCommit'] ?? null) === $commit->id,

@@ -3,7 +3,8 @@
     partials/who-to-follow) and commits on the rail. A commit's replies stay hidden until its replies button opens them
     in place (see Concerns\ExpandsThreads). Then its thread hangs under it, inside its row's hairline, a page at a time
     with "Show more" under the last, and a reply's own replies opened under it one step in (see App\Devnull\ThreadRows).
-    The commit's rail runs on past them when its author's run goes on below.
+    The commit's rail runs on past them when its author's run goes on below. A commit its author carried on in replies to
+    themselves shows "Show thread".
 
     Given a $rowCache (see App\Devnull\RowCache), commits and replies that haven't changed since the last frame are
     drawn from it rather than built again. Given a $rowWindow (see App\Devnull\RowWindow), rows far from the screen
@@ -50,6 +51,7 @@
                 'continuesRun' => $row->continuesRun,
                 'continuesNext' => $row->continuesNext,
                 'threadBelow' => $threadRows !== [],
+                'showsThread' => $feedCommit->continuationId !== null || in_array($feedCommit->id, $threadsContinued ?? [], true),
             ];
         @endphp
         @if (! $feedDraws)
