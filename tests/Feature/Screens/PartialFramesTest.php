@@ -240,12 +240,9 @@ it('keeps the commit page on the phone in step while you open the thread, type a
     $steps = [
         'the earlier commits shown' => fn () => $screen->call('showEarlier'),
         'the replies opened' => fn () => $screen->call('toggleReplies'),
-        // The scroll view mounts again at the top, under a new key.
-        'a tap into the reply field' => fn () => $screen->call('replyTapped'),
         'a letter typed' => fn () => $screen->set('reply', 'N'),
         'another' => fn () => $screen->set('reply', 'Ni'),
         'the replies hidden' => fn () => $screen->call('toggleReplies'),
-        'the reply field tapped again' => fn () => $screen->call('replyTapped'),
         'the replies opened again' => fn () => $screen->call('toggleReplies'),
         // The page moves to a commit above, keeping its scroll view and the commits it shows, and back down.
         'the page moved up' => fn () => $screen->call('openCommit', 'c1')->assertSet('id', 'c1'),

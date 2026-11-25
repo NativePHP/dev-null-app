@@ -259,12 +259,6 @@ class CommitDetail extends NativeComponent
     public bool $focusReply = false;
 
     /**
-     * Keys the page's scroll view. EDGE can't scroll it from PHP, so a new key
-     * mounts it again at the top.
-     */
-    public int $scrollKey = 0;
-
-    /**
      * Which of the scroll view's rows it brings into view: the commit's, once tapping another commit in the tree
      * moved the page to it (see refocus()), or the reply you just sent (see scrollToRow()). Null until one of those,
      * so the page opens at the top as it always has.
@@ -405,18 +399,6 @@ class CommitDetail extends NativeComponent
     {
         $this->earlierShown = true;
         $this->countAncestorReplies();
-    }
-
-    /**
-     * Tapping into the reply bar brings the commit being answered back up, under
-     * its parent: the earlier commits fold away again and the page starts over
-     * from the top.
-     */
-    public function replyTapped(): void
-    {
-        $this->earlierShown = false;
-        $this->scrollTarget = null;
-        $this->scrollKey++;
     }
 
     /**

@@ -21,7 +21,7 @@
         is keyed commit-<id>, as the commits above it are. These need NativePHP/mobile-air#736 and
         NativePHP/mobile-ui#225; without them the move jumps and a repeat of the same row doesn't scroll.
     --}}
-    <native:scroll-view native:key="thread-{{ $scrollKey }}" ref="thread-scroll" class="w-full h-full bg-theme-surface" :auto-scroll-to="$scrollTarget" :auto-scroll-token="$scrollRequest" auto-scroll-animated animate-layout>
+    <native:scroll-view native:key="thread" ref="thread-scroll" class="w-full h-full bg-theme-surface" :auto-scroll-to="$scrollTarget" :auto-scroll-token="$scrollRequest" auto-scroll-animated animate-layout>
             @if (! $commit && $error === null)
                 <native:column ref="loading-commit" class="w-full items-center py-16" a11y-label="Loading commit">
                     <native:activity-indicator />
