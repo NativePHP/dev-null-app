@@ -36,6 +36,10 @@ final readonly class Notification
         public ?int $level = null,
         public ?string $rank = null,
         public ?string $rankDescription = null,
+        public ?string $organization = null,
+        public ?string $timeoutReason = null,
+        public ?string $timeoutDuration = null,
+        public ?CarbonImmutable $timeoutEndsAt = null,
     ) {}
 
     /**
@@ -53,6 +57,8 @@ final readonly class Notification
             ? (int) $data['unread_count'] > 0
             : array_key_exists('read_at', $data) && $data['read_at'] === null;
         $id = (string) ($data['id'] ?? '');
+        $organization = is_array($data['organization'] ?? null) && is_string($data['organization']['handle'] ?? null) ? $data['organization']['handle'] : null;
+        $timeout = is_array($data['timeout'] ?? null) ? $data['timeout'] : [];
 
         return new self(
             id: $id,
@@ -75,6 +81,10 @@ final readonly class Notification
             level: is_int($data['level'] ?? null) ? $data['level'] : null,
             rank: is_string($data['rank'] ?? null) && $data['rank'] !== '' ? $data['rank'] : null,
             rankDescription: is_string($data['rank_description'] ?? null) && trim($data['rank_description']) !== '' ? $data['rank_description'] : null,
+            organization: $organization,
+            timeoutReason: is_string($timeout['reason'] ?? null) ? $timeout['reason'] : null,
+            timeoutDuration: is_string($timeout['duration'] ?? null) ? $timeout['duration'] : null,
+            timeoutEndsAt: Commit::date($timeout['ends_at'] ?? null),
         );
     }
 
@@ -99,11 +109,25 @@ final readonly class Notification
     }
 
     /**
-     * A moderator approved or rejected your commit. Nobody else is named.
+     * A moderator approved or rejected your commit, or put you in timeout. Nobody else is named.
      */
     public function isModeration(): bool
     {
-        return in_array($this->type, ['approved', 'rejected'], true);
+        return in_array($this->type, ['approved', 'rejected', 'timed_out'], true);
+    }
+
+    public function isTimeout(): bool
+    {
+        return $this->type === 'timed_out';
+    }
+
+    /**
+     * Someone else's commit is what it's about, so the web leads with them: their avatar on the rail, their name and
+     * handle over what they did, then their words. A reply, a quote, a mention or someone's first commit.
+     */
+    public function isActorsCommit(): bool
+    {
+        return in_array($this->type, ['replied', 'quoted', 'mentioned', 'first_commit'], true);
     }
 
     public function isRejection(): bool
@@ -140,7 +164,7 @@ final readonly class Notification
      */
     public function isAboutYourCommit(): bool
     {
-        return $this->isStar() || $this->isModeration();
+        return in_array($this->type, ['starred', 'approved', 'rejected'], true);
     }
 
     /**
@@ -165,11 +189,12 @@ final readonly class Notification
     }
 
     /**
-     * The commit a tap opens, as on the web: the notification's own commit. A follow or a level-up opens a profile instead.
+     * The commit a tap opens, as on the web: the notification's own commit. A follow, a timeout or a level-up opens a
+     * profile instead.
      */
     public function commitToOpen(): ?string
     {
-        return $this->isFollow() || $this->isLevelUp() ? null : $this->commitId;
+        return $this->isFollow() || $this->isLevelUp() || $this->isTimeout() ? null : $this->commitId;
     }
 
     /**
@@ -203,18 +228,42 @@ final readonly class Notification
     }
 
     /**
+     * When exactly two people followed you or starred your commit, the web names both: the other one, or null.
+     */
+    public function secondActor(): ?User
+    {
+        if (! in_array($this->type, ['followed', 'starred'], true) || $this->actorsCount !== 2) {
+            return null;
+        }
+
+        $second = $this->actors[1] ?? null;
+
+        return $second !== null && $second->id !== $this->actor->id ? $second : null;
+    }
+
+    /**
+     * Whose commit it is, as the web words it: "your", or the organization's you heard about it for.
+     */
+    private function whose(): string
+    {
+        return $this->organization === null ? 'your' : "@{$this->organization}'s";
+    }
+
+    /**
      * What happened, as the web words it. For a person it follows their name and their handle or the others.
      */
     public function sentence(): string
     {
         return match ($this->type) {
             'followed' => 'followed you',
-            'mentioned' => 'mentioned you',
-            'starred' => 'starred your commit',
-            'quoted' => 'quoted your commit',
-            'approved', 'rejected' => "Your commit was {$this->type}",
+            'mentioned' => $this->organization === null ? 'mentioned you' : "mentioned @{$this->organization}",
+            'starred' => "starred {$this->whose()} commit",
+            'quoted' => "quoted {$this->whose()} commit",
+            'first_commit' => 'made their first commit',
+            'approved', 'rejected' => ($this->organization === null ? 'Your' : $this->whose())." commit was {$this->type}",
+            'timed_out' => 'You were put in timeout',
             'leveled_up' => $this->levelLabel() === null ? 'You reached a new level' : "You reached level {$this->level}: {$this->rank}",
-            default => 'replied to your commit',
+            default => "replied to {$this->whose()} commit",
         };
     }
 
