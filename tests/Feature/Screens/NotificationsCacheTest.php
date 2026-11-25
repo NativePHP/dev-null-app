@@ -26,9 +26,9 @@ it('keeps notifications as read, since devnull marked them read as it sent them,
         'GET /api/v1/me' => [['data' => userWithCountsJson(), 'unread_notifications_count' => 0]],
     ]);
 
-    // New on this visit, so its node is ringed in Commit Blue.
-    Native::visit('/notifications')->assertElement('stack', fn (array $node): bool => ($node['ref'] ?? null) === 'node-n-followed'
-        && ($node['style']['border_color'] ?? $node['style']['borderColor'] ?? null) === config('native-ui.theme.light.primary'));
+    // New on this visit, so the row says so to a screen reader, as the web's does.
+    Native::visit('/notifications')->assertElement('pressable', fn (array $node): bool => ($node['ref'] ?? null) === 'notification-n-followed'
+        && str_starts_with((string) ($node['props']['a11y_label'] ?? ''), 'New. '));
 
     expect(kept('notifications')['data'][0]['unread_count'])->toBe(0)
         ->and(kept('notifications'))->not->toHaveKey('read_at');

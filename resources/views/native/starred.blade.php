@@ -18,12 +18,14 @@
                 </native:row>
                 <native:text class="w-full text-sm text-theme-ink-muted">Commits you starred, newest first.</native:text>
             </native:column>
-            <native:column class="w-full h-[1] bg-theme-hairline" />
+            <native:column class="w-full h-[1] border-b border-theme-hairline" />
         </native:column>
 
         @if (! $loaded && $error === null)
             @foreach (range(1, 3) as $skeleton)
-                @include('native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading starred commits'])
+                @php
+                    $rowCache->include('loading-'.$skeleton, [], 'native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading starred commits'], []);
+                @endphp
             @endforeach
         @endif
 
@@ -40,9 +42,13 @@
 
         @if ($lastCommit)
             @if ($nextCursor !== null)
-                @include('native.partials.rail-loading')
+                @php
+                    $rowCache->include('loading-more', [], 'native.partials.rail-loading', [], []);
+                @endphp
             @else
-                @include('native.partials.rail-end', ['lane' => $lastCommit->lane(), 'message' => "You've reached the end of your starred commits."])
+                @php
+                    $rowCache->include('root-commit', [], 'native.partials.rail-end', ['lane' => $lastCommit->lane(), 'message' => "You've reached the end of your starred commits."], []);
+                @endphp
             @endif
         @endif
     </native:list>

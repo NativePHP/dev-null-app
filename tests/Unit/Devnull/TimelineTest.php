@@ -3,6 +3,7 @@
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\TimelineRow;
 use App\Devnull\LastVisit;
+use App\Devnull\Ownership;
 use App\Devnull\Timeline;
 use Carbon\CarbonImmutable;
 
@@ -166,14 +167,18 @@ it('finds the first commit you had seen, only when someone else committed since'
         timelineCommit('c1', 'grace', '2026-10-15T09:00:00Z'),
     ];
 
-    expect(LastVisit::firstSeenId($commits, '2026-10-15T10:00:00+00:00', 'ada'))->toBe('c2')
-        ->and(LastVisit::firstSeenId($commits, '2026-10-15T09:30:00+00:00', 'ada'))->toBe('c1')
+    $ada = new Ownership('ada');
+
+    expect(LastVisit::firstSeenId($commits, '2026-10-15T10:00:00+00:00', $ada))->toBe('c2')
+        ->and(LastVisit::firstSeenId($commits, '2026-10-15T09:30:00+00:00', $ada))->toBe('c1')
         // Nothing new.
-        ->and(LastVisit::firstSeenId($commits, '2026-10-15T11:00:00+00:00', 'ada'))->toBeNull()
+        ->and(LastVisit::firstSeenId($commits, '2026-10-15T11:00:00+00:00', $ada))->toBeNull()
         // Only your own commit is new.
-        ->and(LastVisit::firstSeenId($commits, '2026-10-15T10:00:00+00:00', 'grace'))->toBeNull()
+        ->and(LastVisit::firstSeenId($commits, '2026-10-15T10:00:00+00:00', new Ownership('grace')))->toBeNull()
+        // Only a commit from an organization you're in is new, as the web counts it.
+        ->and(LastVisit::firstSeenId($commits, '2026-10-15T10:00:00+00:00', new Ownership('linus', ['grace'])))->toBeNull()
         // Everything is new, so there's nothing to mark.
-        ->and(LastVisit::firstSeenId($commits, '2026-10-15T08:00:00+00:00', 'ada'))->toBeNull()
+        ->and(LastVisit::firstSeenId($commits, '2026-10-15T08:00:00+00:00', $ada))->toBeNull()
         // A first visit.
-        ->and(LastVisit::firstSeenId($commits, null, 'ada'))->toBeNull();
+        ->and(LastVisit::firstSeenId($commits, null, $ada))->toBeNull();
 });

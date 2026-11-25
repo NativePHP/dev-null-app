@@ -15,6 +15,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\AsyncTask;
+use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Events\Async\AsyncTaskFailed;
 use Native\Mobile\Events\Async\AsyncTaskFinished;
 use Native\Mobile\Events\Gallery\MediaSelected;
@@ -270,15 +271,6 @@ function tapProfileTab(TestableComponent $screen, string $tab): TestableComponen
 }
 
 /**
- * A tap on one of the notifications filters along the top, which the pager
- * draws, as for the Log's tabs (see tapLogTab).
- */
-function tapFilter(TestableComponent $screen, string $type): TestableComponent
-{
-    return $screen->changeTab($screen->get('type') === $type ? 'backToTop' : 'showPage', (int) array_search($type, array_keys(Notifications::Types), true));
-}
-
-/**
  * Whether a tree shows some text.
  *
  * @param  array<string, mixed>  $tree
@@ -409,7 +401,8 @@ function userJson(array $overrides = []): array
     $username = $overrides['handle'] ?? 'local_dev';
 
     return [
-        'id' => '0199e5c4-0000-7000-8000-000000000001',
+        // Someone else, named by a handle of their own, is someone else to the app too.
+        'id' => $username === 'local_dev' ? '0199e5c4-0000-7000-8000-000000000001' : 'user-'.$username,
         'handle' => $username,
         'name' => 'Local Dev',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/1?v=4',
@@ -424,6 +417,17 @@ function userJson(array $overrides = []): array
         'lane' => 3,
         ...$overrides,
     ];
+}
+
+/**
+ * Someone replying to a commit, who isn't its author.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function replierJson(array $overrides = []): array
+{
+    return userJson(['id' => '0199e5c4-0000-7000-8000-0000000000aa', 'handle' => 'replier', 'name' => 'Re Plier', 'lane' => 5, ...$overrides]);
 }
 
 /**
@@ -584,14 +588,16 @@ function commitPageJson(array $commit, array $ancestors = [], array $series = []
 
 /**
  * A reply as `GET /commits/{id}/replies` sends it: like any commit, but without
- * stars_count or starred, which that list doesn't load.
+ * stars_count or starred, which that list doesn't load. It comes from someone
+ * other than the commit's author unless a test says who, since a reply of
+ * theirs carries their own thread on (see SelfThread).
  *
  * @param  array<string, mixed>  $overrides
  * @return array<string, mixed>
  */
 function replyJson(array $overrides = []): array
 {
-    return array_diff_key(commitJson($overrides), array_flip(['stars_count', 'starred']));
+    return array_diff_key(commitJson(['author' => replierJson(), ...$overrides]), array_flip(['stars_count', 'starred']));
 }
 
 /**
@@ -846,6 +852,15 @@ function nodeByRef(TestableComponent $screen, string $ref): array
  * Whether a round button in a sheet's bar can be tapped. A disabled one is drawn as a plain circle, not a pressable.
  */
 function sheetButtonEnabled(TestableComponent $screen, string $ref): bool
+{
+    return nodeByRef($screen, $ref)['type'] === 'pressable';
+}
+
+/**
+ * Whether a composer's round send button (partials/send-button) can be tapped. A disabled one is drawn as a plain
+ * circle, not a pressable.
+ */
+function canSend(TestableComponent $screen, string $ref): bool
 {
     return nodeByRef($screen, $ref)['type'] === 'pressable';
 }
@@ -1193,4 +1208,110 @@ function skipWithoutSkia(): void
     if (! class_exists(SkiaServiceProvider::class)) {
         test()->markTestSkipped('needs the Skia plugin installed');
     }
+}
+
+/**
+ * Turns EDGE's subtree reuse on for the screens a test opens next, as every phone has it: a frame sends a node the
+ * phone already holds as a reuse marker. Skips the test where the installed nativephp/mobile can't keep the phone's
+ * tree in step with that (anything before NativePHP/mobile-air#699, whose reader asks for a full frame when it
+ * can't), since partial frames would draw lists blank there.
+ */
+function sendPartialFrames(): FakeBridge
+{
+    if (! defined(NativeComponent::class.'::EVENT_FULL_FRAME')) {
+        test()->markTestSkipped('needs nativephp/mobile with NativePHP/mobile-air#699');
+    }
+
+    $bridge = FakeBridge::enable();
+    $bridge->runtimeFlags = 0x02;
+
+    return $bridge;
+}
+
+/**
+ * The tree the phone holds after every frame the screen has published, built as EDGE's reader builds it: a reuse
+ * marker takes the node with that id from the tree before. A marker for a node the phone doesn't hold fails the test.
+ *
+ * @return array<string, mixed>
+ */
+function phoneTree(TestableComponent $screen): array
+{
+    $tree = null;
+
+    foreach ($screen->bridge()->publishes as $n => $frame) {
+        $held = [];
+        $index = function (array $node) use (&$index, &$held): void {
+            $held[$node['id']] = $node;
+            foreach ($node['children'] ?? [] as $child) {
+                $index($child);
+            }
+        };
+        if ($tree !== null) {
+            $index($tree);
+        }
+
+        $build = function (array $node) use (&$build, $held, $n): array {
+            if ((($node['flags'] ?? 0) & 1) === 1) {
+                expect(array_key_exists($node['id'], $held))->toBeTrue("Frame {$n} reuses node {$node['id']} ({$node['type']}), which the phone doesn't hold.");
+
+                return $held[$node['id']];
+            }
+
+            if (isset($node['children'])) {
+                $node['children'] = array_map($build, $node['children']);
+            }
+
+            return $node;
+        };
+
+        $tree = $build($frame);
+    }
+
+    expect($tree)->not->toBeNull('The screen has published nothing.');
+
+    return $tree;
+}
+
+/**
+ * Expects the phone to hold what the screen would send it in full right now, so partial frames left nothing stale or
+ * missing. Draws one full frame to compare with, which the phone never gets.
+ */
+function expectPhoneInStep(TestableComponent $screen, string $after = ''): void
+{
+    $onPhone = phoneTree($screen);
+    $bridge = $screen->bridge();
+    $flags = $bridge->runtimeFlags;
+    $sent = count($bridge->publishes);
+
+    $bridge->runtimeFlags = 0;
+    $full = $screen->call('navTitle')->tree();
+    $bridge->runtimeFlags = $flags;
+    $bridge->publishes = array_slice($bridge->publishes, 0, $sent);
+
+    $strip = function (array $node) use (&$strip): array {
+        unset($node['_hash']);
+        if (isset($node['children'])) {
+            $node['children'] = array_map($strip, $node['children']);
+        }
+
+        return $node;
+    };
+
+    expect($strip($onPhone))->toBe($strip($full), "The phone isn't in step after: {$after}");
+}
+
+/**
+ * How many nodes the screen's last frame sent in full, rather than as reuse markers.
+ */
+function nodesSentInFull(TestableComponent $screen): int
+{
+    $count = function (array $node) use (&$count): int {
+        if ((($node['flags'] ?? 0) & 1) === 1) {
+            return 0;
+        }
+
+        return 1 + array_sum(array_map($count, $node['children'] ?? []));
+    };
+
+    return $count(end($screen->bridge()->publishes));
 }

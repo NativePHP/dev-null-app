@@ -5,7 +5,7 @@
         <native:row class="w-full py-2 pr-4 items-center">
             <native:text font="mono" class="text-xs text-theme-ink-muted">{{ $label }}</native:text>
         </native:row>
-        <native:column class="w-full h-[1] bg-theme-hairline" />
+        <native:column class="w-full h-[1] border-b border-theme-hairline" />
     </native:column>
 
     @include('native.partials.rail', ['previous' => $lane])

@@ -3,7 +3,6 @@
 namespace App\Devnull;
 
 use App\Devnull\Data\Commit;
-use App\Devnull\Data\User;
 use App\Icons\Lucide;
 use Native\Mobile\Edge\Elements\TopBarAction;
 use Native\Mobile\Edge\Layouts\Builders\NavAction;
@@ -14,26 +13,28 @@ use Native\Mobile\Edge\Layouts\Builders\NavAction;
  * Unpin from profile on your own published commit, not a reply nor one posted
  * in a guild, which devnull won't pin to a profile; then, after a
  * divider, Report commit on someone else's published commit, or Delete commit
- * on your own. Each item names the commit, so a tap never rebuilds anything
- * from an attribute (see ShowsCommits).
+ * on yours. An organization's commit is yours while you're a member, whoever
+ * posted it (see Ownership), so every member gets Delete, as on the web. Only
+ * a person has a profile to pin to, so it never gets Pin. Each item names the
+ * commit, so a tap never rebuilds anything from an attribute (see ShowsCommits).
  */
 final class CommitMenu
 {
     /**
      * @return list<TopBarAction|NavAction>
      */
-    public static function items(Commit $commit, ?User $viewer): array
+    public static function items(Commit $commit, Ownership $ownership): array
     {
-        $isOwn = $viewer !== null && $commit->author->id === $viewer->id;
+        $isOwn = $ownership->owns($commit);
         $items = [];
 
         $items[] = self::item($commit, 'share', 'Share link', Lucide::Link, 'shareCommit');
 
-        if ($isOwn && $commit->isApproved() && $commit->parentId === null && $commit->guild === null) {
+        if ($ownership->isYourOwn($commit) && $commit->isApproved() && $commit->parentId === null && $commit->guild === null) {
             $items[] = self::item($commit, 'pin', $commit->isPinned ? 'Unpin from profile' : 'Pin to profile', Lucide::Pin, 'togglePin');
         }
 
-        if ($viewer !== null && ! $isOwn && $commit->isApproved()) {
+        if ($ownership->isSignedIn() && ! $isOwn && $commit->isApproved()) {
             $items[] = NavAction::divider();
             $items[] = self::item($commit, 'report', 'Report commit', Lucide::Flag, 'reportCommit');
         } elseif ($isOwn) {

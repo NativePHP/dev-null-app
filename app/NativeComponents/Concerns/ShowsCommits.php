@@ -16,9 +16,9 @@ use App\Devnull\ResponseCache;
 use App\Devnull\SiteLink;
 use App\Devnull\Timezone;
 use App\Devnull\Toasts;
+use App\NativeComponents\FeedWorkspace;
 use Closure;
 use Native\Mobile\Attributes\On;
-use Native\Mobile\Edge\SharedValue;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Facades\Browser;
 use Native\Mobile\Facades\Dialog;
@@ -39,6 +39,9 @@ use Native\Mobile\Facades\Share;
  *
  * A commit can be tapped where a row nests it too: the commit a row quotes,
  * and the replies a feed shows under a commit.
+ *
+ * A commit is yours when you made it or an organization you're in did, as
+ * devnull decides it (see Ownership).
  */
 trait ShowsCommits
 {
@@ -46,6 +49,8 @@ trait ShowsCommits
     use OpensGuilds;
     use OpensHashtags;
     use OpensStargazers;
+    use PopsReactions;
+    use ShowsImageViewer;
     use VotesOnPolls;
     use WritesInBackground;
 
@@ -62,37 +67,6 @@ trait ShowsCommits
      * The commit the delete alert is asking about.
      */
     public ?string $deleting = null;
-
-    /**
-     * Whether the image viewer is up, over everything else on the screen,
-     * sheet included.
-     */
-    public bool $viewerOpen = false;
-
-    /**
-     * The images of the commit being viewed, as they were when it opened, so
-     * the viewer keeps what it shows while it slides away even if the commit
-     * leaves the screen.
-     *
-     * @var list<CommitImage>
-     */
-    public array $viewerImages = [];
-
-    /**
-     * Which of the viewer's images is showing.
-     */
-    public int $viewerIndex = 0;
-
-    /**
-     * The zoom and pan of the image being viewed, driven on the phone by the
-     * viewer's gesture area. Fresh ones on every open and every move between
-     * images, so each starts at rest; nulled on close.
-     */
-    public ?SharedValue $viewerZoom = null;
-
-    public ?SharedValue $viewerPanX = null;
-
-    public ?SharedValue $viewerPanY = null;
 
     /**
      * Every commit the screen is showing.
@@ -211,8 +185,8 @@ trait ShowsCommits
      * star goes to devnull from the outbox (see SyncsOutbox). The commit takes
      * the count devnull sends back, or the star comes back off it if devnull
      * says no. Like the web, only someone else's published commit can be
-     * starred, as devnull turns down a star on your own (whose star opens who
-     * starred it instead, see OpensStargazers).
+     * starred, as devnull turns down a star on your own or your organization's
+     * (whose star opens who starred it instead, see OpensStargazers).
      */
     public function toggleStar(string $id): void
     {
@@ -222,15 +196,19 @@ trait ShowsCommits
             return;
         }
 
-        $this->showStar($id, ! $commit->starred);
         $this->queueStar($id, ! $commit->starred);
+
+        // The web only pops a star going on.
+        if (! $commit->starred) {
+            $this->pop('star-'.$id);
+        }
     }
 
     /**
      * Gives the commit a pastel, as the web's pastel button does in pastéis
      * mode: one per tap, from the ten you get each day, on someone else's
-     * published commit, never an organization's (they can't receive them).
-     * The pastel's count goes up and your allowance down at once,
+     * published commit, never an organization's, which has no pastel at all,
+     * as on the web. Its count goes up and your allowance down at once,
      * and the pastel goes from the background, so you can keep tapping. When
      * devnull turns one down, it comes back, and a toast says why in the web's
      * words. With none left, the toast says so without asking devnull.
@@ -240,7 +218,7 @@ trait ShowsCommits
         $commit = $this->shownCommit($id);
         $pasteis = app(Account::class)->pasteis();
 
-        if ($commit === null || $pasteis === null || $commit->author->isOrganization || ! $this->canReactTo($commit)) {
+        if ($commit === null || $pasteis === null || ! $this->canGivePastel($commit)) {
             return;
         }
 
@@ -252,6 +230,7 @@ trait ShowsCommits
 
         app(Account::class)->rememberPasteis($pasteis->afterGiving());
         $this->changeShownCommit($id, fn (Commit $shown): Commit => $shown->withMorePasteis(1));
+        $this->pop('pastel-'.$id);
 
         $this->writeInBackground('POST', Client::pastelPath($id), null, fn (array $json) => $this->pastelGiven($id, $json), function (string $message, ?ApiException $exception = null) use ($id): void {
             $this->pastelTurnedDown($id, $exception);
@@ -260,8 +239,9 @@ trait ShowsCommits
 
     /**
      * Pin to profile or Unpin from profile, in your own published commit's
-     * More menu. Once devnull answers, a toast says so in the web's words, and
-     * a pin takes the place of the one before (see showPinned()).
+     * More menu. Not an organization's: devnull pins to its author's profile,
+     * which only a person has. Once devnull answers, a toast says so in the
+     * web's words, and a pin takes the place of the one before (see showPinned()).
      */
     public function togglePin(string $id): void
     {
@@ -320,61 +300,15 @@ trait ShowsCommits
     }
 
     /**
-     * Opens a commit's image full-screen in the app (see partials/image-viewer),
-     * from the one the row tapped: the image whole rather than cropped, pinch
-     * zoom between its whole self and four times, a drag to pan, and the
-     * chevrons under it to move between the commit's other images. An image the
-     * screen isn't showing, or one at no web address, opens nothing, as it did
-     * in the browser.
+     * Opens a commit's image full-screen in the app (see ShowsImageViewer), from
+     * the one the row tapped, which it grows out of. An image the screen isn't
+     * showing, or one at no web address, opens nothing, as it did in the browser.
      */
     public function openImage(string $id, int $index = 0): void
     {
         $images = $this->shownCommit($id)?->images ?? [];
-        $image = $images[$index] ?? null;
 
-        if ($image === null || ! SiteLink::isWebUrl($image->url)) {
-            return;
-        }
-
-        $this->viewerImages = $images;
-        $this->viewerIndex = $index;
-        $this->restViewerImage();
-        $this->viewerOpen = true;
-    }
-
-    /**
-     * The chevron under the viewer: the commit's next image, at rest again. At
-     * the last image there's no chevron to press, and a next at no web address
-     * goes nowhere, as an image at one never opens.
-     */
-    public function viewNextImage(): void
-    {
-        $this->showInViewedImage($this->viewerIndex + 1);
-    }
-
-    /**
-     * The chevron under the viewer: the commit's previous image, at rest
-     * again. At the first image there's no chevron to press, and a previous at
-     * no web address goes nowhere either.
-     */
-    public function viewPreviousImage(): void
-    {
-        $this->showInViewedImage($this->viewerIndex - 1);
-    }
-
-    /**
-     * The viewer's close, back or outside tap, however the phone reports it:
-     * the viewer goes and forgets the image and what its gestures left behind,
-     * so the next one opens as this one did.
-     */
-    public function closeImageViewer(): void
-    {
-        $this->viewerOpen = false;
-        $this->viewerImages = [];
-        $this->viewerIndex = 0;
-        $this->viewerZoom = null;
-        $this->viewerPanX = null;
-        $this->viewerPanY = null;
+        $this->showImagesInViewer($images, $index, array_map(fn (CommitImage $image): string => $image->thumbRef(), $images));
     }
 
     /**
@@ -410,7 +344,8 @@ trait ShowsCommits
     }
 
     /**
-     * Delete commit, in your own commit's More menu, asks first, as the web does.
+     * Delete commit, in the More menu of your own commit or an organization's
+     * you're in, asks first, as the web does.
      */
     public function confirmDelete(string $id): void
     {
@@ -485,6 +420,11 @@ trait ShowsCommits
     /**
      * Deletes your commit on devnull, which takes it out of every list kept on
      * this phone, then the screen lets it go (see showDeleted()).
+     *
+     * An organization's commit is only yours while you're in it. When devnull
+     * turns its delete down, the screen says why in devnull's words, and asks
+     * GET /me which organizations you're still in, so the commit stops
+     * offering Delete if you've left.
      */
     public function deleteCommit(string $id): void
     {
@@ -502,8 +442,19 @@ trait ShowsCommits
 
         if ($deleted === true) {
             Toasts::say('rm '.$commit->shortHash.' → /dev/null', short: true);
-            $this->showDeleted($id);
+            if ($this->nativeParentComponent instanceof FeedWorkspace) {
+                $this->nativeParentComponent->conversationDeleted($id);
+            } else {
+                $this->showDeleted($id);
+            }
+        } elseif ($this->error !== null && $commit->author->isOrganization && method_exists($this, 'refreshUnreadNotifications')) {
+            $this->refreshUnreadNotifications();
         }
+    }
+
+    public function applyWorkspaceDeletion(string $id): void
+    {
+        $this->showDeleted($id);
     }
 
     /**
@@ -545,17 +496,22 @@ trait ShowsCommits
 
     private function canReactTo(Commit $commit): bool
     {
-        return ! $commit->isDeleted() && $commit->isApproved() && $commit->author->id !== $this->me()?->id;
+        return ! $commit->isDeleted() && $commit->isApproved() && ! $this->ownership()->owns($commit);
+    }
+
+    private function canGivePastel(Commit $commit): bool
+    {
+        return $this->canReactTo($commit) && ! $commit->author->isOrganization;
     }
 
     private function canPin(Commit $commit): bool
     {
-        return ! $commit->isDeleted() && $commit->isApproved() && $commit->parentId === null && $commit->guild === null && $commit->author->id === $this->me()?->id;
+        return ! $commit->isDeleted() && $commit->isApproved() && $commit->parentId === null && $commit->guild === null && $this->ownership()->isYourOwn($commit);
     }
 
     private function canDelete(Commit $commit): bool
     {
-        return ! $commit->isDeleted() && ! $commit->isStaged() && $commit->author->id === $this->me()?->id;
+        return ! $commit->isDeleted() && ! $commit->isStaged() && $this->ownership()->owns($commit);
     }
 
     /**
@@ -643,34 +599,5 @@ trait ShowsCommits
         if (SiteLink::isWebUrl($url)) {
             Browser::inApp($url);
         }
-    }
-
-    /**
-     * Puts the viewer's image back at rest: fresh shared values, which the
-     * phone seeds at one and none, so what the last image's gestures left
-     * behind can't carry over to it.
-     */
-    private function restViewerImage(): void
-    {
-        $this->viewerZoom = SharedValue::make(1.0);
-        $this->viewerPanX = SharedValue::make();
-        $this->viewerPanY = SharedValue::make();
-    }
-
-    /**
-     * Moves the viewer to one of its commit's images by its place among them,
-     * or nowhere when there's no image there or it's at no web address, so the
-     * viewer never comes to show one the phone shouldn't be asked for.
-     */
-    private function showInViewedImage(int $index): void
-    {
-        $image = $this->viewerImages[$index] ?? null;
-
-        if (! $this->viewerOpen || $image === null || ! SiteLink::isWebUrl($image->url)) {
-            return;
-        }
-
-        $this->viewerIndex = $index;
-        $this->restViewerImage();
     }
 }

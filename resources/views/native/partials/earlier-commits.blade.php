@@ -16,7 +16,7 @@
                 <native:icon :ios="\App\Icons\Lucide::ArrowUp->ios()" :android="\App\Icons\Lucide::ArrowUp->android()" :size="14" class="text-theme-primary" />
                 <native:text font="medium" class="text-[13px] text-theme-primary">{{ $label }}</native:text>
             </native:row>
-            <native:column class="w-full h-[1] bg-theme-hairline" />
+            <native:column class="w-full h-[1] border-b border-theme-hairline" />
         </native:column>
 
         @include('native.partials.dashed-line', ['position' => 'top-0 h-[13]', 'left' => 31.5, 'lane' => \App\Devnull\Lane::Rail])

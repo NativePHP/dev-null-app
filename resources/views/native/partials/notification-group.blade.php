@@ -3,12 +3,19 @@
     guide line, with a 28pt avatar, the name, the icon and time, and the words someone wrote. A follower has no icon,
     as on the web, only the time and their follow back. Each opens its own commit, or profile for a follow. Older ones come with "Show older stars"; one that wouldn't load says so in git's
     voice, with Try again.
+
+    They fade in and out as replies do on the Log: drawn see-through and nudged up while they're in $fadedItems (see
+    Notifications::fadeIn()), and eased to where they belong. Older ones fade in as they come. The guide line and
+    "Show older" fade with the group, as "group-" and its id.
 --}}
 @php($noun = $group->groupNoun())
+@php($fade = \App\NativeComponents\Notifications::GroupFade)
+@php($groupFaded = in_array('group-'.$group->id, $fadedItems ?? [], true))
 <native:column ref="group-items-{{ $group->id }}" class="w-full mt-2">
     @foreach ($items as $item)
+        @php($itemFaded = in_array($item->id, $fadedItems ?? [], true))
         <native:pressable ref="group-item-{{ $item->id }}" @press="open('{{ $item->id }}')" class="w-full">
-            <native:row class="w-full py-2 pl-8 gap-[10] items-start">
+            <native:row class="w-full py-2 pl-8 gap-[10] items-start {{ $itemFaded ? 'opacity-0' : '' }}" :translate-y="$itemFaded ? -8 : 0" :animate-duration="$fade">
                 <native:pressable ref="group-actor-{{ $item->id }}" @press="openActor('{{ $item->actor->username }}')" a11y-label="{{ $item->actor->handle() }}'s profile">
                     @include('native.partials.avatar', ['user' => $item->actor, 'size' => 28])
                 </native:pressable>
@@ -39,11 +46,11 @@
             <native:button ref="group-retry-{{ $group->id }}" variant="secondary" size="sm" @press="loadGroup('{{ $group->id }}')">Try again</native:button>
         </native:row>
     @elseif (isset($expandedCursors[$group->id]))
-        <native:pressable ref="group-older-{{ $group->id }}" @press="loadGroup('{{ $group->id }}', true)" class="ml-6 mt-1 px-2 py-[2]">
+        <native:pressable ref="group-older-{{ $group->id }}" @press="loadGroup('{{ $group->id }}', true)" class="ml-6 mt-1 px-2 py-[2] {{ $groupFaded ? 'opacity-0' : '' }}" :translate-y="$groupFaded ? -8 : 0" :animate-duration="$fade">
             <native:text font="medium" class="text-[13px] text-theme-primary">Show older {{ $noun }}</native:text>
         </native:pressable>
     @endif
 
     {{-- The guide line, drawn last so it sits over the rows it runs beside. --}}
-    <native:column class="absolute top-0 bottom-2 left-[14] w-[1] bg-theme-rail" />
+    <native:column ref="group-guide-{{ $group->id }}" class="absolute top-0 bottom-2 left-[14] w-[1] bg-theme-rail {{ $groupFaded ? 'opacity-0' : '' }}" :animate-duration="$fade" />
 </native:column>

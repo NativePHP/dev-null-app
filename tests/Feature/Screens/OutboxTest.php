@@ -4,6 +4,7 @@ use App\Devnull\Account;
 use App\Devnull\Outbox;
 use App\Devnull\Stash;
 use App\Models\PendingWrite;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -262,6 +263,32 @@ it('never sends a commit left over from when the app closed, and offers it back 
         ->and($screen->instance()->sheetView)->toBe('compose')
         ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('Lost in transit')
         ->and(PendingWrite::query()->count())->toBe(0);
+});
+
+it('says a commit may not have gone when devnull took it and never answered in time, and gives you the draft back', function () {
+    serveApi(fn (Request $request) => $request->method() === 'POST'
+        ? throw new ConnectionException('cURL error 28: Operation timed out after 20001 milliseconds with 0 bytes received')
+        : Http::response(pageJson([adasCommit()])));
+
+    $screen = Native::visit('/log', platform: 'android')->press('composeInSheet')
+        ->input('sheet-body', 'Shipped while it hung')
+        ->tap('sheet-commit')
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === Outbox::NoAnswer && $params['variant'] === 'error');
+
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue()
+        ->and(nodeByRef($screen, 'sheet-body')['props']['value'])->toBe('Shipped while it hung')
+        ->and(array_map(fn ($shown): string => $shown->id, $screen->instance()->commits))->toBe(['c1']);
+});
+
+it('still says devnull could not be reached when a commit never got through', function () {
+    serveApi(fn (Request $request) => $request->method() === 'POST'
+        ? throw new ConnectionException('cURL error 7: Failed to connect to devnull.test port 443')
+        : Http::response(pageJson([adasCommit()])));
+
+    Native::visit('/log', platform: 'android')->press('composeInSheet')
+        ->input('sheet-body', 'Shipped offline')
+        ->tap('sheet-commit')
+        ->assertNativeCalled('ToastKit.Show', fn (array $params): bool => $params['message'] === "fatal: unable to access 'http://devnull.test': could not connect to the server");
 });
 
 it('brings back the photos and poll of a commit devnull turned down when its composer opens again', function () {

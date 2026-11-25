@@ -123,7 +123,7 @@ trait HoldsNewCommits
         $shown = (new FreshPage($this->commits, $this->nextCursor, $this->newCommits, $this->newCommitsReplaceList, $this->newCommitsCursor))->withNewer();
 
         if ($this->newCommitsReplaceList) {
-            $this->threads = [];
+            $this->forgetThreads();
             $this->replacedList();
         }
 

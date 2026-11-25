@@ -1,0 +1,25 @@
+<?php
+
+namespace App\Devnull;
+
+/**
+ * Measures the image viewer works to (see Concerns\ShowsImageViewer and partials/image-viewer).
+ */
+final class ImageViewer
+{
+    /**
+     * How far a drag up or down takes the image before the viewer goes, in points. Letting go short of half of it,
+     * without a flick, springs the image back.
+     */
+    public const float DismissDistance = 240;
+
+    /**
+     * The most an image zooms, as many times its whole self.
+     */
+    public const float MaxZoom = 4;
+
+    /**
+     * How far a double tap zooms an image at its whole self: half the most it zooms.
+     */
+    public const float DoubleTapZoom = self::MaxZoom / 2;
+}

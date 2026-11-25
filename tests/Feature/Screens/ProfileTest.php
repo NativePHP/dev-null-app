@@ -1,6 +1,9 @@
 <?php
 
+use App\Devnull\Account;
 use App\Devnull\Data\User;
+use App\Devnull\Lane;
+use App\NativeComponents\Profile;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
@@ -58,7 +61,7 @@ it('shows who they are, their counts and their commits', function () {
         ->assertSee("That's @ada's root commit.");
 });
 
-it("shows Reply as just its icon beside a commit's replies, so the row still fits a phone", function () {
+it("labels Reply, with a commit's replies on their own line under the actions", function () {
     fakeApi([
         'GET /api/v1/users/ada' => [profileJson()],
         'GET /api/v1/users/ada/commits' => [pageJson([
@@ -71,8 +74,9 @@ it("shows Reply as just its icon beside a commit's replies, so the row still fit
     $labels = fn (string $ref): array => findNodes(nodeByRef($screen, $ref), fn (array $node): bool => ($node['type'] ?? null) === 'text');
 
     expect(nodeByRef($screen, 'reply-to-c1')['props']['a11y_label'])->toBe('Reply')
-        ->and($labels('reply-to-c1'))->toBe([])
-        ->and($labels('reply-to-c2'))->toHaveCount(1);
+        ->and($labels('reply-to-c1'))->toHaveCount(1)
+        ->and($labels('reply-to-c2'))->toHaveCount(1)
+        ->and(findNode(nodeByRef($screen, 'actions-c1'), fn (array $node): bool => ($node['ref'] ?? null) === 'replies-c1'))->toBeNull();
 });
 
 it('lists what GitHub says about them under the bio, as the web does', function () {
@@ -503,3 +507,65 @@ it("stays a person's profile when a thread on it is gone", function (Closure $pr
     'devnull sent it' => [fn (): array => [profileJson()], fn (): array => []],
     "devnull couldn't send it yet" => [fn (): array => [['message' => 'Server Error'], 500], fn (): array => ['user' => User::fromArray(userJson(['handle' => 'ada', 'name' => 'Ada Lovelace']))]],
 ]);
+
+it('opens the profile picture full-screen from the avatar, at the 1024 pixels the web asks GitHub for', function () {
+    fakeApi([
+        'GET /api/v1/users/ada' => [profileJson(user: ['avatar_url' => 'https://avatars.githubusercontent.com/u/42?v=4'])],
+        'GET /api/v1/users/ada/commits' => [pageJson([])],
+    ]);
+
+    $screen = Native::visit('/log/users/ada');
+
+    // The header's avatar is named, so the viewer grows the picture out of it.
+    expect(nodeByRef($screen, Profile::ProfilePictureRef)['type'])->toBe('image');
+
+    $screen->tap('profile-picture');
+
+    expect(nodeByRef($screen, 'image-viewer')['props']['visible'])->toBeTrue()
+        ->and(nodeByRef($screen, 'viewed-image-0')['props'])->toMatchArray([
+            'src' => 'https://avatars.githubusercontent.com/u/42?v=4&s=1024',
+            'alt' => "Ada Lovelace's profile picture",
+        ])
+        ->and($screen->instance()->viewerSources)->toBe([Profile::ProfilePictureRef]);
+
+    $screen->assertNativeNotCalled('Browser.OpenInApp');
+});
+
+it('leaves an avatar that is not on GitHub as it is, and a profile with none has nothing to open', function () {
+    fakeApi([
+        'GET /api/v1/users/ada' => [profileJson(user: ['avatar_url' => 'https://img.test/ada.png'])],
+        'GET /api/v1/users/ada/commits' => [pageJson([])],
+        'GET /api/v1/users/bob' => [profileJson(user: ['id' => 'u3', 'handle' => 'bob', 'avatar_url' => null])],
+        'GET /api/v1/users/bob/commits' => [pageJson([])],
+    ]);
+
+    $screen = Native::visit('/log/users/ada')->tap('profile-picture');
+
+    expect(nodeByRef($screen, 'viewed-image-0')['props']['src'])->toBe('https://img.test/ada.png');
+
+    $bob = Native::visit('/log/users/bob');
+
+    expect(findNode($bob->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'profile-picture'))->toBeNull();
+    expect($bob->call('viewProfilePicture')->instance()->viewerOpen)->toBeFalse();
+});
+
+it('draws Follow in your colour on glass on iOS, and Unfollow on clear glass, both 40pt pills', function (string $platform, bool $glass) {
+    fakeApi([
+        'GET /api/v1/users/ada' => [profileJson()],
+        'GET /api/v1/users/ada/commits' => [pageJson([])],
+        'POST /api/v1/users/ada/follow' => [null, 204],
+    ]);
+
+    $screen = Native::visit('/log/users/ada', platform: $platform);
+    $pill = nodeByRef($screen, 'follow-pill');
+    $mine = config('native-ui.theme.light.'.Lane::token(app(Account::class)->user()?->lane()));
+
+    expect((float) $pill['layout']['height'])->toBe(40.0)
+        ->and($pill['style']['bg_color'] ?? null)->toBe($mine)
+        ->and(($pill['props']['glass'] ?? 0) !== 0)->toBe($glass);
+
+    $pill = nodeByRef($screen->tap('follow'), 'follow-pill');
+
+    expect(($pill['props']['glass'] ?? 0) !== 0)->toBe($glass)
+        ->and($pill['style']['bg_color'] ?? null)->toBe($glass ? null : config('native-ui.theme.light.surface-variant'));
+})->with(['iOS' => ['ios', true], 'Android' => ['android', false]]);
