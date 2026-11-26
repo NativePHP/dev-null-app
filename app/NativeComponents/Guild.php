@@ -360,41 +360,6 @@ class Guild extends NativeComponent
     }
 
     /**
-     * The header's Join or Leave. It changes at once, with the member count, and goes back if devnull refuses.
-     */
-    public function toggleJoined(): void
-    {
-        if ($this->guild === null) {
-            return;
-        }
-
-        $before = $this->guild;
-        $this->guild = $before->withJoined(! $before->isJoined);
-
-        $done = $this->attempt(function (Client $devnull) use ($before): bool {
-            $before->isJoined
-                ? $devnull->leaveGuild($before->handle)
-                : $devnull->joinGuild($before->handle);
-
-            return true;
-        });
-
-        if ($done !== true) {
-            $this->guild = $before;
-        }
-    }
-
-    /**
-     * The member count: who's in the guild, titled with its name.
-     */
-    public function openMembers(): void
-    {
-        if ($this->guild !== null) {
-            $this->openInTab('/guilds/'.rawurlencode($this->guild->handle).'/members', ['guildName' => $this->guild->name]);
-        }
-    }
-
-    /**
      * Pull to refresh. You're at the top, so new commits go straight in.
      */
     public function load(): void
