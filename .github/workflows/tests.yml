@@ -77,7 +77,8 @@ jobs:
 
       # Compact prints a dot per passing test and the details of failures only. The runner's
       # terminal is 80 columns, which cuts the names of failed tests short, so widen it.
+      # Parallel runs a worker per CPU, each with its own storage directory (see tests/TestCase.php).
       - name: Execute tests
-        run: php artisan test --compact
+        run: php artisan test --compact --parallel
         env:
           COLUMNS: 200
