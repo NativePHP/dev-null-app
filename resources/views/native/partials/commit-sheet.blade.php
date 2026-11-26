@@ -198,7 +198,7 @@
                                         'heading' => $sheetLayout::mentionHeading($mention, $sheetView) ? 'People you follow' : null,
                                         'label' => 'Mention a developer',
                                         'class' => 'w-full py-1',
-                                        // This scroll view scrolls them; the partial's own six-row one would be a second.
+                                        // This scroll view scrolls them, so the partial must not add its own six-row one.
                                         'scrolls' => false,
                                     ])
                                 </native:scroll-view>
