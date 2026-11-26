@@ -100,6 +100,14 @@ class Guilds extends NativeComponent
         $this->ask(again: true);
     }
 
+    /**
+     * Create a guild, as the web's Guilds page offers above its list: the guild form, beneath this tab.
+     */
+    public function createGuild(): void
+    {
+        $this->openInTab('/guilds/_new');
+    }
+
     public function loadMore(): void
     {
         if ($this->nextPage === null) {

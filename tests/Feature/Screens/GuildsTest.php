@@ -279,3 +279,13 @@ it('decides the Guilds tab afresh for whoever signs in next', function () {
 
     expect(app(Account::class)->guildsTabShown())->toBeFalse();
 });
+
+it('marks the guilds you have joined at the end of their row', function () {
+    serveApi(['GET /api/v1/guilds' => [guildsPage([guildJson(['handle' => 'rust', 'is_joined' => true]), guildJson(['handle' => 'go'])])]]);
+
+    $screen = finishRefreshes(Native::visit('/guilds'));
+
+    expect(nodeByRef($screen, 'guild-rust')['props']['a11y_label'] ?? nodeByRef($screen, 'guild-rust')['a11y_label'] ?? null)->toBe('Rust, #rust, 3 members, joined')
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'guild-joined-rust'))->not->toBeNull()
+        ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'guild-joined-go'))->toBeNull();
+});

@@ -124,7 +124,7 @@
 
     <native:spacer />
 
-    <native:pressable ref="more-{{ $commit->id }}" :menu="\App\Devnull\CommitMenu::items($commit, $ownership)" a11y-label="More">
+    <native:pressable ref="more-{{ $commit->id }}" :menu="\App\Devnull\CommitMenu::items($commit, $ownership, ($pinsToBoard ?? false) && $commit->parentId === null ? $commit->id === ($boardPinnedId ?? null) : null)" a11y-label="More">
         <native:column class="min-w-[44] h-[36] items-center justify-center">
             <native:icon :ios="\App\Icons\Lucide::Ellipsis->ios()" :android="\App\Icons\Lucide::Ellipsis->android()" :size="$iconSize" class="text-theme-ink-muted" />
         </native:column>

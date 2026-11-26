@@ -35,6 +35,10 @@
                         </native:column>
                     </native:row>
                     <native:text class="w-full text-xs text-theme-ink-muted">Search names, #handles, and descriptions.</native:text>
+                    <native:row ref="guilds-create" class="w-full pt-1 gap-3 items-center">
+                        <native:text class="flex-1 text-sm text-theme-ink-muted">Start a public group.</native:text>
+                        <native:button ref="create-guild" variant="secondary" size="sm" :ios-icon="\App\Icons\Lucide::Plus->ios()" :android-icon="\App\Icons\Lucide::Plus->android()" @press="createGuild">Create a guild</native:button>
+                    </native:row>
                 </native:column>
                 <native:column class="w-full h-[1] bg-theme-hairline" />
             </native:column>

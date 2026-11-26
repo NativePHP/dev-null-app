@@ -49,6 +49,8 @@ final class RowInputs
             'poll' => [$scope['pollChoices'][$commit->id] ?? null, in_array($commit->id, $scope['voting'] ?? [], true)],
             'selected' => ($scope['selectedCommit'] ?? null) === $commit->id,
             'video' => $commit->linkPreview?->embed === null ? null : VideoDetails::card($commit->linkPreview),
+            // On a guild's board, its moderator's More pins or unpins it.
+            'boardPin' => ($scope['pinsToBoard'] ?? false) ? ($scope['boardPinnedId'] ?? null) === $commit->id : null,
             // A poll's Vote button wears your lane colour.
             'colour' => $scope['myColour'] ?? null,
         ];

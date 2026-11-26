@@ -10,6 +10,7 @@ use App\Devnull\Data\DraftImage;
 use App\Devnull\Data\Guild;
 use App\Devnull\Data\GuildBoard;
 use App\Devnull\Data\GuildMembers;
+use App\Devnull\Data\GuildSaved;
 use App\Devnull\Data\IncomingCall;
 use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\Notification;
@@ -545,6 +546,59 @@ final readonly class Client
     }
 
     /**
+     * Creates a guild, as the web's Create a guild does: devnull makes its
+     * hashtag from the name, and you become its moderator and first member.
+     * An uploaded icon goes as multipart, in place of the emoji.
+     */
+    public function createGuild(string $name, string $description, string $emoji, ?DraftImage $icon = null): GuildSaved
+    {
+        $payload = ['name' => $name, 'description' => $description, 'emoji' => $emoji];
+
+        $response = $icon === null
+            ? $this->send('POST', 'guilds', payload: $payload)
+            : $this->sendSignedOrFail($this->signedWithIcon('guilds', $payload, $icon));
+
+        $this->cache->forget('guilds');
+
+        return $this->guildSaved($response);
+    }
+
+    /**
+     * Edits a guild you moderate, as the web's Edit guild does. Its hashtag
+     * stays. $removeIcon takes the uploaded icon off, back to the emoji. A new
+     * icon goes as multipart, which PHP only reads from a POST, so it goes as
+     * a POST that devnull takes as the PUT it was signed as.
+     */
+    public function updateGuild(string $handle, string $name, string $description, string $emoji, bool $removeIcon, ?DraftImage $icon = null): GuildSaved
+    {
+        $path = 'guilds/'.rawurlencode($handle);
+        $payload = ['name' => $name, 'description' => $description, 'emoji' => $emoji, 'remove_icon' => $removeIcon];
+
+        $response = $icon === null
+            ? $this->send('PUT', $path, payload: $payload)
+            : $this->sendSignedOrFail($this->signedWithIcon($path, $payload, $icon, 'PUT'));
+
+        $this->cache->forget('guilds');
+        $this->cache->forget($path);
+
+        return $this->guildSaved($response);
+    }
+
+    /**
+     * Pins a commit to the top of a guild's board, as its moderator does on
+     * the web, in place of the one pinned before.
+     */
+    public function pinGuildCommit(string $handle, string $commitId): void
+    {
+        $this->send('PUT', self::guildPinPath($handle, $commitId));
+    }
+
+    public function unpinGuildCommit(string $handle, string $commitId): void
+    {
+        $this->send('DELETE', self::guildPinPath($handle, $commitId));
+    }
+
+    /**
      * A page of your Remotes inbox, newest first, for the web's Open, Fetched
      * or Stashed tab, continuing before a conversation.
      *
@@ -956,11 +1010,66 @@ final readonly class Client
     }
 
     /**
-     * The payload part, then each file, with the files' SHA-256 signed on a line before the body.
+     * Signs a guild write with its uploaded icon, as one image part beside the payload.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function signedWithIcon(string $path, array $payload, DraftImage $icon, string $signedMethod = 'POST'): SignedRequest
+    {
+        return $this->signedMultipart($this->target($path, []), self::body($payload), [
+            ['images[]', 'image-1.'.substr($icon->mimeType, 6), $icon->mimeType, (string) file_get_contents($icon->path)],
+        ], $signedMethod);
+    }
+
+    /**
+     * Sends a request signed here, failing as send() does when devnull refuses it or can't be reached.
+     */
+    private function sendSignedOrFail(SignedRequest $request): Response
+    {
+        try {
+            $response = self::sendSigned($request);
+        } catch (ConnectionException) {
+            throw ApiException::couldNotConnect($this->baseUrl);
+        }
+
+        if (! $response->successful()) {
+            throw ApiException::fromResponse($response);
+        }
+
+        if (! self::answeredByDevnull($response, $request->method)) {
+            throw ApiException::unexpectedAnswer($this->baseUrl, $response->status());
+        }
+
+        return $response;
+    }
+
+    /**
+     * The guild devnull saved, or, answered 202, the message saying it waits for an admin.
+     */
+    private function guildSaved(Response $response): GuildSaved
+    {
+        $json = $this->json($response);
+
+        if ($response->status() === 202) {
+            return new GuildSaved(null, is_string($json['message'] ?? null) ? $json['message'] : '');
+        }
+
+        return new GuildSaved(Guild::fromArray(is_array($json['data'] ?? null) ? $json['data'] : $json));
+    }
+
+    private static function guildPinPath(string $handle, string $commitId): string
+    {
+        return 'guilds/'.rawurlencode($handle).'/commits/'.rawurlencode($commitId).'/pin';
+    }
+
+    /**
+     * The payload part, then each file, with the files' SHA-256 signed on a
+     * line before the body. Signed as anything but a POST, it still goes as a
+     * POST, with devnull told the method it was signed as.
      *
      * @param  list<array{string, string, string, string}>  $files  each one's field, filename, type and bytes
      */
-    private function signedMultipart(string $target, string $payload, array $files): SignedRequest
+    private function signedMultipart(string $target, string $payload, array $files, string $signedMethod = 'POST'): SignedRequest
     {
         $boundary = 'devnull-'.bin2hex(random_bytes(16));
 
@@ -976,9 +1085,11 @@ final readonly class Client
 
         $hashes = implode(',', array_map(fn (array $file): string => hash('sha256', $file[3]), $files));
 
+        $headers = $this->sign($signedMethod, $target, $hashes."\n".$payload, RequestSigner::ImagesNamespace);
+
         return new SignedRequest(
             $this->origin().$target,
-            $this->sign('POST', $target, $hashes."\n".$payload, RequestSigner::ImagesNamespace),
+            $signedMethod === 'POST' ? $headers : [...$headers, 'X-HTTP-Method-Override' => $signedMethod],
             'POST',
             $body."--{$boundary}--\r\n",
             "multipart/form-data; boundary={$boundary}",
