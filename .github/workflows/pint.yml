@@ -1,0 +1,43 @@
+name: Code style
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, sodium
+          coverage: none
+
+      # Pint comes with the dev dependencies. As in the Tests workflow, pull requests from forks get no
+      # plugin licence credentials, so those install everything but the paid plugin, which Pint doesn't need.
+      - name: Install Composer dependencies
+        run: |
+          if [ -n "$COMPOSER_AUTH" ]; then
+            composer install --prefer-dist --no-interaction --no-progress
+          else
+            echo "No COMPOSER_AUTH secret, so installing without the paid plugin."
+            composer setup:free --no-interaction
+          fi
+        env:
+          COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+
+      # --test changes nothing: it lists the files Pint would change and fails if there are any.
+      # Run vendor/bin/pint locally to fix them.
+      - name: Check code style
+        run: vendor/bin/pint --test
