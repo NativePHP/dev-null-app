@@ -548,6 +548,26 @@ it('hides the tab bar on iOS while one column shows a conversation over the feed
         ->and($swift)->toContain('if navigationController === primary { updateTabBar(top: viewController) }');
 });
 
+it('places a pane\'s composer as core places a bottom bar, and shows the scroll edge effect under it', function () {
+    // A thread or commit opened from a workspace is the host's own page, not a core screen, so the host places its
+    // bottom bar itself. It keeps the bar's props: one asking for edge blur goes in a safeAreaBar, as core puts it,
+    // and any other gets core's soft glass. The tab's root level hides the bottom edge effect for the band core draws
+    // under the tab bar, and SwiftUI can't show it again below that, so the page shows it in UIKit.
+    $swift = file_get_contents(base_path('packages/adaptive-layout/resources/ios/AdaptiveFeedRenderer.swift'));
+
+    expect($swift)
+        ->toContain('return (content, sentinel, bar)')
+        ->not->toContain('sentinel?.children.first')
+        ->toContain('let edgeBlur = bar.props.getString("edge_blur", default: "")')
+        ->toContain('.safeAreaBar(edge: .bottom) {')
+        ->toContain('.scrollEdgeEffectStyle(style, for: .bottom)')
+        ->toContain('flags: softGlass ? bar.props.getInt("glass", default: 0) : 0')
+        // The bar keeps its own height under the finite height the inset APIs propose.
+        ->toContain('.fixedSize(horizontal: false, vertical: true)')
+        ->toContain('hosting.showsBottomEdgeEffect = Self.asksForEdgeBlur(parts.bottom)')
+        ->toContain('scrollView.bottomEdgeEffect.isHidden = false');
+});
+
 it('slides a conversation in and out over the feed on one column, and snaps everything else', function () {
     // The workspace sets its stack from each frame. A push or a pop on one column on screen animates like one. A
     // first mount, a fold or unfold between one and two columns, or a swapped history snaps.

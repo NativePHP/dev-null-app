@@ -92,7 +92,7 @@ private struct AdaptiveNodeRoot: View {
                     .equatable()
                     .environment(\.availableHeight, contentGeometry.size.height)
             }
-            .modifier(AdaptiveBottomInset(bottom: bottom, clearance: max(0, paneInsets.bottom - geometry.safeAreaInsets.bottom)))
+            .modifier(AdaptiveBottomInset(bar: bottom, clearance: max(0, paneInsets.bottom - geometry.safeAreaInsets.bottom)))
             .environment(\.availableWidth, geometry.size.width)
             .environment(\.availableHeight, geometry.size.height)
             .environment(\.nativeSafeAreaTop, geometry.safeAreaInsets.top)
@@ -111,27 +111,115 @@ private struct AdaptiveNodeRoot: View {
     }
 }
 
+/// Pins a detail's bottom bar (its composer) to the foot of its page as core
+/// pins a screen's `bottom_bar` in a tab (`BottomBarInsetModifier`), lifted
+/// over a tab bar that still shows below the column.
+///
+/// A bar that asks for the scroll edge effect (`edge_blur`) is placed with
+/// `.safeAreaBar` on iOS 26+, so the system blurs what scrolls under it.
+/// `.safeAreaInset` draws no such effect. The page's hosting controller then
+/// shows the effect, which the tab's root level hides (see
+/// `AdaptiveHostingController`). Any other bar is inset, with core's soft
+/// glass behind it when it carries `glass`.
 private struct AdaptiveBottomInset: ViewModifier {
-    let bottom: NativeUINode?
+    let bar: NativeUINode?
     let clearance: CGFloat
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
-        if let bottom {
-            let dark = colorScheme == .dark ? bottom.props.getColor("dark_bg_color", default: 0) : 0
-            let background = dark != 0 ? dark : (bottom.style?.bgColor ?? 0)
-            content.safeAreaInset(edge: .bottom, spacing: 0) {
-                NodeView(node: bottom)
-                    .equatable()
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity)
-                    .padding(.bottom, clearance)
-                    .background((background == 0 ? Color.clear : Color(argb: background))
-                        .ignoresSafeArea(edges: .bottom))
+        if let bar, let inner = bar.children.first {
+            let edgeBlur = bar.props.getString("edge_blur", default: "")
+            #if compiler(>=6.2)
+            if !edgeBlur.isEmpty, #available(iOS 26.0, *) {
+                let style: ScrollEdgeEffectStyle = edgeBlur == "hard" ? .hard : .soft
+                content
+                    .safeAreaBar(edge: .bottom) {
+                        barContent(inner, bar, softGlass: false)
+                    }
+                    .scrollEdgeEffectStyle(style, for: .bottom)
+            } else {
+                inset(content, inner, bar)
             }
+            #else
+            inset(content, inner, bar)
+            #endif
         } else {
             content
         }
+    }
+
+    private func inset(_ content: Content, _ inner: NativeUINode, _ bar: NativeUINode) -> some View {
+        content.safeAreaInset(edge: .bottom, spacing: 0) {
+            barContent(inner, bar, softGlass: true)
+        }
+    }
+
+    /// The bar's root at its own height: the inset APIs propose a finite one,
+    /// which a flex root would fill. Its background colour and the glass run
+    /// on through the clearance and the bottom safe area.
+    private func barContent(_ inner: NativeUINode, _ bar: NativeUINode, softGlass: Bool) -> some View {
+        let dark = colorScheme == .dark ? inner.props.getColor("dark_bg_color", default: 0) : 0
+        let background = dark != 0 ? dark : (inner.style?.bgColor ?? 0)
+        return NodeView(node: inner)
+            .equatable()
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, clearance)
+            .background((background == 0 ? Color.clear : Color(argb: background))
+                .ignoresSafeArea(edges: .bottom))
+            .background(alignment: .top) {
+                BottomBarSoftGlass(
+                    flags: softGlass ? bar.props.getInt("glass", default: 0) : 0,
+                    opacity: CGFloat(bar.props.getFloat("glass_opacity", default: 1))
+                )
+            }
+    }
+}
+
+/// A page's hosting controller. Under a bar that asks for the scroll edge
+/// effect it shows that effect on the page's scroll view, after each layout.
+///
+/// SwiftUI can't show it here. The workspace sits on a tab's root level,
+/// where core hides the bottom edge effect for the blur band it lays under
+/// the tab bar (`TabBarEdgeBlurModifier`), and every page inherits that
+/// environment. No view can show an effect an ancestor hid, so the effect is
+/// turned back on in UIKit. SwiftUI only sets it again when its own setting
+/// changes, so it stays on.
+private final class AdaptiveHostingController: UIHostingController<AdaptiveNodeRoot> {
+    var showsBottomEdgeEffect = false {
+        didSet {
+            if showsBottomEdgeEffect != oldValue { viewIfLoaded?.setNeedsLayout() }
+        }
+    }
+    private weak var pageScrollView: UIScrollView?
+    private var retryScheduled = false
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        showBottomEdgeEffect(retrying: true)
+    }
+
+    private func showBottomEdgeEffect(retrying: Bool) {
+        #if compiler(>=6.2)
+        guard showsBottomEdgeEffect, #available(iOS 26.0, *) else { return }
+        if pageScrollView?.isDescendant(of: view) != true {
+            pageScrollView = view.adaptivePageScrollView(in: view)
+        }
+        guard let scrollView = pageScrollView else {
+            // SwiftUI can add the scroll view after this pass. Look once more
+            // on the next turn, without asking for another layout.
+            guard retrying, !retryScheduled else { return }
+            retryScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                self?.retryScheduled = false
+                self?.showBottomEdgeEffect(retrying: false)
+            }
+            return
+        }
+        if scrollView.bottomEdgeEffect.isHidden {
+            scrollView.bottomEdgeEffect.isHidden = false
+        }
+        #endif
     }
 }
 
@@ -139,7 +227,7 @@ private struct AdaptiveBottomInset: ViewModifier {
 /// A hosting controller used directly as a navigation destination can replace
 /// its title item when it moves between the two navigation controllers.
 private final class AdaptivePageController: UIViewController {
-    private let hosting: UIHostingController<AdaptiveNodeRoot>
+    private let hosting: AdaptiveHostingController
     private let paneInsets: AdaptivePaneInsets
     private var requestedBottomInset: CGFloat = 0
     private var requestedHorizontalInsets = AdaptivePaneInsets.HorizontalInsets()
@@ -166,14 +254,24 @@ private final class AdaptivePageController: UIViewController {
         barNode = parts.bar
         let paneInsets = AdaptivePaneInsets()
         self.paneInsets = paneInsets
-        hosting = UIHostingController(rootView: AdaptiveNodeRoot(content: parts.content, bottom: parts.bottom, inherited: environment, paneInsets: paneInsets))
+        hosting = AdaptiveHostingController(rootView: AdaptiveNodeRoot(content: parts.content, bottom: parts.bottom, inherited: environment, paneInsets: paneInsets))
         super.init(nibName: nil, bundle: nil)
+        hosting.showsBottomEdgeEffect = Self.asksForEdgeBlur(parts.bottom)
         navigationItem.largeTitleDisplayMode = .never
+    }
+
+    /// Whether a bottom bar is placed with `.safeAreaBar` for the scroll edge
+    /// effect (see `AdaptiveBottomInset`).
+    private static func asksForEdgeBlur(_ bar: NativeUINode?) -> Bool {
+        guard let bar, bar.children.first != nil else { return false }
+        return !bar.props.getString("edge_blur", default: "").isEmpty
     }
 
     /// What a page draws, its bottom bar, and its bar. A detail's content is
     /// its component, the tag's first child; the primary column's is the
-    /// whole tag. Neither draws the bar.
+    /// whole tag. Neither draws the bar. The bottom bar is the bottom_bar
+    /// element itself, holding the bar's root, as its props say how to
+    /// place it (edge_blur) and what goes behind it (glass).
     private static func parts(of node: NativeUINode, detail: Bool) -> (content: NativeUINode, bottom: NativeUINode?, bar: NativeUINode?) {
         let bar = node.children.first { $0.type == "adaptive_bar" }
         var root = detail ? (node.children.first { $0.type != "adaptive_bar" } ?? node) : node
@@ -182,7 +280,7 @@ private final class AdaptivePageController: UIViewController {
         }
         let sentinel = detail ? root.children.first { $0.type == "bottom_bar" } : nil
         let content = sentinel == nil ? root : root.copy(children: root.children.filter { $0.type != "bottom_bar" })
-        return (content, sentinel?.children.first, bar)
+        return (content, sentinel, bar)
     }
 
     @available(*, unavailable)
@@ -237,6 +335,7 @@ private final class AdaptivePageController: UIViewController {
             contentNode = parts.content
             bottomNode = parts.bottom
             barNode = parts.bar
+            hosting.showsBottomEdgeEffect = Self.asksForEdgeBlur(parts.bottom)
         }
         // A resize never copies text from PHP or replaces a controller. The
         // unchanged node references also let equatable NodeView skip echoes.
@@ -908,6 +1007,22 @@ private extension UIView {
         if isFirstResponder { return self }
         for child in subviews {
             if let responder = child.adaptiveFirstResponder() { return responder }
+        }
+        return nil
+    }
+
+    /// The outermost scroll view that runs down to the foot of `page` and
+    /// fills at least half of it: the thread or commit under the bottom bar,
+    /// not a field or a strip of photos.
+    func adaptivePageScrollView(in page: UIView) -> UIScrollView? {
+        if let scrollView = self as? UIScrollView, !(self is UITextView) {
+            let frame = convert(bounds, to: page)
+            if frame.maxY >= page.bounds.maxY - 1, frame.height >= page.bounds.height / 2 {
+                return scrollView
+            }
+        }
+        for child in subviews {
+            if let found = child.adaptivePageScrollView(in: page) { return found }
         }
         return nil
     }
