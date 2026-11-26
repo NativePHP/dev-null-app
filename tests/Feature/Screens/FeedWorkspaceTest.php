@@ -506,3 +506,15 @@ it('hides the tab bar on iOS while one column shows a conversation over the feed
         ->and(substr_count($swift, 'updateTabBar(top: primary.topViewController)'))->toBe(2)
         ->and($swift)->toContain('if navigationController === primary { updateTabBar(top: viewController) }');
 });
+
+it('slides a conversation in and out over the feed on one column, and snaps everything else', function () {
+    // The workspace sets its stack from each frame. A push or a pop on one column on screen animates like one. A
+    // first mount, a fold or unfold between one and two columns, or a swapped history snaps.
+    $swift = file_get_contents(base_path('packages/adaptive-layout/resources/ios/AdaptiveFeedRenderer.swift'));
+
+    expect($swift)
+        ->toContain('let animatePrimary = !migrating && !wantsWide && view.window != nil && !oldPrimary.isEmpty')
+        ->toContain('&& oldPrimary.count != primaryStack.count')
+        ->toContain('primary.setViewControllers(primaryStack, animated: animatePrimary)')
+        ->not->toContain('primary.setViewControllers(primaryStack, animated: false)');
+});
