@@ -13,6 +13,7 @@ use App\Devnull\ResponseCache;
 use App\Devnull\ShownTabs;
 use App\Devnull\Toasts;
 use App\Icons\Lucide;
+use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
 use App\NativeComponents\Concerns\OffersPush;
 use App\NativeComponents\Concerns\OpensPushedScreen;
@@ -128,6 +129,16 @@ class Remotes extends NativeComponent
     public ?string $muting = null;
 
     /**
+     * In the primary column of the iOS workspace (see RemotesWorkspace), which opens threads beside it.
+     */
+    public bool $embedded = false;
+
+    /**
+     * The path of the thread open beside the list, whose row shows as selected.
+     */
+    public ?string $selectedPath = null;
+
+    /**
      * What writes devnull hasn't answered yet changed in the rows, by the
      * row's id: a pin or a mute, or `gone` for one you stashed, blocked or
      * left. A poll that answers first gets them laid over it, so a row never
@@ -230,6 +241,19 @@ class Remotes extends NativeComponent
     protected function showsContent(): bool
     {
         return $this->loaded;
+    }
+
+    /**
+     * A message you pushed from the thread open beside the inbox (see RemotesWorkspace) went: its row moves up now,
+     * rather than at the next poll.
+     *
+     * @param  array<string, mixed>|null  $json
+     */
+    protected function showMessage(PendingWrite $write, ?array $json): void
+    {
+        if ($json !== null) {
+            $this->revalidate();
+        }
     }
 
     /**
@@ -849,6 +873,7 @@ class Remotes extends NativeComponent
                 'viewer' => $viewer,
                 'myColour' => $this->myColour(),
                 'menu' => RemoteMenu::items($conversation, $viewer?->id),
+                'selected' => $this->selectedPath !== null && $conversation->path() === $this->selectedPath,
             ], $conversations),
         ];
     }

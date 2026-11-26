@@ -3,6 +3,7 @@
     a row per conversation, the latest first. The tabs are pages you swipe between, as on the Log: the pager draws them
     in a full-width split, the underline in your lane follows your finger, and a tap on the tab you're on takes it back
     to its top. While you have Remotes off, the tab shows the web's page for /remotes then, its 404, word for word.
+    In the iOS workspace's primary column the list is narrow enough already, so it takes the column's width.
 --}}
 <native:column class="w-full h-full items-center bg-theme-surface">
     @if ($off)
@@ -22,7 +23,7 @@
             ref="remotes-pager"
             horizontal
             report-on-settle
-            class="w-full flex-1 bg-theme-surface {{ \App\Devnull\Display::ReadableColumn }}"
+            class="w-full flex-1 bg-theme-surface {{ $embedded ? '' : \App\Devnull\Display::ReadableColumn }}"
             :count="count($tabLabels)"
             :page="$pageIndex"
             :from="$pagesFrom"

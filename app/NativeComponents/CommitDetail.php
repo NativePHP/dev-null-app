@@ -38,6 +38,7 @@ use Illuminate\View\View;
 use Native\Mobile\Edge\Layouts\Builders\NavAction;
 use Native\Mobile\Edge\Layouts\Builders\NavBarOptions;
 use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Edge\Transition;
 
 /**
  * One commit: its ancestors above, its replies below, and a reply composer.
@@ -336,6 +337,10 @@ class CommitDetail extends NativeComponent
         return 'Commit';
     }
 
+    /**
+     * The short hash under the title, and Delete for your own. In the iOS workspace (see Workspace) Delete keeps the
+     * system's trash it has always drawn there.
+     */
     public function navigationOptions(): ?NavBarOptions
     {
         $options = NavBarOptions::make()->subtitle($this->commit?->shortHash ?? Display::shortHash($this->id));
@@ -343,7 +348,7 @@ class CommitDetail extends NativeComponent
         if ($this->isOwn()) {
             $options = $options->action(
                 NavAction::make('delete')
-                    ->icon(ios: Lucide::Trash2->ios(), android: Lucide::Trash2->android())
+                    ->icon(ios: $this->embedded ? 'trash' : Lucide::Trash2->ios(), android: Lucide::Trash2->android())
                     ->a11yLabel('Delete commit')
                     ->destructive()
                     ->press("confirmDelete('{$this->id}')"),
@@ -351,6 +356,20 @@ class CommitDetail extends NativeComponent
         }
 
         return $options;
+    }
+
+    /**
+     * In a workspace, back closes this commit's detail, as its back button does.
+     */
+    public function back(Transition|string|null $transition = null): static
+    {
+        if ($this->nativeParentComponent instanceof Workspace) {
+            $this->nativeParentComponent->closePane($this);
+
+            return $this;
+        }
+
+        return parent::back($transition);
     }
 
     /**

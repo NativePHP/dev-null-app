@@ -2,9 +2,8 @@
 
 namespace App\NativeComponents\Concerns;
 
-use App\NativeComponents\FeedWorkspace;
 use App\NativeComponents\Layouts\TabsLayout;
-use App\NativeComponents\Log;
+use App\NativeComponents\Workspace;
 
 /**
  * Opens commits and profiles inside the tab they were tapped in, and never
@@ -20,6 +19,9 @@ use App\NativeComponents\Log;
  * treats that as a re-render of the top level, so the router ends up a copy
  * deeper than what's on screen and back needs a tap per copy. Every commit,
  * profile and mention tap comes through here, so it's checked once.
+ *
+ * In an iOS workspace (see Workspace), what the workspace opens beside its
+ * primary column (commits, or Remotes threads) goes there instead.
  */
 trait OpensInTab
 {
@@ -28,8 +30,14 @@ trait OpensInTab
      */
     protected function openInTab(string $path, array $data = []): void
     {
-        if ($this->nativeParentComponent instanceof FeedWorkspace && str_starts_with($path, '/commits/')) {
-            $this->emit('open-conversation', substr($path, strlen('/commits/')), $data, $this instanceof Log);
+        $workspace = $this instanceof Workspace ? $this : $this->nativeParentComponent;
+
+        if ($workspace instanceof Workspace && ($pane = $workspace->paneFor($path)) !== null) {
+            if ($workspace === $this) {
+                $workspace->openConversation($pane, $data, true);
+            } else {
+                $this->emit('open-conversation', $pane, $data, $workspace->primary() === $this);
+            }
 
             return;
         }

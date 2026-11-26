@@ -7,7 +7,8 @@
     whoever it's about, ending in a dot (see partials/notification).
 
     Keyed per choice of kinds, so a change starts a fresh list at the top. Pull to refresh asks devnull again, and the
-    end of the list asks for the next page.
+    end of the list asks for the next page. In the iOS workspace's primary column the list takes the column's width,
+    and the row whose commit is open beside it shows as selected.
 --}}
 <native:column class="w-full h-full items-center bg-theme-surface">
     @include('native.partials.error')
@@ -17,7 +18,7 @@
     <native:list
         native:key="notifications-{{ $listKey }}"
         ref="notifications"
-        class="w-full flex-1 bg-theme-surface {{ Display::ReadableColumn }}"
+        class="w-full flex-1 bg-theme-surface {{ $embedded ? '' : Display::ReadableColumn }}"
         on-refresh="load"
         on-end-reached="loadMore"
         :end-reached-buffer="5"
@@ -52,6 +53,7 @@
                 'notification' => $notification,
                 'isNew' => $notification->isNewSince($readAt),
                 'withoutBottomBorder' => $lastVisitBefore !== null && ($notifications[$index + 1] ?? null)?->id === $lastVisitBefore,
+                'selected' => $this->isSelected($notification),
             ])
         @endforeach
 

@@ -9,7 +9,7 @@ class AdaptiveFeed extends Element
 {
     protected string $type = 'adaptive_feed';
 
-    protected array $componentProps = ['depth' => 0, 'intent_revision' => 0];
+    protected array $componentProps = ['depth' => 0, 'intent_revision' => 0, 'split' => true];
 
     public static function make(): static
     {
@@ -19,6 +19,16 @@ class AdaptiveFeed extends Element
     public function depth(int $depth): static
     {
         $this->componentProps['depth'] = max(0, $depth);
+
+        return $this;
+    }
+
+    /**
+     * Whether a wide window shows the detail column beside the primary one. Off, it keeps one column.
+     */
+    public function split(bool $split = true): static
+    {
+        $this->componentProps['split'] = $split;
 
         return $this;
     }
@@ -38,6 +48,10 @@ class AdaptiveFeed extends Element
 
         if (isset($attrs['intent-revision'])) {
             $this->componentProps['intent_revision'] = (int) $attrs['intent-revision'];
+        }
+
+        if (array_key_exists('split', $attrs)) {
+            $this->split((bool) $attrs['split']);
         }
 
         if (isset($attrs['_change'])) {

@@ -126,6 +126,24 @@ class Notifications extends NativeComponent
      */
     public array $closingGroups = [];
 
+    /**
+     * In the primary column of the iOS workspace (see NotificationsWorkspace), which opens commits beside it.
+     */
+    public bool $embedded = false;
+
+    /**
+     * The commit open beside the list in the workspace.
+     */
+    public ?string $selectedCommit = null;
+
+    /**
+     * The notification last tapped to open a commit, and that commit. Its row shows as selected while the commit is
+     * the one open beside the list.
+     *
+     * @var array{id: string, commit: string}|null
+     */
+    public ?array $openedNotification = null;
+
     public function mount(): void
     {
         $this->kinds = app(NotificationFilter::class)->enabled($this->me()?->id);
@@ -286,6 +304,10 @@ class Notifications extends NativeComponent
 
         $isGroupMember = ! in_array($id, array_map(fn (Notification $group): string => $group->id, $this->notifications), true);
         $commitId = $notification->isStar() && $isGroupMember ? null : $notification->commitToOpen();
+
+        if ($commitId !== null) {
+            $this->openedNotification = ['id' => $id, 'commit' => $commitId];
+        }
 
         $this->openInTab(match (true) {
             $commitId !== null => '/commits/'.$commitId,
@@ -573,6 +595,15 @@ class Notifications extends NativeComponent
         $this->readAt ??= is_string($json['read_at'] ?? null) ? $json['read_at'] : null;
         $this->loaded = true;
         $this->refreshUnreadNotifications();
+    }
+
+    /**
+     * Whether a notification's row shows as the one whose commit is open beside the list.
+     */
+    public function isSelected(Notification $notification): bool
+    {
+        return $this->selectedCommit !== null
+            && $this->openedNotification === ['id' => $notification->id, 'commit' => $this->selectedCommit];
     }
 
     public function render(): View

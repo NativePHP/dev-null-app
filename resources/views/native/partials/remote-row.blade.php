@@ -5,9 +5,11 @@
     lane, or when it was last written to. Your own last message in a conversation wears the web's glyph: one dot
     pushed, two joined dots once pulled. A muted row wears a crossed-out bell beside the pin.
 
-    A tap opens the thread, and a long press the web's row menu (see App\Devnull\RemoteMenu).
+    A tap opens the thread, and a long press the web's row menu (see App\Devnull\RemoteMenu). In the iOS workspace the
+    row of the thread open beside the list ($selected) takes the wash, as the Log marks its open commit.
 --}}
 @php($id = $conversation->id)
+@php($background = ($selected ?? false) ? 'bg-theme-wash' : 'bg-theme-surface')
 @php($last = $conversation->lastMessage)
 @php($muted = $conversation->isMuted())
 <native:pressable
@@ -18,7 +20,7 @@
     class="w-full"
     a11y-label="{{ $title }}{{ $conversation->isPinned() ? ', pinned' : '' }}{{ $muted ? ', muted' : '' }}{{ $conversation->ahead > 0 ? ', '.$conversation->ahead.' ahead' : '' }}. {{ $preview }}"
 >
-    <native:row class="w-full px-4 py-3 gap-3 items-center bg-theme-surface">
+    <native:row class="w-full px-4 py-3 gap-3 items-center {{ $background }}">
         @if ($conversation->isOrg())
             <native:column :width="44" :height="44">
                 @foreach (array_reverse(array_slice($others, 0, 2), true) as $index => $member)
@@ -79,7 +81,7 @@
             @endif
         </native:column>
     </native:row>
-    <native:column class="w-full pl-[72] bg-theme-surface">
+    <native:column class="w-full pl-[72] {{ $background }}">
         <native:column class="w-full h-[1] border-b border-theme-hairline" />
     </native:column>
 </native:pressable>

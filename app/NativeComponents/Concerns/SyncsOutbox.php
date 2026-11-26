@@ -18,9 +18,10 @@ use App\Devnull\Toasts;
 use App\Devnull\VoiceNotes;
 use App\Models\PendingWrite;
 use App\NativeComponents\CommitDetail;
-use App\NativeComponents\FeedWorkspace;
 use App\NativeComponents\Log;
+use App\NativeComponents\Workspace;
 use Native\Mobile\Attributes\On;
+use Native\Mobile\Edge\NativeComponent;
 use Native\Mobile\Facades\Browser;
 use Throwable;
 use Victorycodedev\ToastKit\Events\ToastActionPressed;
@@ -135,14 +136,13 @@ trait SyncsOutbox
     #[On(Outbox::Answered)]
     public function outboxAnswered(string $id = '', string $status = 'finished', mixed $result = null, ?string $message = null): void
     {
-        if ($this->nativeParentComponent instanceof FeedWorkspace && $this instanceof CommitDetail) {
-            foreach ($this->outboxViews() as $view) {
-                if ($view instanceof Log) {
-                    $view->outboxAnswered($id, $status, $result, $message);
+        // In a workspace the primary column's component answers for every pane, and each pane shows what it says.
+        $primary = $this->nativeParentComponent instanceof Workspace ? $this->nativeParentComponent->primary() : null;
 
-                    return;
-                }
-            }
+        if ($primary !== null && $primary !== $this && method_exists($primary, 'outboxAnswered')) {
+            $primary->outboxAnswered($id, $status, $result, $message);
+
+            return;
         }
 
         $write = app(Outbox::class)->forTask($id);
@@ -224,7 +224,7 @@ trait SyncsOutbox
     #[On(ToastActionPressed::class)]
     public function toastActionPressed(string $toastId = '', string $actionId = '', array $data = []): void
     {
-        if ($this->nativeParentComponent instanceof FeedWorkspace && $this->nativeParentComponent->foregroundPane() !== $this) {
+        if ($this->nativeParentComponent instanceof Workspace && $this->nativeParentComponent->foregroundPane() !== $this) {
             return;
         }
 
@@ -275,7 +275,7 @@ trait SyncsOutbox
             return;
         }
 
-        $this->showMessage($write, $json);
+        $this->broadcastOutboxChange('message-sent', $write, $json);
     }
 
     /**
@@ -307,7 +307,7 @@ trait SyncsOutbox
         $outbox->failed($write, $error);
 
         if ($write->isMessage()) {
-            $this->showMessage($write, null);
+            $this->broadcastOutboxChange('message-rejected', $write);
 
             Toasts::failed($error, ['label' => 'Retry', 'id' => 'retry-message', 'data' => ['write' => $write->id]]);
 
@@ -336,7 +336,7 @@ trait SyncsOutbox
         $this->broadcastOutboxChange('commit-rejected', $write);
         $this->checkOrganizations($write);
 
-        $recovered = $reopen && ($this->nativeParentComponent instanceof FeedWorkspace
+        $recovered = $reopen && ($this->nativeParentComponent instanceof Workspace
             ? $this->nativeParentComponent->recoverOutboxDraft($write)
             : $this->reopenFailedCommit($write));
         if ($recovered) {
@@ -361,10 +361,10 @@ trait SyncsOutbox
         }
     }
 
-    /** @return list<Log|CommitDetail|static> */
+    /** @return list<NativeComponent> */
     private function outboxViews(): array
     {
-        return $this->nativeParentComponent instanceof FeedWorkspace
+        return $this->nativeParentComponent instanceof Workspace
             ? $this->nativeParentComponent->panes()
             : [$this];
     }
@@ -389,6 +389,8 @@ trait SyncsOutbox
             'star' => $this->showStar((string) $write->target, $starred === true, $data === [] ? null : Commit::fromArray($data)),
             'commit-sent' => $this->showCommitWent($write, Commit::fromArray($data)),
             'commit-rejected' => $this->showCommitTurnedDown($write),
+            'message-sent' => $this->showMessage($write, $data),
+            'message-rejected' => $this->showMessage($write, null),
         };
     }
 
@@ -484,7 +486,7 @@ trait SyncsOutbox
         $write = is_numeric($data['write'] ?? null) ? app(Outbox::class)->find((int) $data['write']) : null;
 
         if ($write !== null && $write->isCommit() && $write->isFailed()) {
-            if ($this->nativeParentComponent instanceof FeedWorkspace) {
+            if ($this->nativeParentComponent instanceof Workspace) {
                 $this->nativeParentComponent->navigationRevision++;
             }
             $this->editFailedCommit($write);

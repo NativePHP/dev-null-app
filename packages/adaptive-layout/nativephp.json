@@ -28,6 +28,13 @@
             "blade": "Devnull\\AdaptiveLayout\\Components\\AdaptivePlaceholder",
             "ios_renderer": "AdaptiveDetailRenderer",
             "self_closing": false
+        },
+        {
+            "type": "adaptive_bar",
+            "element": "Devnull\\AdaptiveLayout\\Elements\\AdaptiveBar",
+            "blade": "Devnull\\AdaptiveLayout\\Components\\AdaptiveBar",
+            "ios_renderer": "AdaptiveBarRenderer",
+            "self_closing": true
         }
     ]
 }

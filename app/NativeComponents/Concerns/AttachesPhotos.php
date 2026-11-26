@@ -5,7 +5,7 @@ namespace App\NativeComponents\Concerns;
 use App\Devnull\Data\DraftImage;
 use App\Devnull\DraftImages;
 use App\Devnull\Exceptions\InvalidDraftImage;
-use App\NativeComponents\FeedWorkspace;
+use App\NativeComponents\Workspace;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Events\Camera\PermissionDenied;
 use Native\Mobile\Events\Camera\PhotoTaken;
@@ -60,7 +60,7 @@ trait AttachesPhotos
     public function pickPhotos(): void
     {
         if ($this->hasRoomForPhotos()) {
-            if ($this->nativeParentComponent instanceof FeedWorkspace) {
+            if ($this->nativeParentComponent instanceof Workspace) {
                 $this->nativeParentComponent->claimPhotoPicker($this);
             }
             Camera::pickImages('images', true, DraftImages::MaxImages - count($this->attachedPhotos()))->start();
@@ -70,7 +70,7 @@ trait AttachesPhotos
     public function takePhoto(): void
     {
         if ($this->hasRoomForPhotos()) {
-            if ($this->nativeParentComponent instanceof FeedWorkspace) {
+            if ($this->nativeParentComponent instanceof Workspace) {
                 $this->nativeParentComponent->claimPhotoPicker($this);
             }
             Camera::getPhoto()->start();
@@ -110,7 +110,7 @@ trait AttachesPhotos
 
     private function ownsPhotoPicker(): bool
     {
-        return ! $this->nativeParentComponent instanceof FeedWorkspace || $this->nativeParentComponent->ownsPhotoPicker($this);
+        return ! $this->nativeParentComponent instanceof Workspace || $this->nativeParentComponent->ownsPhotoPicker($this);
     }
 
     /**
