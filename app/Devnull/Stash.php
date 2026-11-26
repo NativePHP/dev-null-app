@@ -11,8 +11,9 @@ use Illuminate\Support\Facades\Cache;
  * the text, and the photos and poll that go with it.
  *
  * Drafts go by the web's names: 'commit' for a new commit, from the compose
- * sheet, 'quote-{id}' for a quote of a commit and 'reply-{id}' for a
- * reply to one. A screen keeps a draft as it changes, and forgets it once
+ * sheet, 'quote-{id}' for a quote of a commit, 'reply-{id}' for a
+ * reply to one, and 'remote:{username}' or 'remote:org:{id}' for a message
+ * in a Remotes thread. A screen keeps a draft as it changes, and forgets it once
  * it's sent or there's nothing left in it. Signing out forgets them all (see
  * Account::forget).
  *

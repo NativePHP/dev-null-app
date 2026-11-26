@@ -9,6 +9,7 @@ use App\Devnull\Data\Conversation as ConversationData;
 use App\Devnull\Data\DraftImage;
 use App\Devnull\Data\Message;
 use App\Devnull\Data\MessageVoice;
+use App\Devnull\Data\StashedDraft;
 use App\Devnull\Data\Thread;
 use App\Devnull\Data\User;
 use App\Devnull\Display;
@@ -19,6 +20,7 @@ use App\Devnull\Outbox;
 use App\Devnull\ReactionEmoji;
 use App\Devnull\ResponseCache;
 use App\Devnull\SiteLink;
+use App\Devnull\Stash;
 use App\Devnull\Toasts;
 use App\Devnull\VoiceNotes;
 use App\Icons\Lucide;
@@ -97,6 +99,11 @@ use NativePHP\Clipboard\Facades\Clipboard;
  * had: it lands in the thread as a log line. A ping coming in or going out
  * while you're on the thread buzzes the phone, as the web shakes the thread
  * to MSN's sound, unless it's someone else's in a thread you've muted.
+ *
+ * What you write and the photos on it are stashed as you go, per thread,
+ * under the web's name for it (see Stash), so they're back when you open
+ * the thread again. Pushing forgets them: from then on the message is the
+ * outbox's, and one devnull turns down stays in the thread with its Retry.
  *
  * In an org, typing "@" lists the org's members above the field, as the web
  * does, and typing on filters them (see SuggestsMentions).
@@ -366,6 +373,9 @@ class Conversation extends NativeComponent
     {
         $row = $this->data('conversation');
         $this->row = $row instanceof ConversationData ? $row : null;
+        $draft = app(Stash::class)->get($this->me()?->id, $this->stashName());
+        $this->draft = $draft->body;
+        $this->photos = $draft->images;
         $this->showKept();
         $this->showPending();
         $this->revalidate();
@@ -518,6 +528,7 @@ class Conversation extends NativeComponent
         $this->replyToId = null;
         $this->lastActivityAt = self::now();
         $this->lastTypingAt = 0;
+        $this->stashDraft();
 
         $this->sendFromOutbox($write);
     }
@@ -681,10 +692,12 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * Tells the others you're typing, at most every three seconds, while the composer has something in it.
+     * Stashes the draft, and tells the others you're typing, at most every three seconds, while the composer has
+     * something in it.
      */
     public function updatedDraft(): void
     {
+        $this->stashDraft();
         $this->composing = true;
         $now = self::now();
 
@@ -1544,6 +1557,23 @@ class Conversation extends NativeComponent
         }
 
         $this->photos = $photos;
+        $this->stashDraft();
+    }
+
+    /**
+     * Stashes the draft as it changes, its text and its photos. With nothing left in it, it's forgotten.
+     */
+    private function stashDraft(): void
+    {
+        app(Stash::class)->put($this->me()?->id, $this->stashName(), new StashedDraft($this->draft, $this->photos));
+    }
+
+    /**
+     * The web's name for the thread's draft: 'remote:' and the person's username, or 'remote:org:' and the org's id.
+     */
+    private function stashName(): string
+    {
+        return $this->isOrg() ? 'remote:org:'.$this->org : 'remote:'.$this->username;
     }
 
     /**
