@@ -3,7 +3,6 @@
 namespace App\Devnull\Data;
 
 use App\Devnull\ImageCache;
-use App\Devnull\Lane;
 
 /**
  * A guild is a public group around a hashtag.
@@ -89,15 +88,6 @@ final readonly class Guild
         }
 
         return $guilds;
-    }
-
-    /**
-     * The lane colour its mark in a commit's text is drawn in, picked from its handle, as text can't hold its icon or
-     * emoji. Any case of the handle picks the same lane, so a guild always wears the same colour.
-     */
-    public function lane(): int
-    {
-        return Lane::for(mb_strtolower($this->handle));
     }
 
     /**

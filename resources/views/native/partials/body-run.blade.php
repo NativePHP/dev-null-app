@@ -6,8 +6,9 @@
 
     Drawn as a piece of a row of words (see BodyFlow), $pieceClasses holds the piece's own size and spacing, and
     $pieceInk the ink for a run without its own colour. They go on the run's own text rather than a wrapper, so the
-    row measures each word in its own font, and a semibold word like the wordmark isn't cut short. Inside a
-    paragraph both are empty, and runs take the paragraph's.
+    row measures each word in its own font. Inside a paragraph both are empty, and runs take the paragraph's. As a
+    piece, the wordmark leaves out its tighter tracking: Android measures negative letter spacing narrower than it
+    draws, which cut it to "/dev/nu…".
 --}}@php($pieceClasses ??= '')
 @php($pieceInk ??= '')
 @if ($run->isMention())
@@ -23,7 +24,7 @@
 @elseif ($run->isHashtag && ! ($static ?? false))
 <native:text :text="$run->text" font="medium" class="{{ $pieceClasses }} font-medium text-theme-primary" @press="openHashtag('{{ $run->text }}')" />
 @elseif ($run->isWordmark)
-<native:text font="semibold" class="{{ $pieceClasses }} {{ $pieceInk }} font-semibold tracking-tight">@if ($afterSpace)&#x200B;@endif/&#x2060;dev<native:text text="/" class="text-outline text-theme-lane-0" />&#x2060;null</native:text>
+<native:text font="semibold" class="{{ $pieceClasses }} {{ $pieceInk }} font-semibold {{ $pieceClasses === '' ? 'tracking-tight' : '' }}">@if ($afterSpace)&#x200B;@endif/&#x2060;dev<native:text text="/" class="text-outline text-theme-lane-0" />&#x2060;null</native:text>
 @else
 <native:text :text="$run->text" class="{{ $pieceClasses }} {{ $pieceInk }}" />
 @endif
