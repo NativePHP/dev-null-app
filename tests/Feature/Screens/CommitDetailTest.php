@@ -722,7 +722,7 @@ function bodyLines(TestableComponent $screen, string $text): array
         }
 
         $run = $piece;
-        $text = $run['props']['text'] ?? implode('', array_map(fn (array $part): string => $part['props']['text'], $run['children'] ?? []));
+        $text = $run['props']['text'] ?? str_replace(["\u{200B}", "\u{2060}"], '', implode('', array_map(fn (array $part): string => $part['props']['text'], $run['children'] ?? [])));
 
         return match (true) {
             isset($run['on_press']) => [$text, match (true) {
@@ -815,6 +815,22 @@ it('keeps the words around a guild pill as they look in text, and the lines with
     ])->and(paragraphRuns($screen, 'then read'))->toBe([['then read '], ['rust-lang.org', 'link']]);
 
     $screen->press("openProfile('ada')")->assertNavigatedTo('/log/users/ada');
+});
+
+it('draws the wordmark beside a guild pill without tightened letters, which Android cuts short, and keeps them in a plain line', function () {
+    fakeThread([
+        'body' => "The /dev/null app for #android\nAnd /dev/null alone",
+        'guild_mentions' => ['android' => ['handle' => 'android', 'name' => 'Android Devs', 'emoji' => '🤖', 'icon_url' => null]],
+    ]);
+
+    $screen = Native::visit('/log/commits/c2');
+    $wordmarks = findNodes($screen->tree(), fn (array $node): bool => ($node['props']['font_name'] ?? null) === 'semibold'
+        && array_map(fn (array $run): string => str_replace(["\u{200B}", "\u{2060}"], '', $run['props']['text'] ?? ''), $node['children'] ?? []) === ['/dev', '/', 'null']);
+
+    expect($wordmarks)->toHaveCount(2)
+        ->and(bodyLines($screen, 'Android Devs'))->toBe([[['The'], ['/dev/null'], ['app'], ['for'], ['Android Devs', 'guild']]])
+        ->and($wordmarks[0]['props'])->not->toHaveKey('letter_spacing')
+        ->and($wordmarks[1]['props']['letter_spacing'] ?? null)->toBe(-0.025);
 });
 
 it('keeps the lines around a line of guild pills as text, with their blank lines', function () {
