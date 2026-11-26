@@ -91,8 +91,12 @@
                 @php($offersIssues = ! $quoting && ! $scheduling && ! $replying && ! $issueCommand && $sheetGuild === null)
                 @php($issueCommands = $offersIssues && $sheetTyped ? \App\Devnull\IssueCommand::suggested($sheetBody) : [])
                 @php($issueHint = $offersIssues && ! $issueHintsDismissed ? \App\Devnull\IssueCommand::hinted($sheetBody) : null)
-                @php($hasAbove = $postsAs || $sheetError || $issueCommand || $replying)
+                @php($hasAbove = $guildHint || $postsAs || $sheetError || $issueCommand || $replying)
                 <native:column native:key="sheet-above" ref="sheet-above" class="w-full {{ $hasAbove ? 'px-5 pt-3 gap-3' : '' }}">
+                    @if ($guildHint)
+                        <native:text ref="sheet-guild-hint" class="w-full text-xs text-theme-ink-muted">Posted to this guild, not your profile log.</native:text>
+                    @endif
+
                     @if ($postsAs)
                         <native:row native:key="sheet-post-as-row" class="w-full">
                             @include('native.partials.post-as', ['ref' => 'sheet-post-as', 'me' => $postingMe, 'picked' => $sheetAuthor, 'method' => 'postAsInSheet', 'size' => 36, 'withName' => true])
@@ -154,12 +158,8 @@
                                 a11y-label="Your commit"
                             />
                         </native:column>
-                        @php($hasBelow = $guildHint || $linkTooLong || $sheetImages !== [] || $pollShown || $quoting || $scheduling || $issueCommands !== [] || $issueHint !== null)
+                        @php($hasBelow = $linkTooLong || $sheetImages !== [] || $pollShown || $quoting || $scheduling || $issueCommands !== [] || $issueHint !== null)
                         <native:column native:key="sheet-below" ref="sheet-below" class="w-full {{ $hasBelow ? 'px-5 pt-3 pb-3 gap-3' : '' }}">
-                            @if ($guildHint)
-                                <native:text ref="sheet-guild-hint" class="w-full text-xs text-theme-ink-muted">Posted to this guild, not your profile log.</native:text>
-                            @endif
-
                             @if ($linkTooLong)
                                 <native:text ref="sheet-link-error" class="w-full text-sm text-theme-destructive">Each link must not be greater than {{ \App\Devnull\Data\BodyLink::MaxLength }} characters.</native:text>
                             @endif
