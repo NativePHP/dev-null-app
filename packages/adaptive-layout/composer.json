@@ -7,7 +7,7 @@
     "require": {
         "php": "^8.3",
         "nativephp/mobile": "^4.7",
-        "nativephp/mobile-ui": "^0.9 || dev-main"
+        "nativephp/mobile-ui": "^0.11"
     },
     "autoload": {
         "psr-4": {
