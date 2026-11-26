@@ -479,6 +479,15 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         let primaryStack: [UIViewController] = wantsWide ? [feedPage] : [feedPage] + detailPages
         let secondaryStack: [UIViewController] = wantsWide ? (detailPages.isEmpty ? emptyDetail : detailPages) : []
 
+        // One column on screen that only gains or loses levels at the top is a
+        // push or a pop, so it slides like one. Anything else (first mount,
+        // resizing into or out of two columns, a swapped history) snaps.
+        let oldPrimary = primary.viewControllers
+        let animatePrimary = !migrating && !wantsWide && view.window != nil && !oldPrimary.isEmpty
+            && oldPrimary.count != primaryStack.count
+            && (sameControllers(oldPrimary, Array(primaryStack.prefix(oldPrimary.count)))
+                || sameControllers(primaryStack, Array(oldPrimary.prefix(primaryStack.count))))
+
         applying = true
         if migrating {
             // Release both old parents BEFORE adding any page to the other
@@ -495,7 +504,10 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         expectedPrimary = primaryStack
         expectedSecondary = secondaryStack
         if !sameControllers(primary.viewControllers, primaryStack) {
-            primary.setViewControllers(primaryStack, animated: false)
+            // `applying` keeps the delegate from treating this as the user's
+            // back gesture. Further reconciles wait out the transition
+            // coordinator, and didShow reconciles again once it ends.
+            primary.setViewControllers(primaryStack, animated: animatePrimary)
         }
         if !sameControllers(secondary.viewControllers, secondaryStack) {
             secondary.setViewControllers(secondaryStack, animated: false)
