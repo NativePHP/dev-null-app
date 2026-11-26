@@ -82,13 +82,6 @@ class Profile extends NativeComponent
     use TalksToDevnull;
     use WatchesForCalls;
 
-    /**
-     * Every frame goes in full, as on the Log (see Log::$forceFullFrames). A tab
-     * tapped again goes back to the top in a list with a new key and the same
-     * rows, which EDGE's subtree reuse would otherwise never send.
-     */
-    protected bool $forceFullFrames = true;
-
     public string $username = '';
 
     public const array Tabs = ['commits', 'replies'];
@@ -943,6 +936,7 @@ class Profile extends NativeComponent
             'canRemote' => $this->canRemote(),
             'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),
+            'ownership' => $this->ownership(),
             'stashed' => app(Stash::class)->names($this->me()?->id),
             'pages' => $pages,
             'pageIndex' => array_search($this->tab, self::Tabs, true),

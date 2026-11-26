@@ -2,6 +2,7 @@
 
 use App\Devnull\Account;
 use App\Devnull\Data\Remotes;
+use App\Devnull\Display;
 use App\Devnull\ImageCache;
 use App\Devnull\ImageViewer;
 use App\NativeComponents\Conversation;
@@ -780,18 +781,18 @@ it('opens no link preview that is not a web page', function () {
         ->assertNativeNotCalled('Browser.OpenInApp');
 });
 
-it('pads the end of the thread for the composer bar alone, and for the reply bar while replying', function () {
+it('pads the end of the thread for the fade and the composer bar alone, and for the reply bar while replying', function () {
     serveRemoteThread(threadJson([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]));
 
     $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
     $clearance = fn (): mixed => nodeByRef($screen, 'composer-clearance')['layout']['height'] ?? null;
 
     // The scroll view adds the home indicator itself while the keyboard is down, so it isn't counted here.
-    expect($clearance())->toEqual(Conversation::ComposerBarHeight + 8);
+    expect($clearance())->toEqual(Display::ComposerFadeHeight + Conversation::ComposerBarHeight + 8);
 
     $screen->trigger('swipe-1');
 
-    expect($clearance())->toEqual(Conversation::ComposerBarHeight + Conversation::ReplyingBarHeight + 8);
+    expect($clearance())->toEqual(Display::ComposerFadeHeight + Conversation::ComposerBarHeight + Conversation::ReplyingBarHeight + 8);
 });
 
 // ── Pins ────────────────────────────────
@@ -1046,7 +1047,7 @@ it('shows the latest pinned message in a bar over the thread, which opens them a
         ->assertSee(' release checklist');
 
     // It lies over the thread, which clears it at the top.
-    expect(childRefs($screen, 'thread-stack'))->toBe(['thread', 'pinned-bar'])
+    expect(array_slice(childRefs($screen, 'thread-stack'), 0, 2))->toBe(['thread', 'pinned-bar'])
         ->and(childRefs($screen, 'thread')[0])->toBe('pinned-clearance')
         ->and(nodeByRef($screen, 'pinned-bar')['props']['a11y_label'] ?? null)->toBe('2 pinned messages. Latest from Ada Lovelace: release checklist');
 
@@ -1300,7 +1301,7 @@ it("lists an org's other members under Members when you type @, and closes once 
         ->assertMissingElement('column', fn (array $node): bool => ($node['ref'] ?? null) === 'mention-suggestions');
 });
 
-it('filters org members as the web ranks them: exact handle, handle prefix, name prefix, then the rest, followed first, six at most', function () {
+it('filters org members as the web ranks them: exact handle, handle prefix, name prefix, then the rest, followed first, all of them in a list that scrolls past six', function () {
     serveOrgThread(orgWithMembers([
         ['grace', 'Grace Hopper'],
         ['tobias', 'Ada Tobias'],
@@ -1314,7 +1315,8 @@ it('filters org members as the web ranks them: exact handle, handle prefix, name
 
     $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1'))->input('message-input', '@ADA', 4);
 
-    expect(childRefs($screen, 'mention-suggestions'))->toBe(['mention-ada', 'mention-adams', 'mention-adamant', 'mention-tobias', 'mention-bada', 'mention-cada']);
+    expect(childRefs($screen, 'mention-scroll'))->toBe(['mention-ada', 'mention-adams', 'mention-adamant', 'mention-tobias', 'mention-bada', 'mention-cada', 'mention-dada'])
+        ->and(nodeByRef($screen, 'mention-scroll')['layout']['height'])->toEqual(Display::MentionRowsShown * Display::MentionRowHeight);
 });
 
 it('never suggests you, or a member devnull says not to, and suggests nothing in a thread with one person', function () {
@@ -1408,6 +1410,15 @@ it('leaves the draft alone when it no longer has the @handle where the caret fou
         ->set('draft', 'hi')
         ->tap('mention-ada')
         ->assertSet('draft', 'hi');
+});
+
+it('leaves a gap between the suggestions and the message box under them on iOS', function () {
+    serveOrgThread(orgWithMembers([['ada', 'Ada Lovelace']]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/orgs/org-1', platform: 'ios'))->input('message-input', '@ADA', 4);
+
+    expect(childRefs($screen, 'mention-suggestions'))->not->toBe([])
+        ->and(nodeByRef($screen, 'mention-slot')['layout']['padding'][2])->toBe(8.0);
 });
 
 /**

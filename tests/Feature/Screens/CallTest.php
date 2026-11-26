@@ -1,6 +1,7 @@
 <?php
 
 use App\NativeComponents\Call;
+use App\NativeComponents\Log;
 use Devnull\Calls\Events\Connected;
 use Devnull\Calls\Events\DescriptionReady;
 use Devnull\Calls\Events\Ended;
@@ -240,6 +241,53 @@ it('opens a call ringing for you from the thread you are on, once', function () 
     // Once it has rung, it doesn't open again while devnull still has it.
     ringingFromAda();
     expect(finishRefreshes(Native::visit('/remotes/conversations/ada'))->firePoll('checkForCall')->navigationIntent())->toBeNull();
+});
+
+it('checks for a call from the background, so a devnull that never answers holds nothing up', function () {
+    holdRefreshes();
+    serveApi([
+        'GET /api/v1/remotes/@ada/messages' => [threadJson([remoteMessageJson(['id' => 1, 'body' => 'hey'])])],
+        'GET /api/v1/remotes/call' => [['call' => ['partner' => userJson(['handle' => 'ada', 'name' => 'Ada Lovelace']), 'sdp' => CallOffer, 'is_muted' => false]]],
+    ]);
+    $thread = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+    $sent = refreshesSent($thread);
+
+    // The check is out, and the next one isn't sent on top of it.
+    $thread->firePoll('checkForCall')->firePoll('checkForCall');
+
+    expect(sentTo('GET', 'remotes/call'))->toBe([])
+        ->and(refreshesSent($thread))->toBe($sent + 1)
+        ->and($thread->navigationIntent())->toBeNull();
+
+    finishRefreshes($thread)->assertNavigatedTo('/call/ada');
+});
+
+it('checks for a call again once one devnull never answered has had its time', function () {
+    holdRefreshes();
+    serveApi(['GET /api/v1/remotes/@ada/messages' => [threadJson([remoteMessageJson(['id' => 1, 'body' => 'hey'])])]]);
+    $thread = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+    $sent = refreshesSent($thread);
+
+    $thread->firePoll('checkForCall');
+    $this->travel(Log::CallCheckTimeout + 2)->seconds();
+    $thread->firePoll('checkForCall');
+
+    expect(refreshesSent($thread))->toBe($sent + 2);
+});
+
+it('says nothing when a check for a call fails, and the next one goes', function () {
+    holdRefreshes();
+    serveApi(['GET /api/v1/remotes/@ada/messages' => [threadJson([remoteMessageJson(['id' => 1, 'body' => 'hey'])])]]);
+    $thread = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+    $sent = refreshesSent($thread);
+    fakeOffline();
+
+    finishRefreshes($thread->firePoll('checkForCall'))->firePoll('checkForCall');
+
+    expect(refreshesSent($thread))->toBe($sent + 2)
+        ->and($thread->navigationIntent())->toBeNull()
+        ->and($thread->instance()->error)->toBeNull();
+    $thread->assertNativeNotCalled('ToastKit.Show');
 });
 
 it('logs calls in the thread in the web\'s words, naming them where devnull leaves the author off', function () {

@@ -1,13 +1,21 @@
 <?php
 
 use App\Devnull\Client;
+use App\Devnull\FirstFrame;
+use App\Devnull\ResponseCache;
 use App\Devnull\Timeline;
 use App\NativeComponents\CommitDetail;
+use App\NativeComponents\Conversation;
 use App\NativeComponents\Log;
 use App\NativeComponents\Notifications;
+use App\NativeComponents\Organization;
 use App\NativeComponents\Profile;
+use App\NativeComponents\Remotes;
+use App\NativeComponents\Search;
+use App\NativeComponents\Starred;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Events\Async\AsyncTaskFailed;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
 
@@ -275,6 +283,26 @@ it('shows the first few commits kept for a log you are not on, and has only the 
     }
 });
 
+it('keeps the commits shown for the log beside yours until what was kept for it changes', function () {
+    holdRefreshes();
+    keep('log/latest', pageJson([commitJson(['id' => 'l1', 'body' => 'Latest 1', 'author' => ada()])]));
+
+    $screen = Native::visit('/log');
+    $previews = fn (): array => Closure::bind(fn (): array => $this->previews, $screen->instance(), Log::class)();
+    $shown = $previews()['latest'][1]['commits'][0];
+
+    // Drawn again with nothing changed, the commit is the one made last frame, so its row is the one kept for it.
+    $screen->call('isRanked');
+    expect($previews()['latest'][1]['commits'][0])->toBe($shown);
+
+    // A star given on another screen changes what was kept for Latest, and its preview shows it.
+    app(ResponseCache::class)->starChanged('l1', true);
+    $screen->call('isRanked');
+
+    expect($previews()['latest'][1]['commits'][0])->not->toBe($shown)
+        ->and(nodeByRef($screen, 'star-l1')['props']['a11y_label'])->toStartWith('Unstar commit');
+});
+
 it('leaves the log two swipes away as skeleton rows until you are beside it', function () {
     holdRefreshes();
     keep('log/trending', pageJson(array_map(fn (int $n): array => commitJson(['id' => "t{$n}", 'body' => "Trending {$n}"]), range(1, 5))));
@@ -332,13 +360,12 @@ it('keys each row by what it shows, so a commit put on top leaves the rows under
         ->and(nodeByRef($screen, 'commit-c1')['id'])->toBe($row);
 });
 
-it('sends the Log, Notifications, profiles and commit pages in full every frame, as EDGE advises for lists that change often', function () {
+it('sends only what changed on the timeline screens, not every frame in full', function () {
     Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
+    $sendsInFull = fn (string $screen): bool => (fn (): bool => $this->forceFullFrames)->call(Native::test($screen)->instance());
 
-    foreach ([Log::class, Notifications::class, Profile::class, CommitDetail::class] as $screen) {
-        $instance = Native::test($screen)->instance();
-
-        expect((fn (): bool => $this->forceFullFrames)->call($instance))->toBeTrue();
+    foreach ([Log::class, Profile::class, Organization::class, CommitDetail::class, Starred::class, Notifications::class, Remotes::class, Search::class, Conversation::class] as $screen) {
+        expect($sendsInFull($screen))->toBeFalse();
     }
 });
 
@@ -583,6 +610,22 @@ it('drops a commit you deleted from Trending when you come back to it', function
     $screen->call('onResume');
 
     expect(shownLogIds($screen))->toBe(['a']);
+});
+
+it('fills in what it kept when the first frame has had its time, though every background thread is busy', function () {
+    config(['devnull.skeleton_first' => true]);
+    holdRefreshes();
+    keep('log/following', pageJson([commitJson(['id' => 'f1', 'body' => 'Kept following'])]));
+
+    $screen = Native::visit('/log')->assertSet('skeletonFrame', true)->assertDontSee('Kept following');
+    $firstFrame = $screen->bridge()->callsTo('AsyncTask.Dispatch')[0]['params'];
+
+    expect($firstFrame['timeout'])->toBe(FirstFrame::Within);
+
+    // Its watchdog fails it, as when it never got a thread.
+    $screen->emitNative(AsyncTaskFailed::class, ['id' => $firstFrame['id'], 'exceptionClass' => 'RuntimeException', 'message' => 'The async task did not complete within 2 seconds.'])
+        ->assertSet('skeletonFrame', false)
+        ->assertSee('Kept following');
 });
 
 it('opens on skeleton rows, and fills in what it kept straight after, so a tab tap shows at once', function () {

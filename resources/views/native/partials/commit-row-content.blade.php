@@ -11,8 +11,12 @@
     row is fixed here, so they meet it on both platforms.
 
     On a commit page the commit it's about ($focused) is the main thing: a larger name and body in full ink, its time,
-    which tapped says when in your timezone, its hash, and its replies behind a toggle in its action row. The commits around it ($muted) step back:
+    which tapped says when in your timezone, its hash at the top right, and its replies behind a toggle in its action row. The commits around it ($muted) step back:
     smaller and in muted ink, with a smaller avatar and action row. They still open their own pages.
+
+    A commit in a thread its author wrote as replies to themselves wears its place in it ($threadPosition, "2/5"), and
+    one its author carried on that way links to that thread ($showsThread), as the web's "Show thread" does (see
+    SelfThread). $repliesBelow says its replies show under the row, so its action row leaves out "› N replies".
 
     A commit posted straight to a guild's board says so under its header (see guild-badge), except in search.
 
@@ -37,6 +41,9 @@
 @php($withTail ??= ! $focused)
 @php($continuesNext ??= null)
 @php($threadBelow ??= false)
+@php($threadPosition ??= null)
+@php($showsThread ??= $commit->continuationId !== null)
+@php($repliesBelow ??= false)
 @php($inFeed = $continuesNext !== null)
 @php($endsWithDot = $inFeed && ! $continuesRun && ! $continuesNext)
 @php($laterParts = $seriesExpanded ? 0 : $commit->laterSeriesParts())
@@ -45,7 +52,7 @@
 {{-- The action row's 36pt reaches 6pt into the inset below it, as its buttons are taller than their icons. --}}
 @php($bottom = $threadBelow && $focused ? 0 : $inset - 6 + ($hairline ? 1 : 0))
 @php($padding = 'pt-['.$inset.']'.($bottom > 0 ? ' pb-['.$bottom.']' : ''))
-@php($repliesLine = ! $commit->isStaged() && ! $commit->isDeleted() && ($focused ? ($replyCount ?? $commit->repliesCount) : $commit->repliesCount) > 0 ? 40 : 0)
+@php($repliesLine = ! $commit->isStaged() && ! $commit->isDeleted() && ($focused || ! $repliesBelow) && ($focused ? ($replyCount ?? $commit->repliesCount) : $commit->repliesCount) > 0 ? 40 : 0)
 @php($dotInActions = $endsWithDot && ! $commit->isStaged())
 @php($metaSize = $muted ? 'text-xs' : 'text-[13px]')
 <native:column class="flex-1 ml-[64] {{ $muted ? 'min-h-[56]' : 'min-h-[64]' }} {{ $padding }} pr-4 gap-1 {{ $hasHairline ? 'border-b border-theme-hairline' : '' }} {{ $commit->isStaged() ? 'opacity-[0.6]' : '' }}">
@@ -64,9 +71,17 @@
         @if ($commit->isSeriesPart())
             @include('native.partials.series-position')
         @endif
+        @if ($threadPosition !== null)
+            @include('native.partials.thread-position')
+        @endif
         @unless ($commit->isApproved())
             @include('native.partials.status-chip', ['status' => $commit->status])
         @endunless
+        @if ($focused)
+            {{-- Its short hash, at the top right of the row, as the web has it at the right of the page's header. --}}
+            <native:spacer />
+            <native:text ref="focused-hash" font="mono" class="{{ $metaSize }} text-theme-ink-muted flex-shrink-0">{{ $commit->shortHash }}</native:text>
+        @endif
     </native:row>
 
     @if ($commit->guild !== null && ! ($hidesGuildBadge ?? false))
@@ -95,8 +110,8 @@
         </native:pressable>
     @endif
 
-    @if ($focused)
-        <native:text ref="focused-hash" font="mono" class="mt-1 text-[13px] text-theme-ink-muted">{{ $commit->shortHash }}</native:text>
+    @if ($showsThread && ! $focused)
+        @include('native.partials.show-thread')
     @endif
 
     @if ($commit->isStaged())
@@ -109,7 +124,7 @@
             'endDot' => $dotInActions ? $commit->lane() : null,
         ])
     @else
-        @include('native.partials.commit-actions', ['compact' => $muted, 'endDot' => $dotInActions ? $commit->lane() : null])
+        @include('native.partials.commit-actions', ['compact' => $muted, 'withReplies' => ! $repliesBelow, 'endDot' => $dotInActions ? $commit->lane() : null])
     @endif
 </native:column>
 

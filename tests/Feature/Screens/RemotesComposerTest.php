@@ -1,12 +1,20 @@
 <?php
 
+use App\Devnull\Account;
+use App\Devnull\Data\StashedDraft;
+use App\Devnull\Display;
 use App\Devnull\DraftImages;
+use App\Devnull\Stash;
 use App\NativeComponents\Conversation;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Events\System\AppearanceChanged;
+use Native\Mobile\Facades\System;
 use Native\Mobile\Testing\Native;
 use Native\Mobile\Testing\TestableComponent;
+use Tests\Support\GlassOpacity;
+use Tests\Support\ScrollEdge;
 
 const ComposerViewerId = '0199e5c4-0000-7000-8000-000000000001';
 
@@ -131,11 +139,11 @@ it('pushes photos alone, with the descriptions given them', function () {
 
     $screen = threadWithAda();
 
-    expect(nodeByRef($screen, 'push')['props']['disabled'] ?? false)->toBeTrue();
+    expect(canSend($screen, 'push'))->toBeFalse();
 
     photosPicked($screen, [testPhoto(), testPhoto()])->tap('photo-0-alt')->input('photo-description-input', 'A terminal.');
 
-    expect(nodeByRef($screen, 'push')['props']['disabled'] ?? false)->toBeFalse();
+    expect(canSend($screen, 'push'))->toBeTrue();
 
     finishRefreshes($screen->tap('push'))->assertSet('pending', []);
 
@@ -195,6 +203,20 @@ it('opens the library for the photos there is still room for, and greys the butt
     expect(nodeByRef($screen, 'attach-photos')['props']['disabled'] ?? false)->toBeTrue();
 });
 
+it('keeps every photo picked at once, however long ago they were taken', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    // The library hands photos over with the time they were taken, which a photo nothing holds yet shares with one
+    // forgotten a day ago.
+    $picked = [testPhoto(), testPhoto()];
+    array_walk($picked, fn (string $path): bool => touch($path, now()->subYears(5)->getTimestamp()));
+
+    $screen = photosPicked(threadWithAda(), $picked);
+
+    expect($screen->instance()->photos)->toHaveCount(2)
+        ->and(array_filter($screen->instance()->photos, fn ($photo): bool => file_exists($photo->path)))->toHaveCount(2);
+});
+
 it('takes a photo off the draft and the phone with its ✕', function () {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
@@ -215,11 +237,11 @@ it('pads the end of the thread for the photos on the draft and an open descripti
 
     photosPicked($screen, [testPhoto()]);
 
-    expect($clearance())->toEqual(Conversation::ComposerBarHeight + Conversation::PhotosHeight + 8);
+    expect($clearance())->toEqual(Display::ComposerFadeHeight + Conversation::ComposerBarHeight + Conversation::PhotosHeight + 8);
 
     $screen->tap('photo-0-alt');
 
-    expect($clearance())->toEqual(Conversation::ComposerBarHeight + Conversation::PhotosHeight + Conversation::DescriptionHeight + 8);
+    expect($clearance())->toEqual(Display::ComposerFadeHeight + Conversation::ComposerBarHeight + Conversation::PhotosHeight + Conversation::DescriptionHeight + 8);
 });
 
 it('keeps the keyboard up through presses in the thread, and the field in place as the reply strip and photos come and go', function () {
@@ -227,7 +249,7 @@ it('keeps the keyboard up through presses in the thread, and the field in place 
 
     $screen = threadWithAda()->input('message-input', 'on it');
     $field = idsDownTo($screen->tree(), 'message-input');
-    $rows = childRefs($screen, 'composer-bar');
+    $rows = childRefs($screen, 'composer-rows');
 
     expect(nodeByRef($screen, 'message-input')['props']['keep_focus_on_submit'] ?? false)->toBeTrue();
 
@@ -237,7 +259,7 @@ it('keeps the keyboard up through presses in the thread, and the field in place 
     // The strip fills a slot the bar always has, so the field's row keeps its place among the bar's rows, which
     // Android needs as well as the same id to keep the field.
     expect(idsDownTo($screen->tree(), 'message-input'))->toBe($field)
-        ->and(childRefs($screen, 'composer-bar'))->toBe($rows);
+        ->and(childRefs($screen, 'composer-rows'))->toBe($rows);
 
     $screen->tap('cancel-reply');
 
@@ -251,33 +273,139 @@ it('keeps the keyboard up through presses in the thread, and the field in place 
 
     expect($withPhotos)->not->toBe($field)
         ->and(idsDownTo($screen->tree(), 'message-input'))->toBe($withPhotos)
-        ->and(childRefs($screen, 'composer-bar'))->toBe($rows);
+        ->and(childRefs($screen, 'composer-rows'))->toBe($rows);
 });
 
-it('puts a + for photos, a voice note and Ping inside the Liquid Glass field on iOS', function () {
+it('draws one box with the field over the + and a round Push, on both platforms', function (string $platform) {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
-    $screen = threadWithAda('ios');
-    $bar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
+    $screen = threadWithAda($platform);
+    $actions = childRefs($screen, 'message-actions');
 
-    expect(childRefs($screen, 'message-plate'))->toBe(['message-field', 'composer-tools'])
+    expect(childRefs($screen, 'message-row'))->toBe(['message-box'])
+        ->and(childRefs($screen, 'message-box'))->toBe(['message-field-row', 'message-actions'])
+        ->and(childRefs($screen, 'message-field-row'))->toBe(['message-field'])
+        ->and($actions[0])->toBe('composer-tools')
+        ->and(end($actions))->toBe('push')
         ->and(array_slice(childRefs($screen, 'composer-tools'), 0, 3))->toBe(['attach-photos', 'record-voice-note', 'ping'])
-        ->and(nodeByRef($screen, 'message-plate')['props']['glass'] ?? null)->toBe(1)
-        ->and($bar['children'][0]['ref'] ?? null)->toBe('composer-bar')
-        ->and($bar['children'][0]['style']['bg_color'] ?? null)->toBeNull()
-        ->and(nodeByRef($screen, 'ping')['props']['label'])->toBe('Ping @ada');
-});
+        ->and(nodeByRef($screen, 'ping')['props']['label'])->toBe('Ping @ada')
+        ->and(nodeByRef($screen, 'push')['props']['a11y_label'] ?? nodeByRef($screen, 'push')['a11y_label'] ?? null)->toBe('Push');
+})->with(['ios', 'android']);
 
-it('leads the bar with the + on Android, on a solid bar', function () {
+it('keeps the field closer to the fade than to the + and Push under it', function (string $platform) {
     serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
 
-    $screen = threadWithAda('android');
+    $screen = threadWithAda($platform);
 
-    expect(array_slice(childRefs($screen, 'message-row'), 0, 2))->toBe(['composer-tools', 'message-plate'])
-        ->and(childRefs($screen, 'message-plate'))->toBe(['message-field'])
-        ->and(nodeByRef($screen, 'message-plate')['props']['glass'] ?? null)->toBeNull()
-        ->and(nodeByRef($screen, 'composer-bar')['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'));
+    // [top, right, bottom, left]. As on a commit's reply bar: no top padding on the row, so the field starts 4pt
+    // under the fade, and 8pt between the field and the row under it.
+    expect(nodeByRef($screen, 'message-row')['layout']['padding'])->toEqual([0, 16, 8, 16])
+        ->and(nodeByRef($screen, 'message-field-row')['layout']['padding'])->toEqual([4, 12, 8, 16]);
+})->with(['ios', 'android']);
+
+it('puts the bar on glass on iOS and the surface on Android, with no box or line, and fades the thread out above it', function (string $platform) {
+    if ($platform === 'ios') {
+        GlassOpacity::skipUnlessSupported();
+    }
+
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda($platform);
+    $bottomBar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
+    $bar = nodeByRef($screen, 'composer-bar');
+    $fade = nodeByRef($screen, 'composer-fade');
+    $surface = substr(strtoupper(config('native-ui.theme.light.surface')), 1);
+    $darkSurface = substr(strtoupper(config('native-ui.theme.dark.surface')), 1);
+
+    expect($bar['props']['glass'] ?? null)->toBeNull()
+        ->and(childRefs($screen, 'composer-rows')[0])->toBe('mention-slot')
+        ->and(nodeByRef($screen, 'message-box')['style']['border_width'] ?? 0)->toEqual(0)
+        ->and(nodeByRef($screen, 'message-box')['style']['bg_color'] ?? null)->toBeNull()
+        ->and($fade['layout']['height'] ?? null)->toEqual(Display::ComposerFadeHeight);
+
+    if ($platform === 'ios') {
+        // The thread runs on under the bar, which is glass, so it shows through blurred. The bar draws the fade at its
+        // top, ending at the glass's tint, and its rows carry the tint, in either appearance. The bar itself has no
+        // background, which iOS would paint behind the fade.
+        expect($bottomBar['props']['glass'] ?? null)->toBe(1)
+            ->and($bottomBar['props']['glass_opacity'] ?? null)->toBe(Display::ComposerGlassOpacity / 100)
+            ->and(childRefs($screen, 'composer-bar'))->toBe(['composer-fade', 'composer-rows'])
+            ->and($bar['style']['bg_color'] ?? null)->toBeNull()
+            ->and(nodeByRef($screen, 'composer-rows')['style']['bg_color'] ?? null)->toBe('#66'.$surface)
+            ->and(nodeByRef($screen, 'composer-rows')['props']['dark_bg_color'] ?? null)->toBe('#66'.$darkSurface)
+            ->and($fade['props']['gradient_stops'] ?? null)->toBe('#00'.$surface.',#66'.$surface)
+            ->and(childRefs($screen, 'thread-stack'))->not->toContain('composer-fade');
+    } else {
+        // No glass on Android. The thread stops at the bar, so the fade lies over its foot, and the bar is the surface.
+        expect($bottomBar['props']['glass'] ?? null)->toBeNull()
+            ->and($bottomBar['props']['glass_opacity'] ?? null)->toBeNull()
+            ->and(childRefs($screen, 'composer-bar'))->toBe(['composer-rows'])
+            ->and($bar['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
+            ->and(nodeByRef($screen, 'composer-rows')['style']['bg_color'] ?? null)->toBe(config('native-ui.theme.light.surface'))
+            ->and($fade['props']['gradient_stops'] ?? null)->toBe('#00'.$surface.',#B3'.$surface.',#'.$surface)
+            ->and(array_slice(childRefs($screen, 'thread-stack'), -1))->toBe(['composer-fade']);
+    }
+})->with(['ios', 'android']);
+
+it('stands the message bar on the scroll edge effect from iOS 26, with no fade or tint', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    ScrollEdge::onIos('26.0', function (): void {
+        $screen = threadWithAda();
+        $bottomBar = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'bottom_bar');
+
+        expect($bottomBar['props']['edge_blur'] ?? null)->toBe(Display::ComposerEdgeBlur)
+            ->and(nodeByRef($screen, 'message-box')['props']['glass'] ?? null)->toBe(Display::ComposerInGlassBox ? 1 : null)
+            ->and(childRefs($screen, 'composer-bar'))->toBe(['composer-rows'])
+            ->and(nodeByRef($screen, 'composer-bar')['style']['bg_color'] ?? null)->toBeNull()
+            ->and(nodeByRef($screen, 'composer-rows')['style']['bg_color'] ?? null)->toBeNull()
+            ->and(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'composer-fade'))->toBeNull()
+            ->and(nodeByRef($screen, 'composer-clearance')['layout']['height'] ?? null)->toEqual(Display::composerBoxBarHeight() + 8);
+    });
 });
+
+it('fades to the dark surface in dark mode, and draws again when the phone switches', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda();
+    $light = substr(strtoupper(config('native-ui.theme.light.surface')), 1);
+    $dark = substr(strtoupper(config('native-ui.theme.dark.surface')), 1);
+
+    expect(str_ends_with(nodeByRef($screen, 'composer-fade')['props']['gradient_stops'], $light))->toBeTrue();
+
+    System::rememberAppearance('dark');
+
+    try {
+        $screen->emitNative(AppearanceChanged::class, ['mode' => 'dark']);
+
+        expect(str_ends_with(nodeByRef($screen, 'composer-fade')['props']['gradient_stops'], $dark))->toBeTrue();
+    } finally {
+        System::rememberAppearance('light');
+    }
+});
+
+it('counts a long message beside Push from 1,600 characters, amber from 1,900 and red at 2,000', function (int $length, ?string $colour) {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda()->input('message-input', str_repeat('a', $length));
+
+    if ($colour === null) {
+        expect(rendersRef($screen, 'message-length'))->toBeFalse();
+
+        return;
+    }
+
+    $actions = childRefs($screen, 'message-actions');
+
+    expect(nodeByRef($screen, 'message-length')['props']['text'])->toBe(number_format($length).'/2,000')
+        ->and(strtolower(nodeByRef($screen, 'message-length')['props']['color'] ?? ''))->toBe(strtolower(config("native-ui.theme.light.{$colour}")))
+        ->and(array_slice($actions, -2))->toBe(['message-length', 'push']);
+})->with([
+    'short' => [1599, null],
+    'long' => [1600, 'ink-muted'],
+    'nearly full' => [1900, 'pending'],
+    'full' => [2000, 'destructive'],
+]);
 
 it('pings Ada, logging it in the thread as the web does and buzzing the phone', function () {
     serveThreadWithAda([remoteMessageJson(['id' => 1, 'body' => 'you there?'])], ['read_through_id' => 1]);
@@ -362,4 +490,107 @@ it('pings everyone in an org, and shows who pinged it', function () {
     finishRefreshes($screen->tap('ping'))->assertSee('* you sent a ping');
 
     expect(sentTo('POST', 'remotes/orgs/org-1/ping'))->toBe(['']);
+});
+
+// ── The stashed draft ──────────────────────────
+
+function stashedMessage(string $name): StashedDraft
+{
+    return app(Stash::class)->get(app(Account::class)->user()?->id, $name);
+}
+
+it('stashes the draft as you write it, and has it back with its photos when you open the thread again', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = photosPicked(threadWithAda(), [testPhoto()])->input('message-input', 'half a thought');
+    $photo = $screen->instance()->photos[0]->path;
+
+    expect(stashedMessage('remote:ada')->body)->toBe('half a thought')
+        ->and(array_map(fn ($image): string => $image->path, stashedMessage('remote:ada')->images))->toBe([$photo]);
+
+    $screen->call('back');
+
+    threadWithAda()
+        ->assertSet('draft', 'half a thought')
+        ->assertSee('half a thought');
+
+    expect(nodeByRef(threadWithAda(), 'message-input')['props']['value'])->toBe('half a thought')
+        ->and(array_map(fn ($image): string => $image->path, threadWithAda()->instance()->photos))->toBe([$photo])
+        ->and(file_exists($photo))->toBeTrue();
+});
+
+it('forgets the draft once it is pushed', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda()->input('message-input', 'on it');
+
+    expect(stashedMessage('remote:ada')->body)->toBe('on it');
+
+    finishRefreshes($screen->tap('push'))->assertSee('pushed');
+
+    expect(stashedMessage('remote:ada')->isEmpty())->toBeTrue()
+        ->and(app(Stash::class)->names(app(Account::class)->user()?->id))->toBe([]);
+
+    threadWithAda()->assertSet('draft', '')->assertSet('photos', []);
+});
+
+it('forgets the draft once a push is turned down, which stays in the thread to retry', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1], pushStatus: 403);
+
+    finishRefreshes(threadWithAda()->input('message-input', 'hello')->tap('push'))->assertSee('rejected ·');
+
+    expect(stashedMessage('remote:ada')->isEmpty())->toBeTrue();
+
+    threadWithAda()->assertSet('draft', '')->assertSee('hello')->assertSee('retry');
+});
+
+it('forgets the draft once it is emptied, and once its last photo comes off', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda()->input('message-input', 'never mind')->input('message-input', '');
+
+    expect(app(Stash::class)->names(app(Account::class)->user()?->id))->toBe([]);
+
+    photosPicked($screen, [testPhoto()]);
+
+    expect(stashedMessage('remote:ada')->images)->toHaveCount(1);
+
+    $screen->tap('photo-0-remove');
+
+    expect(app(Stash::class)->names(app(Account::class)->user()?->id))->toBe([]);
+
+    threadWithAda()->assertSet('draft', '')->assertSet('photos', []);
+});
+
+it("keeps each thread's draft to itself, an org's by its id", function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+    app(Stash::class)->put(app(Account::class)->user()?->id, 'remote:org:org-1', new StashedDraft('for the org'));
+    app(Stash::class)->put(app(Account::class)->user()?->id, 'remote:grace', new StashedDraft('for Grace'));
+
+    threadWithAda()->assertSet('draft', '');
+
+    threadWithAda()->input('message-input', 'for Ada');
+
+    expect(Native::visit('/remotes/orgs/org-1')->instance()->draft)->toBe('for the org')
+        ->and(stashedMessage('remote:ada')->body)->toBe('for Ada')
+        ->and(stashedMessage('remote:grace')->body)->toBe('for Grace');
+});
+
+it('forgets the drafts when you sign out', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    threadWithAda()->input('message-input', 'see you');
+    $userId = app(Account::class)->user()?->id;
+
+    app(Account::class)->forget();
+
+    expect(app(Stash::class)->get($userId, 'remote:ada')->isEmpty())->toBeTrue();
+});
+
+it('leaves a gap between what you are replying to and the message box under it on iOS', function () {
+    serveThreadWithAda([remoteMessageJson(['id' => 1])], ['read_through_id' => 1]);
+
+    $screen = threadWithAda()->trigger('swipe-1')->assertSee('Replying to Ada Lovelace');
+
+    expect(nodeByRef($screen, 'replying-slot')['layout']['padding'][2])->toBe(8.0);
 });

@@ -79,6 +79,15 @@ it('makes Quote a button with a full target where the row had it', function () {
     expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeFalse();
 });
 
+it("quotes a commit from an organization you're a member of while it waits for approval, as devnull lets you", function () {
+    joinOrganizations('org-1');
+    serveQuoteLog([commitJson(['id' => 'c1', 'status' => 'pending', 'author' => organizationAuthorJson('org-1', 'NativePHP')])]);
+
+    $screen = Native::visit('/log', platform: 'ios')->tap('quote-c1');
+
+    expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue();
+});
+
 it('opens a composer over the commit being quoted, drawn as the static quote card', function () {
     $screen = quoteSheetOnLog();
 
@@ -210,4 +219,14 @@ it('quotes from a commit page, where closing the sheet is all there is to do', f
 
     expect(nodeByRef($screen, 'sheet')['props']['visible'])->toBeFalse()
         ->and($screen->instance()->commit->id)->toBe('c2');
+});
+
+it('puts the quoted commit right under the field, which gives up the room it takes', function () {
+    $screen = quoteSheetOnLog();
+
+    expect(childRefs($screen, 'sheet-below'))->toBe(['quote-card'])
+        ->and(childRefs($screen, 'sheet-body-area'))->toBe(['sheet-field-slot', 'sheet-below'])
+        ->and(nodeByRef($screen, 'sheet-body')['props']['fills_height'] ?? null)->toBeTrue()
+        // [top, right, bottom, left]: the card keeps clear of the toolbar, as the field does of "Replying to".
+        ->and(nodeByRef($screen, 'sheet-below')['layout']['padding'])->toEqual([12, 20, 12, 20]);
 });

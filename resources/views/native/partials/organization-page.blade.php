@@ -21,7 +21,9 @@
             ])
         @elseif (! $page['loaded'])
             @foreach (range(1, 3) as $skeleton)
-                @include('native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits', 'pulse' => $page['showing']])
+                @php
+                    $page['rowCache']->include('loading-'.$skeleton, [], 'native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits', 'pulse' => $page['showing']], []);
+                @endphp
             @endforeach
         @elseif ($page['isEmpty'])
             @if ($page['tab'] === 'mentions')
@@ -36,11 +38,17 @@
 
             @if ($page['loaded'] && ! $page['isEmpty'])
                 @if ($page['nextCursor'] !== null)
-                    @include('native.partials.rail-loading', ['pulse' => $page['showing']])
+                    @php
+                        $page['rowCache']->include('loading-more', [], 'native.partials.rail-loading', ['pulse' => $page['showing']], []);
+                    @endphp
                 @elseif ($page['tab'] === 'mentions')
-                    @include('native.partials.rail-end', ['lane' => $user->lane(), 'message' => "That's the first mention of {$user->handle()}."])
+                    @php
+                        $page['rowCache']->include('root-commit', [], 'native.partials.rail-end', ['lane' => $user->lane(), 'message' => "That's the first mention of {$user->handle()}."], []);
+                    @endphp
                 @else
-                    @include('native.partials.rail-end', ['lane' => $user->lane(), 'message' => "That's {$user->handle()}'s root commit."])
+                    @php
+                        $page['rowCache']->include('root-commit', [], 'native.partials.rail-end', ['lane' => $user->lane(), 'message' => "That's {$user->handle()}'s root commit."], []);
+                    @endphp
                 @endif
             @endif
         @endif

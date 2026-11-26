@@ -9,6 +9,7 @@ use App\Devnull\Data\Conversation as ConversationData;
 use App\Devnull\Data\DraftImage;
 use App\Devnull\Data\Message;
 use App\Devnull\Data\MessageVoice;
+use App\Devnull\Data\StashedDraft;
 use App\Devnull\Data\Thread;
 use App\Devnull\Data\User;
 use App\Devnull\Display;
@@ -19,16 +20,19 @@ use App\Devnull\Outbox;
 use App\Devnull\ReactionEmoji;
 use App\Devnull\ResponseCache;
 use App\Devnull\SiteLink;
+use App\Devnull\Stash;
 use App\Devnull\Toasts;
 use App\Devnull\VoiceNotes;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\AttachesPhotos;
+use App\NativeComponents\Concerns\LeavesGonePush;
 use App\NativeComponents\Concerns\OpensGuilds;
 use App\NativeComponents\Concerns\OpensHashtags;
 use App\NativeComponents\Concerns\OpensInTab;
 use App\NativeComponents\Concerns\PlaysVoiceNotes;
 use App\NativeComponents\Concerns\RecordsVoiceNotes;
+use App\NativeComponents\Concerns\RedrawsOnAppearanceChange;
 use App\NativeComponents\Concerns\RefreshesInBackground;
 use App\NativeComponents\Concerns\ShowsImageViewer;
 use App\NativeComponents\Concerns\SuggestsMentions;
@@ -97,6 +101,11 @@ use NativePHP\Clipboard\Facades\Clipboard;
  * while you're on the thread buzzes the phone, as the web shakes the thread
  * to MSN's sound, unless it's someone else's in a thread you've muted.
  *
+ * What you write and the photos on it are stashed as you go, per thread,
+ * under the web's name for it (see Stash), so they're back when you open
+ * the thread again. Pushing forgets them: from then on the message is the
+ * outbox's, and one devnull turns down stays in the thread with its Retry.
+ *
  * In an org, typing "@" lists the org's members above the field, as the web
  * does, and typing on filters them (see SuggestsMentions).
  *
@@ -107,11 +116,13 @@ use NativePHP\Clipboard\Facades\Clipboard;
 class Conversation extends NativeComponent
 {
     use AttachesPhotos;
+    use LeavesGonePush;
     use OpensGuilds;
     use OpensHashtags;
     use OpensInTab;
     use PlaysVoiceNotes;
     use RecordsVoiceNotes;
+    use RedrawsOnAppearanceChange;
     use RefreshesInBackground;
     use ShowsImageViewer;
     use SuggestsMentions;
@@ -172,12 +183,6 @@ class Conversation extends NativeComponent
     public const int PinnedCharactersPerLine = 42;
 
     public const int PinnedLines = 3;
-
-    /**
-     * Every frame goes in full, as on the Log (see Log::$forceFullFrames): messages come in at the bottom and their
-     * reactions change in place, which EDGE's subtree reuse would otherwise miss.
-     */
-    protected bool $forceFullFrames = true;
 
     /**
      * Who the thread is with, from the route: a username, or an org's id.
@@ -248,10 +253,10 @@ class Conversation extends NativeComponent
     public bool $composing = false;
 
     /**
-     * The composer bar's height with one line in its field, the same as the reply bar on a commit's page: its top
-     * line, then the field, its tools and Push with 8 points above and below.
+     * The composer bar's height with one line in its field: the field over the + and Push (see partials/composer-box),
+     * with 8 points above and below.
      */
-    public const int ComposerBarHeight = Display::ReplyBarHeight;
+    public const int ComposerBarHeight = Display::ComposerBoxBarHeight;
 
     /**
      * The "Replying to …" bar above the field.
@@ -370,6 +375,9 @@ class Conversation extends NativeComponent
     {
         $row = $this->data('conversation');
         $this->row = $row instanceof ConversationData ? $row : null;
+        $draft = app(Stash::class)->get($this->me()?->id, $this->stashName());
+        $this->draft = $draft->body;
+        $this->photos = $draft->images;
         $this->showKept();
         $this->showPending();
         $this->revalidate();
@@ -471,6 +479,14 @@ class Conversation extends NativeComponent
         $this->refreshUnreadNotifications();
     }
 
+    /**
+     * A thread a push opened that you can no longer read, as after leaving the org, goes back to Remotes.
+     */
+    protected function refused(ApiException $exception): bool
+    {
+        return $this->leaveGonePush($exception, "That Remote isn't there any more.");
+    }
+
     protected function showsContent(): bool
     {
         return $this->loaded;
@@ -514,6 +530,7 @@ class Conversation extends NativeComponent
         $this->replyToId = null;
         $this->lastActivityAt = self::now();
         $this->lastTypingAt = 0;
+        $this->stashDraft();
 
         $this->sendFromOutbox($write);
     }
@@ -677,10 +694,12 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * Tells the others you're typing, at most every three seconds, while the composer has something in it.
+     * Stashes the draft, and tells the others you're typing, at most every three seconds, while the composer has
+     * something in it.
      */
     public function updatedDraft(): void
     {
+        $this->stashDraft();
         $this->composing = true;
         $now = self::now();
 
@@ -1540,6 +1559,23 @@ class Conversation extends NativeComponent
         }
 
         $this->photos = $photos;
+        $this->stashDraft();
+    }
+
+    /**
+     * Stashes the draft as it changes, its text and its photos. With nothing left in it, it's forgotten.
+     */
+    private function stashDraft(): void
+    {
+        app(Stash::class)->put($this->me()?->id, $this->stashName(), new StashedDraft($this->draft, $this->photos));
+    }
+
+    /**
+     * The web's name for the thread's draft: 'remote:' and the person's username, or 'remote:org:' and the org's id.
+     */
+    private function stashName(): string
+    {
+        return $this->isOrg() ? 'remote:org:'.$this->org : 'remote:'.$this->username;
     }
 
     /**
@@ -1849,15 +1885,14 @@ class Conversation extends NativeComponent
     }
 
     /**
-     * How far the thread pads its end to clear the composer bar: the bar with one line in its field, the lines the
-     * draft has grown by, the reply bar while replying, the photos and an open description, and a little room. The
-     * scroll view adds the home indicator itself while the keyboard is down, so this is the same either way.
+     * How far the thread pads its end to clear the composer bar: the fade above it, the bar with one line in its
+     * field, the lines the draft has grown by, the reply bar while replying, the photos and an open description, and
+     * a little room. The scroll view adds the home indicator itself while the keyboard is down, so this is the same
+     * either way.
      */
     private static function composerClearance(string $draft, bool $replying, bool $hasPhotos, bool $describing): int
     {
-        $grownBy = Display::replyBarClearance($draft) - Display::ReplyBarHeight - Display::HomeIndicatorHeight;
-
-        return self::ComposerBarHeight + $grownBy
+        return Display::composerFadeHeight() + Display::composerBoxBarHeight() + Display::composerBoxGrowth($draft)
             + ($replying ? self::ReplyingBarHeight : 0)
             + ($hasPhotos ? self::PhotosHeight : 0)
             + ($hasPhotos && $describing ? self::DescriptionHeight : 0)

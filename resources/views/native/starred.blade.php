@@ -23,7 +23,9 @@
 
         @if (! $loaded && $error === null)
             @foreach (range(1, 3) as $skeleton)
-                @include('native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading starred commits'])
+                @php
+                    $rowCache->include('loading-'.$skeleton, [], 'native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading starred commits'], []);
+                @endphp
             @endforeach
         @endif
 
@@ -40,9 +42,13 @@
 
         @if ($lastCommit)
             @if ($nextCursor !== null)
-                @include('native.partials.rail-loading')
+                @php
+                    $rowCache->include('loading-more', [], 'native.partials.rail-loading', [], []);
+                @endphp
             @else
-                @include('native.partials.rail-end', ['lane' => $lastCommit->lane(), 'message' => "You've reached the end of your starred commits."])
+                @php
+                    $rowCache->include('root-commit', [], 'native.partials.rail-end', ['lane' => $lastCommit->lane(), 'message' => "You've reached the end of your starred commits."], []);
+                @endphp
             @endif
         @endif
     </native:list>

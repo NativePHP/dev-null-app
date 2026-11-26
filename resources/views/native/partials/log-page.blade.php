@@ -26,7 +26,9 @@
     >
         @if (! $page['loaded'] && $page['error'] === null)
             @foreach (range(1, 3) as $skeleton)
-                @include('native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits', 'pulse' => $page['showing']])
+                @php
+                    $page['rowCache']->include('loading-'.$skeleton, [], 'native.partials.rail-loading', ['ref' => 'loading-'.$skeleton, 'label' => 'Loading commits', 'pulse' => $page['showing']], []);
+                @endphp
             @endforeach
         @endif
 
@@ -45,9 +47,13 @@
 
         @if ($page['lastCommit'])
             @if ($page['nextCursor'] !== null)
-                @include('native.partials.rail-loading', ['pulse' => $page['showing']])
+                @php
+                    $page['rowCache']->include('loading-more', [], 'native.partials.rail-loading', ['pulse' => $page['showing']], []);
+                @endphp
             @else
-                @include('native.partials.rail-end', ['lane' => $page['lastCommit']->lane(), 'message' => "That's the root commit. There's nothing before it."])
+                @php
+                    $page['rowCache']->include('root-commit', [], 'native.partials.rail-end', ['lane' => $page['lastCommit']->lane(), 'message' => "That's the root commit. There's nothing before it."], []);
+                @endphp
             @endif
         @endif
     </native:list>

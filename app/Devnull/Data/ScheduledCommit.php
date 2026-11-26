@@ -10,7 +10,8 @@ use Carbon\CarbonInterface;
  * page, which only you see. Until it's submitted it has its body, the options
  * of its poll, and how many images it carries. Once submitted, those are its
  * commit's, and its status is that commit's: pending review, approved,
- * rejected, or deleted.
+ * rejected, or deleted. $author is the organization it goes out as, or null
+ * when it goes out as you.
  */
 final readonly class ScheduledCommit
 {
@@ -39,6 +40,7 @@ final readonly class ScheduledCommit
         public CarbonImmutable $scheduledAt,
         public ?CarbonImmutable $submittedAt,
         public string $status,
+        public ?User $author = null,
     ) {}
 
     /**
@@ -63,6 +65,7 @@ final readonly class ScheduledCommit
             scheduledAt: Commit::date($data['scheduled_at'] ?? null) ?? CarbonImmutable::now(),
             submittedAt: Commit::date($data['submitted_at'] ?? null),
             status: is_string($status) && ($status === 'scheduled' || array_key_exists($status, self::Labels)) ? $status : 'scheduled',
+            author: is_array($data['author'] ?? null) ? User::fromArray([...$data['author'], 'type' => 'organization']) : null,
         );
     }
 

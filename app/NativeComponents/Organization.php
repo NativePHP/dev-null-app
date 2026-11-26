@@ -54,11 +54,6 @@ class Organization extends NativeComponent
     use ShowsCommits;
     use TalksToDevnull;
 
-    /**
-     * Every frame goes in full, as on a profile (see Profile::$forceFullFrames).
-     */
-    protected bool $forceFullFrames = true;
-
     public const array Tabs = ['commits', 'mentions'];
 
     /**
@@ -279,6 +274,7 @@ class Organization extends NativeComponent
             'myColour' => $this->myColour(),
             'newCommitsLabel' => $this->newCommitsLabel(),
             'viewer' => $this->me(),
+            'ownership' => $this->ownership(),
             'stashed' => app(Stash::class)->names($this->me()?->id),
             'pages' => $pages,
             'pageIndex' => array_search($this->tab, self::Tabs, true),
