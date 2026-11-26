@@ -24,6 +24,9 @@
     chevron down and back up as it turned. A group fading out ($closingGroups) is still drawn, with the toggle
     already back to its count.
 
+    In the iOS workspace the row whose commit is open beside the list ($selected) takes the wash, as the Log marks its
+    open commit.
+
     No press-* feedback: on iOS it holds any drag that starts on the row, and these rows cover the whole list.
     The name's run carries font-semibold as well as the font: inside a sentence, NativeUITextRenderer sets each run's
     weight from font_weight over the face it was given, so the face alone draws regular.
@@ -40,7 +43,7 @@
 @php($second = $notification->secondActor())
 @php($withoutBottomBorder ??= false)
 @php($time = Display::relativeTime($notification->createdAt))
-<native:pressable native:key="notification-{{ $notification->id }}" ref="notification-{{ $notification->id }}" @press="open('{{ $notification->id }}')" class="w-full bg-theme-surface" a11y-label="{{ $isNew ? 'New. ' : '' }}{{ $notification->namesNobody() ? $notification->sentence() : $notification->actor->name.' '.$notification->sentence() }}">
+<native:pressable native:key="notification-{{ $notification->id }}" ref="notification-{{ $notification->id }}" @press="open('{{ $notification->id }}')" class="w-full {{ ($selected ?? false) ? 'bg-theme-wash' : 'bg-theme-surface' }}" a11y-label="{{ $isNew ? 'New. ' : '' }}{{ $notification->namesNobody() ? $notification->sentence() : $notification->actor->name.' '.$notification->sentence() }}">
     <native:row class="w-full min-h-[96]">
         <native:column :width="64" />
         <native:column class="flex-1">

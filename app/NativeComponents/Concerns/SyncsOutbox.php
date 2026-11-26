@@ -275,7 +275,7 @@ trait SyncsOutbox
             return;
         }
 
-        $this->showMessage($write, $json);
+        $this->broadcastOutboxChange('message-sent', $write, $json);
     }
 
     /**
@@ -307,7 +307,7 @@ trait SyncsOutbox
         $outbox->failed($write, $error);
 
         if ($write->isMessage()) {
-            $this->showMessage($write, null);
+            $this->broadcastOutboxChange('message-rejected', $write);
 
             Toasts::failed($error, ['label' => 'Retry', 'id' => 'retry-message', 'data' => ['write' => $write->id]]);
 
@@ -389,6 +389,8 @@ trait SyncsOutbox
             'star' => $this->showStar((string) $write->target, $starred === true, $data === [] ? null : Commit::fromArray($data)),
             'commit-sent' => $this->showCommitWent($write, Commit::fromArray($data)),
             'commit-rejected' => $this->showCommitTurnedDown($write),
+            'message-sent' => $this->showMessage($write, $data),
+            'message-rejected' => $this->showMessage($write, null),
         };
     }
 

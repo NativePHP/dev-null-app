@@ -190,6 +190,15 @@ class Conversation extends NativeComponent
     public string $org = '';
 
     /**
+     * Shown beside the Remotes list in the iOS workspace (see RemotesWorkspace), which hands it what a route's data
+     * would carry ($conversationData).
+     */
+    public bool $embedded = false;
+
+    /** @var array<string, mixed> */
+    public array $conversationData = [];
+
+    /**
      * Everything about the thread but its messages, as devnull last sent it.
      */
     public ?Thread $thread = null;
@@ -368,6 +377,21 @@ class Conversation extends NativeComponent
      * What the inbox's row knew, to title the thread until devnull answers.
      */
     public ?ConversationData $row = null;
+
+    public function data(string $key, mixed $default = null): mixed
+    {
+        return $this->embedded ? ($this->conversationData[$key] ?? $default) : parent::data($key, $default);
+    }
+
+    /**
+     * The workspace opened this thread again, as a push for it does.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function applyConversationIntent(array $data): void
+    {
+        $this->conversationData = $data;
+    }
 
     public function mount(): void
     {
@@ -631,6 +655,13 @@ class Conversation extends NativeComponent
     public function back(Transition|string|null $transition = null): static
     {
         $this->leaveVoiceNotes();
+
+        // In the workspace the thread closes beside the list, as its back button does.
+        if ($this->nativeParentComponent instanceof Workspace) {
+            $this->nativeParentComponent->closePane($this);
+
+            return $this;
+        }
 
         return parent::back($transition);
     }
@@ -1818,7 +1849,10 @@ class Conversation extends NativeComponent
             'isOrg' => $this->isOrg(),
             'access' => $thread->access ?? Thread::Open,
             'items' => $this->items($viewer),
-            'composerClearance' => self::composerClearance($this->draft, $this->replyToId !== null, $this->photos !== [], $this->describing !== null),
+            // The workspace reserves the bar's height itself, so the thread only clears the fade above it.
+            'composerClearance' => $this->embedded
+                ? Display::composerFadeHeight() + 8
+                : self::composerClearance($this->draft, $this->replyToId !== null, $this->photos !== [], $this->describing !== null),
             'replyTo' => $this->findMessage($this->replyToId),
             'quickReactions' => $this->quickReactions(),
             'canPush' => $thread !== null && $thread->access === Thread::Open,
