@@ -134,6 +134,8 @@ private final class AdaptivePageController: UIViewController {
     private var requestedBottomInset: CGFloat = 0
     private var requestedHorizontalInsets = AdaptivePaneInsets.HorizontalInsets()
     var onSafeAreaChange: (() -> Void)?
+    /// The Log's search and compose, when this page's bar carries them.
+    var feedActions: [UIBarButtonItem]?
     private(set) var source: NativeUINode
     private var contentNode: NativeUINode
     private var bottomNode: NativeUINode?
@@ -260,6 +262,9 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
     private var logoName: String?
     private var logoView: UIImageView?
     weak var chrome: AdaptiveWorkspaceChrome?
+    /// Whether the Log's search and compose were last put on the detail
+    /// column's bar rather than the feed's own. See `feedActionsOnDetail`.
+    private var placedFeedActionsOnDetail: Bool?
 
     /// Hide the tab bar while one column shows a conversation over the feed.
     /// Published on the next turn: this runs inside SwiftUI and UIKit updates.
@@ -316,6 +321,9 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        if let placed = placedFeedActionsOnDetail, placed != feedActionsOnDetail {
+            appliedRevision = nil
+        }
         reconcile()
         layoutColumns()
         updateBottomBarClearance()
@@ -626,12 +634,11 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
             }
         }
         feedPage.navigationItem.titleView = logoView
-        if feedPage.navigationItem.rightBarButtonItems == nil {
-            let compose = UIBarButtonItem(image: UIImage(systemName: "square.and.pencil"), style: .plain, target: self, action: #selector(AdaptiveWorkspaceController.compose))
-            compose.accessibilityLabel = "Compose"
-            let search = UIBarButtonItem(image: UIImage(systemName: "magnifyingglass"), style: .plain, target: self, action: #selector(AdaptiveWorkspaceController.search))
-            search.accessibilityLabel = "Search"
-            feedPage.navigationItem.rightBarButtonItems = [compose, search]
+        let actionsOnDetail = feedActionsOnDetail
+        placedFeedActionsOnDetail = actionsOnDetail
+        setRightItems(actionsOnDetail ? [] : feedActions(for: feedPage), on: feedPage)
+        if let placeholder {
+            setRightItems(actionsOnDetail ? feedActions(for: placeholder) : [], on: placeholder)
         }
         for detail in details {
             guard let page = pages[detail.id] else { continue }
@@ -663,10 +670,55 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
             if detail.props.getBool("can_delete") {
                 let delete = UIBarButtonItem(image: UIImage(systemName: "trash"), style: .plain, target: self, action: #selector(AdaptiveWorkspaceController.deleteConversation))
                 delete.accessibilityLabel = "Delete commit"
+                if #available(iOS 26.0, *) {
+                    // Its own glass, apart from the Log's search and compose.
+                    delete.sharesBackground = false
+                }
                 actions.append(delete)
             }
-            page.navigationItem.rightBarButtonItems = actions
+            // The first right item sits last, so the Log's actions keep the
+            // top of the vertical bar whether or not the commit adds delete.
+            page.navigationItem.rightBarButtonItems = actions + (actionsOnDetail ? feedActions(for: page) : [])
         }
+    }
+
+    /// Whether the Log's search and compose belong on the detail column's bar.
+    ///
+    /// The system moves a navigation bar's items into the vertical bar only
+    /// when that bar reaches the vertical bar's edge. In two columns only the
+    /// detail column does, so the feed's own items would sit at the top in
+    /// the middle of the screen, where no other screen puts its actions. They
+    /// join the detail column's items instead, ahead of the commit's own.
+    /// Without a vertical bar (one column, or a wide window elsewhere) they
+    /// stay on the feed's bar.
+    private var feedActionsOnDetail: Bool {
+        guard wide == true, #available(iOS 27.1, *) else { return false }
+        let edge = traitCollection.verticalBarEdge
+        guard edge != .unspecified else { return false }
+        // layoutColumns puts the feed on the left and the detail on the right.
+        let rightToLeft = view.effectiveUserInterfaceLayoutDirection == .rightToLeft
+        return (edge == .trailing) != rightToLeft
+    }
+
+    /// Search and compose for one page. Each page keeps its own pair: a bar
+    /// button item can't sit in two bars, and during a push or pop in the
+    /// detail column both pages' bars show.
+    private func feedActions(for page: AdaptivePageController) -> [UIBarButtonItem] {
+        if let actions = page.feedActions { return actions }
+        let compose = UIBarButtonItem(image: UIImage(systemName: "square.and.pencil"), style: .plain, target: self, action: #selector(AdaptiveWorkspaceController.compose))
+        compose.accessibilityLabel = "Compose"
+        let search = UIBarButtonItem(image: UIImage(systemName: "magnifyingglass"), style: .plain, target: self, action: #selector(AdaptiveWorkspaceController.search))
+        search.accessibilityLabel = "Search"
+        page.feedActions = [compose, search]
+        return [compose, search]
+    }
+
+    /// Assigns only on a change, so a frame that leaves the items alone
+    /// doesn't make the bar rebuild them.
+    private func setRightItems(_ items: [UIBarButtonItem], on page: AdaptivePageController) {
+        let current = page.navigationItem.rightBarButtonItems ?? []
+        guard current.count != items.count || !zip(current, items).allSatisfy({ $0.0 === $0.1 }) else { return }
+        page.navigationItem.rightBarButtonItems = items
     }
 
     @objc private func compose() { send("compose") }

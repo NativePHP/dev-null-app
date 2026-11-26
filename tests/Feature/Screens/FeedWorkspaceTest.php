@@ -518,3 +518,18 @@ it('slides a conversation in and out over the feed on one column, and snaps ever
         ->toContain('primary.setViewControllers(primaryStack, animated: animatePrimary)')
         ->not->toContain('primary.setViewControllers(primaryStack, animated: false)');
 });
+
+it('puts the Log\'s search and compose on the detail column\'s bar beside the Duo\'s vertical bar', function () {
+    // iOS moves trailing bar items into the vertical bar only from a bar that reaches its edge. In two columns that's
+    // the detail column's, so search and compose go there (on the commit or the empty placeholder) and leave the feed's.
+    $swift = file_get_contents(base_path('packages/adaptive-layout/resources/ios/AdaptiveFeedRenderer.swift'));
+
+    expect($swift)
+        ->toContain('guard wide == true, #available(iOS 27.1, *) else { return false }')
+        ->toContain('let edge = traitCollection.verticalBarEdge')
+        ->toContain('setRightItems(actionsOnDetail ? [] : feedActions(for: feedPage), on: feedPage)')
+        ->toContain('setRightItems(actionsOnDetail ? feedActions(for: placeholder) : [], on: placeholder)')
+        ->toContain('page.navigationItem.rightBarButtonItems = actions + (actionsOnDetail ? feedActions(for: page) : [])')
+        // Delete keeps its own glass under them.
+        ->toContain('delete.sharesBackground = false');
+});
