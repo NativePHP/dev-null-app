@@ -7,6 +7,7 @@ use App\Devnull\Stash;
 use App\Models\PendingWrite;
 use App\NativeComponents\CommitDetail;
 use App\NativeComponents\FeedWorkspace;
+use App\NativeComponents\Layouts\TabsLayout;
 use App\NativeComponents\Log;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -94,12 +95,51 @@ it('marks the feed row whose conversation is open beside it', function () {
     expect($background())->toBe($surface)->not->toBe(strtolower((string) theme('wash')));
 });
 
+it('draws the Log\'s bar from the Log itself: the wordmark, then search and compose, which call the Log', function () {
+    serveWorkspace();
+    $screen = Native::test(FeedWorkspace::class, platform: 'ios');
+    $bar = workspaceBar($screen);
+    $actions = array_column(findNodes($bar, fn (array $node): bool => ($node['type'] ?? null) === 'top_bar_action'), 'props');
+
+    expect($bar['props'])->toMatchArray([
+        'title' => 'devnull',
+        'title_image' => TabsLayout::LightLogo,
+        'title_image_dark' => TabsLayout::DarkLogo,
+    ])
+        ->and($bar['on_long_press'] ?? null)->not->toBeNull()
+        // The glyphs the workspace has always drawn there.
+        ->and(array_column($actions, 'icon', 'id'))->toBe(['search' => 'magnifyingglass', 'compose' => 'square.and.pencil'])
+        ->and(array_column($actions, 'a11y_label', 'id'))->toBe(['search' => 'Search', 'compose' => 'New commit']);
+
+    pressWorkspaceBar($screen, 'search')->assertNavigatedTo('/log/search');
+});
+
+it('gives each commit beside the log its own bar: its title, short hash, and Delete only on your own', function () {
+    serveApi(function (Request $request) {
+        $path = parse_url($request->url(), PHP_URL_PATH);
+
+        return Http::response(match ($path) {
+            '/api/v1/commits/c2' => commitPageJson(commitJson(['id' => 'c2', 'body' => 'Mine'])),
+            '/api/v1/commits/c3' => commitPageJson(commitJson(['id' => 'c3', 'body' => 'Theirs', 'author' => userJson(['handle' => 'ada'])])),
+            default => pageJson([]),
+        });
+    });
+    $screen = Native::test(FeedWorkspace::class, platform: 'ios')
+        ->call('openConversation', 'c2')
+        ->call('openConversation', 'c3');
+
+    expect(workspaceBar($screen, 'conversation-1')['props'])->toMatchArray(['title' => 'Commit', 'subtitle' => commitJson(['id' => 'c2'])['short_hash']])
+        ->and(workspaceBarAction($screen, 'delete', 'conversation-1')['props']['icon'])->toBe('trash')
+        ->and(workspaceBar($screen, 'conversation-2')['props']['subtitle'])->toBe(commitJson(['id' => 'c3'])['short_hash'])
+        ->and(workspaceBarAction($screen, 'delete', 'conversation-2'))->toBeNull();
+});
+
 it('opens the existing game from the retained feed logo when it is installed', function () {
     skipWithoutSkia();
     serveWorkspace();
+    $screen = Native::test(FeedWorkspace::class, platform: 'ios');
 
-    Native::test(FeedWorkspace::class, platform: 'ios')
-        ->call('hostChanged', json_encode(['action' => 'game']))
+    $screen->fireEvent('hostChanged', TestableComponent::EVENT_LONG_PRESS, ['callback_id' => workspaceBar($screen)['on_long_press']])
         ->assertNavigatedTo(Game::Route);
 });
 
@@ -148,9 +188,9 @@ it('refreshes the live feed when going back from its selected conversation', fun
 it('ignores the retained logo shortcut when the game is disabled', function () {
     config(['devnull.nata_nullers' => false]);
     serveWorkspace();
+    $screen = Native::test(FeedWorkspace::class, platform: 'ios');
 
-    Native::test(FeedWorkspace::class, platform: 'ios')
-        ->call('hostChanged', json_encode(['action' => 'game']))
+    $screen->fireEvent('hostChanged', TestableComponent::EVENT_LONG_PRESS, ['callback_id' => workspaceBar($screen)['on_long_press']])
         ->assertNoNavigation();
 });
 
@@ -233,10 +273,11 @@ it('accepts consecutive ancestor back events but rejects a stale delete and dive
         ->call('openConversation', 'c2')
         ->call('openConversation', 'c3')
         ->call('openConversation', 'c4');
+    $staleDelete = workspaceBarAction($screen, 'delete', 'conversation-3')['on_press'];
     $event = ['expected_depth' => 3, 'expected_revision' => 3, 'expected_history' => ['conversation-1', 'conversation-2', 'conversation-3']];
     $screen->call('hostChanged', json_encode([...$event, 'action' => 'back', 'depth' => 2]))
         ->call('hostChanged', json_encode([...$event, 'action' => 'back', 'depth' => 1]))
-        ->call('hostChanged', json_encode([...$event, 'action' => 'delete']))
+        ->fireEvent('hostChanged', TestableComponent::EVENT_PRESS, ['callback_id' => $staleDelete])
         ->assertNativeNotCalled('Dialog.Alert');
     expect(array_column($screen->get('conversations'), 'id'))->toBe(['c2']);
 
@@ -301,7 +342,7 @@ it('recovers and resubmits a rejected feed composer through the selected pane', 
     if ($quote) {
         $screen->tap('quote-c2');
     } else {
-        $screen->call('hostChanged', json_encode(['action' => 'compose']));
+        pressWorkspaceBar($screen, 'compose');
     }
     $screen->input('sheet-body', 'Rejected feed draft')->tap('sheet-commit')
         ->call('openConversation', 'c2', [], true);
@@ -328,7 +369,7 @@ it('recovers and resubmits a rejected feed composer through the selected pane', 
     $screen->assertSee('Keep my unrelated inline draft');
 })->with([[0, false], [1, false], [2, false], [2, true]]);
 
-it('invalidates old native commands when a rejected sheet reopens after dismissal', function (string $action) {
+it('invalidates an old native back when a rejected sheet reopens after dismissal', function () {
     holdRefreshes();
     serveWorkspace();
     $screen = finishRefreshes(Native::test(FeedWorkspace::class, platform: 'ios'))->tap('commit-c2');
@@ -341,7 +382,7 @@ it('invalidates old native commands when a rejected sheet reopens after dismissa
     );
     $screen->fireEvent('hostChanged', TestableComponent::EVENT_PRESS, ['callback_id' => $inDetail('quote-c2')['on_press']])
         ->input('sheet-body', 'Fast rejected reply')->tap('sheet-commit');
-    $old = ['action' => $action, 'depth' => 0, 'expected_depth' => 1, 'expected_revision' => 1, 'expected_history' => ['conversation-1']];
+    $old = ['action' => 'back', 'depth' => 0, 'expected_depth' => 1, 'expected_revision' => 1, 'expected_history' => ['conversation-1']];
     serveApi(['POST /api/v1/commits' => [['message' => 'Fast rejection'], 422]]);
     finishRefreshes($screen);
     $detail = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'adaptive_detail');
@@ -356,15 +397,15 @@ it('invalidates old native commands when a rejected sheet reopens after dismissa
     expect($screen->get('navigationRevision'))->toBe(2);
     $detail = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'adaptive_detail');
     expect(findNode($detail, fn (array $node): bool => ($node['ref'] ?? null) === 'sheet')['props']['visible'])->toBeTrue();
-})->with(['back', 'delete']);
+});
 
-it('rejects old native commands after a newer same-conversation intent', function (string $action) {
+it('rejects old native commands after a newer same-conversation intent', function () {
     serveWorkspace();
     $screen = Native::test(FeedWorkspace::class, platform: 'ios')
         ->call('openConversation', 'c2')
         ->call('openConversation', 'c3');
     $detail = findNodes($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'adaptive_detail')[1]['id'];
-    $event = ['action' => $action, 'depth' => 1, 'expected_depth' => 2, 'expected_revision' => 2, 'expected_history' => ['conversation-1', 'conversation-2']];
+    $event = ['action' => 'back', 'depth' => 1, 'expected_depth' => 2, 'expected_revision' => 2, 'expected_history' => ['conversation-1', 'conversation-2']];
 
     $screen->call('openConversation', 'c3', ['reply' => true])->call('hostChanged', json_encode($event))
         ->assertNativeNotCalled('Dialog.Alert');
@@ -372,11 +413,11 @@ it('rejects old native commands after a newer same-conversation intent', functio
     expect(array_column($screen->get('conversations'), 'id'))->toBe(['c2', 'c3']);
     expect(findNodes($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'adaptive_detail')[1]['id'])->toBe($detail);
     expect($screen->tree()['props']['intent_revision'])->toBe(3);
-    if ($action === 'delete') {
-        $screen->call('hostChanged', json_encode([...$event, 'expected_revision' => 3]))
-            ->assertNativeCalled('Dialog.Alert', fn (array $params): bool => $params['title'] === 'Delete this commit?');
-    }
-})->with(['back', 'delete']);
+
+    // The commit still open under the newer intent deletes from its own bar.
+    pressWorkspaceBar($screen, 'delete', 'conversation-2')
+        ->assertNativeCalled('Dialog.Alert', fn (array $params): bool => $params['title'] === 'Delete this commit?');
+});
 
 it('synchronizes successful deletion from either pane without replacing the feed', function (bool $fromDetail) {
     $deleted = false;
@@ -394,7 +435,7 @@ it('synchronizes successful deletion from either pane without replacing the feed
     $screen = Native::test(FeedWorkspace::class, platform: 'ios')->tap('commit-c2');
     $feed = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'pager')['id'];
     if ($fromDetail) {
-        $screen->call('hostChanged', json_encode(['action' => 'delete', 'expected_depth' => 1, 'expected_revision' => 1, 'expected_history' => ['conversation-1']]));
+        pressWorkspaceBar($screen, 'delete', 'conversation-1');
     } else {
         $screen->press('delete-c2');
     }
@@ -530,6 +571,26 @@ it('puts the Log\'s search and compose on the detail column\'s bar beside the Du
         ->toContain('setRightItems(actionsOnDetail ? [] : feedActions(for: feedPage), on: feedPage)')
         ->toContain('setRightItems(actionsOnDetail ? feedActions(for: placeholder) : [], on: placeholder)')
         ->toContain('page.navigationItem.rightBarButtonItems = actions + (actionsOnDetail ? feedActions(for: page) : [])')
-        // Delete keeps its own glass under them.
-        ->toContain('delete.sharesBackground = false');
+        // The detail's own buttons keep their own glass under them.
+        ->toContain('for item in actions { item.sharesBackground = !actionsOnDetail }');
+});
+
+it('builds every bar from the page\'s adaptive_bar, and sends each press to the component that registered it', function () {
+    // Nothing about the Log is left in the renderer: the wordmark, search, compose and delete all come from PHP, as
+    // each page's adaptive_bar, and their presses go straight to the callbacks the embedded component registered.
+    $swift = file_get_contents(base_path('packages/adaptive-layout/resources/ios/AdaptiveFeedRenderer.swift'));
+
+    expect($swift)
+        ->toContain('let bar = node.children.first { $0.type == "adaptive_bar" }')
+        ->toContain('if callback != 0 { NativeElementBridge.sendPressEvent(callback, nodeId: node) }')
+        ->toContain('NativeElementBridge.sendLongPressEvent(titleLongPress.callback, nodeId: titleLongPress.node)')
+        ->toContain('item = UIBarButtonItem(title: image == nil ? label : nil, image: image ?? UIImage(systemName: "ellipsis"), primaryAction: nil, menu: Self.menu(items))')
+        // A workspace with nothing to open beside its primary column keeps one.
+        ->toContain('let wantsWide = latest.props.getBool("split", default: true)')
+        ->not->toContain('send("compose")')
+        ->not->toContain('send("search")')
+        ->not->toContain('send("game")')
+        ->not->toContain('send("delete")')
+        ->not->toContain('"magnifyingglass"')
+        ->not->toContain('"square.and.pencil"');
 });

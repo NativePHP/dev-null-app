@@ -830,6 +830,46 @@ function hasTopBarAction(TestableComponent $screen, string $id): bool
 }
 
 /**
+ * The bar an iOS workspace draws for one of its pages: the primary column's, or the detail with this identity.
+ *
+ * @return array<string, mixed>
+ */
+function workspaceBar(TestableComponent $screen, ?string $detail = null): array
+{
+    $host = findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'adaptive_feed');
+    $page = $detail === null
+        ? array_find($host['children'] ?? [], fn (array $node): bool => ! in_array($node['type'] ?? null, ['adaptive_detail', 'adaptive_placeholder'], true))
+        : findNode($host ?? [], fn (array $node): bool => ($node['type'] ?? null) === 'adaptive_detail' && ($node['props']['identity'] ?? null) === $detail);
+    $bar = $page === null ? null : findNode($page, fn (array $node): bool => ($node['type'] ?? null) === 'adaptive_bar');
+
+    expect($bar)->not->toBeNull('The workspace drew no bar for '.($detail ?? 'its primary column').'.');
+
+    return $bar;
+}
+
+/**
+ * The button or menu item with this id on a workspace page's bar.
+ *
+ * @return array<string, mixed>|null
+ */
+function workspaceBarAction(TestableComponent $screen, string $action, ?string $detail = null): ?array
+{
+    return findNode(workspaceBar($screen, $detail), fn (array $node): bool => ($node['type'] ?? null) === 'top_bar_action' && ($node['props']['id'] ?? null) === $action);
+}
+
+/**
+ * Presses a button or a menu item on a workspace page's bar, as the native host does.
+ */
+function pressWorkspaceBar(TestableComponent $screen, string $action, ?string $detail = null): TestableComponent
+{
+    $button = workspaceBarAction($screen, $action, $detail);
+
+    expect($button['on_press'] ?? null)->not->toBeNull("The bar has no [{$action}] to press.");
+
+    return $screen->fireEvent('hostChanged', TestableComponent::EVENT_PRESS, ['callback_id' => $button['on_press']]);
+}
+
+/**
  * Whether anything with this ref was rendered.
  */
 function rendersRef(TestableComponent $screen, string $ref): bool
