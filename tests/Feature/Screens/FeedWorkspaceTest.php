@@ -492,3 +492,17 @@ it('shows a camera permission error only on the pane that requested it', functio
     expect($feed->sheetError)->toBe(DraftImages::CameraDenied)
         ->and($workspace->foregroundPane()->sheetError)->toBeNull();
 });
+
+it('hides the tab bar on iOS while one column shows a conversation over the feed', function () {
+    // The workspace pushes a conversation onto its own UIKit stack inside the tab's root level, where core keeps the
+    // tab bar, so the renderer has to hide it itself, as core does for a pushed level.
+    $swift = file_get_contents(base_path('packages/adaptive-layout/resources/ios/AdaptiveFeedRenderer.swift'));
+
+    expect($swift)
+        ->toContain('.toolbar(chrome.hidesTabBar ? .hidden : .automatic, for: .tabBar)')
+        // Only in one column, and only with something over the feed.
+        ->toContain('let hides = wide == false && top != nil && top !== primary.viewControllers.first')
+        // After each frame is applied, as a back swipe or chevron starts, and again when it ends or is cancelled.
+        ->and(substr_count($swift, 'updateTabBar(top: primary.topViewController)'))->toBe(2)
+        ->and($swift)->toContain('if navigationController === primary { updateTabBar(top: viewController) }');
+});

@@ -4,10 +4,11 @@ import UIKit
 struct AdaptiveFeedRenderer: View {
     let node: NativeUINode
     @ObservedObject private var themeStore = NativeUITheme.shared
+    @StateObject private var chrome = AdaptiveWorkspaceChrome()
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        AdaptiveFeedHost(node: node)
+        AdaptiveFeedHost(node: node, chrome: chrome)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             // The workspace fills the window and its pages inset themselves.
             // On the outer display, nested navigation bars were observed to
@@ -16,7 +17,16 @@ struct AdaptiveFeedRenderer: View {
             .ignoresSafeArea(.container, edges: .all)
             .background(themeStore.resolve(for: colorScheme).surface)
             .environment(\.nativeUITheme, themeStore.resolve(for: colorScheme))
+            // The workspace sits on the tab's root level, where core keeps the
+            // tab bar. A conversation pushed over the feed in one column is a
+            // detail screen, so hide the bar there as core does for its own
+            // pushed levels. Beside the feed in two columns it stays.
+            .toolbar(chrome.hidesTabBar ? .hidden : .automatic, for: .tabBar)
     }
+}
+
+private final class AdaptiveWorkspaceChrome: ObservableObject {
+    @Published var hidesTabBar = false
 }
 
 // The detail and placeholder tags are descriptors consumed by the feed host,
@@ -33,9 +43,11 @@ struct AdaptiveDetailRenderer: View {
 
 private struct AdaptiveFeedHost: UIViewControllerRepresentable {
     let node: NativeUINode
+    let chrome: AdaptiveWorkspaceChrome
 
     func makeUIViewController(context: Context) -> AdaptiveWorkspaceController {
         let controller = AdaptiveWorkspaceController()
+        controller.chrome = chrome
         controller.receive(node, environment: context.environment)
         return controller
     }
@@ -247,6 +259,17 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
     private var appliedRevision: UInt64?
     private var logoName: String?
     private var logoView: UIImageView?
+    weak var chrome: AdaptiveWorkspaceChrome?
+
+    /// Hide the tab bar while one column shows a conversation over the feed.
+    /// Published on the next turn: this runs inside SwiftUI and UIKit updates.
+    private func updateTabBar(top: UIViewController?) {
+        let hides = wide == false && top != nil && top !== primary.viewControllers.first
+        DispatchQueue.main.async { [weak self] in
+            guard let chrome = self?.chrome, chrome.hidesTabBar != hides else { return }
+            chrome.hidesTabBar = hides
+        }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -489,6 +512,7 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         secondary.view.layoutIfNeeded()
         updateHorizontalInsets()
         applying = false
+        updateTabBar(top: primary.topViewController)
         let validIDs = Set([feed.id] + currentHistory)
         pages = pages.filter { validIDs.contains($0.key) }
 
@@ -511,13 +535,18 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
     }
 
     func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController, animated: Bool) {
-        guard !applying, animated else { return }
+        guard !applying else { return }
+        // Bring the tab bar back as a back swipe or chevron starts, not after it.
+        if navigationController === primary { updateTabBar(top: viewController) }
+        guard animated else { return }
         transitioning = true
     }
 
     func navigationController(_ navigationController: UINavigationController, didShow viewController: UIViewController, animated: Bool) {
         guard !applying else { return }
         transitioning = false
+        // A cancelled back swipe ends where it started.
+        updateTabBar(top: primary.topViewController)
         let expected = navigationController === primary ? expectedPrimary : expectedSecondary
         let actual = navigationController.viewControllers
         // didShow fires after a cancelled gesture too: only a STRICT prefix
