@@ -5,6 +5,9 @@ namespace App\Devnull;
 use App\Devnull\Data\CommitBody;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Native\Mobile\Edge\Elements\BottomBar;
+use Native\Mobile\Facades\System;
+use Native\Mobile\Platform;
 
 /**
  * How the machine prints things: relative times and short hashes, as the web does.
@@ -12,21 +15,78 @@ use Carbon\CarbonInterface;
 final class Display
 {
     /**
-     * The commit page's reply bar with one line of draft: its hairline, the
-     * field and the padding around them, as drawn on an iPhone.
+     * How much a line of draft adds to a composer bar's field.
      */
-    public const int ReplyBarHeight = 53;
-
     public const int ReplyBarLineHeight = 21;
 
     public const int ReplyBarMaxLines = 5;
 
-    public const int ReplyBarCharactersPerLine = 34;
+    /**
+     * The photos on a reply's draft, above the field in the reply bar (see partials/composer-photos), and the
+     * description of one under them while it's open.
+     */
+    public const int ReplyBarPhotosHeight = 88;
+
+    public const int ReplyBarDescriptionHeight = 100;
 
     /**
-     * The row under the reply bar's field that marks a restored draft (see partials/stash-label) and counts its photos.
+     * The people to mention above a field (see partials/mention-suggestions): a row's height, and how many rows show
+     * before the rest scroll inside the list.
      */
-    public const int ReplyBarStashLabelHeight = 28;
+    public const int MentionRowHeight = 44;
+
+    public const int MentionRowsShown = 6;
+
+    /**
+     * A bar holding partials/composer-box with one line of draft, as drawn on an iPhone: the bar's padding, then the
+     * field over the row of tools and the send button.
+     */
+    public const int ComposerBoxBarHeight = 94;
+
+    /**
+     * The fade over the foot of a screen, just above its composer bar (see partials/composer-fade). On iOS the glass
+     * under the bar fades in over the same height (see composerBarGlass()).
+     */
+    public const int ComposerFadeHeight = 28;
+
+    /**
+     * How much of the surface, in percent, tints the glass under a composer bar on iOS (see composerSurface()).
+     */
+    public const int ComposerGlassTint = 40;
+
+    /**
+     * How opaque, in percent, the glass under a composer bar gets on iOS once it has faded in (glass/N, see
+     * composerBarGlass()). Full glass over a dark screen reads as a heavy slab.
+     */
+    public const int ComposerGlassOpacity = 80;
+
+    /**
+     * The first iOS whose scroll views draw a scroll edge effect under a bar (see hasScrollEdge()).
+     */
+    public const int ScrollEdgeIosVersion = 26;
+
+    /**
+     * Whether a composer's field and its row of tools sit in a rounded Liquid Glass box over the scroll edge effect,
+     * as in Messages (see composerInGlassBox()). Off, they sit straight on the effect. Only on iOS 26 and later.
+     */
+    public const bool ComposerInGlassBox = true;
+
+    /**
+     * Which scroll edge effect iOS 26 and later draw under a composer bar (see composerEdgeBlur()): "soft", the
+     * progressive blur under the system's own toolbars, or "hard", an opaque fade.
+     */
+    public const string ComposerEdgeBlur = 'soft';
+
+    /**
+     * A bar holding partials/composer-box in its glass box with one line of draft: ComposerBoxBarHeight, plus the
+     * box's own padding over and under what it holds (see composerBox()).
+     */
+    public const int ComposerGlassBoxBarHeight = 100;
+
+    /**
+     * About how many characters fit on a line of the box's field, which runs the width of the box.
+     */
+    public const int ComposerBoxCharactersPerLine = 46;
 
     /**
      * The strip under the home indicator on Face ID iPhones. EDGE doesn't
@@ -219,18 +279,185 @@ final class Display
      * How far a commit page has to scroll past its last reply to clear the
      * reply bar. A pushed screen is drawn under its bottom bar and the home
      * indicator, with no inset for either, so the page pads its own end: the
-     * bar as the draft grows to its five lines, and the indicator below it.
-     * With the keyboard up the bar sits on the keyboard instead, which only
-     * leaves a little more room. A restored draft, or one with photos, adds
-     * the row under the field ($draftRow).
+     * fade over its foot (partials/composer-fade), the bar
+     * (partials/composer-box) as the draft grows to its five lines, and the
+     * indicator below it. With the keyboard up the bar sits on the keyboard
+     * instead, which only leaves a little more room. Photos on the draft add
+     * their row above the field ($hasPhotos), and an open description of one
+     * its box under them ($describing). A link too long for devnull adds the
+     * line that says so.
      */
-    public static function replyBarClearance(string $draft, bool $draftRow = false): int
+    public static function replyBarClearance(string $draft, bool $hasPhotos = false, bool $describing = false): int
     {
-        return self::ReplyBarHeight
-            + (min(self::ReplyBarMaxLines, self::lineCount($draft, self::ReplyBarCharactersPerLine)) - 1) * self::ReplyBarLineHeight
-            + ($draftRow ? self::ReplyBarStashLabelHeight : 0)
+        return self::composerFadeHeight()
+            + self::composerBoxBarHeight()
+            + self::composerBoxGrowth($draft)
+            + ($hasPhotos ? self::ReplyBarPhotosHeight : 0)
+            + ($hasPhotos && $describing ? self::ReplyBarDescriptionHeight : 0)
             + (CommitBody::hasOversizedUrl($draft) ? 3 * self::ReplyBarLineHeight : 0)
             + self::HomeIndicatorHeight;
+    }
+
+    /**
+     * How much taller a composer-box bar is than with one line, as the draft grows to its five lines. A screen pads
+     * its end by this on top of ComposerBoxBarHeight to keep its last row clear of the bar.
+     */
+    public static function composerBoxGrowth(string $draft): int
+    {
+        return (min(self::ReplyBarMaxLines, self::lineCount($draft, self::ComposerBoxCharactersPerLine)) - 1) * self::ReplyBarLineHeight;
+    }
+
+    /**
+     * The fade's classes (see partials/composer-fade): a gradient down from see-through to the bar's surface, where
+     * the bar's rows start. EDGE takes a gradient's stops as they are, without the dark companion a theme colour gets,
+     * so the stops are the surface of the appearance the phone is in now, and a screen with the fade draws again when
+     * that changes (see RedrawsOnAppearanceChange).
+     *
+     * On Android it climbs to 70% of the surface by halfway and ends solid, so what's under it has mostly faded before
+     * it reaches the bar. On iOS it ends at the glass's tint (composerSurface()), since the bar is glass there and the
+     * glass fades in under it over the same height.
+     */
+    public static function composerFade(): string
+    {
+        $surface = strtolower((string) theme('surface', '#ffffff'));
+
+        if (self::fadesInBar()) {
+            return "bg-gradient-to-b from-{$surface}/0 to-{$surface}/".self::ComposerGlassTint;
+        }
+
+        return "bg-gradient-to-b from-{$surface}/0 via-{$surface}/70 to-{$surface}";
+    }
+
+    /**
+     * Whether the fade goes at the top of the composer bar itself, rather than over the foot of the screen above it.
+     * On iOS the screen runs on under its bottom bar, so a fade lying over the screen's foot would be under the bar,
+     * and the bar has to draw it. On Android the screen stops where the bar starts, so the fade lies over the screen.
+     */
+    public static function fadesInBar(): bool
+    {
+        return Platform::isIos();
+    }
+
+    /**
+     * Whether the composer bars stand on iOS's own scroll edge effect: iOS 26 and later blur what scrolls under the
+     * bar, as under its own toolbars, from the bar's edge-blur attribute (see composerEdgeBlur()). That stands in for
+     * the fade and the tinted glass, so a bar there draws neither and lets the effect show. Older iOS keeps the fade
+     * over glass, and Android its fade over the surface.
+     *
+     * It needs a mobile-air that takes edge-blur on a bottom bar and says which iOS the phone runs
+     * (System::osVersion()). Without one this is false and every iOS keeps the fade.
+     */
+    public static function hasScrollEdge(): bool
+    {
+        if (! Platform::isIos()
+            || ! method_exists(\Native\Mobile\System::class, 'osVersion')
+            || ! method_exists(BottomBar::class, 'edgeBlurStyle')) {
+            return false;
+        }
+
+        return (int) System::osVersion() >= self::ScrollEdgeIosVersion;
+    }
+
+    /**
+     * Whether a composer bar draws partials/composer-fade as its first row: on iOS, before the scroll edge effect.
+     */
+    public static function fadeRowInBar(): bool
+    {
+        return self::fadesInBar() && ! self::hasScrollEdge();
+    }
+
+    /**
+     * Whether the composer's field and tools sit in a rounded Liquid Glass box on the bar (ComposerInGlassBox): on
+     * iOS 26 and later, over the scroll edge effect. Older iOS and Android draw them straight on the bar, as before.
+     */
+    public static function composerInGlassBox(): bool
+    {
+        return self::ComposerInGlassBox && self::hasScrollEdge();
+    }
+
+    /**
+     * The classes for partials/composer-box's outer column. In the glass box it's rounded to match the send button
+     * inside it, which sits 8pt in from its right and bottom edges: the row of tools leaves 6pt at its end and 2pt
+     * under the button, and the box 2pt more under the row.
+     */
+    public static function composerBox(): string
+    {
+        return self::composerInGlassBox() ? 'rounded-[24] glass pb-[2]' : '';
+    }
+
+    /**
+     * The padding over the field inside partials/composer-box. In the glass box the field sits as far under the
+     * box's top edge as the row of tools sits under the field, 16pt to the text either way.
+     */
+    public static function composerFieldTop(): string
+    {
+        return self::composerInGlassBox() ? 'pt-2' : 'pt-1';
+    }
+
+    /**
+     * How tall a composer bar is with one line of draft (see ComposerBoxBarHeight and ComposerGlassBoxBarHeight).
+     */
+    public static function composerBoxBarHeight(): int
+    {
+        return self::composerInGlassBox() ? self::ComposerGlassBoxBarHeight : self::ComposerBoxBarHeight;
+    }
+
+    /**
+     * How tall the composer fade is where it's drawn: none where the scroll edge effect replaces it.
+     */
+    public static function composerFadeHeight(): int
+    {
+        return self::hasScrollEdge() ? 0 : self::ComposerFadeHeight;
+    }
+
+    /**
+     * The classes for a composer's native:bottom-bar. On iOS that's Liquid Glass: what scrolls under the bar shows
+     * through it, blurred. A patched mobile-air draws the glass behind the whole bar, under the home indicator too,
+     * and fades it in over the bar's top ComposerFadeHeight points, so it has no hard top edge. EDGE's own glass on
+     * an element can't be faded, and stops short of the home indicator. The glass stops at ComposerGlassOpacity
+     * percent (glass/N), so a little of the screen under the bar shows through. Android has no glass, so the bar
+     * stays the surface there.
+     *
+     * From iOS 26 the bar's edge-blur takes the glass's place (see composerEdgeBlur()).
+     */
+    public static function composerBarGlass(): string
+    {
+        return self::fadesInBar() ? 'glass/'.self::ComposerGlassOpacity : '';
+    }
+
+    /**
+     * The edge-blur attribute for a composer's native:bottom-bar: on iOS, ComposerEdgeBlur, so iOS 26 and later draw
+     * the system's scroll edge effect under the bar, and mobile-air leaves the bar's glass out there. Older iOS ignores
+     * it and keeps the glass. Android has no such effect, so nothing is asked there.
+     */
+    public static function composerEdgeBlur(): string
+    {
+        return self::fadesInBar() ? self::ComposerEdgeBlur : '';
+    }
+
+    /**
+     * The composer bar's own classes. On Android it's the surface. On iOS it has no background at all: mobile-air
+     * paints a bar's background colour behind the whole bar, which would cover the fade at its top, so the bar's
+     * rows carry the tint instead (composerSurface()).
+     */
+    public static function composerBar(): string
+    {
+        return self::fadesInBar() ? '' : 'bg-theme-surface';
+    }
+
+    /**
+     * The classes for the rows of a composer bar, under its fade. On Android it's the surface. On iOS it's the
+     * surface at ComposerGlassTint percent, which tints the glass behind the bar to the screen's own colour, so in
+     * dark mode the bar doesn't come out lighter than the screen. A fill reaches under the home indicator, so the
+     * tint runs on there with the glass.
+     */
+    public static function composerSurface(): string
+    {
+        if (self::hasScrollEdge()) {
+            return '';
+        }
+
+        return self::fadesInBar() ? 'bg-theme-surface/'.self::ComposerGlassTint : 'bg-theme-surface';
     }
 
     /**

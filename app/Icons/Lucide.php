@@ -32,10 +32,12 @@ enum Lucide
     case ChevronLeft;
     case ChevronDown;
     case ChevronsUp;
+    case Hourglass;
     case ArrowUpRight;
     case ArrowUp;
     case Pin;
     case ListOrdered;
+    case ListTree;
     /** lucide-react 1.57 draws Building2 as building-complex, so that is the drawing in building-2.svg. */
     case Building2;
     case MapPin;
@@ -49,7 +51,6 @@ enum Lucide
     case UserPlus;
     case UserCheck;
     case AtSign;
-    case FoldVertical;
     case Award;
     case Ellipsis;
     case Flag;
@@ -75,7 +76,6 @@ enum Lucide
     case Eye;
     case EyeOff;
     case Plus;
-    case Maximize2;
     case Vibrate;
 
     // The achievement badges, named as devnull names their icons (see forBadge()).
@@ -127,6 +127,8 @@ enum Lucide
             'mentioned' => self::AtSign,
             'approved' => self::Check,
             'rejected' => self::X,
+            'timed_out' => self::Hourglass,
+            'first_commit' => self::GitCommitVertical,
             default => self::MessageSquareReply,
         };
     }
@@ -179,7 +181,9 @@ enum Lucide
             self::ArrowUpRight => 'arrow-up-right',
             self::ArrowUp => 'arrow-up',
             self::ChevronsUp => 'chevrons-up',
+            self::Hourglass => 'hourglass',
             self::ListOrdered => 'list-ordered',
+            self::ListTree => 'list-tree',
             self::Building2 => 'building-2',
             self::MapPin => 'map-pin',
             self::CalendarDays => 'calendar-days',
@@ -190,7 +194,6 @@ enum Lucide
             self::UserPlus => 'user-plus',
             self::UserCheck => 'user-check',
             self::AtSign => 'at-sign',
-            self::FoldVertical => 'fold-vertical',
             self::Award => 'award',
             self::Ellipsis => 'ellipsis',
             self::Flag => 'flag',
@@ -217,7 +220,6 @@ enum Lucide
             self::Eye => 'eye',
             self::EyeOff => 'eye-off',
             self::Plus => 'plus',
-            self::Maximize2 => 'maximize-2',
             self::Vibrate => 'vibrate',
             self::Terminal => 'terminal',
             self::FileCode => 'file-code',

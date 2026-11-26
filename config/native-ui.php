@@ -186,11 +186,14 @@ return [
         'font-xl' => 24,
     ],
 
-    // Geist for people, Geist Mono for the machine. The files are the web app's,
-    // under the SIL Open Font License (resources/fonts/OFL.txt).
+    // Geist for people, Geist Mono for the machine, at the weights the web
+    // loads: Geist 400, 500, 600 and 700, Geist Mono 400 and 500. The files are
+    // Geist 1.7.2, under the SIL Open Font License (resources/fonts/OFL.txt).
     'fonts' => [
         'default' => 'Geist-Regular',
+        'medium' => 'Geist-Medium',
         'semibold' => 'Geist-SemiBold',
+        'bold' => 'Geist-Bold',
         'mono' => 'GeistMono-Regular',
         'mono-medium' => 'GeistMono-Medium',
     ],

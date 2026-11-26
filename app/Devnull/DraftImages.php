@@ -98,6 +98,10 @@ final class DraftImages
             throw new InvalidDraftImage(self::Unreadable);
         }
 
+        // A moved file keeps its own time, which for a photo from the library can be years ago. Until the draft holds
+        // it, nothing does, so the next photo picked with it would prune it as long forgotten.
+        @touch($kept);
+
         return new DraftImage($kept, self::Types[$info[2]], $info[0], $info[1]);
     }
 

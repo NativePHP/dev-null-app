@@ -6,6 +6,7 @@ use App\Devnull\Beat;
 use App\Devnull\Client;
 use App\Devnull\Data\Commit;
 use App\Devnull\Data\Page;
+use App\Devnull\SelfThread;
 use App\Devnull\ThreadRows;
 
 /**
@@ -18,9 +19,11 @@ use App\Devnull\ThreadRows;
  * asked for once they're all showing.
  *
  * A reply opened in place has the same button under its own actions, which
- * opens its replies in place too, one step in. A reply that deep opens its
- * replies on its page. Every thread is kept by the id of the commit or reply
- * it answers, so a reply's replies sit in $threads beside its commit's.
+ * opens its replies in place too, one step in. In a feed a reply that deep
+ * opens its replies on its page. On a commit page every reply opens its
+ * replies in place, as deep as they go (see CommitDetail and
+ * App\Devnull\ThreadRows). Every thread is kept by the id of the commit or
+ * reply it answers, so a reply's replies sit in $threads beside its commit's.
  *
  * EDGE can't animate a row coming into a list or going out of it, so replies
  * fade: a page that opens is drawn see-through ($fadedRows) and drawn again
@@ -28,6 +31,11 @@ use App\Devnull\ThreadRows;
  * animates to. Closing fades its rows out the same way, then takes them out.
  *
  * A thread opened before opens at once from the cache, and refreshes behind.
+ *
+ * The reply that carries on a thread its author wrote as replies to
+ * themselves isn't one of the replies, as on the web: it's the next part of
+ * that thread, which the commit's "Show thread" opens (see SelfThread).
+ * devnull's count of the replies already leaves it out.
  */
 trait ExpandsThreads
 {
@@ -74,6 +82,13 @@ trait ExpandsThreads
      * @var list<string>
      */
     public array $closingThreads = [];
+
+    /**
+     * Commits whose replies, opened, showed that their author carried them on as a thread, so they show "Show thread".
+     *
+     * @var list<string>
+     */
+    public array $threadsContinued = [];
 
     public function toggleReplies(string $id): void
     {
@@ -215,6 +230,8 @@ trait ExpandsThreads
      */
     private function openThread(string $id, Page $page): void
     {
+        $page = $this->withoutContinuation($id, $page);
+
         // A thread whose last reply went closes, so its commit gets its hairline back.
         if ($page->items === []) {
             $this->closeThread($id);
@@ -250,7 +267,9 @@ trait ExpandsThreads
     private function closeThread(string $id): void
     {
         foreach ($this->threads[$id] ?? [] as $reply) {
-            $this->closeThread($reply->id);
+            if (! $this->drawsOnItsOwn($reply->id)) {
+                $this->closeThread($reply->id);
+            }
         }
 
         unset($this->threads[$id], $this->threadCursors[$id], $this->threadShown[$id]);
@@ -298,6 +317,28 @@ trait ExpandsThreads
     }
 
     /**
+     * The page without the reply that carries the commit's thread on, which marks the commit as carried on instead.
+     *
+     * @param  Page<Commit>  $page
+     * @return Page<Commit>
+     */
+    private function withoutContinuation(string $id, Page $page): Page
+    {
+        $commit = $this->shownCommit($id);
+        $next = $commit === null ? null : SelfThread::next($commit, $page->items);
+
+        if ($next === null) {
+            return $page;
+        }
+
+        if (! in_array($id, $this->threadsContinued, true)) {
+            $this->threadsContinued[] = $id;
+        }
+
+        return new Page(SelfThread::others($commit, $page->items), $page->nextCursor);
+    }
+
+    /**
      * The rows of $replies in a thread, and its "Show more" when it has more.
      *
      * @param  list<Commit>  $replies
@@ -321,12 +362,21 @@ trait ExpandsThreads
         $rows = $this->rowsOf($id, $this->shownReplies($id));
 
         foreach ($this->shownReplies($id) as $reply) {
-            if (array_key_exists($reply->id, $this->threads)) {
+            if (array_key_exists($reply->id, $this->threads) && ! $this->drawsOnItsOwn($reply->id)) {
                 $rows = [...$rows, ...$this->rowsInside($reply->id)];
             }
         }
 
         return $rows;
+    }
+
+    /**
+     * Whether the screen draws a reply in a row of its own rather than in the thread it's in, so its own replies
+     * stay open when that thread closes. A commit page draws the commits on its line that way (see CommitDetail).
+     */
+    protected function drawsOnItsOwn(string $id): bool
+    {
+        return false;
     }
 
     /**

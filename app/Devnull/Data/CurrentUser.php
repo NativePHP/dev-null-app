@@ -20,10 +20,15 @@ use Carbon\CarbonImmutable;
  * you last accepted them, and whether that was this version. A devnull too old
  * to say leaves all three null.
  *
- * And the ids of the organizations you're a member of, whose commits are yours too.
+ * And the GitHub organizations you're a member of, admin or not, oldest
+ * membership first, which you can post as, as the web's Post as menu lists
+ * them. A devnull too old to say leaves it null.
  */
 final readonly class CurrentUser
 {
+    /**
+     * @param  list<User>|null  $organizations
+     */
     public function __construct(
         public User $user,
         public int $unreadNotificationsCount = 0,
@@ -39,8 +44,7 @@ final readonly class CurrentUser
         public ?string $termsVersion = null,
         public ?CarbonImmutable $termsAcceptedAt = null,
         public ?bool $termsAccepted = null,
-        /** @var list<string> */
-        public array $organizationIds = [],
+        public ?array $organizations = null,
     ) {}
 
     /**
@@ -73,8 +77,21 @@ final readonly class CurrentUser
             termsVersion: is_string($data['terms_version'] ?? null) && $data['terms_version'] !== '' ? $data['terms_version'] : null,
             termsAcceptedAt: Commit::date($data['terms_accepted_at'] ?? null),
             termsAccepted: is_bool($data['terms_accepted'] ?? null) ? $data['terms_accepted'] : null,
-            organizationIds: array_values(array_filter(array_column(is_array($data['organizations'] ?? null) ? $data['organizations'] : [], 'id'), is_string(...))),
+            organizations: is_array($data['organizations'] ?? null) ? self::organizations($data['organizations']) : null,
         );
+    }
+
+    /**
+     * The organizations you can post as, each drawn as an organization whatever the answer said.
+     *
+     * @param  array<mixed>  $organizations
+     * @return list<User>
+     */
+    private static function organizations(array $organizations): array
+    {
+        $users = array_map(fn (array $organization): User => User::fromArray([...$organization, 'type' => 'organization']), array_values(array_filter($organizations, is_array(...))));
+
+        return array_values(array_filter($users, fn (User $organization): bool => $organization->username !== ''));
     }
 
     /**

@@ -35,7 +35,7 @@ trait VotesOnPolls
     {
         $commit = $this->shownCommit($id);
 
-        if ($commit === null || ! $commit->canBeVotedOnBy($this->me()) || ! in_array($optionId, array_map(fn ($option): string => $option->id, $commit->poll?->options ?? []), true)) {
+        if ($commit === null || ! $commit->canBeVotedOnBy($this->ownership()) || ! in_array($optionId, array_map(fn ($option): string => $option->id, $commit->poll?->options ?? []), true)) {
             return;
         }
 
@@ -47,7 +47,7 @@ trait VotesOnPolls
         $commit = $this->shownCommit($id);
         $choice = $this->pollChoices[$id] ?? null;
 
-        if ($commit === null || $choice === null || in_array($id, $this->voting, true) || ! $commit->canBeVotedOnBy($this->me())) {
+        if ($commit === null || $choice === null || in_array($id, $this->voting, true) || ! $commit->canBeVotedOnBy($this->ownership())) {
             return;
         }
 

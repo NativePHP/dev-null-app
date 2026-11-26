@@ -293,7 +293,7 @@ it('takes the pastel back when it does not go, and says so as the web does', fun
 
 it('gives pastéis to replies in a thread and on a commit page', function () {
     pasteisOn();
-    $reply = commitJson(['id' => 'r1', 'parent_id' => 'c1', 'pasteis_count' => 1, 'author' => pastelAuthor()]);
+    $reply = commitJson(['id' => 'r1', 'parent_id' => 'c1', 'pasteis_count' => 1, 'author' => replierJson()]);
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'replies_count' => 1, 'author' => pastelAuthor()])])],
         'GET /api/v1/commits/c1/replies' => [pageJson([$reply])],

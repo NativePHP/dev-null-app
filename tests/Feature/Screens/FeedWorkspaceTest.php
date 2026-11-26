@@ -332,7 +332,15 @@ it('invalidates old native commands when a rejected sheet reopens after dismissa
     holdRefreshes();
     serveWorkspace();
     $screen = finishRefreshes(Native::test(FeedWorkspace::class, platform: 'ios'))->tap('commit-c2');
-    finishRefreshes($screen)->input('reply-input', 'Fast rejected reply')->tap('reply-expand')->tap('sheet-commit');
+    finishRefreshes($screen);
+
+    // The reply bar sends a reply without the sheet, so the conversation's sheet here is a quote of its commit.
+    $inDetail = fn (string $ref): array => findNode(
+        findNode($screen->tree(), fn (array $node): bool => ($node['type'] ?? null) === 'adaptive_detail'),
+        fn (array $node): bool => ($node['ref'] ?? null) === $ref,
+    );
+    $screen->fireEvent('hostChanged', TestableComponent::EVENT_PRESS, ['callback_id' => $inDetail('quote-c2')['on_press']])
+        ->input('sheet-body', 'Fast rejected reply')->tap('sheet-commit');
     $old = ['action' => $action, 'depth' => 0, 'expected_depth' => 1, 'expected_revision' => 1, 'expected_history' => ['conversation-1']];
     serveApi(['POST /api/v1/commits' => [['message' => 'Fast rejection'], 422]]);
     finishRefreshes($screen);
@@ -483,4 +491,18 @@ it('shows a camera permission error only on the pane that requested it', functio
 
     expect($feed->sheetError)->toBe(DraftImages::CameraDenied)
         ->and($workspace->foregroundPane()->sheetError)->toBeNull();
+});
+
+it('hides the tab bar on iOS while one column shows a conversation over the feed', function () {
+    // The workspace pushes a conversation onto its own UIKit stack inside the tab's root level, where core keeps the
+    // tab bar, so the renderer has to hide it itself, as core does for a pushed level.
+    $swift = file_get_contents(base_path('packages/adaptive-layout/resources/ios/AdaptiveFeedRenderer.swift'));
+
+    expect($swift)
+        ->toContain('.toolbar(chrome.hidesTabBar ? .hidden : .automatic, for: .tabBar)')
+        // Only in one column, and only with something over the feed.
+        ->toContain('let hides = wide == false && top != nil && top !== primary.viewControllers.first')
+        // After each frame is applied, as a back swipe or chevron starts, and again when it ends or is cancelled.
+        ->and(substr_count($swift, 'updateTabBar(top: primary.topViewController)'))->toBe(2)
+        ->and($swift)->toContain('if navigationController === primary { updateTabBar(top: viewController) }');
 });

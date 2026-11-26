@@ -63,11 +63,6 @@ class Search extends NativeComponent
      */
     public const int ShortestCommitTerm = 3;
 
-    /**
-     * Every frame goes in full, as on Starred, since a new term replaces every row.
-     */
-    protected bool $forceFullFrames = true;
-
     public string $query = '';
 
     /**
@@ -289,6 +284,7 @@ class Search extends NativeComponent
             'searchesCommits' => $this->searchesCommits($term),
             'rowCache' => $this->rowCache,
             'viewer' => $viewer,
+            'ownership' => $this->ownership(),
             'stashed' => app(Stash::class)->names($viewer?->id),
             'myColour' => $this->myColour(),
             'rows' => Timeline::ranked([], $this->commits),

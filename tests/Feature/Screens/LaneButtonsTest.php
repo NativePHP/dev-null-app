@@ -64,14 +64,6 @@ dataset('main buttons', [
 
         return Native::visit('/log/users/ada/followers');
     }, 'follow-grace'],
-    'Reply' => [function (): TestableComponent {
-        serveApi([
-            'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2']))],
-            'GET /api/v1/commits/c2/replies' => [pageJson([])],
-        ]);
-
-        return Native::visit('/log/commits/c2');
-    }, 'send-reply'],
     'Edit on GitHub, on the Account screen' => [function (): TestableComponent {
         serveApi(['GET /api/v1/me' => [currentUserJson(['lane' => app(Account::class)->user()?->lane()])]]);
 
@@ -107,6 +99,27 @@ it("fills the compose sheet's check with your lane, with a check that reads on i
     'rose, checked in white' => 4,
 ]);
 
+it("fills the reply bar's round Reply with your lane, with an arrow that reads on it", function (int $lane) {
+    signIn(['lane' => $lane]);
+    serveApi([
+        'GET /api/v1/commits/c2' => [commitPageJson(commitJson(['id' => 'c2']))],
+        'GET /api/v1/commits/c2/replies' => [pageJson([])],
+    ]);
+
+    $circle = nodeByRef(Native::visit('/log/commits/c2')->input('reply-input', 'Agreed'), 'send-reply-circle');
+    $icon = findNode($circle, fn (array $node): bool => $node['type'] === 'icon')['props'];
+
+    expect(array_map(strtolower(...), [$circle['style']['bg_color'], $circle['props']['dark_bg_color'], $icon['color'], $icon['dark_color']]))->toBe(array_map(strtolower(...), [
+        config("native-ui.theme.light.lane-{$lane}"),
+        config("native-ui.theme.dark.lane-{$lane}"),
+        config("native-ui.theme.light.on-lane-{$lane}"),
+        config("native-ui.theme.dark.on-lane-{$lane}"),
+    ]));
+})->with([
+    'green, an arrow in ink' => 1,
+    'rose, a white arrow' => 4,
+]);
+
 it('draws the tab underline in your lane, in its light and dark shades', function (string $path, int $lane) {
     signIn(['lane' => $lane]);
     Http::fake(['devnull.test/*' => Http::response(pageJson([]))]);
@@ -117,7 +130,7 @@ it('draws the tab underline in your lane, in its light and dark shades', functio
         ->and(strtolower($pager['props']['dark_tab_indicator_color']))->toBe(strtolower(config("native-ui.theme.dark.lane-{$lane}")))
         // Only the underline: the labels stay ink.
         ->and($pager['props']['tab_active_color'])->toBe(config('native-ui.theme.light.ink'));
-})->with(['/log', '/notifications'])->with([2, 5]);
+})->with(['/log'])->with([2, 5]);
 
 it('draws the underline under your profile\'s tabs in your lane too', function () {
     signIn(['lane' => 5]);

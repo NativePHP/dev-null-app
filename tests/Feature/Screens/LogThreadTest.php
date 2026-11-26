@@ -162,7 +162,7 @@ it("opens a reply's own replies in place, one step in, hanging off the line from
         'GET /api/v1/log/following' => [pageJson([threadedJson(2)])],
         'GET /api/v1/commits/c1/replies' => [pageJson([
             replyJson(['id' => 'r1', 'parent_id' => 'c1', 'body' => 'First', 'replies_count' => 12, 'author' => grace()]),
-            replyJson(['id' => 'r2', 'parent_id' => 'c1', 'body' => 'Second', 'author' => threadAda()]),
+            replyJson(['id' => 'r2', 'parent_id' => 'c1', 'body' => 'Second', 'author' => replierJson()]),
         ])],
         'GET /api/v1/commits/r1/replies' => [pageJson(repliesJson('r1', 12, 'n', overrides: ['author' => threadAda(), 'replies_count' => 2]))],
     ]);
@@ -200,7 +200,7 @@ it("closes a commit's thread, and the replies opened inside it, from Hide replie
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([threadedJson(1)])],
         'GET /api/v1/commits/c1/replies' => [pageJson([replyJson(['id' => 'r1', 'parent_id' => 'c1', 'replies_count' => 1, 'author' => grace()])])],
-        'GET /api/v1/commits/r1/replies' => [pageJson(repliesJson('r1', 1, 'n'))],
+        'GET /api/v1/commits/r1/replies' => [pageJson(repliesJson('r1', 1, 'n', overrides: ['author' => threadAda()]))],
     ]);
 
     $screen = Native::visit('/log', platform: 'ios')->tap('replies-c1')->tap('replies-r1')->assertSee('Reply n1');
@@ -333,7 +333,7 @@ it('ends a commit alone in its run with a dot inside its action row, level with 
 it('stops the rail at the end dot, past the replies line, and carries it on in dashes once the replies open', function () {
     fakeApi([
         'GET /api/v1/log/following' => [pageJson([commitJson(['id' => 'c1', 'author' => grace(), 'replies_count' => 1])])],
-        'GET /api/v1/commits/c1/replies' => [pageJson(repliesJson('c1', 1))],
+        'GET /api/v1/commits/c1/replies' => [pageJson(repliesJson('c1', 1, overrides: ['author' => threadAda()]))],
     ]);
 
     $screen = Native::visit('/log', platform: 'ios');
@@ -358,7 +358,7 @@ it('stops the rail at the end dot, past the replies line, and carries it on in d
 it("keeps a commit's row the same height with its replies shut, opening, open and closing, so the list never moves it", function (string $platform) {
     holdRefreshes();
     keep('log/following', pageJson([commitJson(['id' => 'c1', 'author' => grace(), 'replies_count' => 2])]));
-    keep('commits/c1/replies', pageJson(repliesJson('c1', 2)));
+    keep('commits/c1/replies', pageJson(repliesJson('c1', 2, overrides: ['author' => threadAda()])));
     serveApi(fn () => Http::response(pageJson([])));
 
     $screen = Native::visit('/log', platform: $platform);
