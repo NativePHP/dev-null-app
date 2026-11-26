@@ -9,6 +9,7 @@ use App\Devnull\Data\CurrentUser;
 use App\Devnull\Data\DraftImage;
 use App\Devnull\Data\Guild;
 use App\Devnull\Data\GuildBoard;
+use App\Devnull\Data\GuildMembers;
 use App\Devnull\Data\IncomingCall;
 use App\Devnull\Data\MessageVoice;
 use App\Devnull\Data\Notification;
@@ -495,6 +496,29 @@ final readonly class Client
     public function guild(string $handle, ?string $page = null): ?GuildBoard
     {
         return GuildBoard::fromArray($this->get('guilds/'.rawurlencode($handle), ['page' => $page]));
+    }
+
+    /**
+     * Who's in a guild, 50 a page, and who moderates it.
+     */
+    public function guildMembers(string $handle, ?string $page = null): GuildMembers
+    {
+        return GuildMembers::fromArray($this->get('guilds/'.rawurlencode($handle).'/members', ['page' => $page]));
+    }
+
+    /**
+     * Joins a guild, as the web's Join does. Joining one you muted unmutes it.
+     */
+    public function joinGuild(string $handle): void
+    {
+        $this->send('POST', 'guilds/'.rawurlencode($handle).'/membership');
+        $this->cache->guildMembershipChanged(rawurlencode($handle), true);
+    }
+
+    public function leaveGuild(string $handle): void
+    {
+        $this->send('DELETE', 'guilds/'.rawurlencode($handle).'/membership');
+        $this->cache->guildMembershipChanged(rawurlencode($handle), false);
     }
 
     /**
