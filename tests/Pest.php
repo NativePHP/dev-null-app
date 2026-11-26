@@ -390,6 +390,27 @@ function signIn(array $user = []): FakeBridge
 }
 
 /**
+ * Makes you a member of the given organizations, as `GET /me` lists them, so devnull counts their commits as yours.
+ */
+function joinOrganizations(string ...$ids): void
+{
+    app(Account::class)->rememberOrganizations(array_map(
+        fn (string $id): User => User::fromArray(userJson(['id' => $id, 'type' => 'organization', 'handle' => $id, 'name' => $id])),
+        $ids,
+    ));
+}
+
+/**
+ * An organization as the API sends one as a commit's author.
+ *
+ * @return array<string, mixed>
+ */
+function organizationAuthorJson(string $id, string $handle): array
+{
+    return userJson(['id' => $id, 'type' => 'organization', 'handle' => $handle, 'name' => $handle]);
+}
+
+/**
  * A user as the API sends one to a signed request: a commit's author, a
  * notification's actor. Its links follow the username unless a test sends its own.
  *

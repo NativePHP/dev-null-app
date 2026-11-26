@@ -1016,3 +1016,10 @@ it('ends the page above the reply bar, and further as the draft grows', function
 
     expect(nodeByRef($screen, 'reply-bar-clearance')['layout']['height'])->toEqual($bar + 4 * 21);
 });
+
+it("offers delete on a commit from an organization you're a member of", function () {
+    joinOrganizations('org-1');
+    fakeThread(['author' => organizationAuthorJson('org-1', 'NativePHP')]);
+
+    Native::visit('/log/commits/c2')->assertElement('top_bar_action', fn (array $node): bool => ($node['props']['id'] ?? null) === 'delete');
+});

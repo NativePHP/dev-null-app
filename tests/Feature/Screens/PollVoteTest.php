@@ -94,6 +94,7 @@ it('spins Vote while the vote goes, and says why devnull turned it down, keeping
 });
 
 it('offers no vote where the web offers none', function (array $commit) {
+    joinOrganizations('org-1');
     $screen = pollOnLog($commit)->call('choosePollOption', 'c1', 'o1');
 
     expect(findNode($screen->tree(), fn (array $node): bool => ($node['ref'] ?? null) === 'poll-vote-c1'))->toBeNull()
@@ -105,6 +106,7 @@ it('offers no vote where the web offers none', function (array $commit) {
     Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST');
 })->with([
     'your own poll' => [['author' => userJson()]],
+    "an organization's you're a member of, which someone else posted" => [['author' => organizationAuthorJson('org-1', 'NativePHP')]],
     'one awaiting approval' => [['status' => 'pending', 'poll' => openPollJson(['closes_at' => null])]],
     'a closed poll' => [['poll' => openPollJson(['closes_at' => '2026-10-19T11:59:00Z'])]],
     'one you voted on' => [['poll' => openPollJson(results: true)]],
