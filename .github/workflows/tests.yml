@@ -9,13 +9,19 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels the run still going for the old one. Each commit on main gets a
+# group of its own, so every one of them is tested.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   tests:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -24,19 +30,44 @@ jobs:
           extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, sodium
           coverage: none
 
-      # The secure storage plugin comes from plugins.nativephp.com, which needs plugin licence
-      # credentials. GitHub doesn't pass secrets to pull requests from forks, so those install
-      # everything else and run the tests without the plugin.
+      - name: Find the Composer cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Composer cache
+        id: restore-composer-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      # The secure storage, Skia and Firebase plugins come from plugins.nativephp.com, which needs
+      # plugin licence credentials. GitHub doesn't pass secrets to pull requests from forks, so those
+      # install everything else and run the tests without the plugins.
       - name: Install Composer dependencies
         run: |
           if [ -n "$COMPOSER_AUTH" ]; then
             composer install --prefer-dist --no-interaction --no-progress
           else
-            echo "No COMPOSER_AUTH secret, so installing without the paid plugin."
+            echo "No COMPOSER_AUTH secret, so installing without the paid plugins."
             composer setup:free --no-interaction
           fi
         env:
           COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+
+      # Pull requests from forks can restore caches saved on main, so the cache must never hold
+      # the licensed plugins. Remove them before saving.
+      - name: Remove the licensed plugins from the Composer cache
+        if: steps.restore-composer-cache.outputs.cache-hit != 'true'
+        run: rm -rf "${{ steps.composer-cache.outputs.dir }}"/nativephp/{mobile-secure-storage,mobile-skia,mobile-firebase}
+
+      - name: Save the Composer cache
+        if: steps.restore-composer-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ hashFiles('composer.lock') }}
 
       - name: Copy environment file
         run: cp .env.example .env
