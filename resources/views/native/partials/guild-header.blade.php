@@ -1,9 +1,10 @@
 {{--
     A guild's header, at the top of its board (see guild.blade.php), in the web's words: its icon or emoji (see
-    guild-mark) with Commit and Join or Leave beside it, as a profile has Remote and Follow, and Edit between them for
-    its moderator, as the web's pencil shows them it's theirs. Then its name,
-    "#handle · Public guild · N members", the count opening its members, what it's about, then how to post there, or
-    that it's paused while it has no moderator. Commit, which posts to the board, shows while the guild takes posts.
+    guild-mark) with Join or Leave beside it, as a profile has Follow, and Edit before it for its moderator, as the
+    web's pencil shows them it's theirs. They are the profile's 40pt pills (see glass-pill-button), with Join in your
+    colour as the thing to do next. Then its name, "#handle · Public guild · N members", the count opening its
+    members, what it's about, then how to post there, or that it's paused while it has no moderator. New commit,
+    which posts to the board, is in the nav bar while the guild takes posts (see Guild::navigationOptions()).
 --}}
 @php($members = \App\Devnull\Display::count($guild->memberCount, 'member', 'members'))
 <native:column ref="guild-header" class="w-full bg-theme-surface">
@@ -14,16 +15,13 @@
             </native:stack>
 
             <native:row class="gap-2 items-center">
-                @unless ($guild->isPaused)
-                    <native:button ref="guild-commit" variant="secondary" size="sm" :ios-icon="\App\Icons\Lucide::SquarePen->ios()" :android-icon="\App\Icons\Lucide::SquarePen->android()" @press="composeForGuild" a11y-hint="Posts to this guild's board">Commit</native:button>
-                @endunless
                 @if ($canModerate)
-                    <native:button ref="guild-edit" variant="secondary" size="sm" @press="editGuild" a11y-hint="Edits {{ $guild->hashtag() }}'s name, description and icon">Edit</native:button>
+                    @include('native.partials.glass-pill-button', ['ref' => 'guild-edit', 'label' => 'Edit', 'press' => 'editGuild', 'hint' => 'Edits '.$guild->hashtag()."'s name, description and icon"])
                 @endif
                 @if ($guild->isJoined)
-                    <native:button ref="guild-join" variant="secondary" size="sm" @press="toggleJoined" a11y-hint="Leaves {{ $guild->hashtag() }}">Leave</native:button>
+                    @include('native.partials.glass-pill-button', ['ref' => 'guild-join', 'label' => 'Leave', 'press' => 'toggleJoined', 'hint' => 'Leaves '.$guild->hashtag()])
                 @else
-                    <native:button ref="guild-join" :variant="$myColour" size="sm" @press="toggleJoined" a11y-hint="Joins {{ $guild->hashtag() }}">Join</native:button>
+                    @include('native.partials.glass-pill-button', ['ref' => 'guild-join', 'label' => 'Join', 'press' => 'toggleJoined', 'hint' => 'Joins '.$guild->hashtag(), 'filled' => true])
                 @endif
             </native:row>
         </native:row>

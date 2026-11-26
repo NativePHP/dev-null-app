@@ -61,23 +61,42 @@ function pressEditOnToast(TestableComponent $screen, int $writeId): TestableComp
     return $screen->emitNative(ToastActionPressed::class, ['toastId' => 'toast-1', 'actionId' => 'edit', 'data' => ['write' => $writeId]]);
 }
 
-it('offers Commit in the header, leaving Share alone in the bar', function () {
+/**
+ * The guild page's nav bar actions, left to right, by id. The ⋯ menu's items aren't in it.
+ *
+ * @return array<string, array<string, mixed>>
+ */
+function guildBar(TestableComponent $screen): array
+{
+    return collect($screen->tree()['children'] ?? [])
+        ->filter(fn (array $node): bool => ($node['type'] ?? null) === 'top_bar_action')
+        ->mapWithKeys(fn (array $node): array => [$node['props']['id'] => $node])
+        ->all();
+}
+
+it('offers New commit in the bar before the ⋯, as the Log does, and not in the header', function (string $platform) {
     fakeApi(['GET /api/v1/guilds/rust' => [boardOf(['c1'])]]);
 
-    $screen = finishRefreshes(Native::visit('/log/guilds/rust'))->tap('guild-commit');
+    $screen = finishRefreshes(Native::visit('/log/guilds/rust', platform: $platform));
+    $compose = guildBar($screen)['compose'] ?? null;
 
-    expect(treeShows(nodeByRef($screen, 'guild-commit'), 'Commit'))->toBeTrue()
-        ->and(hasTopBarAction($screen, 'share'))->toBeTrue()
-        ->and(hasTopBarAction($screen, 'compose'))->toBeFalse()
-        ->and($screen->instance()->sheetOpen)->toBeTrue();
-});
+    expect(array_keys(guildBar($screen)))->toBe(['compose', 'more'])
+        ->and($compose['props'] ?? null)->toMatchArray(['icon' => 'custom:square-pen', 'a11y_label' => 'New commit in #rust'])
+        ->and(rendersRef($screen, 'guild-commit'))->toBeFalse();
 
-it('offers no Commit on a paused guild, as the web has no composer there', function () {
+    // Pressed as the nav bar does, at the action's own callback.
+    $screen->fireEvent('composeForGuild', TestableComponent::EVENT_PRESS, ['callback_id' => $compose['on_press']]);
+
+    expect($screen->instance()->sheetOpen)->toBeTrue()
+        ->and(nodeByRef($screen, 'sheet')['props']['visible'])->toBeTrue();
+})->with(['ios', 'android']);
+
+it('offers no New commit on a paused guild, as the web has no composer there', function () {
     fakeApi(['GET /api/v1/guilds/rust' => [boardOf(['c1'], overrides: ['guild' => guildJson(['is_paused' => true])])]]);
 
     $paused = finishRefreshes(Native::visit('/log/guilds/rust'))->call('composeForGuild');
 
-    expect(rendersRef($paused, 'guild-commit'))->toBeFalse()
+    expect(array_keys(guildBar($paused)))->toBe(['more'])
         ->and($paused->instance()->sheetOpen)->toBeFalse();
 });
 

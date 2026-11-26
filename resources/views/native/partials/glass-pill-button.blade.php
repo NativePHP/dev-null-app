@@ -1,8 +1,9 @@
 {{--
-    A header's main buttons on a profile or an organization's page: Follow, Unfollow and Remote. A 40pt pill, a step up
-    from the small theme button they were, on Liquid Glass on iOS as the app's other floating buttons are (see
-    sheet-bar-button). $filled draws it in your colour, tinted through the glass on iOS, for the one thing to do next,
-    like Follow; otherwise it's clear glass on iOS and a tonal pill on Android.
+    A header's main buttons on a profile, an organization's page or a guild's: Follow, Unfollow and Remote, or Join,
+    Leave and the moderator's Edit. A 40pt pill, a step up from the small theme button they were, on Liquid Glass on
+    iOS as the app's other floating buttons are (see sheet-bar-button). $filled draws it in your colour, tinted through
+    the glass on iOS, for the one thing to do next, like Follow or Join; otherwise it's clear glass on iOS and a tonal
+    pill on Android.
 
     It's a pressable rather than a theme button, which takes no glass or per-button fill.
 --}}

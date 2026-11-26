@@ -302,12 +302,15 @@ it('opens nothing for the moderator', function () {
         ->and($screen->instance()->guildReportOpen)->toBeFalse();
 });
 
-it('shows the moderator Edit in the guild header, which opens the guild form', function () {
+it('shows the moderator Edit in the guild header, a pill like Leave beside it, which opens the guild form', function () {
     fakeApi(['GET /api/v1/guilds/rust' => [boardOf(['c1'], overrides: ['can_moderate' => true, 'guild' => guildJson(['is_joined' => true])])]]);
 
-    finishRefreshes(Native::visit('/log/guilds/rust'))
-        ->assertSee('Edit')
-        ->tap('guild-edit')
+    $screen = finishRefreshes(Native::visit('/log/guilds/rust', platform: 'ios'))->assertSee('Edit');
+
+    expect(nodeByRef($screen, 'guild-edit-pill')['layout']['height'])->toEqual(nodeByRef($screen, 'guild-join-pill')['layout']['height'])
+        ->and(nodeByRef($screen, 'guild-edit-pill')['props']['glass'] ?? 0)->not->toBe(0);
+
+    $screen->tap('guild-edit')
         ->assertNavigatedTo('/log/guilds/rust/edit', ['name' => 'Rust', 'description' => 'All about rust.', 'emoji' => '💻', 'iconUrl' => null]);
 });
 
