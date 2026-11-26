@@ -556,19 +556,40 @@ final class ResponseCache
             ];
         };
 
+        $this->patchKeptGuild($handle, $change);
+        $this->forget("guilds/{$handle}/members");
+    }
+
+    /**
+     * You muted or unmuted a guild: wherever it's kept, on its page or in the directory, it says so.
+     */
+    public function guildMuteChanged(string $handle, bool $muted): void
+    {
+        $this->patchKeptGuild($handle, fn (array $guild): array => ($guild['handle'] ?? null) === rawurldecode($handle)
+            ? [...$guild, 'is_muted' => $muted]
+            : $guild);
+    }
+
+    /**
+     * Applies $change to the guild kept on its page and to every guild in the kept directory pages.
+     *
+     * @param  Closure(array<string, mixed>): array<string, mixed>  $change
+     */
+    private function patchKeptGuild(string $handle, Closure $change): void
+    {
         $this->patch("guilds/{$handle}", [], fn (array $json): array => is_array($json['guild'] ?? null) ? [...$json, 'guild' => $change($json['guild'])] : $json);
 
-        if (($userId = $this->userId()) !== null) {
-            foreach ($this->index($userId) as $meta) {
-                if ($meta['path'] === 'guilds') {
-                    $this->patch('guilds', $meta['query'], fn (array $json): array => is_array($json['data'] ?? null)
-                        ? [...$json, 'data' => array_map(fn (mixed $guild): mixed => is_array($guild) ? $change($guild) : $guild, $json['data'])]
-                        : $json);
-                }
-            }
+        if (($userId = $this->userId()) === null) {
+            return;
         }
 
-        $this->forget("guilds/{$handle}/members");
+        foreach ($this->index($userId) as $meta) {
+            if ($meta['path'] === 'guilds') {
+                $this->patch('guilds', $meta['query'], fn (array $json): array => is_array($json['data'] ?? null)
+                    ? [...$json, 'data' => array_map(fn (mixed $guild): mixed => is_array($guild) ? $change($guild) : $guild, $json['data'])]
+                    : $json);
+            }
+        }
     }
 
     /**

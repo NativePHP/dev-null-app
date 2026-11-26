@@ -9,6 +9,7 @@
     @include('native.partials.commit-sheet')
     @include('native.partials.live-stream-sheet')
     @include('native.partials.stargazers-sheet')
+    @include('native.partials.guild-report-sheet')
 
     {{--
         The new commits pill lies over the top of the board, as the pinned bar lies over a Remotes thread. The stack and

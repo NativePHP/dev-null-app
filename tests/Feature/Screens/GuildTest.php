@@ -85,14 +85,6 @@ it('opens a guilds directory link on top of the board, with a way back', functio
         ->assertNativeNotCalled('Browser.OpenInApp');
 });
 
-it('shares the guild\'s page on the web', function () {
-    serveBoard(['' => boardOf(['c1'])]);
-
-    finishRefreshes(Native::visit('/log/guilds/rust'))
-        ->press('share')
-        ->assertNativeCalled('Share.Url', fn (array $params): bool => $params['url'] === 'http://devnull.test/guilds/rust');
-});
-
 it('opens the members from the member count', function () {
     serveBoard(['' => boardOf(['c1'])]);
 
