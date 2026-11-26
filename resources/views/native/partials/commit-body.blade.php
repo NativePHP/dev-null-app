@@ -14,12 +14,11 @@
     they wrap together.
 
     A hashtag is medium weight in Commit Blue and searches commits for it on a tap, as the web's. One that names a
-    guild is a chip instead, as the web's guild mention is, opening the guild: its name in medium mono on a wash, in a lane
-    colour picked from its handle (see Guild::lane), as text runs can't hold its icon. It's 14pt so its letters sit
-    near the middle of the wash, which fills the whole line's height. Text runs can't take padding, so a thin space
-    in the body font sits on the wash at each end (a mono one would be a whole character wide), held to the name by
-    word joiners. They can't round it either. In the composer's preview ($static), as in the web's static preview,
-    it stays plain text.
+    guild is a pill instead, as the web's guild mention is, opening the guild: its mark and its name (see
+    guild-mention). Text runs can't hold an image, so a line with a guild in it is drawn as a wrapping row of words
+    and pills, as a bio draws its tags (see App\Devnull\BodyFlow). Its words keep their runs' look, and the row's
+    padding matches the paragraph's line height. The paragraph's other lines stay text, as any paragraph's. In the composer's preview ($static), as in the web's static
+    preview, a guild stays plain text, so its paragraph stays one run of text.
 
     A quote, lines that start with ">", sits behind an amber rule on the left like the web's blockquote, its
     runs drawn as a paragraph's.
@@ -37,8 +36,8 @@
 @php($ink = ($muted ?? false) ? 'text-theme-ink-muted' : 'text-theme-ink')
 @php($folded = ! ($focused ?? false) && $commit->isFolded() && ! in_array($commit->id, $unfolded ?? [], true))
 @php($linkIndex = 0)
-@php($chipStart = "\u{2009}\u{2060}")
-@php($chipEnd = "\u{2060}\u{2009}")
+@php($guildIndex = 0)
+@php($points = preg_match('/(\d+)px/', $size, $match) === 1 ? (int) $match[1] : 15)
 @foreach ($folded ? $commit->previewContent : $commit->content as $block)
     @if ($block->isCode())
         <native:column class="w-full mt-1 mb-1 rounded-md border border-theme-hairline bg-theme-wash">
@@ -51,29 +50,36 @@
 @if ($block->isQuote())
 <native:column class="w-full my-1 pl-3 border-l-2 border-theme-lane-5">
 @endif
-<native:text class="w-full {{ $size }} leading-relaxed {{ $ink }} whitespace-pre-wrap">@foreach ($block->runs as $run)
-@if ($run->isMention())
-<native:text :text="$run->text" font="semibold" class="font-semibold text-theme-primary" @press="{{ $run->isOrganization ? 'openOrganization' : 'openProfile' }}('{{ $run->username }}')" />
-@elseif ($run->isCode)
-<native:text :text="$run->text" font="mono" class="text-[13px] bg-theme-wash" />
-@elseif ($run->link?->isNamed())
-<native:text font="mono" class="text-[13px] text-theme-primary" @press="openLink('{{ $commit->id }}', {{ $linkIndex++ }})"><native:text :text="$run->link->prefix" class="text-theme-ink-muted" />&#x2060;<native:text :text="$run->link->shown" /></native:text>
-@elseif ($run->link)
-<native:text :text="$run->link->shown" class="text-theme-primary" @press="openLink('{{ $commit->id }}', {{ $linkIndex++ }})" />
-@elseif ($run->isColor())
-<native:text><native:text text="■" class="text-[#{{ $run->color }}] dark:text-[#{{ $run->color }}]" />&#x202F;<native:text :text="$run->text" /></native:text>
-@elseif ($run->guild && ! ($static ?? false))
-<native:text @press="openGuild('{{ $run->guild->handle }}')"><native:text :text="$chipStart" class="text-[14px] bg-theme-wash" /><native:text :text="$run->guild->name" font="mono-medium" class="text-[14px] text-theme-{{ \App\Devnull\Lane::token($run->guild->lane()) }} bg-theme-wash" /><native:text :text="$chipEnd" class="text-[14px] bg-theme-wash" /></native:text>
-@elseif ($run->isHashtag && ! ($static ?? false))
-<native:text :text="$run->text" font="medium" class="font-medium text-theme-primary" @press="openHashtag('{{ $run->text }}')" />
-@elseif ($run->isWordmark)
-@php($afterSpace = $loop->index > 0 && ctype_space(substr($block->runs[$loop->index - 1]->text, -1)))
-<native:text font="semibold" class="font-semibold tracking-tight">@if ($afterSpace)&#x200B;@endif/&#x2060;dev<native:text text="/" class="text-outline text-theme-lane-0" />&#x2060;null</native:text>
-@else
-<native:text :text="$run->text" />
-@endif
+@if (! ($static ?? false) && \App\Devnull\BodyFlow::needed($block))
+@foreach (\App\Devnull\BodyFlow::parts($block, $linkIndex) as $part)
+@if ($part['rows'] === [])
+<native:text class="w-full {{ $size }} leading-relaxed {{ $ink }} whitespace-pre-wrap">@foreach ($part['runs'] as $item)
+@include('native.partials.body-run', ['run' => $item['run'], 'linkIndex' => $item['linkIndex'], 'afterSpace' => $loop->index > 0 && ctype_space(substr($part['runs'][$loop->index - 1]['run']->text, -1))])
 @endforeach
 </native:text>
+@else
+<native:column class="w-full">
+@foreach ($part['rows'] as $row)
+<native:row class="w-full flex-wrap items-center">
+@foreach ($row as $piece)
+@php($space = $piece['spaceAfter'] ? 'mr-['.round($points * 0.27).']' : '')
+@if ($piece['run']->guild !== null)
+@include('native.partials.guild-mention', ['guild' => $piece['run']->guild, 'ref' => 'guild-mention-'.$commit->id.'-'.$guildIndex++, 'size' => $points, 'space' => $space])
+@else
+@include('native.partials.body-run', ['run' => $piece['run'], 'linkIndex' => $piece['linkIndex'], 'afterSpace' => false, 'pieceClasses' => 'flex-shrink-0 py-[3] '.$space.' '.$size, 'pieceInk' => $ink])
+@endif
+@endforeach
+</native:row>
+@endforeach
+</native:column>
+@endif
+@endforeach
+@else
+<native:text class="w-full {{ $size }} leading-relaxed {{ $ink }} whitespace-pre-wrap">@foreach ($block->runs as $run)
+@include('native.partials.body-run', ['run' => $run, 'linkIndex' => $run->link !== null ? $linkIndex++ : null, 'afterSpace' => $loop->index > 0 && ctype_space(substr($block->runs[$loop->index - 1]->text, -1))])
+@endforeach
+</native:text>
+@endif
 @if ($block->isQuote())
 </native:column>
 @endif

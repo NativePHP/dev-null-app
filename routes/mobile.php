@@ -20,12 +20,14 @@ use App\NativeComponents\NewOrg;
 use App\NativeComponents\NewRemote;
 use App\NativeComponents\Notifications;
 use App\NativeComponents\NotificationSettings;
+use App\NativeComponents\NotificationsWorkspace;
 use App\NativeComponents\Onboarding;
 use App\NativeComponents\OpenPush;
 use App\NativeComponents\Organization;
 use App\NativeComponents\OrgMembers;
 use App\NativeComponents\Profile;
 use App\NativeComponents\Remotes;
+use App\NativeComponents\RemotesWorkspace;
 use App\NativeComponents\Safety;
 use App\NativeComponents\ScheduledCommits;
 use App\NativeComponents\Search;
@@ -55,9 +57,9 @@ if (Game::available()) {
 
 Route::nativeGroup(TabsLayout::class, function (): void {
     Route::native('/log', System::isIos() ? FeedWorkspace::class : Log::class);
-    Route::native('/notifications', Notifications::class);
+    Route::native('/notifications', System::isIos() ? NotificationsWorkspace::class : Notifications::class);
     Route::native('/notifications/settings', NotificationSettings::class);
-    Route::native('/remotes', Remotes::class);
+    Route::native('/remotes', System::isIos() ? RemotesWorkspace::class : Remotes::class);
     Route::native('/remotes/new', NewRemote::class);
     Route::native('/remotes/new-org', NewOrg::class);
     Route::native('/guilds', Guilds::class);

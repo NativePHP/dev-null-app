@@ -18,7 +18,7 @@ use App\Devnull\Stash;
 use App\Devnull\Timezone;
 use App\Devnull\Toasts;
 use App\Models\PendingWrite;
-use App\NativeComponents\FeedWorkspace;
+use App\NativeComponents\Workspace;
 use Carbon\CarbonImmutable;
 use Closure;
 use Native\Mobile\Facades\System;
@@ -474,7 +474,7 @@ trait OpensCommitSheet
         $write = $held === null ? null : app(Outbox::class)->find($held);
 
         if ($write !== null && $write->isCommit() && $write->isFailed()) {
-            if ($this->nativeParentComponent instanceof FeedWorkspace) {
+            if ($this->nativeParentComponent instanceof Workspace) {
                 $this->nativeParentComponent->recoverOutboxDraft($write);
             } else {
                 $this->openFailedCommit($write);

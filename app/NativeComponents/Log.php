@@ -333,20 +333,21 @@ class Log extends NativeComponent
     }
 
     /**
-     * Search, as the web's phone header has it, then a new commit. Guilds have their own tab.
+     * Search, as the web's phone header has it, then a new commit. Guilds have their own tab. In the iOS workspace
+     * (see Workspace) they keep the system's magnifying glass and pencil they have always drawn there.
      */
     public function navigationOptions(): ?NavBarOptions
     {
         return NavBarOptions::make()
             ->action(
                 NavAction::make('search')
-                    ->icon(ios: Lucide::Search->ios(), android: Lucide::Search->android())
+                    ->icon(ios: $this->embedded ? 'magnifyingglass' : Lucide::Search->ios(), android: Lucide::Search->android())
                     ->a11yLabel('Search')
                     ->press('openSearch'),
             )
             ->action(
                 NavAction::make('compose')
-                    ->icon(ios: Lucide::SquarePen->ios(), android: Lucide::SquarePen->android())
+                    ->icon(ios: $this->embedded ? 'square.and.pencil' : Lucide::SquarePen->ios(), android: Lucide::SquarePen->android())
                     ->a11yLabel('New commit')
                     ->press('composeInSheet'),
             );

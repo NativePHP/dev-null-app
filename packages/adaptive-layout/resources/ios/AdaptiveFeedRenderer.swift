@@ -41,6 +41,16 @@ struct AdaptiveDetailRenderer: View {
     }
 }
 
+// A page's bar is read by the feed host onto that page's navigation item,
+// never drawn in the page.
+struct AdaptiveBarRenderer: View {
+    let node: NativeUINode
+
+    var body: some View {
+        EmptyView()
+    }
+}
+
 private struct AdaptiveFeedHost: UIViewControllerRepresentable {
     let node: NativeUINode
     let chrome: AdaptiveWorkspaceChrome
@@ -134,23 +144,45 @@ private final class AdaptivePageController: UIViewController {
     private var requestedBottomInset: CGFloat = 0
     private var requestedHorizontalInsets = AdaptivePaneInsets.HorizontalInsets()
     var onSafeAreaChange: (() -> Void)?
+    /// The primary column's buttons, when this page's bar carries them, and
+    /// what PHP sent for them when they were made.
+    var feedActions: [UIBarButtonItem]?
+    var feedActionsSignature: [String] = []
+    /// This page's own buttons, and what PHP sent for them when they were made.
+    var ownActions: [UIBarButtonItem] = []
+    var ownActionsSignature: [String] = []
     private(set) var source: NativeUINode
     private var contentNode: NativeUINode
     private var bottomNode: NativeUINode?
+    /// The page's adaptive_bar: its title and buttons, which the workspace
+    /// puts on this page's navigation item.
+    private(set) var barNode: NativeUINode?
 
     init(node: NativeUINode, detail: Bool, environment: EnvironmentValues) {
         source = node
-        let root = detail ? (node.children.first ?? node) : node
-        let sentinel = detail ? root.children.first { $0.type == "bottom_bar" } : nil
-        let content = sentinel == nil ? root : root.copy(children: root.children.filter { $0.type != "bottom_bar" })
-        let bottom = sentinel?.children.first
-        contentNode = content
-        bottomNode = bottom
+        let parts = Self.parts(of: node, detail: detail)
+        contentNode = parts.content
+        bottomNode = parts.bottom
+        barNode = parts.bar
         let paneInsets = AdaptivePaneInsets()
         self.paneInsets = paneInsets
-        hosting = UIHostingController(rootView: AdaptiveNodeRoot(content: content, bottom: bottom, inherited: environment, paneInsets: paneInsets))
+        hosting = UIHostingController(rootView: AdaptiveNodeRoot(content: parts.content, bottom: parts.bottom, inherited: environment, paneInsets: paneInsets))
         super.init(nibName: nil, bundle: nil)
         navigationItem.largeTitleDisplayMode = .never
+    }
+
+    /// What a page draws, its bottom bar, and its bar. A detail's content is
+    /// its component, the tag's first child; the primary column's is the
+    /// whole tag. Neither draws the bar.
+    private static func parts(of node: NativeUINode, detail: Bool) -> (content: NativeUINode, bottom: NativeUINode?, bar: NativeUINode?) {
+        let bar = node.children.first { $0.type == "adaptive_bar" }
+        var root = detail ? (node.children.first { $0.type != "adaptive_bar" } ?? node) : node
+        if !detail, bar != nil {
+            root = root.copy(children: root.children.filter { $0.type != "adaptive_bar" })
+        }
+        let sentinel = detail ? root.children.first { $0.type == "bottom_bar" } : nil
+        let content = sentinel == nil ? root : root.copy(children: root.children.filter { $0.type != "bottom_bar" })
+        return (content, sentinel?.children.first, bar)
     }
 
     @available(*, unavailable)
@@ -201,10 +233,10 @@ private final class AdaptivePageController: UIViewController {
     func update(_ node: NativeUINode, detail: Bool, environment: EnvironmentValues) {
         if source !== node {
             source = node
-            let root = detail ? (node.children.first ?? node) : node
-            let sentinel = detail ? root.children.first { $0.type == "bottom_bar" } : nil
-            contentNode = sentinel == nil ? root : root.copy(children: root.children.filter { $0.type != "bottom_bar" })
-            bottomNode = sentinel?.children.first
+            let parts = Self.parts(of: node, detail: detail)
+            contentNode = parts.content
+            bottomNode = parts.bottom
+            barNode = parts.bar
         }
         // A resize never copies text from PHP or replaces a controller. The
         // unchanged node references also let equatable NodeView skip echoes.
@@ -257,9 +289,16 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
     private var reconciling = false
     private var revision: UInt64 = 0
     private var appliedRevision: UInt64?
-    private var logoName: String?
-    private var logoView: UIImageView?
+    /// The primary column's title image, as last loaded, and its long press.
+    private var titleImageName: String?
+    private var titleImageView: UIImageView?
+    private var titleLongPress: (callback: Int, node: Int) = (0, 0)
     weak var chrome: AdaptiveWorkspaceChrome?
+    /// Whether the primary column's buttons were last put on the detail
+    /// column's bar rather than its own. See `feedActionsOnDetail`.
+    private var placedFeedActionsOnDetail: Bool?
+    /// The primary column's buttons, as its bar last sent them.
+    private var primaryActionNodes: [NativeUINode] = []
 
     /// Hide the tab bar while one column shows a conversation over the feed.
     /// Published on the next turn: this runs inside SwiftUI and UIKit updates.
@@ -316,6 +355,9 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        if let placed = placedFeedActionsOnDetail, placed != feedActionsOnDetail {
+            appliedRevision = nil
+        }
         reconcile()
         layoutColumns()
         updateBottomBarClearance()
@@ -428,8 +470,11 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         // two skinny columns. Like Apple's arrangements, also weigh the aspect
         // ratio: only a window wider than it is tall gets two columns. The
         // window's shape, unlike the view's, survives keyboard resizing.
+        // A workspace with nothing to open beside its primary column (Remotes
+        // while it's off) asks to keep one column.
         let window = view.window?.bounds ?? view.bounds
-        let wantsWide = traitCollection.horizontalSizeClass == .regular && window.width > window.height
+        let wantsWide = latest.props.getBool("split", default: true)
+            && traitCollection.horizontalSizeClass == .regular && window.width > window.height
         // Root-view assignment can schedule another UIKit layout. A bounds-only
         // layout in the same mode must not assign all hosting roots again.
         guard appliedRevision != revision || wide != wantsWide else { return }
@@ -479,6 +524,15 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         let primaryStack: [UIViewController] = wantsWide ? [feedPage] : [feedPage] + detailPages
         let secondaryStack: [UIViewController] = wantsWide ? (detailPages.isEmpty ? emptyDetail : detailPages) : []
 
+        // One column on screen that only gains or loses levels at the top is a
+        // push or a pop, so it slides like one. Anything else (first mount,
+        // resizing into or out of two columns, a swapped history) snaps.
+        let oldPrimary = primary.viewControllers
+        let animatePrimary = !migrating && !wantsWide && view.window != nil && !oldPrimary.isEmpty
+            && oldPrimary.count != primaryStack.count
+            && (sameControllers(oldPrimary, Array(primaryStack.prefix(oldPrimary.count)))
+                || sameControllers(primaryStack, Array(oldPrimary.prefix(primaryStack.count))))
+
         applying = true
         if migrating {
             // Release both old parents BEFORE adding any page to the other
@@ -495,7 +549,10 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
         expectedPrimary = primaryStack
         expectedSecondary = secondaryStack
         if !sameControllers(primary.viewControllers, primaryStack) {
-            primary.setViewControllers(primaryStack, animated: false)
+            // `applying` keeps the delegate from treating this as the user's
+            // back gesture. Further reconciles wait out the transition
+            // coordinator, and didShow reconciles again once it ends.
+            primary.setViewControllers(primaryStack, animated: animatePrimary)
         }
         if !sameControllers(secondary.viewControllers, secondaryStack) {
             secondary.setViewControllers(secondaryStack, animated: false)
@@ -504,7 +561,7 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
             // Removing an item from its old bar can detach the title view
             // after it has been assigned to the destination. Rebuild only
             // the chrome, once both retained stacks have their new parents.
-            logoName = nil
+            titleImageName = nil
             for page in pages.values { page.navigationItem.titleView = nil }
         }
         configureBars(feed: feed, details: details, environment: inherited)
@@ -589,14 +646,51 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
             placeholder.navigationItem.scrollEdgeAppearance = bare
         }
         guard let feedPage = pages[feed.id] else { return }
-        feedPage.title = "Feed"
+        let primaryBar = feedPage.barNode
+        primaryActionNodes = Self.actionNodes(of: primaryBar)
+        feedPage.title = primaryBar?.props.getString("title")
         if #available(iOS 27.2, *) {
             feedPage.navigationItem.titleAlignment = .leading
         }
-        let name = environment.colorScheme == .dark ? "logo-dark@3x.png" : "logo-light@3x.png"
-        if name != logoName {
-            logoName = name
-            if let image = UIImage(contentsOfFile: AppUpdateManager.shared.getAppPath() + "/public/images/" + name) {
+        feedPage.navigationItem.titleView = titleImage(for: primaryBar, environment: environment)
+            ?? titleView(for: primaryBar, on: feedPage, tokens: tokens)
+        let actionsOnDetail = feedActionsOnDetail
+        placedFeedActionsOnDetail = actionsOnDetail
+        setRightItems(actionsOnDetail ? [] : feedActions(for: feedPage), on: feedPage)
+        if let placeholder {
+            setRightItems(actionsOnDetail ? feedActions(for: placeholder) : [], on: placeholder)
+        }
+        for detail in details {
+            guard let page = pages[detail.id] else { continue }
+            page.title = page.barNode?.props.getString("title")
+            page.navigationItem.titleView = titleView(for: page.barNode, on: page, tokens: tokens)
+            let actions = ownActions(for: page)
+            if #available(iOS 26.0, *) {
+                // Beside the primary column's buttons, each sits in its own
+                // glass, apart from them, as the Log's delete always has.
+                for item in actions { item.sharesBackground = !actionsOnDetail }
+            }
+            // The first right item sits last, so the primary column's actions
+            // keep the top of the vertical bar whatever the page adds.
+            page.navigationItem.rightBarButtonItems = actions + (actionsOnDetail ? feedActions(for: page) : [])
+        }
+    }
+
+    /// The bar's title image (the Log's wordmark) in the appearance showing,
+    /// with its long press. Kept while the image is the same.
+    private func titleImage(for bar: NativeUINode?, environment: EnvironmentValues) -> UIImageView? {
+        let light = bar?.props.getString("title_image") ?? ""
+        let dark = bar?.props.getString("title_image_dark") ?? ""
+        let name = environment.colorScheme == .dark && !dark.isEmpty ? dark : light
+        titleLongPress = (bar?.onLongPress ?? 0, bar?.id ?? 0)
+        guard !name.isEmpty else {
+            titleImageName = nil
+            titleImageView = nil
+            return nil
+        }
+        if name != titleImageName {
+            titleImageName = name
+            if let image = UIImage(contentsOfFile: AppUpdateManager.shared.getAppPath() + "/public/" + name) {
                 let imageView = AdaptiveWordmarkView(image: image)
                 imageView.contentMode = .scaleAspectFit
                 imageView.translatesAutoresizingMaskIntoConstraints = false
@@ -605,64 +699,188 @@ private final class AdaptiveWorkspaceController: UIViewController, UINavigationC
                     imageView.heightAnchor.constraint(equalToConstant: imageView.intrinsicContentSize.height),
                 ])
                 imageView.isAccessibilityElement = true
-                imageView.accessibilityLabel = "devnull"
+                imageView.accessibilityLabel = bar?.props.getString("title")
                 imageView.isUserInteractionEnabled = true
-                imageView.addGestureRecognizer(UILongPressGestureRecognizer(target: self, action: #selector(AdaptiveWorkspaceController.playGame(_:))))
-                logoView = imageView
+                imageView.addGestureRecognizer(UILongPressGestureRecognizer(target: self, action: #selector(AdaptiveWorkspaceController.titleLongPressed(_:))))
+                titleImageView = imageView
             } else {
-                logoView = nil
+                titleImageView = nil
             }
         }
-        feedPage.navigationItem.titleView = logoView
-        if feedPage.navigationItem.rightBarButtonItems == nil {
-            let compose = UIBarButtonItem(image: UIImage(systemName: "square.and.pencil"), style: .plain, target: self, action: #selector(AdaptiveWorkspaceController.compose))
-            compose.accessibilityLabel = "Compose"
-            let search = UIBarButtonItem(image: UIImage(systemName: "magnifyingglass"), style: .plain, target: self, action: #selector(AdaptiveWorkspaceController.search))
-            search.accessibilityLabel = "Search"
-            feedPage.navigationItem.rightBarButtonItems = [compose, search]
-        }
-        for detail in details {
-            guard let page = pages[detail.id] else { continue }
-            let title = detail.props.getString("title", default: "Commit")
-            let subtitle = detail.props.getString("subtitle", default: "")
-            if page.title != title || page.navigationItem.titleView?.accessibilityLabel != title + ", " + subtitle {
-                page.title = title
-                let heading = UILabel()
-                heading.text = title
-                heading.font = .preferredFont(forTextStyle: .headline)
-                heading.adjustsFontForContentSizeCategory = true
-                let hash = UILabel()
-                hash.text = subtitle
-                hash.font = .preferredFont(forTextStyle: .caption1)
-                hash.adjustsFontForContentSizeCategory = true
-                hash.lineBreakMode = .byTruncatingMiddle
-                let stack = UIStackView(arrangedSubviews: [heading, hash])
-                stack.axis = .vertical
-                stack.alignment = .center
-                stack.isAccessibilityElement = true
-                stack.accessibilityLabel = title + ", " + subtitle
-                page.navigationItem.titleView = stack
-            }
-            if let stack = page.navigationItem.titleView as? UIStackView {
-                (stack.arrangedSubviews.first as? UILabel)?.textColor = UIColor(tokens.onSurface)
-                (stack.arrangedSubviews.last as? UILabel)?.textColor = UIColor(tokens.onSurfaceVariant)
-            }
-            var actions: [UIBarButtonItem] = []
-            if detail.props.getBool("can_delete") {
-                let delete = UIBarButtonItem(image: UIImage(systemName: "trash"), style: .plain, target: self, action: #selector(AdaptiveWorkspaceController.deleteConversation))
-                delete.accessibilityLabel = "Delete commit"
-                actions.append(delete)
-            }
-            page.navigationItem.rightBarButtonItems = actions
-        }
+        return titleImageView
     }
 
-    @objc private func compose() { send("compose") }
-    @objc private func search() { send("search") }
-    @objc private func playGame(_ gesture: UILongPressGestureRecognizer) {
-        if gesture.state == .began { send("game") }
+    /// A title with its subtitle under it, as a commit's short hash or who is
+    /// typing in a thread. A title alone is the bar's own. Rebuilt only when
+    /// either changes.
+    private func titleView(for bar: NativeUINode?, on page: AdaptivePageController, tokens: NativeUITokens) -> UIView? {
+        let title = bar?.props.getString("title") ?? ""
+        let subtitle = bar?.props.getString("subtitle") ?? ""
+        guard !subtitle.isEmpty else { return nil }
+        if let stack = page.navigationItem.titleView as? UIStackView, stack.accessibilityLabel == title + ", " + subtitle {
+            (stack.arrangedSubviews.first as? UILabel)?.textColor = UIColor(tokens.onSurface)
+            (stack.arrangedSubviews.last as? UILabel)?.textColor = UIColor(tokens.onSurfaceVariant)
+            return stack
+        }
+        let heading = UILabel()
+        heading.text = title
+        heading.font = .preferredFont(forTextStyle: .headline)
+        heading.adjustsFontForContentSizeCategory = true
+        heading.textColor = UIColor(tokens.onSurface)
+        let detail = UILabel()
+        detail.text = subtitle
+        detail.font = .preferredFont(forTextStyle: .caption1)
+        detail.adjustsFontForContentSizeCategory = true
+        detail.lineBreakMode = .byTruncatingMiddle
+        detail.textColor = UIColor(tokens.onSurfaceVariant)
+        let stack = UIStackView(arrangedSubviews: [heading, detail])
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.isAccessibilityElement = true
+        stack.accessibilityLabel = title + ", " + subtitle
+        return stack
     }
-    @objc private func deleteConversation() { send("delete") }
+
+    /// Whether the primary column's buttons (the Log's search and compose)
+    /// belong on the detail column's bar.
+    ///
+    /// The system moves a navigation bar's items into the vertical bar only
+    /// when that bar reaches the vertical bar's edge. In two columns only the
+    /// detail column does, so the feed's own items would sit at the top in
+    /// the middle of the screen, where no other screen puts its actions. They
+    /// join the detail column's items instead, ahead of the detail's own.
+    /// Without a vertical bar (one column, or a wide window elsewhere) they
+    /// stay on the feed's bar.
+    private var feedActionsOnDetail: Bool {
+        guard wide == true, #available(iOS 27.1, *) else { return false }
+        let edge = traitCollection.verticalBarEdge
+        guard edge != .unspecified else { return false }
+        // layoutColumns puts the feed on the left and the detail on the right.
+        let rightToLeft = view.effectiveUserInterfaceLayoutDirection == .rightToLeft
+        return (edge == .trailing) != rightToLeft
+    }
+
+    /// The primary column's buttons for one page. Each page keeps its own: a
+    /// bar button item can't sit in two bars, and during a push or pop in the
+    /// detail column both pages' bars show.
+    private func feedActions(for page: AdaptivePageController) -> [UIBarButtonItem] {
+        let signature = primaryActionNodes.map(Self.signature)
+        if page.feedActions == nil || page.feedActionsSignature != signature {
+            page.feedActionsSignature = signature
+            page.feedActions = barButtons(for: primaryActionNodes)
+        }
+        return page.feedActions ?? []
+    }
+
+    /// A detail's own buttons, from its bar.
+    private func ownActions(for page: AdaptivePageController) -> [UIBarButtonItem] {
+        let nodes = Self.actionNodes(of: page.barNode)
+        let signature = nodes.map(Self.signature)
+        if page.ownActionsSignature != signature || page.ownActions.count != nodes.count {
+            page.ownActionsSignature = signature
+            page.ownActions = barButtons(for: nodes)
+        }
+        return page.ownActions
+    }
+
+    private static func actionNodes(of bar: NativeUINode?) -> [NativeUINode] {
+        bar?.children.filter { $0.type == "top_bar_action" } ?? []
+    }
+
+    /// What PHP sent for a button, menu and all. A button is made again only
+    /// when this changes, so a frame doesn't rebuild it or close its menu.
+    private static func signature(_ action: NativeUINode) -> String {
+        let props = action.props
+        let own = [
+            props.getString("id"), props.getString("icon"), props.getString("label"), props.getString("subtitle"),
+            props.getString("a11y_label"), String(props.getBool("disabled")), String(props.getBool("destructive")),
+            String(props.getBool("divider")), String(action.onPress),
+        ].joined(separator: "\u{1F}")
+        let items = action.children.filter { $0.type == "top_bar_action" }.map(signature)
+        return items.isEmpty ? own : own + "[" + items.joined(separator: "\u{1E}") + "]"
+    }
+
+    /// Bar buttons for a bar's actions, in PHP's order from the leading side,
+    /// as core's own bar draws them. The first right item sits last.
+    private func barButtons(for actions: [NativeUINode]) -> [UIBarButtonItem] {
+        actions.reversed().map(barButton)
+    }
+
+    /// A button, or a pull-down menu of its own actions, that sends its press
+    /// to the callback PHP registered for it, as core's bar does. That
+    /// callback belongs to the component the bar is for.
+    private func barButton(for action: NativeUINode) -> UIBarButtonItem {
+        let label = action.props.getString("label")
+        let accessibility = action.props.getString("a11y_label")
+        let image = Self.icon(action.props.getString("icon"))
+        let items = action.children.filter { $0.type == "top_bar_action" }
+        let item: UIBarButtonItem
+        if !items.isEmpty {
+            item = UIBarButtonItem(title: image == nil ? label : nil, image: image ?? UIImage(systemName: "ellipsis"), primaryAction: nil, menu: Self.menu(items))
+        } else {
+            let callback = action.onPress
+            let node = action.id
+            item = UIBarButtonItem(title: image == nil ? label : nil, image: image, primaryAction: UIAction { _ in
+                if callback != 0 { NativeElementBridge.sendPressEvent(callback, nodeId: node) }
+            }, menu: nil)
+        }
+        item.isEnabled = !action.props.getBool("disabled")
+        item.accessibilityLabel = accessibility.isEmpty ? (label.isEmpty ? nil : label) : accessibility
+        return item
+    }
+
+    /// A menu's actions, split into sections at each divider.
+    private static func menu(_ items: [NativeUINode]) -> UIMenu {
+        var sections: [[UIMenuElement]] = [[]]
+        for item in items {
+            if item.props.getBool("divider") {
+                sections.append([])
+                continue
+            }
+            let callback = item.onPress
+            let node = item.id
+            let action = UIAction(title: item.props.getString("label"), image: icon(item.props.getString("icon"), inMenu: true)) { _ in
+                if callback != 0 { NativeElementBridge.sendPressEvent(callback, nodeId: node) }
+            }
+            let subtitle = item.props.getString("subtitle")
+            if !subtitle.isEmpty { action.subtitle = subtitle }
+            if item.props.getBool("destructive") { action.attributes.insert(.destructive) }
+            if item.props.getBool("disabled") { action.attributes.insert(.disabled) }
+            sections[sections.count - 1].append(action)
+        }
+        let filled = sections.filter { !$0.isEmpty }
+        if filled.count == 1 { return UIMenu(children: filled[0]) }
+        return UIMenu(children: filled.map { UIMenu(options: .displayInline, children: $0) })
+    }
+
+    /// An icon as PHP names it: an app icon (`custom:<name>`) from its
+    /// template asset, sized as core's bar draws one in a button, else an SF
+    /// Symbol.
+    private static func icon(_ name: String, inMenu: Bool = false) -> UIImage? {
+        guard !name.isEmpty else { return nil }
+        guard let asset = NativeIcon.customAssetName(name), let image = UIImage(named: asset) else {
+            return UIImage(systemName: getIconForName(name))
+        }
+        guard !inMenu else { return image.withRenderingMode(.alwaysTemplate) }
+        let side = NativeIcon.side(forPointSize: 17)
+        let sized = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { _ in
+            image.draw(in: CGRect(x: 0, y: 0, width: side, height: side))
+        }
+        return sized.withRenderingMode(.alwaysTemplate)
+    }
+
+    /// Assigns only on a change, so a frame that leaves the items alone
+    /// doesn't make the bar rebuild them.
+    private func setRightItems(_ items: [UIBarButtonItem], on page: AdaptivePageController) {
+        let current = page.navigationItem.rightBarButtonItems ?? []
+        guard current.count != items.count || !zip(current, items).allSatisfy({ $0.0 === $0.1 }) else { return }
+        page.navigationItem.rightBarButtonItems = items
+    }
+
+    @objc private func titleLongPressed(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began, titleLongPress.callback != 0 else { return }
+        NativeElementBridge.sendLongPressEvent(titleLongPress.callback, nodeId: titleLongPress.node)
+    }
 
     private func send(_ action: String, depth: Int? = nil) {
         guard let latest else { return }

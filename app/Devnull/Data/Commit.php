@@ -154,8 +154,8 @@ final readonly class Commit
             replyPreview: is_array($data['reply_preview'] ?? null) ? ReplyPreview::fromArray($data['reply_preview']) : null,
             pasteisCount: max(0, (int) ($data['pasteis_count'] ?? 0)),
             scoreCard: $scoreCard,
-            guild: $guild,
             continuationId: is_string($data['continuation_id'] ?? null) && $data['continuation_id'] !== '' ? $data['continuation_id'] : null,
+            guild: $guild,
         );
     }
 

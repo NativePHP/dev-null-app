@@ -16,7 +16,7 @@ use App\Devnull\ResponseCache;
 use App\Devnull\SiteLink;
 use App\Devnull\Timezone;
 use App\Devnull\Toasts;
-use App\NativeComponents\FeedWorkspace;
+use App\NativeComponents\Workspace;
 use Closure;
 use Native\Mobile\Attributes\On;
 use Native\Mobile\Events\Alert\ButtonPressed;
@@ -442,7 +442,7 @@ trait ShowsCommits
 
         if ($deleted === true) {
             Toasts::say('rm '.$commit->shortHash.' → /dev/null', short: true);
-            if ($this->nativeParentComponent instanceof FeedWorkspace) {
+            if ($this->nativeParentComponent instanceof Workspace) {
                 $this->nativeParentComponent->conversationDeleted($id);
             } else {
                 $this->showDeleted($id);
