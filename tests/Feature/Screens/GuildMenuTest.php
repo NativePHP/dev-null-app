@@ -301,3 +301,18 @@ it('opens nothing for the moderator', function () {
     expect(nodeByRef($screen, 'guild-report-sheet')['props']['visible'] ?? false)->toBeFalse()
         ->and($screen->instance()->guildReportOpen)->toBeFalse();
 });
+
+it('shows the moderator Edit in the guild header, which opens the guild form', function () {
+    fakeApi(['GET /api/v1/guilds/rust' => [boardOf(['c1'], overrides: ['can_moderate' => true, 'guild' => guildJson(['is_joined' => true])])]]);
+
+    finishRefreshes(Native::visit('/log/guilds/rust'))
+        ->assertSee('Edit')
+        ->tap('guild-edit')
+        ->assertNavigatedTo('/log/guilds/rust/edit', ['name' => 'Rust', 'description' => 'All about rust.', 'emoji' => '💻', 'iconUrl' => null]);
+});
+
+it('leaves Edit out of the header for everyone else', function () {
+    fakeApi(['GET /api/v1/guilds/rust' => [boardOf(['c1'], overrides: ['guild' => guildJson(['is_joined' => true])])]]);
+
+    expect(findNode(finishRefreshes(Native::visit('/log/guilds/rust'))->tree(), fn (array $node): bool => ($node['props']['ref'] ?? $node['ref'] ?? null) === 'guild-edit'))->toBeNull();
+});

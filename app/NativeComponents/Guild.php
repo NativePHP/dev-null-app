@@ -13,6 +13,7 @@ use App\Devnull\Outbox;
 use App\Devnull\RowCache;
 use App\Devnull\Stash;
 use App\Devnull\Timeline;
+use App\Devnull\Toasts;
 use App\Icons\Lucide;
 use App\Models\PendingWrite;
 use App\NativeComponents\Concerns\DrawsSkeletonFirst;
@@ -158,7 +159,8 @@ class Guild extends NativeComponent
     /**
      * ⋯, as on someone else's profile: Share guild, then Mute or Unmute while
      * you haven't joined, as the web hides Mute once you join. Commit and Join
-     * are in the header, as Remote and Follow are on a profile.
+     * are in the header, as Remote and Follow are on a profile, and so is the
+     * moderator's Edit. The moderator gets no Report.
      */
     public function navigationOptions(): ?NavBarOptions
     {
@@ -192,6 +194,23 @@ class Guild extends NativeComponent
                 ->a11yLabel("More options for {$hashtag}")
                 ->items($items),
         );
+    }
+
+    /**
+     * The header's Edit, for the guild's moderator: the guild form, filled in with what this page shows.
+     */
+    public function editGuild(): void
+    {
+        if ($this->guild === null || ! $this->canModerate) {
+            return;
+        }
+
+        $this->openInTab('/guilds/'.rawurlencode($this->guild->handle).'/edit', [
+            'name' => $this->guild->name,
+            'description' => $this->guild->description,
+            'emoji' => $this->guild->emoji,
+            'iconUrl' => $this->guild->iconUrl,
+        ]);
     }
 
     /**
@@ -350,6 +369,42 @@ class Guild extends NativeComponent
     }
 
     /**
+     * Pin to board or Unpin from board, from a commit's More, for the guild's
+     * moderator. Once devnull answers, the commit takes the pinned place, or
+     * goes back to its own, and a toast says so, as Pin to profile does. The
+     * board is asked for again behind it, so what's kept catches up.
+     */
+    public function toggleBoardPin(string $id): void
+    {
+        $commit = $this->shownCommit($id);
+
+        if ($this->guild === null || ! $this->canModerate || $commit === null || $commit->parentId !== null) {
+            return;
+        }
+
+        $handle = $this->guild->handle;
+        $pinning = $this->pinnedId !== $id;
+
+        $done = $this->attempt(function (Client $devnull) use ($handle, $id, $pinning): bool {
+            $pinning ? $devnull->pinGuildCommit($handle, $id) : $devnull->unpinGuildCommit($handle, $id);
+
+            return true;
+        });
+
+        if ($done !== true) {
+            return;
+        }
+
+        $this->pinned = $pinning ? $commit : null;
+        $this->pinnedId = $pinning ? $id : null;
+
+        Toasts::say($pinning ? 'Commit pinned to the board.' : 'Commit unpinned.', short: true);
+
+        // Asked again even while an earlier ask is out, whose answer would put the old pin back.
+        $this->refresh($this->boardPath(), [], fn (array $json) => $this->takeBoard($json), again: true);
+    }
+
+    /**
      * The member count: who's in the guild, titled with its name.
      */
     public function openMembers(): void
@@ -418,6 +473,9 @@ class Guild extends NativeComponent
             'isEmpty' => $pinned === null && $boardCommits === [],
             // Everything on the board was posted in this guild, so none of it says so.
             'hidesGuildBadge' => true,
+            // Its moderator pins and unpins from a commit's More (see CommitMenu).
+            'pinsToBoard' => $this->canModerate,
+            'boardPinnedId' => $this->pinnedId,
         ]);
     }
 

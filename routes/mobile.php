@@ -10,6 +10,7 @@ use App\NativeComponents\Connections;
 use App\NativeComponents\Conversation;
 use App\NativeComponents\FeedWorkspace;
 use App\NativeComponents\Guild;
+use App\NativeComponents\GuildForm;
 use App\NativeComponents\GuildMembers;
 use App\NativeComponents\Guilds;
 use App\NativeComponents\Launch;
@@ -84,7 +85,10 @@ Route::nativeGroup(TabsLayout::class, function (): void {
         Route::native("{$tab}/scheduled", ScheduledCommits::class);
         Route::native("{$tab}/search", Search::class);
         Route::native("{$tab}/guilds", Guilds::class);
+        // A handle starts with a letter, so no guild can be "_new", where "new" would hide a guild of that name.
+        Route::native("{$tab}/guilds/_new", GuildForm::class);
         Route::native("{$tab}/guilds/{handle}", Guild::class);
         Route::native("{$tab}/guilds/{handle}/members", GuildMembers::class);
+        Route::native("{$tab}/guilds/{handle}/edit", GuildForm::class);
     }
 });

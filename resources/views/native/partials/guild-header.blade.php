@@ -1,6 +1,7 @@
 {{--
     A guild's header, at the top of its board (see guild.blade.php), in the web's words: its icon or emoji (see
-    guild-mark) with Commit and Join or Leave beside it, as a profile has Remote and Follow, its name,
+    guild-mark) with Commit and Join or Leave beside it, as a profile has Remote and Follow, and Edit between them for
+    its moderator, as the web's pencil shows them it's theirs. Then its name,
     "#handle · Public guild · N members", the count opening its members, what it's about, then how to post there, or
     that it's paused while it has no moderator. Commit, which posts to the board, shows while the guild takes posts.
 --}}
@@ -16,6 +17,9 @@
                 @unless ($guild->isPaused)
                     <native:button ref="guild-commit" variant="secondary" size="sm" :ios-icon="\App\Icons\Lucide::SquarePen->ios()" :android-icon="\App\Icons\Lucide::SquarePen->android()" @press="composeForGuild" a11y-hint="Posts to this guild's board">Commit</native:button>
                 @endunless
+                @if ($canModerate)
+                    <native:button ref="guild-edit" variant="secondary" size="sm" @press="editGuild" a11y-hint="Edits {{ $guild->hashtag() }}'s name, description and icon">Edit</native:button>
+                @endif
                 @if ($guild->isJoined)
                     <native:button ref="guild-join" variant="secondary" size="sm" @press="toggleJoined" a11y-hint="Leaves {{ $guild->hashtag() }}">Leave</native:button>
                 @else
