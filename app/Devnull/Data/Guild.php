@@ -3,6 +3,7 @@
 namespace App\Devnull\Data;
 
 use App\Devnull\ImageCache;
+use App\Devnull\Lane;
 
 /**
  * A guild is a public group around a hashtag.
@@ -62,6 +63,41 @@ final readonly class Guild
             htmlUrl: is_string($data['html_url'] ?? null) ? $data['html_url'] : null,
             iconUrl: is_string($data['icon_url'] ?? null) && $data['icon_url'] !== '' ? $data['icon_url'] : null,
         );
+    }
+
+    /**
+     * The guilds mentioned by hashtag in a commit or a message, keyed by lowercase handle, read from the
+     * `guild_mentions` devnull sends with it. The guild a commit was posted in ($postedIn) is added when the map lacks
+     * it, so its own hashtag opens it even when devnull leaves it out, as on the web. devnull sends none when guilds are off for you.
+     *
+     * @return array<string, self>
+     */
+    public static function mentions(mixed $guildMentions, ?self $postedIn = null): array
+    {
+        $guilds = [];
+
+        foreach (is_array($guildMentions) ? $guildMentions : [] as $data) {
+            $guild = is_array($data) ? self::fromArray($data) : null;
+
+            if ($guild !== null) {
+                $guilds[mb_strtolower($guild->handle)] = $guild;
+            }
+        }
+
+        if ($postedIn !== null) {
+            $guilds[mb_strtolower($postedIn->handle)] ??= $postedIn;
+        }
+
+        return $guilds;
+    }
+
+    /**
+     * The lane colour its mark in a commit's text is drawn in, picked from its handle, as text can't hold its icon or
+     * emoji. Any case of the handle picks the same lane, so a guild always wears the same colour.
+     */
+    public function lane(): int
+    {
+        return Lane::for(mb_strtolower($this->handle));
     }
 
     /**

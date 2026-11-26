@@ -8,11 +8,12 @@ namespace App\Devnull\Data;
  * draws with a swatch of it, or a hashtag, which searches commits for it. A
  * link's text is the URL as written, and a color's or a hashtag's is as
  * written, `#` included. A mention of a GitHub organization has its handle in
- * $username too, and $isOrganization set.
+ * $username too, and $isOrganization set. A hashtag that names a guild has
+ * that guild ($guild), and opens it instead.
  */
 final readonly class BodyRun
 {
-    public function __construct(public string $text, public ?string $username = null, public bool $isCode = false, public bool $isWordmark = false, public ?BodyLink $link = null, public ?string $color = null, public bool $isOrganization = false, public bool $isHashtag = false) {}
+    public function __construct(public string $text, public ?string $username = null, public bool $isCode = false, public bool $isWordmark = false, public ?BodyLink $link = null, public ?string $color = null, public bool $isOrganization = false, public bool $isHashtag = false, public ?Guild $guild = null) {}
 
     public function isMention(): bool
     {
