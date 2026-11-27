@@ -5,9 +5,11 @@
 
     Tapping the pill opens the guild's own screen (see OpensGuilds). A guild's own board
     leaves the badge off its commits, since they're all posted there (see Guild).
+
+    At large text sizes "· not shown in general logs" moves whole to the next line rather than squeezing.
 --}}
 @php($guild = $commit->guild)
-<native:row ref="guild-badge-{{ $commit->id }}" class="w-full gap-1 items-center">
+<native:row ref="guild-badge-{{ $commit->id }}" class="w-full flex-wrap gap-1 items-center">
     <native:text class="text-xs text-theme-ink-muted">posted in</native:text>
     <native:pressable ref="guild-pill-{{ $commit->id }}" @press="openGuild('{{ $guild->handle }}')" class="flex-row flex-shrink gap-1 items-center rounded-sm bg-theme-wash px-1 py-[2]" a11y-label="{{ $guild->name }}, {{ $guild->hashtag() }}">
         @include('native.partials.guild-mark', ['guild' => $guild, 'size' => 14, 'ref' => 'guild-pill-mark-'.$commit->id])

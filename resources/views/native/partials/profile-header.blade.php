@@ -63,11 +63,12 @@
             <native:text font="semibold" class="text-2xl tracking-tight text-theme-ink">{{ $user->name }}</native:text>
             {{--
                 The handle, then what the web marks beside it: Follows you, Muted, and the Unix rank in the
-                owner's lane. EDGE's rows don't wrap on iOS, so the handle gives way first.
+                owner's lane. At large text sizes the rank's name gives way first, so the handle stays whole and
+                the level still shows.
             --}}
             <native:row ref="profile-handle" class="w-full gap-2 items-center">
                 <native:column :width="8" :height="8" class="rounded-full bg-theme-{{ \App\Devnull\Lane::token($user->lane()) }} flex-shrink-0" />
-                <native:text font="mono" class="text-[13px] text-theme-ink-muted flex-shrink" :max-lines="1">{{ $user->handle() }}</native:text>
+                <native:text font="mono" class="text-[13px] text-theme-ink-muted flex-shrink-0" :max-lines="1">{{ $user->handle() }}</native:text>
                 @if ($profile->followsYou && ! $sketched)
                     <native:column class="px-2 py-[2] rounded bg-theme-wash flex-shrink-0">
                         <native:text class="text-xs text-theme-ink-muted">Follows you</native:text>
@@ -79,8 +80,11 @@
                     </native:column>
                 @endif
                 @if ($profile->achievements && ! $sketched)
-                    <native:column ref="rank" class="px-2 py-[2] rounded-full border border-theme-{{ \App\Devnull\Lane::token($user->lane()) }}/25 bg-theme-{{ \App\Devnull\Lane::token($user->lane()) }}/10 flex-shrink-0" a11y-label="Level {{ $profile->achievements->level }}, {{ $profile->achievements->rank }}">
-                        <native:text font="mono-medium" class="text-[11px] text-theme-{{ \App\Devnull\Lane::token($user->lane()) }}">{{ $profile->achievements->label() }}</native:text>
+                    <native:column ref="rank" class="px-2 py-[2] rounded-full border border-theme-{{ \App\Devnull\Lane::token($user->lane()) }}/25 bg-theme-{{ \App\Devnull\Lane::token($user->lane()) }}/10 flex-shrink" a11y-label="Level {{ $profile->achievements->level }}, {{ $profile->achievements->rank }}">
+                        <native:row class="items-center">
+                            <native:text font="mono-medium" class="text-[11px] text-theme-{{ \App\Devnull\Lane::token($user->lane()) }} flex-shrink-0">Lv. {{ $profile->achievements->level }}</native:text>
+                            <native:text font="mono-medium" class="text-[11px] text-theme-{{ \App\Devnull\Lane::token($user->lane()) }} flex-shrink" :max-lines="1">{{ "\u{00A0}· ".$profile->achievements->rank }}</native:text>
+                        </native:row>
                     </native:column>
                 @endif
             </native:row>
@@ -111,8 +115,8 @@
         </native:column>
 
         @if (! $sketched)
-        {{-- Following and followers open their lists, as the web links them. --}}
-        <native:row ref="counts" class="w-full gap-4">
+        {{-- Following and followers open their lists, as the web links them. At large text sizes a count that won't fit moves whole to the next line. --}}
+        <native:row ref="counts" class="w-full flex-wrap gap-4">
             @foreach ([[$profile->commitsCount, 'commit', 'commits', null], [$profile->followingCount, 'following', 'following', 'following'], [$profile->followersCount, 'follower', 'followers', 'followers']] as [$count, $singular, $plural, $list])
                 @if ($list === null)
                     <native:row class="gap-1 items-center">

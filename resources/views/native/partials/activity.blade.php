@@ -6,7 +6,8 @@
 @php($gap = $activity->scale === 'year' ? 2 : 3)
 @php($summary = $activity->isEmpty() ? 'No commits yet' : \App\Devnull\Display::count($activity->total(), 'commit', 'commits').' '.$activity->window())
 <native:column ref="activity" class="w-full px-4 py-5 gap-3 bg-theme-surface">
-    <native:row class="w-full gap-4 items-center justify-between">
+    {{-- At large text sizes the summary moves under the heading rather than squeezing beside it. --}}
+    <native:row class="w-full flex-wrap gap-2 items-center justify-between">
         <native:text font="semibold" class="text-sm text-theme-ink">Commit activity</native:text>
         @if ($activity->isEmpty())
             <native:text class="text-sm text-theme-ink-muted">No commits yet</native:text>

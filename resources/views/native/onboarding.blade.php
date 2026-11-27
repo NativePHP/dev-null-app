@@ -37,11 +37,12 @@
             </native:pressable>
             <native:column class="flex-1 gap-1 pt-[10]">
                 <native:text ref="terms-copy" class="text-[13px] leading-snug text-theme-ink">I agree to the terms of service and privacy policy. There's no tolerance for objectionable content or abusive users.</native:text>
-                <native:row class="gap-4">
-                    <native:pressable ref="terms-link" @press="openTerms" class="h-[32] justify-center" a11y-label="Read the terms of service">
+                {{-- At large text sizes the privacy policy moves under the terms rather than being cut off. --}}
+                <native:row class="flex-wrap">
+                    <native:pressable ref="terms-link" @press="openTerms" class="min-h-[32] mr-4 justify-center" a11y-label="Read the terms of service">
                         <native:text class="text-[13px] text-theme-primary">Terms of service</native:text>
                     </native:pressable>
-                    <native:pressable ref="privacy-link" @press="openPrivacy" class="h-[32] justify-center" a11y-label="Read the privacy policy">
+                    <native:pressable ref="privacy-link" @press="openPrivacy" class="min-h-[32] justify-center" a11y-label="Read the privacy policy">
                         <native:text class="text-[13px] text-theme-primary">Privacy policy</native:text>
                     </native:pressable>
                 </native:row>
