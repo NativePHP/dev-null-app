@@ -185,6 +185,23 @@ final class CommitBody
     }
 
     /**
+     * Plain text as runs, with each standalone `/dev/null` outside code as a wordmark run, as the web's WordmarkText
+     * splits a guild's description or a Remote's preview (see partials/wordmark-text).
+     *
+     * @return list<BodyRun>
+     */
+    public static function wordmarkRuns(string $text): array
+    {
+        $runs = [];
+
+        foreach (preg_split(self::CodeSpans, $text, flags: PREG_SPLIT_DELIM_CAPTURE) ?: [$text] as $index => $segment) {
+            array_push($runs, ...($index % 2 === 1 ? [new BodyRun($segment)] : self::withWordmarks($segment)));
+        }
+
+        return $runs;
+    }
+
+    /**
      * Gives each hashtag that names a guild that guild, matched without case as devnull matches it, so it opens the
      * guild rather than a search, as the web's guild mentions do.
      *

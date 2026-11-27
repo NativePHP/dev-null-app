@@ -40,6 +40,12 @@ it('lists your conversations, the latest first, as the web inbox does', function
         ->and(app(Account::class)->unreadRemotes())->toBe(2);
 });
 
+it('draws /dev/null in the latest message as the wordmark, as the web inbox does', function () {
+    fakeApi(['GET /api/v1/remotes' => [remotesInboxJson([conversationJson(['last_message' => remoteMessageJson(['id' => 7, 'body' => 'try /dev/null'])])])]]);
+
+    expect(paragraphRuns(finishRefreshes(Native::visit('/remotes')), 'try'))->toBe([['try '], ['/dev/null', 'wordmark']]);
+});
+
 it('lists an org by its name, with how many are in it', function () {
     fakeApi(['GET /api/v1/remotes' => [remotesInboxJson([conversationJson([
         'id' => 'org-1',

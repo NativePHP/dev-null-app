@@ -76,6 +76,12 @@ it('shows the guild\'s header as the web does', function () {
     expect(guildMeta($paused))->toBe('#rust · Public guild · Paused · 1 member');
 });
 
+it('draws /dev/null in the description as the wordmark, as the web does', function () {
+    serveBoard(['' => boardOf(['c1'], overrides: ['guild' => guildJson(['description' => 'Rust talk on /dev/null.'])])]);
+
+    expect(paragraphRuns(finishRefreshes(Native::visit('/log/guilds/rust')), 'Rust talk'))->toBe([['Rust talk on '], ['/dev/null', 'wordmark'], ['.']]);
+});
+
 it('opens a guilds directory link on top of the board, with a way back', function () {
     serveBoard(['' => boardOf(['c1'], overrides: ['data' => [commitJson(['id' => 'c1', 'body' => 'See https://dev-null.sh/guilds'])]])]);
 

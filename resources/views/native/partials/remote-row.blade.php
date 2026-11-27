@@ -54,9 +54,9 @@
                     ])
                 @endif
                 @if ($last?->isEvent())
-                    <native:text font="mono" class="flex-1 text-xs {{ $conversation->ahead > 0 ? 'text-theme-ink' : 'text-theme-ink-muted' }}" :max-lines="1">{{ $preview }}</native:text>
+                    <native:text font="mono" class="flex-1 text-xs {{ $conversation->ahead > 0 ? 'text-theme-ink' : 'text-theme-ink-muted' }}" :max-lines="1">@include('native.partials.wordmark-text', ['text' => $preview])</native:text>
                 @else
-                    <native:text class="flex-1 text-sm {{ $conversation->ahead > 0 ? 'text-theme-ink' : 'text-theme-ink-muted' }}" :max-lines="1">{{ $preview }}</native:text>
+                    <native:text class="flex-1 text-sm {{ $conversation->ahead > 0 ? 'text-theme-ink' : 'text-theme-ink-muted' }}" :max-lines="1">@include('native.partials.wordmark-text', ['text' => $preview])</native:text>
                 @endif
             </native:row>
         </native:column>

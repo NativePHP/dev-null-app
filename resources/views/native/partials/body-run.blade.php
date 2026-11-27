@@ -24,7 +24,7 @@
 @elseif ($run->isHashtag && ! ($static ?? false))
 <native:text :text="$run->text" font="medium" class="{{ $pieceClasses }} font-medium text-theme-primary" @press="openHashtag('{{ $run->text }}')" />
 @elseif ($run->isWordmark)
-<native:text font="semibold" class="{{ $pieceClasses }} {{ $pieceInk }} font-semibold {{ $pieceClasses === '' ? 'tracking-tight' : '' }}">@if ($afterSpace)&#x200B;@endif/&#x2060;dev<native:text text="/" class="text-outline text-theme-lane-0" />&#x2060;null</native:text>
+@include('native.partials.wordmark', ['classes' => $pieceClasses.' '.$pieceInk, 'tight' => $pieceClasses === ''])
 @else
 <native:text :text="$run->text" class="{{ $pieceClasses }} {{ $pieceInk }}" />
 @endif

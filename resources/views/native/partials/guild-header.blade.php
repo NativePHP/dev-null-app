@@ -42,7 +42,7 @@
         </native:column>
 
         @if ($guild->description !== '')
-            <native:text ref="guild-description" class="w-full text-[15px] leading-relaxed text-theme-ink">{{ $guild->description }}</native:text>
+            <native:text ref="guild-description" class="w-full text-[15px] leading-relaxed text-theme-ink">@include('native.partials.wordmark-text', ['text' => $guild->description])</native:text>
         @endif
 
         <native:text ref="guild-how-to-post" class="w-full text-sm text-theme-ink-muted">{{ $guild->isPaused ? 'This guild is paused until it has a moderator. Its board and members are preserved.' : 'Include '.$guild->hashtag().' in any commit to post here.' }}</native:text>

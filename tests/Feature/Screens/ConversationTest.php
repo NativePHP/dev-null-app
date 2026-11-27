@@ -770,6 +770,20 @@ it('links a guild hashtag in a message to its guild by name', function () {
     $screen->press("openGuild('android')")->assertNavigatedTo('/remotes/guilds/android');
 });
 
+it('draws /dev/null in a message as the wordmark', function () {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => 'try the /dev/null app, not dev/null']),
+    ], ['read_through_id' => 1]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+
+    expect(paragraphRuns($screen, 'try the'))->toBe([
+        ['try the '],
+        ['/dev/null', 'wordmark'],
+        [' app, not dev/null'],
+    ]);
+});
+
 it('opens no link preview that is not a web page', function () {
     serveRemoteThread(threadJson([
         remoteMessageJson(['id' => 1, 'body' => 'Tap me', 'link_preview' => ['url' => 'javascript:alert(1)', 'title' => 'Tap me']]),

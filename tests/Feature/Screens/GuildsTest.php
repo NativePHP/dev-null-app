@@ -79,6 +79,12 @@ it('lists guilds biggest first with the web wording', function (string $platform
         ->and(nodeByRef($screen, 'guild-search-field')['props']['placeholder'])->toBe('Search guilds');
 })->with(['ios', 'android']);
 
+it("draws /dev/null in a guild's description as the wordmark", function () {
+    serveGuilds(['' => guildsPage([guildJson(['handle' => 'go', 'name' => 'Go', 'description' => 'Gophers on /dev/null'])])]);
+
+    expect(paragraphRuns(finishRefreshes(Native::visit('/profile/guilds')), 'Gophers'))->toBe([['Gophers on '], ['/dev/null', 'wordmark']]);
+});
+
 it('opens a tapped guild in the tab it was tapped in', function () {
     serveGuilds(['' => guildsPage([guildJson(['handle' => 'rust'])])]);
 

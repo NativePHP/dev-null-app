@@ -11,6 +11,7 @@
     the guild's lane colour (see Guild::lane), which could match the colour of your own bubble.
     $maxLines caps the body to the first block at that many lines, for the pinned sheet's preview, so its links work
     before Show more.
+    A standalone /dev/null is the wordmark, in the bubble's ink (see partials/wordmark).
 --}}
 @php($linkInk ??= $mentionInk)
 @php($linkPrefixInk ??= 'text-theme-ink-muted')
@@ -40,6 +41,8 @@
 <native:text :text="$run->guild->name" font="mono-medium" class="text-[13px] {{ $mentionInk }}" @press="openGuild('{{ $run->guild->handle }}')" />
 @elseif ($run->isHashtag)
 <native:text :text="$run->text" font="medium" class="font-medium {{ $mentionInk }}" @press="openHashtag('{{ $run->text }}')" />
+@elseif ($run->isWordmark)
+@include('native.partials.wordmark', ['afterSpace' => $loop->index > 0 && ctype_space(substr($block->runs[$loop->index - 1]->text, -1))])
 @else
 <native:text :text="$run->text" />
 @endif
