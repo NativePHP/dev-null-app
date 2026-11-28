@@ -1,6 +1,7 @@
 {{--
     A guild in the directory, as the web's card shows it: its uploaded icon, or its emoji (see guild-mark). One
-    you've joined has a mark at the end of its row, apart from anything about moderating it, which doesn't need joining.
+    you've joined says so after its member count, apart from anything about moderating it, which doesn't need joining.
+    It sits on that line rather than at the end of the row so the description keeps the row's full width.
 
     Tapped, it opens the guild's screen (see OpensGuilds).
 --}}
@@ -15,12 +16,11 @@
         @if ($guild->description !== '')
             <native:text class="w-full text-sm text-theme-ink" :max-lines="2">{{ $guild->description }}</native:text>
         @endif
-        <native:text class="text-[13px] text-theme-ink-muted">{{ $members }}</native:text>
-    </native:column>
-    {{-- Kept on every row, so a description wraps in the same place whether you've joined or not. --}}
-    <native:column class="w-[18] self-center">
-        @if ($guild->isJoined)
-            <native:icon ref="guild-joined-{{ $guild->handle }}" :ios="\App\Icons\Lucide::UserCheck->ios()" :android="\App\Icons\Lucide::UserCheck->android()" :size="18" class="text-theme-ink-muted" />
-        @endif
+        <native:row ref="guild-members-{{ $guild->handle }}" class="w-full flex-wrap gap-1 items-center">
+            <native:text class="text-[13px] text-theme-ink-muted">{{ $members }}</native:text>
+            @if ($guild->isJoined)
+                <native:text ref="guild-joined-{{ $guild->handle }}" class="text-[13px] text-theme-ink-muted">· Joined</native:text>
+            @endif
+        </native:row>
     </native:column>
 </native:pressable>

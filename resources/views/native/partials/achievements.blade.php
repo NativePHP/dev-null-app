@@ -3,17 +3,19 @@
     are unlocked, a bar of the way to the next rank in the owner's lane, and the badges. An unlocked badge is a hairline
     chip in ink; a locked one is muted, with its progress when it takes more than one step.
 
-    Like the web's compact shelf, only earned badges show here. Native rows don't wrap on iOS, so two fit beside
+    Like the web's compact shelf, only earned badges show here. Only two fit beside
     the count of the rest; every badge, locked or earned, is in the sheet (see achievements-sheet). Tapping an earned
     badge opens it marked. The empty shelf offers View achievements.
 --}}
 <native:column ref="achievements" class="w-full py-3 gap-[10] bg-theme-surface" a11y-label="Developer achievements">
     <native:pressable ref="achievements-open" @press="openAchievements" class="w-full" a11y-label="{{ $achievements->label() }}, {{ $achievements->xp }} XP, {{ $achievements->unlockedCount() }} of {{ count($achievements->badges) }} badges unlocked" a11y-hint="Shows the achievements">
         <native:column class="w-full px-4 gap-[10]">
-            <native:row class="w-full gap-2 items-center">
-                <native:icon :ios="\App\Icons\Lucide::Award->ios()" :android="\App\Icons\Lucide::Award->android()" :size="16" class="text-theme-ink" />
-                <native:text font="mono-medium" class="text-[13px] text-theme-ink flex-shrink" :max-lines="1">{{ $achievements->label() }}</native:text>
-                <native:spacer />
+            {{-- At large text sizes the unlocked count moves under the rank rather than being cut off. --}}
+            <native:row class="w-full flex-wrap gap-2 items-center justify-between">
+                <native:row class="gap-2 items-center flex-shrink">
+                    <native:icon :ios="\App\Icons\Lucide::Award->ios()" :android="\App\Icons\Lucide::Award->android()" :size="16" class="text-theme-ink" />
+                    <native:text font="mono-medium" class="text-[13px] text-theme-ink flex-shrink" :max-lines="1">{{ $achievements->label() }}</native:text>
+                </native:row>
                 <native:row class="gap-1 items-center">
                     <native:text ref="badges-unlocked" font="mono" class="text-xs text-theme-ink-muted" :max-lines="1">{{ $achievements->unlockedCount() }} / {{ count($achievements->badges) }} unlocked</native:text>
                     <native:icon :ios="\App\Icons\Lucide::ChevronRight->ios()" :android="\App\Icons\Lucide::ChevronRight->android()" :size="14" class="text-theme-ink-muted" />
@@ -21,9 +23,8 @@
             </native:row>
 
             <native:column class="w-full gap-1">
-                <native:row class="w-full items-center">
+                <native:row class="w-full flex-wrap gap-2 items-center justify-between">
                     <native:text ref="xp" font="mono" class="text-[11px] text-theme-ink-muted">{{ $achievements->xpLabel() }}</native:text>
-                    <native:spacer />
                     <native:text ref="next-rank" font="mono" class="text-[11px] text-theme-ink-muted">{{ $achievements->nextRankLabel() }}</native:text>
                 </native:row>
                 @include('native.partials.progress-bar', ['ref' => 'level-progress', 'percent' => $achievements->levelProgress, 'fill' => 'bg-theme-'.\App\Devnull\Lane::token($lane), 'label' => "{$achievements->levelProgress}% of the way to the next rank"])
