@@ -36,7 +36,7 @@ use Native\Mobile\Facades\Share;
 
 /**
  * A guild's page, as the web shows it at "/guilds/{handle}": its icon or
- * emoji beside Commit and Join or Leave, its name, "#handle · Public guild ·
+ * emoji beside Join or Leave, its name, "#handle · Public guild ·
  * N members" (the count opens its members), what it's about and how to post
  * there, then its bulletin board, the commits posted in it or tagged with its
  * hashtag, newest first, with the one its moderator pinned on top.
@@ -48,7 +48,7 @@ use Native\Mobile\Facades\Share;
  * so a page loaded later can repeat a commit already showing: those go once,
  * as does the pinned commit, which devnull also sends in its place.
  *
- * The header's Commit posts to the board, as the web's guild page does,
+ * New commit in the nav bar posts to the board, as the web's guild page does,
  * from the compose sheet (see OpensCommitSheet::composeInGuildSheet()), while
  * the guild isn't paused. The commit shows on top of the board, staged, until
  * devnull has it, as a new commit does on the Log. If devnull turns it down,
@@ -157,14 +157,30 @@ class Guild extends NativeComponent
     }
 
     /**
-     * ⋯, as on someone else's profile: Share guild, then Mute or Unmute while
-     * you haven't joined, as the web hides Mute once you join. Commit and Join
-     * are in the header, as Remote and Follow are on a profile, and so is the
-     * moderator's Edit. The moderator gets no Report.
+     * New commit, as the Log has it, while the guild takes posts. Then ⋯, as
+     * on someone else's profile: Share guild, then Mute or Unmute while you
+     * haven't joined, as the web hides Mute once you join. Join is in the
+     * header, as Follow is on a profile, and so is the moderator's Edit. The
+     * moderator gets no Report.
+     *
+     * A guild always opens over the whole tab, never in an iOS workspace's
+     * column (see Workspace::paneFor()), so New commit takes Lucide's pencil on
+     * both platforms, as the Log's does outside a workspace.
      */
     public function navigationOptions(): ?NavBarOptions
     {
         $hashtag = '#'.($this->guild->handle ?? $this->handle());
+        $options = NavBarOptions::make();
+
+        if ($this->takesPosts()) {
+            $options->action(
+                NavAction::make('compose')
+                    ->icon(ios: Lucide::SquarePen->ios(), android: Lucide::SquarePen->android())
+                    ->a11yLabel("New commit in {$hashtag}")
+                    ->press('composeForGuild'),
+            );
+        }
+
         $items = [
             NavAction::make('share')
                 ->label('Share guild')
@@ -188,7 +204,7 @@ class Guild extends NativeComponent
                 ->press('reportGuild');
         }
 
-        return NavBarOptions::make()->action(
+        return $options->action(
             NavAction::make('more')
                 ->icon(ios: Lucide::Ellipsis->ios(), android: Lucide::Ellipsis->android())
                 ->a11yLabel("More options for {$hashtag}")
@@ -334,7 +350,7 @@ class Guild extends NativeComponent
     }
 
     /**
-     * The header's Commit: the sheet, for a commit on this guild's board.
+     * The bar's New commit: the sheet, for a commit on this guild's board.
      */
     public function composeForGuild(): void
     {
@@ -526,7 +542,7 @@ class Guild extends NativeComponent
     }
 
     /**
-     * The header's Commit is this page's, so a post to this board devnull turned down opens here again.
+     * The bar's New commit is this page's, so a post to this board devnull turned down opens here again.
      */
     protected function opensComposer(): bool
     {

@@ -1,6 +1,7 @@
 <?php
 
 use App\Devnull\Account;
+use App\Devnull\Lane;
 use App\NativeComponents\Guild;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
@@ -164,6 +165,30 @@ it('puts Join back when devnull refuses', function () {
         ->and(guildMeta($screen))->toBe('#rust · Public guild · 3 members')
         ->and(kept('guilds/rust')['guild']['is_joined'])->toBeFalse();
 });
+
+it('draws Join in your colour on glass on iOS, and Leave on clear glass, both 40pt pills as on a profile', function (string $platform, bool $glass) {
+    fakeApi([
+        'GET /api/v1/guilds/rust' => [boardOf(['c1'])],
+        'POST /api/v1/guilds/rust/membership' => [null, 204],
+    ]);
+
+    $screen = finishRefreshes(Native::visit('/log/guilds/rust', platform: $platform));
+    $pill = nodeByRef($screen, 'guild-join-pill');
+    $mine = config('native-ui.theme.light.'.Lane::token(app(Account::class)->user()?->lane()));
+
+    expect((float) $pill['layout']['height'])->toBe(40.0)
+        ->and($pill['style']['bg_color'] ?? null)->toBe($mine)
+        ->and(($pill['props']['glass'] ?? 0) !== 0)->toBe($glass)
+        ->and(nodeByRef($screen, 'guild-join')['props'])->toMatchArray(['a11y_label' => 'Join', 'a11y_hint' => 'Joins #rust']);
+
+    $pill = nodeByRef($screen->tap('guild-join'), 'guild-join-pill');
+
+    expect(treeShows($pill, 'Leave'))->toBeTrue()
+        ->and((float) $pill['layout']['height'])->toBe(40.0)
+        ->and(($pill['props']['glass'] ?? 0) !== 0)->toBe($glass)
+        ->and($pill['style']['bg_color'] ?? null)->toBe($glass ? null : config('native-ui.theme.light.surface-variant'))
+        ->and(nodeByRef($screen, 'guild-join')['props'])->toMatchArray(['a11y_label' => 'Leave', 'a11y_hint' => 'Leaves #rust']);
+})->with(['iOS' => ['ios', true], 'Android' => ['android', false]]);
 
 it('offers Join on a paused guild', function () {
     fakeApi(['GET /api/v1/guilds/rust' => [boardOf(['c1'], overrides: ['guild' => guildJson(['is_paused' => true])])]]);
