@@ -13,7 +13,7 @@
         <native:text font="semibold" class="w-full text-[15px] text-theme-ink" :max-lines="1">{{ $guild->name }}</native:text>
         <native:text font="mono" class="w-full text-[13px] text-theme-ink-muted" :max-lines="1">{{ $guild->hashtag() }}</native:text>
         @if ($guild->description !== '')
-            <native:text class="w-full text-sm text-theme-ink" :max-lines="2">{{ $guild->description }}</native:text>
+            <native:text class="w-full text-sm text-theme-ink" :max-lines="2">@include('native.partials.wordmark-text', ['text' => $guild->description])</native:text>
         @endif
         <native:text class="text-[13px] text-theme-ink-muted">{{ $members }}</native:text>
     </native:column>

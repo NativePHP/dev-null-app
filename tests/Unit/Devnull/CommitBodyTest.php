@@ -503,3 +503,13 @@ it('keeps Windows line breaks inside a quote and drops the one before the next b
 it('quotes a line that is only the marker', function () {
     expect(quotesOf(CommitBody::blocks('>', null)))->toBe([['quote', '']]);
 });
+
+it('splits plain text around each standalone /dev/null and leaves code as written, as the web does', function (string $text, array $runs) {
+    expect(array_map(fn (BodyRun $run): array => [$run->text, $run->isWordmark], CommitBody::wordmarkRuns($text)))->toBe($runs);
+})->with([
+    ['Welcome to /dev/null.', [['Welcome to ', false], ['/dev/null', true], ['.', false]]],
+    ['/dev/null and /dev/null', [['/dev/null', true], [' and ', false], ['/dev/null', true]]],
+    ['run `cat /dev/null` on /dev/null', [['run ', false], ['`cat /dev/null`', false], [' on ', false], ['/dev/null', true]]],
+    ['dev/null, /dev/nullish and ./dev/null', [['dev/null, /dev/nullish and ./dev/null', false]]],
+    ['', []],
+]);
