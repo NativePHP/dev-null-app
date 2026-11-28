@@ -52,6 +52,7 @@
         "nativephp/mobile-firebase": "^1.1",
         "nativephp/mobile-media-player": "^1.1",
         "nativephp/mobile-microphone": "^1.2",
+        "nativephp/mobile-ota": "^1.0.2",
         "nativephp/mobile-secure-storage": "^1.1",
         "nativephp/mobile-share": "^1.1",
         "nativephp/mobile-skia": "^1.0",

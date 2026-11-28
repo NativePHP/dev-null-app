@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "eca2b9e1fd10e2200de3f982c65992d3",
+    "content-hash": "9891cbca9bc7dc4cfc23eca296f9195a",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -3299,6 +3299,62 @@
             },
             "time": "2026-10-29T09:22:03+00:00",
             "published-time": "2026-10-29T09:22:40+00:00"
+        },
+        {
+            "name": "nativephp/mobile-ota",
+            "version": "1.0.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/NativePHP/mobile-ota.git",
+                "reference": "fbb3fd9e78d376219e6d61cf2db28f05ffcc7080"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/NativePHP/mobile-ota/zipball/fbb3fd9e78d376219e6d61cf2db28f05ffcc7080",
+                "reference": "fbb3fd9e78d376219e6d61cf2db28f05ffcc7080",
+                "shasum": ""
+            },
+            "require": {
+                "nativephp/mobile": "^3.3.11 || ^4.6.1",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^10.0",
+                "pestphp/pest": "^2.7|^3.0|^4.0"
+            },
+            "type": "nativephp-plugin",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Nativephp\\MobileOta\\OtaServiceProvider"
+                    ]
+                },
+                "nativephp": {
+                    "manifest": "nativephp.json"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Nativephp\\MobileOta\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Bifrost Technology, LLC",
+                    "email": "support@nativephp.com"
+                }
+            ],
+            "description": "Over-the-air PHP payload updates for NativePHP Mobile",
+            "support": {
+                "issues": "https://github.com/NativePHP/mobile-ota/issues",
+                "source": "https://github.com/NativePHP/mobile-ota/tree/1.0.2"
+            },
+            "time": "2026-11-28T10:50:18+00:00",
+            "published-time": "2026-11-28T10:50:31+00:00"
         },
         {
             "name": "nativephp/mobile-secure-storage",
