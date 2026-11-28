@@ -74,7 +74,7 @@ it('shows the thread with your messages on the right and theirs on the left, tit
         ->and(nodeByRef($screen, 'thread')['props']['scroll_anchor'] ?? null)->toBe('bottom');
 });
 
-it('draws quotes in messages behind a rule, amber in theirs and in the label colour in yours', function () {
+it('draws quotes in messages behind an amber rule, in theirs and in yours', function () {
     serveRemoteThread(threadJson([
         remoteMessageJson(['id' => 1, 'body' => "> did you see the PR?\nnot yet"]),
         remoteMessageJson(['id' => 2, 'user_id' => RemotesViewerId, 'body' => "> not yet\nlooking now"]),
@@ -87,8 +87,50 @@ it('draws quotes in messages behind a rule, amber in theirs and in the label col
     $rule = fn (string $ref): ?string => findNode(nodeByRef($screen, $ref), fn (array $node): bool => (float) ($node['props']['border_l'] ?? 0) === 2.0)['style']['border_color'] ?? null;
 
     expect(strtolower((string) $rule('bubble-1')))->toBe(strtolower((string) theme('lane-5')))
-        ->and(strtolower((string) $rule('bubble-2')))->not->toBe(strtolower((string) theme('lane-5')))
-        ->and($rule('bubble-2'))->not->toBeNull();
+        ->and(strtolower((string) $rule('bubble-2')))->toBe(strtolower((string) theme('lane-5')));
+});
+
+it('tightens the corners where a run of bubbles from the same person meet, on their side', function () {
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => 'first']),
+        remoteMessageJson(['id' => 2, 'body' => 'second']),
+        remoteMessageJson(['id' => 3, 'body' => 'third']),
+        remoteMessageJson(['id' => 4, 'user_id' => RemotesViewerId, 'body' => 'only mine']),
+    ]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+    $corners = function (string $ref) use ($screen): array {
+        $props = findNode(nodeByRef($screen, $ref), fn (array $node): bool => isset($node['style']['bg_color']))['props'] ?? [];
+
+        return array_map(fn (string $corner): ?float => isset($props[$corner]) ? (float) $props[$corner] : null, ['tl' => 'radius_tl', 'tr' => 'radius_tr', 'br' => 'radius_br', 'bl' => 'radius_bl']);
+    };
+
+    expect($corners('bubble-1'))->toBe(['tl' => 16.0, 'tr' => 16.0, 'br' => 16.0, 'bl' => 4.0])
+        ->and($corners('bubble-2'))->toBe(['tl' => 4.0, 'tr' => 16.0, 'br' => 16.0, 'bl' => 4.0])
+        ->and($corners('bubble-3'))->toBe(['tl' => 4.0, 'tr' => 16.0, 'br' => 16.0, 'bl' => 16.0])
+        ->and($corners('bubble-4'))->toBe(['tl' => null, 'tr' => null, 'br' => null, 'bl' => null]);
+});
+
+it('tightens the corners where images meet the bubbles and images around them from the same person', function () {
+    $photo = fn (int $id): array => ['id' => $id, 'width' => 400, 'height' => 300, 'description' => null, 'url' => "http://devnull.test/i/{$id}.png"];
+
+    serveRemoteThread(threadJson([
+        remoteMessageJson(['id' => 1, 'body' => '', 'images' => [$photo(7), $photo(8)]]),
+        remoteMessageJson(['id' => 2, 'body' => 'the view from here', 'images' => [$photo(9)]]),
+    ]));
+
+    $screen = finishRefreshes(Native::visit('/remotes/conversations/ada'));
+    $corners = function (array $node): array {
+        $props = $node['props'] ?? [];
+
+        return array_map(fn (string $corner): ?float => isset($props[$corner]) ? (float) $props[$corner] : null, ['tl' => 'radius_tl', 'bl' => 'radius_bl']);
+    };
+    $bubble = findNode(nodeByRef($screen, 'bubble-2'), fn (array $node): bool => isset($node['style']['bg_color']));
+
+    expect($corners(nodeByRef($screen, 'image-1-0')))->toBe(['tl' => 12.0, 'bl' => 4.0])
+        ->and($corners(nodeByRef($screen, 'image-1-1')))->toBe(['tl' => 4.0, 'bl' => 4.0])
+        ->and($corners(nodeByRef($screen, 'image-2-0')))->toBe(['tl' => 4.0, 'bl' => 4.0])
+        ->and($corners($bubble))->toBe(['tl' => 4.0, 'bl' => 16.0]);
 });
 
 it('marks HEAD where you left off, and pulls what is showing', function () {

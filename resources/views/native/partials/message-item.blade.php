@@ -1,6 +1,6 @@
 {{--
-    One message in a thread, as the web draws it: yours on the right in your lane, everyone else's on the left on
-    the wash. In an org, a run of someone else's messages starts with their avatar and name, a tap on which opens their profile. Above the bubble, the
+    One message in a thread: every bubble on the wash, edged in its sender's colour, yours on the right and everyone
+    else's on the left. In an org, a run of someone else's messages starts with their avatar and name, a tap on which opens their profile. Above the bubble, the
     ghost of the message it replies to; beside it its images and link card; under it its reactions, one chip per
     emoji, yours outlined in your lane and a tap to take it back or add yours. A run ends in the time, or for the
     message the web gives a status, in that status.
@@ -20,18 +20,22 @@
 --}}
 @php($key = $message->id > 0 ? $message->id : $message->clientId)
 @php($laneToken = \App\Devnull\Lane::token(($author ?? null)?->lane()))
+@php($bubble = 'bg-theme-wash border border-theme-'.($mine ? $myColour : $laneToken))
+@php($tighten = fn (bool $above, bool $below): string => ($above ? 'rounded-t'.($mine ? 'r' : 'l').'-[4] ' : '').($below ? 'rounded-b'.($mine ? 'r' : 'l').'-[4]' : ''))
 @php($replyAuthor = $message->replyTo === null ? null : ($message->replyTo['user_id'] === $viewer?->id ? 'You' : ($authors[$message->replyTo['user_id']]->name ?? 'Someone')))
 @php($replyLane = $message->replyTo === null ? 'primary' : \App\Devnull\Lane::token(($authors[$message->replyTo['user_id']] ?? null)?->lane()))
 @php($replyable = ($canPush ?? false) && ! $message->isPending())
 @php($pull = \App\NativeComponents\Conversation::ReplyPull)
 @php($swipeHint = $replyable ? ($mine ? 'Swipe right to reply' : 'Swipe left to reply') : '')
 @php($reactionsAnchor = 'absolute top-0 bottom-0 w-[44] '.($mine ? 'right-0' : 'left-0'))
+@php($hasChips = $message->reactionChips($viewer?->id) !== [])
+@php($chipsHang = $hasChips && ! $endsRun && $status === null)
 <native:row native:key="message-{{ $key }}" ref="message-{{ $key }}" class="w-full px-3 {{ $startsRun ? 'pt-3' : 'pt-[3]' }}">
     @if ($replyable)
         <native:gesture-area ref="swipe-{{ $key }}" :pan-x="$pan" :trigger-x="$mine ? $pull : -$pull" @trigger="reply({{ $message->id }})" class="flex-1">
     @endif
     {{-- A set width, not a max: a column that only hugs its bubble measures the text on one line and clips it. --}}
-    <native:column ref="pulled-{{ $key }}" class="{{ $replyable ? 'w-full' : 'flex-1' }} gap-1 {{ $mine ? 'items-end' : 'items-start' }}" :translate-x="! $replyable ? 0 : ($slide >= $pull ? $pan : ($mine ? $pan->clamp(0, $slide) : $pan->clamp(-$slide, 0)))">
+    <native:column ref="pulled-{{ $key }}" class="{{ $replyable ? 'w-full' : 'flex-1' }} gap-1 {{ $mine ? 'items-end' : 'items-start' }} {{ $chipsHang ? 'pb-[10]' : '' }}" :translate-x="! $replyable ? 0 : ($slide >= $pull ? $pan : ($mine ? $pan->clamp(0, $slide) : $pan->clamp(-$slide, 0)))">
         @if ($isOrg && ! $mine && $startsRun && $author)
             <native:pressable ref="author-{{ $key }}" @press="openProfile('{{ $author->username }}')" a11y-label="{{ $author->name }}'s profile">
                 <native:row class="gap-[6] items-center px-1">
@@ -84,14 +88,14 @@
                     @endif
                     @if ($message->isPending())
                         <native:pressable ref="bubble-{{ $key }}" class="flex-shrink" :context-menu="$menu">
-                            <native:column class="px-3 py-2 rounded-2xl {{ $message->status === 'rejected' ? 'border border-theme-destructive bg-theme-surface' : 'bg-theme-'.$myColour.'/60' }}">
-                                @include('native.partials.message-body', ['ink' => $message->status === 'rejected' ? 'text-theme-ink' : 'text-theme-on-'.$myColour, 'mentionInk' => 'text-theme-on-'.$myColour, 'quoteRule' => $message->status === 'rejected' ? 'border-theme-lane-5' : 'border-theme-on-'.$myColour, 'linkPrefixInk' => $message->status === 'rejected' ? 'text-theme-ink-muted' : 'text-theme-on-'.$myColour.'/70'])
+                            <native:column class="px-3 {{ $hasChips ? 'pt-2 pb-[18]' : 'py-2' }} rounded-2xl {{ $tighten(! $startsRun || $message->images !== [] || $message->voice !== null, ! $endsRun) }} {{ $message->status === 'rejected' ? 'border border-theme-destructive bg-theme-surface' : $bubble.'/60' }}">
+                                @include('native.partials.message-body', ['ink' => 'text-theme-ink', 'mentionInk' => 'text-theme-primary', 'quoteRule' => 'border-theme-lane-5'])
                             </native:column>
                         </native:pressable>
                     @else
                         <native:pressable ref="bubble-{{ $key }}" class="flex-shrink" @doubleTap="heart({{ $message->id }})" :context-menu="$menu" a11y-hint="{{ $swipeHint }}">
-                            <native:column class="px-3 py-2 rounded-2xl {{ $mine ? 'bg-theme-'.$myColour : 'bg-theme-wash' }}">
-                                @include('native.partials.message-body', ['ink' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-ink', 'mentionInk' => $mine ? 'text-theme-on-'.$myColour : 'text-theme-primary', 'quoteRule' => $mine ? 'border-theme-on-'.$myColour : 'border-theme-lane-5', 'linkPrefixInk' => $mine ? 'text-theme-on-'.$myColour.'/70' : 'text-theme-ink-muted'])
+                            <native:column class="px-3 {{ $hasChips ? 'pt-2 pb-[18]' : 'py-2' }} rounded-2xl {{ $tighten(! $startsRun || $message->images !== [] || $message->voice !== null, ! $endsRun) }} {{ $bubble }}">
+                                @include('native.partials.message-body', ['ink' => 'text-theme-ink', 'mentionInk' => 'text-theme-primary', 'quoteRule' => 'border-theme-lane-5'])
                             </native:column>
                         </native:pressable>
                     @endif
